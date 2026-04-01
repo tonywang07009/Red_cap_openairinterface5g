@@ -1249,6 +1249,8 @@ static nr_ptrs_config_t *get_ptrs_config(int gnb_idx)
   return ptrs;
 }
 
+/* Red cap */
+
 static nr_redcap_config_t *get_redcap_config(int gnb_idx)
 {
   paramdef_t RedCap_Params[] = GNB_REDCAP_PARAMS_DESC;
@@ -1367,24 +1369,50 @@ void nfapi_stop_l1()
   }
 }
 
+
+/* modfiy point */
 static void get_bwp_config(nr_mac_config_t *configuration, const NR_ServingCellConfigCommon_t *scc)
 {
+
   char path[MAX_OPTNAME_SIZE * 2 + 8];
+
   snprintf(path, sizeof(path), "%s.[%i]", GNB_CONFIG_STRING_GNB_LIST, 0);
   GET_PARAMS_LIST(BWPParamList, BWPParams, GNBBWPPARAMS_DESC, GNB_CONFIG_STRING_BWP_LIST, path, BWPPARAMS_CHECK);
   configuration->num_additional_bwps = BWPParamList.numelt;
-  AssertFatal(configuration->num_additional_bwps >= 0 && configuration->num_additional_bwps <= 4,
+
+  AssertFatal(configuration->num_additional_bwps >= 0 && 
+              configuration->num_additional_bwps <= 4,
               "Invalid number of additional BWPs %d\n",
               configuration->num_additional_bwps);
+
+
   int bw = scc->downlinkConfigCommon->frequencyInfoDL->scs_SpecificCarrierList.list.array[0]->carrierBandwidth;
-  for (int i = 0; i < configuration->num_additional_bwps; i++) {
+
+  for (int i = 0; i < configuration->num_additional_bwps; i++) 
+  {
     configuration->bwp_config[i].id = i + 1;
+
     int bwp_start = *BWPParamList.paramarray[i][GNB_BWP_START_IDX].iptr;
     AssertFatal(bwp_start >= 0 && bwp_start < bw, "Invalid BWP start value %d\n", bwp_start);
+
     int bwp_size = *BWPParamList.paramarray[i][GNB_BWP_SIZE_IDX].iptr;
-    AssertFatal(bwp_start + bwp_size <= bw, "BWP start %d and BWP size %d exceeds full BW %d\n", bwp_start, bwp_size, bw);
+
+    if()
+      if ( bwp_size > 51 ) // RedCap max 20Mhz = 51 PRB @ 30 kHZ 
+                          // mod 1
+      {
+
+            LOG_W(GNB_APP,
+          " BWP size %d exceeds RedCap max 51 PRBS \n", //exceeds == over range
+            bwp_size);
+      }
+
+    AssertFatal(bwp_start + bwp_size <= bw, "BWP start %d and BWP size %d exceeds full BW %d\n", 
+                bwp_start, bwp_size, bw);
+
     configuration->bwp_config[i].location_and_bw = PRBalloc_to_locationandbandwidth(bwp_size, bwp_start);
     configuration->bwp_config[i].scs = *BWPParamList.paramarray[i][GNB_BWP_SCS_IDX].iptr;
+
     LOG_I(GNB_APP,
           "BWP %d, start PRB %d size %d locationandbandwidth %d, scs %d\n",
           configuration->bwp_config[i].id,
@@ -1393,6 +1421,7 @@ static void get_bwp_config(nr_mac_config_t *configuration, const NR_ServingCellC
           configuration->bwp_config[i].location_and_bw,
           configuration->bwp_config[i].scs);
   }
+
 }
 
 void RCconfig_nr_macrlc(configmodule_interface_t *cfg)

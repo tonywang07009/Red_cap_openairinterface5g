@@ -202,7 +202,40 @@ typedef enum {
 {GNB_CONFIG_STRING_CONFIG_REP, GNB_CONFIG_HLP_CONFIG_REP, 0,          .strptr=NULL, .defstrval="ssb_rsrp",        TYPE_STRING,    0},  \
 {GNB_CONFIG_STRING_1ST_ACTIVE_BWP,               NULL,   0,            .iptr=NULL,  .defintval=0,                 TYPE_INT,       0},  \
 {GNB_CONFIG_STRING_LIMIT_RSRP_REPORT,            NULL,   0,            .iptr=NULL,  .defintval=0,                 TYPE_INT,       0},  \
+{GNB_CONFIG_STRING_MINRXTXTIME , "min RX/TX Time for Red cap" ,0,      .iptr=NULL , .defintval=4,                 TYPE_INT ,      0},  \
 }
+
+/* The note 
+
+  GNB_CONFIG_STRING_MINRXTXTIME -> ymal key value 
+  like gNBs:
+       - minrxtxtime 
+
+   min RX/TX Time for Red cap" -> for human readble desription
+
+   0 -> is special flag , the paramter have:
+      - 0 : Don do special thing
+      - PARAMFLAG_MANDATORY : nessary into the cloumn
+      - PARAMFLAG_NOFREE : don't auto relase pointer
+      
+  
+   .iptr =  for into the config paramter real menory address
+    that is co-work for gnb_config.c config_get()
+
+    .defintval=2 -> the mean is the UL DL total long
+
+    example ,  if arrange the UL , you need spec the less 2 slot long
+    The DL is same  ( ULUL Grand  DL DL)
+
+    HD- FDD recommed the long need extent the 4 slot,
+    (UL UL UL UL Grand DL DL DL DL)
+
+*/
+
+
+
+
+
 // clang-format on
 
 

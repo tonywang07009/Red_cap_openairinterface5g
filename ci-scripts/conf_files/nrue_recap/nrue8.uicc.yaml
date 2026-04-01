@@ -1,0 +1,42 @@
+uicc0:
+  imsi: 001010000000008
+  key: fec86ba6eb707ed08905757b1bb44b8f
+  opc: C42449363BBAD02B66D16BC975D77CC1
+  dnn: oai
+  # The for network sling
+  nssai_sst: 1
+  nssai_sd: 0xffffff
+
+
+
+cells:
+  ru_id: 0
+  band: 78
+  rf_freq: 3630360000
+  numerology: 1
+  N_RB_DL: 106
+  ssb_start: 144
+
+# thread-pool: "-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1"
+
+#/* configuration for channel modelisation */
+#/* To be included in main config file when */
+#/* channel modelisation is used (rfsimulator with chanmod options enabled) */
+channelmod:
+  max_chan: 10
+  modellist: modellist_rfsimu_1
+  modellist_rfsimu_1:
+    - model_name: rfsimu_channel_enB0
+      type: AWGN
+      ploss_dB: 20
+      noise_power_dB: -4
+      forgetfact: 0
+      offset: 0
+      ds_tdl: 0
+    - model_name: rfsimu_channel_ue0
+      type: AWGN
+      ploss_dB: 20
+      # noise_power_dB: -2
+      forgetfact: 0
+      offset: 0
+      ds_tdl: 0

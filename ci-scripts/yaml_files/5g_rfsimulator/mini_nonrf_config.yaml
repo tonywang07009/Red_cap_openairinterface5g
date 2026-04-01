@@ -111,14 +111,14 @@ amf:
   statistics_timer_interval: 20  # in seconds
   emergency_support: false
   served_guami_list:
-    - mcc: 208
-      mnc: 99
+    - mcc: 001
+      mnc: 01
       amf_region_id: 01
       amf_set_id: 001
       amf_pointer: 01
   plmn_support_list:
-    - mcc: 208
-      mnc: 99
+    - mcc: 001
+      mnc: 01
       tac: 0x0001
       nssai:
         - *embb_slice1
