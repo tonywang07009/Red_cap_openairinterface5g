@@ -1,9 +1,27 @@
-uicc28:
-  imsi: 00101000000029
+uicc0:
+  imsi: 001010000000029
   key: fec86ba6eb707ed08905757b1bb44b8f
   opc: C42449363BBAD02B66D16BC975D77CC1
   dnn: oai
+  # The for network sling
   nssai_sst: 1
+  nssai_sd: 0xffffff
+
+nrue_recap:
+  enable: 1
+  band: 78
+  support_of_redcap_r17: 1
+  support_of_16drb_redcap_r17: 0
+  pdcp_drb_long_sn_redcap_r17: 0
+  rlc_am_drb_long_sn_redcap_r17: 0
+
+cells:
+  ru_id: 0
+  band: 78
+  rf_freq: 3630360000
+  numerology: 1
+  N_RB_DL: 106
+  ssb_start: 144
 
 thread-pool: "-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1"
 
@@ -24,7 +42,7 @@ channelmod:
     - model_name: rfsimu_channel_ue0
       type: AWGN
       ploss_dB: 20
-      noise_power_dB: -2
+      # noise_power_dB: -2
       forgetfact: 0
       offset: 0
       ds_tdl: 0

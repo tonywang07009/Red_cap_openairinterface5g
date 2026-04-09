@@ -1,0 +1,36 @@
+# RedCap Runtime Validation Summary
+
+## Scope
+- [Scenario]：`container_5g_flexric_rfsim_redcap.xml`
+- [HTML Report]：`/home/tonywang/OAI/Red_cap_openairinterface5g/ci-scripts/test_results.html`
+- [Artifacts Dir]：`/home/tonywang/OAI/Red_cap_openairinterface5g/cmake_targets/log/container_5g_flexric_rfsim_redcap.xml.d`
+- [Run Log]：`/home/tonywang/OAI/Red_cap_openairinterface5g/test_log/compiler_logs/redcap_runtime_host_2026-04-09_21-39-07.log`
+
+## Task Mapping
+- [Task Name]：[RedCap RFsim end-to-end validation]
+- [3GPP Spec Clause]：[TS 38.306 Clause 4.2.21.1] / [TS 38.331 Clause 5.2.2.4.2] / [TS 38.331 Clause 5.6.1.3]
+- [Prerequisite Tasks]：[Milestone 2 SIB1 support] / [Milestone 3 BWP & CORESET#0] / [build recovery]
+
+## Test Case Summary
+- [Attach UE1] `333331`：⚠ [missing in test_results.html]；artifacts=[none]
+- [Verify UE1 non-RedCap] `302001`：⚠ [missing in test_results.html]；artifacts=[none]
+- [Attach UE2 RedCap] `333332`：⚠ [missing in test_results.html]；artifacts=[none]
+- [Verify UE2 RedCap] `302002`：⚠ [missing in test_results.html]；artifacts=[none]
+- [Verify SIB1 RedCap initial DL BWP] `302003`：⚠ [missing in test_results.html]；artifacts=[none]
+- [Ping both UEs] `020005`：⚠ [missing in test_results.html]；artifacts=[none]
+- [Iperf DL 60 Mbps UDP on UE2] `030001`：⚠ [missing in test_results.html]；artifacts=[none]
+- [Iperf UL 20 Mbps UDP on UE2] `030002`：⚠ [missing in test_results.html]；artifacts=[none]
+
+## gNB Log Cross-Check
+- [gNB log]：未找到 `*-oai-gnb.logs`，無法交叉驗證 [302002] / [302003]。
+
+## Exit Criteria
+- [302003] 應為 [OK]，且 [gNB log] 內應出現 `SIB1 RedCap initial DL BWP`。
+- [302002] 應為 [OK]，且 [gNB log] 內應出現 `UE with RNTI .... is RedCap`。
+- [030001] / [030002] 應為 [OK]，並可在對應 `iperf_client_rfsim5g_ue2.log` 中看到 [Receiver Bitrate] 與 [Packet Loss]。
+- [020005] 應為 [OK]，並可在 `ping_rfsim5g_ue*.log` 中看到 [0% 或可接受門檻內] 的 [packet loss]。
+
+## Notes
+- [⚠ Needs Verification]：若 `test_results.html` 或 artifacts 缺失，通常代表 scenario 尚未完整跑完，或在 deploy 前即失敗。
+- 若要補完整學習報告，可直接引用這份摘要，再加上 [Technical Background] 與 [Practice Exercises]。
+

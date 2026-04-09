@@ -167,6 +167,7 @@ typedef struct ccparams_eMTC_s {
   char          *pusch_maxNumRepetitionCEmodeB_r13;
   char			*pusch_repetitionLevelCEmodeA_r13;
 } ccparams_eMTC_t;
+// The mmtc sturcture
 
 
 // clang-format off

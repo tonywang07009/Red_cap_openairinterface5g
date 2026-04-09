@@ -1818,6 +1818,7 @@ target_link_libraries(nr-softmodem PRIVATE
 
 target_link_libraries(nr-softmodem PRIVATE pthread m CONFIG_LIB rt)
 target_link_libraries(nr-softmodem PRIVATE ${T_LIB})
+target_link_libraries(nr-softmodem PRIVATE lib_nr_redcap_config)
 target_link_libraries(nr-softmodem PRIVATE asn1_nr_rrc_hdrs asn1_lte_rrc_hdrs)
 target_link_libraries(nr-softmodem PRIVATE asn1_nr_rrc_hdrs asn1_lte_rrc_hdrs)
 add_boolean_option(OAI_WLS OFF "Activate OAI's WLS driver" OFF)
@@ -1891,7 +1892,7 @@ target_link_libraries(nr-uesoftmodem PRIVATE
 
 target_link_libraries(nr-uesoftmodem PRIVATE pthread m CONFIG_LIB rt nr_ue_phy_meas)
 target_link_libraries(nr-uesoftmodem PRIVATE ${T_LIB})
-target_link_libraries(nr-uesoftmodem PRIVATE nr_nas lib_uicc usim_lib)
+target_link_libraries(nr-uesoftmodem PRIVATE nr_nas lib_uicc lib_nr_redcap_config usim_lib)
 target_link_libraries(nr-uesoftmodem PRIVATE asn1_nr_rrc_hdrs asn1_lte_rrc_hdrs)
 
 # force the generation of ASN.1 so that we don't need to wait during the build

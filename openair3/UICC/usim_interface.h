@@ -67,6 +67,18 @@ typedef struct {
   uint8_t milenage_res[8];
 } uicc_t;
 
+typedef struct {
+  int enabled;
+  int band;
+  int support_of_redcap_r17;
+  int support_of_16drb_redcap_r17;
+  int pdcp_drb_long_sn_redcap_r17;
+  int rlc_am_drb_long_sn_redcap_r17;
+  int number_of_rx_redcap_r17;
+  int half_duplex_fdd_type_a_redcap_r17;
+  
+} nr_redcap_cfg_t;
+
 /*
  * Read the configuration file, section name variable to be able to manage several UICC
  */
@@ -74,4 +86,5 @@ uicc_t *checkUicc(int Mod_id);
 uicc_t *init_uicc(char *sectionName);
 void uicc_milenage_generate(uint8_t * autn, uicc_t *uicc);
 uint8_t getImeisvDigit(const uicc_t *uicc, uint8_t i);
+bool load_nr_redcap_config(const char *sectionName, nr_redcap_cfg_t *cfg);
 #endif

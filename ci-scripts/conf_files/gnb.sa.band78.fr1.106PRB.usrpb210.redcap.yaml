@@ -148,9 +148,20 @@ gNBs:
 
         cellBarredRedCap1Rx_r17: 1 # The 1 RX ue can into this cell ? 1: yes 0 : no
         cellBarredRedCap2Rx_r17: 1 # The 2 Rx ue can into this cell?  1: yes 0 : no
+        halfDuplexRedCapAllowed_r17: 1
         intraFreqReselectionRedCap_r17: 0 # Premit the ue can do the cell reselection
                                           # in the same fequency
                                           # for move ue , need shark hand cell
+        redCapInitialBWP_r17:
+          initialDLBWPStart_r17: 0
+          initialDLBWPSize_r17: 51
+          initialDLBWPSubcarrierSpacing_r17: 1
+          initialDLBWPControlResourceSetZero_r17: 10
+          initialDLBWPSearchSpaceZero_r17: 0
+          initialULBWPStart_r17: 0
+          initialULBWPSize_r17: 51
+          initialULBWPSubcarrierSpacing_r17: 1
+          initialULPUCCH_ResourceCommonRedCap_r17: 0
 
     TIMERS:
       -

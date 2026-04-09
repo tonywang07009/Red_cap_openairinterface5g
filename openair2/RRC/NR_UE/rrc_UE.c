@@ -59,6 +59,7 @@
 #include "nr_pdcp/nr_pdcp_oai_api.h"
 #include "openair3/SECU/secu_defs.h"
 #include "openair3/SECU/key_nas_deriver.h"
+#include "openair3/UICC/usim_interface.h"
 
 #include "common/utils/LOG/log.h"
 #include "common/utils/LOG/vcd_signal_dumper.h"
@@ -73,6 +74,96 @@
 #include "openair2/SDAP/nr_sdap/nr_sdap_entity.h"
 
 static NR_UE_RRC_INST_t *NR_UE_rrc_inst[MAX_NUM_NR_UE_INST] = {0};
+
+static void set_optional_enum_supported(long **field)
+{
+  /* asn1c models "ENUMERATED { supported } OPTIONAL" as a nullable long.
+   * Allocating it and setting the value to 0 advertises the "supported" enum.
+   */
+  *field = CALLOC(1, sizeof(**field));
+  **field = 0;
+}
+
+static NR_UE_NR_Capability_t *build_nr_redcap_ue_capability(const nr_redcap_cfg_t *cfg)
+{
+  /* Build the smallest capability container that is still meaningful for
+   * the current gNB-side RedCap handling: supported band, Rel-17 release,
+   * RedCapParameters-r17, and the RedCap-specific PDCP/RLC long-SN flags.
+   */
+  AssertFatal(cfg != NULL, "cfg must not be NULL\n");
+  NR_UE_NR_Capability_t *cap = calloc_or_fail(1, sizeof(*cap));
+  cap->accessStratumRelease = NR_AccessStratumRelease_rel17;
+  cap->pdcp_Parameters.maxNumberROHC_ContextSessions = NR_PDCP_Parameters__maxNumberROHC_ContextSessions_cs2;
+
+  /* The band list is mandatory for a usable NR capability container. */
+  asn1cSequenceAdd(cap->rf_Parameters.supportedBandListNR.list, NR_BandNR_t, band);
+  band->bandNR = cfg->band;
+
+  if (cfg->pdcp_drb_long_sn_redcap_r17) {
+    asn1cCalloc(cap->pdcp_Parameters.ext2, ext2);
+    set_optional_enum_supported(&ext2->longSN_RedCap_r17);
+  }
+
+  if (cfg->rlc_am_drb_long_sn_redcap_r17) {
+    cap->rlc_Parameters = calloc_or_fail(1, sizeof(*cap->rlc_Parameters));
+    asn1cCalloc(cap->rlc_Parameters->ext2, ext2);
+    set_optional_enum_supported(&ext2->am_WithLongSN_RedCap_r17);
+  }
+
+  /* RedCapParameters-r17 sits deep in the nonCriticalExtension chain.
+   * We materialize only the path needed by the current gNB decoder.
+   */
+  asn1cCalloc(cap->nonCriticalExtension, v1530);
+  asn1cCalloc(v1530->nonCriticalExtension, v1540);
+  asn1cCalloc(v1540->nonCriticalExtension, v1550);
+  asn1cCalloc(v1550->nonCriticalExtension, v1560);
+  asn1cCalloc(v1560->nonCriticalExtension, v1570);
+  asn1cCalloc(v1570->nonCriticalExtension, v1610);
+  asn1cCalloc(v1610->nonCriticalExtension, v1640);
+  asn1cCalloc(v1640->nonCriticalExtension, v1650);
+  asn1cCalloc(v1650->nonCriticalExtension, v1690);
+  asn1cCalloc(v1690->nonCriticalExtension, v1700);
+  asn1cCalloc(v1700->redCapParameters_r17, redcap);
+
+  if (cfg->support_of_redcap_r17)
+    set_optional_enum_supported(&redcap->supportOfRedCap_r17);
+  if (cfg->support_of_16drb_redcap_r17)
+    set_optional_enum_supported(&redcap->supportOf16DRB_RedCap_r17);
+
+  return cap;
+}
+
+static bool nr_rrc_redcap_sib1_access_allowed(const nr_redcap_cfg_t *cfg, const NR_SIB1_v1700_IEs_t *sib1_v1700)
+{
+  if (cfg == NULL || !cfg->support_of_redcap_r17 || sib1_v1700 == NULL || sib1_v1700->redCap_ConfigCommon_r17 == NULL)
+    return true;
+
+  const NR_RedCap_ConfigCommonSIB_r17_t *redcap_sib = sib1_v1700->redCap_ConfigCommon_r17;
+  if (cfg->half_duplex_fdd_type_a_redcap_r17 && redcap_sib->halfDuplexRedCapAllowed_r17 == NULL) {
+    LOG_W(NR_RRC,
+          "RedCap UE is configured as half-duplex FDD Type A, but SIB1 omits halfDuplexRedCapAllowed-r17: treating cell as barred\n");
+    return false;
+  }
+
+  if (redcap_sib->cellBarredRedCap_r17 == NULL)
+    return true;
+
+  if (cfg->number_of_rx_redcap_r17 == 1
+      && redcap_sib->cellBarredRedCap_r17->cellBarredRedCap1Rx_r17
+             == NR_RedCap_ConfigCommonSIB_r17__cellBarredRedCap_r17__cellBarredRedCap1Rx_r17_barred) {
+    LOG_W(NR_RRC, "SIB1 bars 1Rx RedCap UEs on this cell\n");
+    return false;
+  }
+
+  if (cfg->number_of_rx_redcap_r17 == 2
+      && redcap_sib->cellBarredRedCap_r17->cellBarredRedCap2Rx_r17
+             == NR_RedCap_ConfigCommonSIB_r17__cellBarredRedCap_r17__cellBarredRedCap2Rx_r17_barred) {
+    LOG_W(NR_RRC, "SIB1 bars 2Rx RedCap UEs on this cell\n");
+    return false;
+  }
+
+  return true;
+}
 /* NAS Attach request with IMSI */
 static const char nr_nas_attach_req_imsi_dummy_NSA_case[] = {
     0x07,
@@ -519,11 +610,15 @@ static void nr_rrc_process_sib1(NR_UE_RRC_INST_t *rrc, NR_UE_RRC_SI_INFO *SI_inf
   // RRC storage of SIB1 timers and constants (eg needed in re-establishment)
   UPDATE_IE(rrc->timers_and_constants.sib1_TimersAndConstants, sib1->ue_TimersAndConstants, NR_UE_TimersAndConstants_t);
 
+  nr_redcap_cfg_t redcap_cfg = {0};
+  const bool redcap_access_allowed =
+      !load_nr_redcap_config(NULL, &redcap_cfg) || nr_rrc_redcap_sib1_access_allowed(&redcap_cfg, sib1_v1700);
+
   nr_mac_rrc_message_t rrc_msg = {0};
   rrc_msg.payload_type = NR_MAC_RRC_CONFIG_SIB1;
   nr_mac_rrc_config_sib1_t *config_sib1 = &rrc_msg.payload.config_sib1;
   config_sib1->sib1 = sib1;
-  config_sib1->can_start_ra = !rrc->is_NTN_UE;
+  config_sib1->can_start_ra = !rrc->is_NTN_UE && redcap_access_allowed;
   nr_rrc_send_msg_to_mac(rrc, &rrc_msg);
 }
 
@@ -1452,6 +1547,13 @@ void process_nsa_message(NR_UE_RRC_INST_t *rrc, nsa_message_t nsa_message_type, 
  */
 static bool verify_ue_cap(NR_UE_NR_Capability_t *UE_NR_Capability, int nb_antennas_tx)
 {
+  if (!UE_NR_Capability || !UE_NR_Capability->featureSets || !UE_NR_Capability->featureSets->featureSetsUplink
+      || UE_NR_Capability->featureSets->featureSetsUplink->list.count == 0
+      || !UE_NR_Capability->featureSets->featureSetsUplink->list.array[0]
+      || !UE_NR_Capability->featureSets->featureSetsUplink->list.array[0]->supportedSRS_Resources) {
+    LOG_W(NR_RRC, "Skipping UE capability antenna verification because featureSets/supportedSRS_Resources are absent\n");
+    return true;
+  }
   NR_FeatureSetUplink_t *ul_feature_setup = UE_NR_Capability->featureSets->featureSetsUplink->list.array[0];
   int srs_ant_ports = 1 << ul_feature_setup->supportedSRS_Resources->maxNumberSRS_Ports_PerResource;
   AssertFatal(srs_ant_ports <= nb_antennas_tx, "SRS antenna ports (%d) > nb_antennas_tx (%d)\n", srs_ant_ports, nb_antennas_tx);
@@ -1494,6 +1596,19 @@ NR_UE_RRC_INST_t* nr_rrc_init_ue(char* uecap_file, int instance_id, int num_ant_
     fclose(f);
     /* Verify consistency of num PHY antennas vs UE Capabilities */
     verify_ue_cap(rrc->UECap.UE_NR_Capability, num_ant_tx);
+  } else {
+    nr_redcap_cfg_t redcap_cfg = {0};
+    if (uecap_file)
+      LOG_W(NR_RRC, "UE capability file %s not found, trying nrue_recap YAML fallback\n", uecap_file);
+    /* Priority order:
+     * 1. explicit uecap_file
+     * 2. nrue_recap YAML-generated capability
+     * 3. legacy minimal capability built on first enquiry
+     */
+    if (load_nr_redcap_config(NULL, &redcap_cfg) && redcap_cfg.support_of_redcap_r17) {
+      rrc->UECap.UE_NR_Capability = build_nr_redcap_ue_capability(&redcap_cfg);
+      LOG_I(NR_RRC, "Built UE NR capability from nrue_recap YAML (band n%d)\n", redcap_cfg.band);
+    }
   }
 
   memset(&rrc->timers_and_constants, 0, sizeof(rrc->timers_and_constants));

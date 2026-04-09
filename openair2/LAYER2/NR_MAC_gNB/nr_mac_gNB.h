@@ -149,10 +149,25 @@ typedef struct nr_mac_timers {
   int t319;
 } nr_mac_timers_t;
 
+typedef struct nr_redcap_bwp_config {
+  bool configured;
+  int scs;
+  int bwp_start;
+  int bwp_size;
+  int location_and_bw;
+  int controlResourceSetZero;
+  int searchSpaceZero;
+  int pucch_ResourceCommonRedCap_r17;
+} nr_redcap_bwp_config_t;
+
 typedef struct nr_redcap_config {
   int8_t cellBarredRedCap1Rx_r17;
   int8_t cellBarredRedCap2Rx_r17;
   uint8_t intraFreqReselectionRedCap_r17;
+  bool has_halfDuplexRedCapAllowed_r17;
+  uint8_t halfDuplexRedCapAllowed_r17;
+  nr_redcap_bwp_config_t initial_dl_bwp;
+  nr_redcap_bwp_config_t initial_ul_bwp;
 } nr_redcap_config_t;
 
 typedef struct {

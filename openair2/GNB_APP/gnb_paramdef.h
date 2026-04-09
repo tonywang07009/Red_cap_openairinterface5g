@@ -202,40 +202,7 @@ typedef enum {
 {GNB_CONFIG_STRING_CONFIG_REP, GNB_CONFIG_HLP_CONFIG_REP, 0,          .strptr=NULL, .defstrval="ssb_rsrp",        TYPE_STRING,    0},  \
 {GNB_CONFIG_STRING_1ST_ACTIVE_BWP,               NULL,   0,            .iptr=NULL,  .defintval=0,                 TYPE_INT,       0},  \
 {GNB_CONFIG_STRING_LIMIT_RSRP_REPORT,            NULL,   0,            .iptr=NULL,  .defintval=0,                 TYPE_INT,       0},  \
-{GNB_CONFIG_STRING_MINRXTXTIME , "min RX/TX Time for Red cap" ,0,      .iptr=NULL , .defintval=4,                 TYPE_INT ,      0},  \
 }
-
-/* The note 
-
-  GNB_CONFIG_STRING_MINRXTXTIME -> ymal key value 
-  like gNBs:
-       - minrxtxtime 
-
-   min RX/TX Time for Red cap" -> for human readble desription
-
-   0 -> is special flag , the paramter have:
-      - 0 : Don do special thing
-      - PARAMFLAG_MANDATORY : nessary into the cloumn
-      - PARAMFLAG_NOFREE : don't auto relase pointer
-      
-  
-   .iptr =  for into the config paramter real menory address
-    that is co-work for gnb_config.c config_get()
-
-    .defintval=2 -> the mean is the UL DL total long
-
-    example ,  if arrange the UL , you need spec the less 2 slot long
-    The DL is same  ( ULUL Grand  DL DL)
-
-    HD- FDD recommed the long need extent the 4 slot,
-    (UL UL UL UL Grand DL DL DL DL)
-
-*/
-
-
-
-
-
 // clang-format on
 
 
@@ -567,21 +534,66 @@ typedef enum {
 #define GNB_CONFIG_HLP_STRING_CELL_BARRED_REDCAP1_RX_R17         "Value barred means that the cell is barred for a RedCap UE supporting 1 Rx branch\n"
 #define GNB_CONFIG_HLP_STRING_CELL_BARRED_REDCAP2_RX_R17         "Value barred means that the cell is barred for a RedCap UE supporting 2 Rx branches\n"
 #define GNB_CONFIG_HLP_STRING_INTRA_FREQ_RESELECTION_REDCAP_R17  "Controls cell selection/reselection to intra-frequency cells for RedCap UEs when this cell is barred\n"
+#define GNB_CONFIG_HLP_STRING_HALF_DUPLEX_REDCAP_ALLOWED_R17     "Present means that a half-duplex RedCap UE may access this cell\n"
+#define GNB_CONFIG_HLP_STRING_REDCAP_INITIAL_DL_BWP_START_R17    "RedCap initial DL BWP start PRB in SIB1 (TS 38.331 initialDownlinkBWP-RedCap-r17)\n"
+#define GNB_CONFIG_HLP_STRING_REDCAP_INITIAL_DL_BWP_SIZE_R17     "RedCap initial DL BWP size in PRBs in SIB1 (TS 38.331 initialDownlinkBWP-RedCap-r17)\n"
+#define GNB_CONFIG_HLP_STRING_REDCAP_INITIAL_DL_BWP_SCS_R17      "RedCap initial DL BWP subcarrier spacing in SIB1\n"
+#define GNB_CONFIG_HLP_STRING_REDCAP_INITIAL_DL_CORESET0_R17     "RedCap initial DL BWP controlResourceSetZero in SIB1; defaults to the common initial DL BWP value\n"
+#define GNB_CONFIG_HLP_STRING_REDCAP_INITIAL_DL_SS0_R17          "RedCap initial DL BWP searchSpaceZero in SIB1; defaults to the common initial DL BWP value\n"
+#define GNB_CONFIG_HLP_STRING_REDCAP_INITIAL_UL_BWP_START_R17    "RedCap initial UL BWP start PRB in SIB1 (TS 38.331 initialUplinkBWP-RedCap-r17)\n"
+#define GNB_CONFIG_HLP_STRING_REDCAP_INITIAL_UL_BWP_SIZE_R17     "RedCap initial UL BWP size in PRBs in SIB1 (TS 38.331 initialUplinkBWP-RedCap-r17)\n"
+#define GNB_CONFIG_HLP_STRING_REDCAP_INITIAL_UL_BWP_SCS_R17      "RedCap initial UL BWP subcarrier spacing in SIB1\n"
+#define GNB_CONFIG_HLP_STRING_REDCAP_INITIAL_UL_PUCCH_R17        "RedCap initial UL PUCCH resourceCommon value in SIB1; defaults to the common initial UL BWP value\n"
 
 #define GNB_CONFIG_STRING_REDCAP                            "RedCap"
 #define GNB_CONFIG_STRING_CELL_BARRED_REDCAP1_RX_R17        "cellBarredRedCap1Rx_r17"
 #define GNB_CONFIG_STRING_CELL_BARRED_REDCAP2_RX_R17        "cellBarredRedCap2Rx_r17"
 #define GNB_CONFIG_STRING_INTRA_FREQ_RESELECTION_REDCAP_R17 "intraFreqReselectionRedCap_r17"
+#define GNB_CONFIG_STRING_HALF_DUPLEX_REDCAP_ALLOWED_R17    "halfDuplexRedCapAllowed_r17"
+#define GNB_CONFIG_STRING_REDCAP_INITIAL_BWP_R17            "redCapInitialBWP_r17"
+#define GNB_CONFIG_STRING_REDCAP_INITIAL_DL_BWP_START_R17   "initialDLBWPStart_r17"
+#define GNB_CONFIG_STRING_REDCAP_INITIAL_DL_BWP_SIZE_R17    "initialDLBWPSize_r17"
+#define GNB_CONFIG_STRING_REDCAP_INITIAL_DL_BWP_SCS_R17     "initialDLBWPSubcarrierSpacing_r17"
+#define GNB_CONFIG_STRING_REDCAP_INITIAL_DL_CORESET0_R17    "initialDLBWPControlResourceSetZero_r17"
+#define GNB_CONFIG_STRING_REDCAP_INITIAL_DL_SS0_R17         "initialDLBWPSearchSpaceZero_r17"
+#define GNB_CONFIG_STRING_REDCAP_INITIAL_UL_BWP_START_R17   "initialULBWPStart_r17"
+#define GNB_CONFIG_STRING_REDCAP_INITIAL_UL_BWP_SIZE_R17    "initialULBWPSize_r17"
+#define GNB_CONFIG_STRING_REDCAP_INITIAL_UL_BWP_SCS_R17     "initialULBWPSubcarrierSpacing_r17"
+#define GNB_CONFIG_STRING_REDCAP_INITIAL_UL_PUCCH_R17       "initialULPUCCH_ResourceCommonRedCap_r17"
 
 #define GNB_REDCAP_PARAMS_DESC { \
 {GNB_CONFIG_STRING_CELL_BARRED_REDCAP1_RX_R17,        GNB_CONFIG_HLP_STRING_CELL_BARRED_REDCAP1_RX_R17,             0,        .i8ptr=NULL,     .defintval=-1,      TYPE_INT8,      0},\
 {GNB_CONFIG_STRING_CELL_BARRED_REDCAP2_RX_R17,        GNB_CONFIG_HLP_STRING_CELL_BARRED_REDCAP2_RX_R17,             0,        .i8ptr=NULL,     .defintval=-1,      TYPE_INT8,      0},\
 {GNB_CONFIG_STRING_INTRA_FREQ_RESELECTION_REDCAP_R17, GNB_CONFIG_HLP_STRING_INTRA_FREQ_RESELECTION_REDCAP_R17,      0,        .u8ptr=NULL,     .defuintval=0,      TYPE_UINT8,     0},\
+{GNB_CONFIG_STRING_HALF_DUPLEX_REDCAP_ALLOWED_R17,    GNB_CONFIG_HLP_STRING_HALF_DUPLEX_REDCAP_ALLOWED_R17,         0,        .i8ptr=NULL,     .defintval=-1,      TYPE_INT8,      0},\
 }
 
 #define GNB_REDCAP_CELL_BARRED_REDCAP1_RX_R17_IDX            0
 #define GNB_REDCAP_CELL_BARRED_REDCAP2_RX_R17_IDX            1
 #define GNB_REDCAP_INTRA_FREQ_RESELECTION_REDCAP_R17_IDX     2
+#define GNB_REDCAP_HALF_DUPLEX_REDCAP_ALLOWED_R17_IDX        3
+
+#define GNB_REDCAP_INITIAL_BWP_PARAMS_DESC { \
+{GNB_CONFIG_STRING_REDCAP_INITIAL_DL_BWP_START_R17, GNB_CONFIG_HLP_STRING_REDCAP_INITIAL_DL_BWP_START_R17, 0, .iptr=NULL, .defintval=-1, TYPE_INT, 0},\
+{GNB_CONFIG_STRING_REDCAP_INITIAL_DL_BWP_SIZE_R17, GNB_CONFIG_HLP_STRING_REDCAP_INITIAL_DL_BWP_SIZE_R17, 0, .iptr=NULL, .defintval=-1, TYPE_INT, 0},\
+{GNB_CONFIG_STRING_REDCAP_INITIAL_DL_BWP_SCS_R17, GNB_CONFIG_HLP_STRING_REDCAP_INITIAL_DL_BWP_SCS_R17, 0, .iptr=NULL, .defintval=-1, TYPE_INT, 0},\
+{GNB_CONFIG_STRING_REDCAP_INITIAL_DL_CORESET0_R17, GNB_CONFIG_HLP_STRING_REDCAP_INITIAL_DL_CORESET0_R17, 0, .iptr=NULL, .defintval=-1, TYPE_INT, 0},\
+{GNB_CONFIG_STRING_REDCAP_INITIAL_DL_SS0_R17, GNB_CONFIG_HLP_STRING_REDCAP_INITIAL_DL_SS0_R17, 0, .iptr=NULL, .defintval=-1, TYPE_INT, 0},\
+{GNB_CONFIG_STRING_REDCAP_INITIAL_UL_BWP_START_R17, GNB_CONFIG_HLP_STRING_REDCAP_INITIAL_UL_BWP_START_R17, 0, .iptr=NULL, .defintval=-1, TYPE_INT, 0},\
+{GNB_CONFIG_STRING_REDCAP_INITIAL_UL_BWP_SIZE_R17, GNB_CONFIG_HLP_STRING_REDCAP_INITIAL_UL_BWP_SIZE_R17, 0, .iptr=NULL, .defintval=-1, TYPE_INT, 0},\
+{GNB_CONFIG_STRING_REDCAP_INITIAL_UL_BWP_SCS_R17, GNB_CONFIG_HLP_STRING_REDCAP_INITIAL_UL_BWP_SCS_R17, 0, .iptr=NULL, .defintval=-1, TYPE_INT, 0},\
+{GNB_CONFIG_STRING_REDCAP_INITIAL_UL_PUCCH_R17, GNB_CONFIG_HLP_STRING_REDCAP_INITIAL_UL_PUCCH_R17, 0, .iptr=NULL, .defintval=-1, TYPE_INT, 0},\
+}
+
+#define GNB_REDCAP_INITIAL_DL_BWP_START_R17_IDX   0
+#define GNB_REDCAP_INITIAL_DL_BWP_SIZE_R17_IDX    1
+#define GNB_REDCAP_INITIAL_DL_BWP_SCS_R17_IDX     2
+#define GNB_REDCAP_INITIAL_DL_CORESET0_R17_IDX    3
+#define GNB_REDCAP_INITIAL_DL_SS0_R17_IDX         4
+#define GNB_REDCAP_INITIAL_UL_BWP_START_R17_IDX   5
+#define GNB_REDCAP_INITIAL_UL_BWP_SIZE_R17_IDX    6
+#define GNB_REDCAP_INITIAL_UL_BWP_SCS_R17_IDX     7
+#define GNB_REDCAP_INITIAL_UL_PUCCH_R17_IDX       8
 
 /*-------------------------------------------------------------------------------------------------------------------------------------*/
 /*                                            PTRS configuration parameters                                                          */

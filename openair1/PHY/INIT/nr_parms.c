@@ -21,13 +21,99 @@
 
 #include "nr_phy_init.h"
 #include "common/utils/nr/nr_common.h"
+#include "common/config/config_userapi.h"
 #include "common/utils/LOG/log.h"
 #include "executables/softmodem-common.h"
+#include "openair2/GNB_APP/gnb_paramdef.h"
+#include "openair3/UICC/usim_interface.h"
 #include "PHY/MODULATION/nr_modulation.h"
 
 /// Subcarrier spacings in Hz indexed by numerology index
 static const uint32_t nr_subcarrier_spacing[MAX_NUM_SUBCARRIER_SPACING] = {15e3, 30e3, 60e3, 120e3, 240e3};
 static const uint16_t nr_slots_per_subframe[MAX_NUM_SUBCARRIER_SPACING] = {1, 2, 4, 8, 16};
+
+static int nr_redcap_fr1_max_prbs(const uint8_t mu)
+{
+  switch (mu) {
+    case NR_MU_0:
+      return 106;
+
+    case NR_MU_1:
+      return 51;
+
+    default:
+      return -1;
+  }
+}
+
+static bool nr_redcap_gnb_configured(void)
+{
+  paramdef_t redcap_params[] = GNB_REDCAP_PARAMS_DESC;
+  char aprefix[MAX_OPTNAME_SIZE * 2 + 8];
+  snprintf(aprefix, sizeof(aprefix), "%s.[0].%s", GNB_CONFIG_STRING_GNB_LIST, GNB_CONFIG_STRING_REDCAP);
+  const int ret = config_get(config_get_if(), redcap_params, sizeofArray(redcap_params), aprefix);
+
+  if (ret <= 0)
+    return false;
+
+  return *redcap_params[GNB_REDCAP_CELL_BARRED_REDCAP1_RX_R17_IDX].i8ptr != -1
+         && *redcap_params[GNB_REDCAP_CELL_BARRED_REDCAP2_RX_R17_IDX].i8ptr != -1;
+}
+
+static bool nr_redcap_ue_configured(void)
+{
+  nr_redcap_cfg_t redcap_cfg = {0};
+  return load_nr_redcap_config(NULL, &redcap_cfg) && redcap_cfg.support_of_redcap_r17;
+}
+
+static void nr_assert_redcap_fr1_grid_size(const char *node_name, const NR_DL_FRAME_PARMS *fp)
+{
+  const int max_prbs = nr_redcap_fr1_max_prbs(fp->numerology_index);
+
+  AssertFatal(max_prbs > 0,
+              "%s RedCap FR1 validation only supports SCS 15/30 kHz at init time (mu %u)\n",
+              node_name,
+              fp->numerology_index);
+  AssertFatal(fp->N_RB_DL <= max_prbs,
+              "%s RedCap FR1 DL grid size %d PRBs exceeds 20 MHz limit for mu %u (max %d PRBs)\n",
+              node_name,
+              fp->N_RB_DL,
+              fp->numerology_index,
+              max_prbs);
+  AssertFatal(fp->N_RB_UL <= max_prbs,
+              "%s RedCap FR1 UL grid size %d PRBs exceeds 20 MHz limit for mu %u (max %d PRBs)\n",
+              node_name,
+              fp->N_RB_UL,
+              fp->numerology_index,
+              max_prbs);
+}
+
+void nr_validate_redcap_gnb_frame_parms(const NR_DL_FRAME_PARMS *fp)
+{
+  AssertFatal(fp->freq_range == FR1,
+              "gNB RedCap init validation currently supports FR1 only (band n%d, dl_CarrierFreq %lu)\n",
+              fp->nr_band,
+              fp->dl_CarrierFreq);
+  nr_assert_redcap_fr1_grid_size("gNB", fp);
+  AssertFatal(fp->nb_antennas_tx > 0 && fp->nb_antennas_tx <= 2,
+              "gNB RedCap cell profile exposes %u DL antenna ports, but RedCap FR1 requires DL layers/ports <= 2\n",
+              fp->nb_antennas_tx);
+}
+
+void nr_validate_redcap_ue_frame_parms(const NR_DL_FRAME_PARMS *fp)
+{
+  AssertFatal(fp->freq_range == FR1,
+              "UE RedCap init validation currently supports FR1 only (band n%d, dl_CarrierFreq %lu)\n",
+              fp->nr_band,
+              fp->dl_CarrierFreq);
+  nr_assert_redcap_fr1_grid_size("UE", fp);
+  AssertFatal(fp->nb_antennas_rx > 0 && fp->nb_antennas_rx <= 2,
+              "UE RedCap FR1 requires 1 or 2 RX branches, but configured RX antennas = %u\n",
+              fp->nb_antennas_rx);
+  AssertFatal(fp->nb_antennas_tx == 1,
+              "UE RedCap FR1 does not support UL MIMO: expected 1 TX branch, got %u\n",
+              fp->nb_antennas_tx);
+}
 
 // Table 5.4.3.3-1 38-101
 static const int nr_ssb_table[][3] = {
@@ -409,8 +495,12 @@ void nr_init_frame_parms(nfapi_nr_config_request_scf_t* cfg, NR_DL_FRAME_PARMS *
                                                           + (fp->symbols_per_slot * fp->ofdm_symbol_size);
   fp->samples_per_frame = 10 * fp->samples_per_subframe;
   fp->freq_range = get_freq_range_from_freq(fp->dl_CarrierFreq);
+  fp->redcap_restricted = nr_redcap_gnb_configured();
 
   fp->Ncp = Ncp;
+
+  if (fp->redcap_restricted)
+    nr_validate_redcap_gnb_frame_parms(fp);
 
   set_Lmax(fp);
 
@@ -491,6 +581,10 @@ int nr_init_frame_parms_ue(NR_DL_FRAME_PARMS *fp,
                                                           + (fp->symbols_per_slot * fp->ofdm_symbol_size);
   fp->samples_per_frame = 10 * fp->samples_per_subframe;
   fp->freq_range = get_freq_range_from_freq(fp->dl_CarrierFreq);
+  fp->redcap_restricted = nr_redcap_ue_configured();
+
+  if (fp->redcap_restricted)
+    nr_validate_redcap_ue_frame_parms(fp);
 
   uint8_t sco = 0;
   if (((fp->freq_range == FR1) && (config->ssb_table.ssb_subcarrier_offset < 24)) ||
@@ -522,6 +616,7 @@ void nr_init_frame_parms_ue_sa(NR_DL_FRAME_PARMS *frame_parms, uint64_t downlink
         frame_parms->N_RB_DL);
 
   frame_parms->numerology_index = mu;
+  frame_parms->redcap_restricted = false;
   frame_parms->dl_CarrierFreq = downlink_frequency;
   frame_parms->ul_CarrierFreq = downlink_frequency + delta_duplex;
   if (get_softmodem_params()->sl_mode == 0) {
@@ -590,6 +685,7 @@ int nr_init_frame_parms_ue_sl(NR_DL_FRAME_PARMS *fp,
   // Set also these parameters here instead of some where else.
   fp->ofdm_offset_divisor = ofdm_offset_divisor;
   fp->threequarter_fs = threequarter_fs;
+  fp->redcap_restricted = false;
 
   fp->nr_band = get_band(config->sl_carrier_config.sl_frequency, 0, 0, 0);
 

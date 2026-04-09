@@ -18,10 +18,18 @@ the CN) and tag them "latest", which is expected by `run_locally.sh`:
     docker pull oaisoftwarealliance/oai-nr-ue:develop
     docker tag oaisoftwarealliance/oai-nr-ue:develop oai-nr-ue
 
+Install the local Python dependencies once:
+
+    python3 -m pip install -r requirements.txt
+
 Now, run the scenario:
 
     cd ~/openairinterface5g/ci-scripts/
-    ./run_locally.sh xml_files/container_5g_rfsim_simple.xml
+    ./run_locally.sh container_5g_rfsim_simple.xml
+
+For the RedCap RFsim + FlexRIC scenario:
+
+    ./run_locally.sh container_5g_flexric_rfsim_redcap.xml
 
 Output should look like
 

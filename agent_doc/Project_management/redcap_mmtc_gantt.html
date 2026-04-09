@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RedCap mMTC Milestone Gantt</title>
+  <style>
+    :root {
+      --bg: #f3efe6;
+      --panel: #fffaf0;
+      --panel-2: #f8f3e7;
+      --line: #d2c5ab;
+      --ink: #1e2a2f;
+      --muted: #5e6a6f;
+      --accent: #0d6e6e;
+      --accent-soft: #cfe6e3;
+      --critical: #bb2f2f;
+      --critical-soft: #f4d6d2;
+      --shadow: 0 18px 50px rgba(41, 52, 57, 0.10);
+      --radius: 18px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(13, 110, 110, 0.08), transparent 28%),
+        radial-gradient(circle at bottom right, rgba(187, 47, 47, 0.10), transparent 22%),
+        linear-gradient(180deg, #f8f5ee 0%, #f1eadb 100%);
+      min-height: 100vh;
+    }
+
+    .shell {
+      width: min(1400px, calc(100vw - 32px));
+      margin: 24px auto;
+      display: grid;
+      grid-template-columns: minmax(720px, 2.1fr) minmax(320px, 1fr);
+      gap: 20px;
+    }
+
+    .panel {
+      background: rgba(255, 250, 240, 0.90);
+      border: 1px solid rgba(210, 197, 171, 0.75);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(8px);
+    }
+
+    .hero {
+      padding: 28px 28px 10px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 12px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 16px 0 10px;
+      font-size: clamp(30px, 4vw, 44px);
+      line-height: 1.05;
+    }
+
+    .hero p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.6;
+      max-width: 80ch;
+    }
+
+    .summary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding: 0 28px 26px;
+    }
+
+    .chip {
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px 14px;
+      min-width: 140px;
+    }
+
+    .chip strong,
+    .chip span {
+      display: block;
+    }
+
+    .chip strong {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .chip span {
+      font-size: 22px;
+      font-weight: 700;
+    }
+
+    .gantt-wrap {
+      padding: 0 20px 20px;
+    }
+
+    .gantt-card {
+      overflow: hidden;
+    }
+
+    .gantt-grid {
+      display: grid;
+      grid-template-columns: 360px repeat(5, minmax(120px, 1fr));
+      border-top: 1px solid var(--line);
+      border-left: 1px solid var(--line);
+    }
+
+    .cell {
+      min-height: 74px;
+      border-right: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.55);
+      position: relative;
+    }
+
+    .header {
+      min-height: 60px;
+      padding: 14px 16px;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 700;
+      color: var(--muted);
+      background: rgba(248, 243, 231, 0.95);
+    }
+
+    .milestone-label {
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 6px;
+      cursor: pointer;
+      transition: background 160ms ease, transform 160ms ease;
+    }
+
+    .milestone-label:hover,
+    .milestone-label.active {
+      background: rgba(207, 230, 227, 0.55);
+    }
+
+    .milestone-label strong {
+      font-size: 16px;
+      line-height: 1.3;
+    }
+
+    .milestone-label span {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .bar-cell {
+      display: flex;
+      align-items: center;
+      padding: 0 10px;
+    }
+
+    .bar {
+      width: 100%;
+      border-radius: 12px;
+      padding: 12px 14px;
+      color: #fff;
+      font-weight: 700;
+      background: linear-gradient(135deg, #0d6e6e, #1f8f8f);
+      box-shadow: 0 8px 18px rgba(13, 110, 110, 0.28);
+      cursor: pointer;
+      transition: transform 160ms ease, box-shadow 160ms ease;
+    }
+
+    .bar:hover,
+    .bar.active {
+      transform: translateY(-1px);
+      box-shadow: 0 12px 26px rgba(13, 110, 110, 0.32);
+    }
+
+    .bar.critical {
+      background: linear-gradient(135deg, #bb2f2f, #dd5656);
+      box-shadow: 0 8px 18px rgba(187, 47, 47, 0.28);
+    }
+
+    .detail {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      min-height: 100%;
+    }
+
+    .detail small {
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 700;
+    }
+
+    .detail h2 {
+      margin: 0;
+      font-size: 28px;
+      line-height: 1.15;
+    }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .meta span {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 8px 12px;
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    #reset-status {
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
+      border-radius: 999px;
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 160ms ease, transform 160ms ease;
+    }
+
+    #reset-status:hover {
+      background: var(--panel-2);
+      transform: translateY(-1px);
+    }
+
+    .todo-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .todo-item {
+      display: grid;
+      grid-template-columns: 24px 1fr;
+      align-items: start;
+      gap: 12px;
+      padding: 14px 14px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.7);
+    }
+
+    .todo-item input {
+      width: 18px;
+      height: 18px;
+      margin-top: 3px;
+      accent-color: var(--accent);
+    }
+
+    .todo-item label {
+      line-height: 1.5;
+      cursor: pointer;
+    }
+
+    .todo-item.done label {
+      text-decoration: line-through;
+      color: var(--muted);
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding: 0 20px 20px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .swatch {
+      width: 14px;
+      height: 14px;
+      border-radius: 4px;
+      display: inline-block;
+    }
+
+    .swatch.normal {
+      background: linear-gradient(135deg, #0d6e6e, #1f8f8f);
+    }
+
+    .swatch.critical {
+      background: linear-gradient(135deg, #bb2f2f, #dd5656);
+    }
+
+    .footnote {
+      padding: 0 24px 24px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    @media (max-width: 1120px) {
+      .shell {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 860px) {
+      .gantt-wrap {
+        overflow-x: auto;
+      }
+
+      .gantt-grid {
+        min-width: 980px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="panel">
+      <div class="hero">
+        <div class="eyebrow">Interactive Gantt / To-Do View</div>
+        <h1>RedCap mMTC Milestones</h1>
+        <p>
+          This page is derived from <code>agent_doc/Project_management/Simluation_mod.Md</code>.
+          Each [milestone] is shown as the task title, and each [submission] is shown as a clickable [to-do list]
+          in the details panel.
+        </p>
+      </div>
+      <div class="summary">
+        <div class="chip">
+          <strong>Milestones</strong>
+          <span id="milestone-count">0</span>
+        </div>
+        <div class="chip">
+          <strong>Submissions</strong>
+          <span id="submission-count">0</span>
+        </div>
+        <div class="chip">
+          <strong>Time Unit</strong>
+          <span>Week</span>
+        </div>
+      </div>
+      <div class="gantt-wrap">
+        <section class="panel gantt-card">
+          <div id="gantt-grid" class="gantt-grid"></div>
+        </section>
+      </div>
+      <div class="legend">
+        <span><i class="swatch normal"></i> Standard milestone</span>
+        <span><i class="swatch critical"></i> Critical path milestone</span>
+      </div>
+      <div class="footnote">
+        [Assumption] The markdown source does not include dates, so this page assigns a simple sequential plan of
+        [1 week per milestone]. The current version marks all milestones as [critical path] because each one depends
+        on the previous milestone in the listed order.
+      </div>
+    </section>
+
+    <aside class="panel">
+      <div class="detail">
+        <small>Milestone Detail</small>
+        <h2 id="detail-title">Select a milestone</h2>
+        <div class="meta">
+          <span id="detail-slot">Week -</span>
+          <span id="detail-progress">0 / 0 items checked</span>
+          <span>Display mode: To-Do List</span>
+        </div>
+        <div class="meta">
+          <span id="storage-status">Status storage: Browser local</span>
+          <button id="reset-status" type="button">Reset all checks</button>
+        </div>
+        <div id="todo-list" class="todo-list"></div>
+      </div>
+    </aside>
+  </main>
+
+  <script>
+    const sourceMarkdown = `# RedCap mMTC Project Plan
+
+## Milestone 1: Hardware / PHY Constraints
+- Define FR1 bandwidth & PRB limits for RedCap (<= 20 MHz, SCS 15 kHz and 30 kHz).
+- Antenna config: 1Rx mandatory, optional 2Rx, DL layers <= 2, no UL MIMO.
+- Half-duplex FDD Type A timing assumptions.
+
+## Milestone 2: RRC / SIB1 Support
+- Design \`RedCap_SIB1\` struct (\`redCap-ConfigCommon-r17\`, \`halfDuplexRedCapAllowed\`, \`cellBarredRedCap1Rx/2Rx\`).
+- Map each field to 3GPP clauses (TS 38.331).
+- Integrate SIB1 handling into OAI RRC code.
+
+## Milestone 3: BWP & CORESET#0
+- Define RedCap BWP structs for DL/UL initial BWPs.
+- Handle CORESET#0 special cases (Case A: full-cell; Case B: edge-only with \`commonControlResourceSet\`).
+- Validate scheduler changes in simulation.
+
+## Milestone 4: SDT / RRC_INACTIVE
+- Add flags for RRC_INACTIVE support in gNB and UE.
+- Design scheduler state machine for SDT (MsgA/Msg3 path).
+- Add basic unit tests / simulation scenarios.
+
+## Milestone 5: Integration & Throughput Targets
+- Configure scenarios to hit 50-120 Mbps range under RedCap constraints.
+- Run end-to-end simulations and log results.
+- Document open gaps vs. full 3GPP RedCap compliance.`;
+
+    function parsePlan(markdown) {
+      const lines = markdown.split("\n");
+      const milestones = [];
+      let current = null;
+
+      for (const rawLine of lines) {
+        const line = rawLine.trim();
+        if (line.startsWith("## ")) {
+          current = {
+            id: `ms-${milestones.length + 1}`,
+            title: line.replace(/^##\s+/, ""),
+            submissions: [],
+            week: milestones.length + 1,
+            critical: true
+          };
+          milestones.push(current);
+        } else if (line.startsWith("- ") && current) {
+          current.submissions.push({
+            text: line.replace(/^- /, ""),
+            done: false
+          });
+        }
+      }
+
+      return milestones;
+    }
+
+    const milestones = parsePlan(sourceMarkdown);
+    const storageKey = "redcap-mmtc-gantt-status-v1";
+    const grid = document.getElementById("gantt-grid");
+    const titleEl = document.getElementById("detail-title");
+    const slotEl = document.getElementById("detail-slot");
+    const progressEl = document.getElementById("detail-progress");
+    const todoListEl = document.getElementById("todo-list");
+    const milestoneCountEl = document.getElementById("milestone-count");
+    const submissionCountEl = document.getElementById("submission-count");
+    const storageStatusEl = document.getElementById("storage-status");
+    const resetStatusEl = document.getElementById("reset-status");
+
+    milestoneCountEl.textContent = String(milestones.length);
+    submissionCountEl.textContent = String(
+      milestones.reduce((count, item) => count + item.submissions.length, 0)
+    );
+
+    function escapeHtml(text) {
+      return text
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;");
+    }
+
+    function renderGrid() {
+      const headers = [
+        `<div class="cell header">Milestone</div>`,
+        ...milestones.map((item) => `<div class="cell header">Week ${item.week}</div>`)
+      ];
+
+      const rows = milestones.flatMap((item) => {
+        const labelCell = `
+          <button class="cell milestone-label" data-id="${item.id}" type="button">
+            <strong>${escapeHtml(item.title)}</strong>
+            <span>${item.submissions.length} submission items</span>
+          </button>
+        `;
+
+        const timelineCells = milestones.map((weekItem) => {
+          if (weekItem.week !== item.week) {
+            return `<div class="cell"></div>`;
+          }
+
+          return `
+            <div class="cell bar-cell">
+              <button class="bar ${item.critical ? "critical" : ""}" data-id="${item.id}" type="button">
+                ${escapeHtml(item.title)}
+              </button>
+            </div>
+          `;
+        });
+
+        return [labelCell, ...timelineCells];
+      });
+
+      grid.innerHTML = [...headers, ...rows].join("");
+    }
+
+    function getMilestoneById(id) {
+      return milestones.find((item) => item.id === id);
+    }
+
+    function loadStoredState() {
+      try {
+        const raw = window.localStorage.getItem(storageKey);
+        if (!raw) {
+          return;
+        }
+
+        const parsed = JSON.parse(raw);
+        for (const milestone of milestones) {
+          const storedItems = parsed[milestone.id];
+          if (!Array.isArray(storedItems)) {
+            continue;
+          }
+
+          milestone.submissions.forEach((submission, index) => {
+            submission.done = storedItems[index] === true;
+          });
+        }
+      } catch (error) {
+        storageStatusEl.textContent = "Status storage: Browser local unavailable";
+      }
+    }
+
+    function saveStoredState() {
+      try {
+        const payload = {};
+        for (const milestone of milestones) {
+          payload[milestone.id] = milestone.submissions.map((submission) => submission.done === true);
+        }
+        window.localStorage.setItem(storageKey, JSON.stringify(payload));
+      } catch (error) {
+        storageStatusEl.textContent = "Status storage: Save failed";
+      }
+    }
+
+    function getItemState(milestoneId, index) {
+      const milestone = getMilestoneById(milestoneId);
+      return milestone ? milestone.submissions[index]?.done === true : false;
+    }
+
+    function setActiveMilestone(id) {
+      const item = getMilestoneById(id);
+      if (!item) {
+        return;
+      }
+
+      document.querySelectorAll("[data-id]").forEach((node) => {
+        node.classList.toggle("active", node.dataset.id === id);
+      });
+
+      titleEl.textContent = item.title;
+      slotEl.textContent = `Week ${item.week}`;
+
+      const completed = item.submissions.filter((submission) => submission.done === true).length;
+      progressEl.textContent = `${completed} / ${item.submissions.length} items checked`;
+
+      todoListEl.innerHTML = item.submissions.map((submission, index) => {
+        const checked = submission.done === true;
+        return `
+          <div class="todo-item ${checked ? "done" : ""}">
+            <input
+              id="${item.id}-todo-${index}"
+              type="checkbox"
+              data-milestone-id="${item.id}"
+              data-index="${index}"
+              ${checked ? "checked" : ""}
+            >
+            <label for="${item.id}-todo-${index}">${escapeHtml(submission.text)}</label>
+          </div>
+        `;
+      }).join("");
+    }
+
+    loadStoredState();
+    renderGrid();
+    setActiveMilestone(milestones[0].id);
+
+    document.addEventListener("click", (event) => {
+      const trigger = event.target.closest("[data-id]");
+      if (trigger) {
+        setActiveMilestone(trigger.dataset.id);
+      }
+    });
+
+    document.addEventListener("change", (event) => {
+      const checkbox = event.target;
+      if (!(checkbox instanceof HTMLInputElement) || checkbox.type !== "checkbox") {
+        return;
+      }
+
+      const milestoneId = checkbox.dataset.milestoneId;
+      const index = checkbox.dataset.index;
+      if (!milestoneId || index === undefined) {
+        return;
+      }
+
+      const milestone = getMilestoneById(milestoneId);
+      if (!milestone || !milestone.submissions[Number(index)]) {
+        return;
+      }
+
+      milestone.submissions[Number(index)].done = checkbox.checked;
+      saveStoredState();
+      setActiveMilestone(milestoneId);
+    });
+
+    resetStatusEl.addEventListener("click", () => {
+      for (const milestone of milestones) {
+        for (const submission of milestone.submissions) {
+          submission.done = false;
+        }
+      }
+
+      window.localStorage.removeItem(storageKey);
+      setActiveMilestone(document.querySelector(".bar.active, .milestone-label.active")?.dataset.id || milestones[0].id);
+    });
+  </script>
+</body>
+</html>

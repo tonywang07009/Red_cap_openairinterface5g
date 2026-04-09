@@ -1,7 +1,7 @@
 #!/bin/bash
 # 檔名: generate_uicc.sh
 # 用途: 根據 nrue2.uicc.yaml 生成多個 nrueX.uicc.yaml
-# 功能: 自動遞增 IMSI 並且自動遞增 uicc 編號 (nrue3 -> uicc2)
+# 功能: 自動遞增 IMSI，並保留模板中的 UICC/RedCap 設定
 
 # 設定工作目錄為腳本所在目錄
 cd "$(dirname "$0")"
@@ -67,21 +67,16 @@ add_ue() {
         # 複製模板檔案
         cp "$TEMPLATE" "$new_file"
         
-        # 計算新的 IMSI 後綴 (從 nrue2 的 002 開始)
-        local new_imsi_suffix=$(printf "%03d" $i)
-        
-        # 計算新的 uicc 編號 (nrue 編號 - 1)
-        # 例如: nrue3 -> uicc2, nrue4 -> uicc3
-        local uicc_num=$((i - 1))
-        
-        # 1. 替換 IMSI 的最後三位數字 (假設模板中是 001010000000002)
-        sed -i "s/imsi: 001010000000002/imsi: 00101000000${new_imsi_suffix}/" "$new_file"
-        
-        # 2. 替換 uicc 編號 (假設模板第一行是 uicc1:)
-        # 使用 ^uicc1: 來確保只替換行首的那個標籤
-        sed -i "s/^uicc1:/uicc${uicc_num}:/" "$new_file"
-        
-        echo "✓ 已建立 $new_file (uicc${uicc_num}, IMSI: ...${new_imsi_suffix})"
+        # 生成完整 15 碼 IMSI，避免 nrue28 之後因字串拼接錯誤少一碼
+        local new_imsi_suffix
+        new_imsi_suffix=$(printf "%03d" "$i")
+        local new_imsi
+        new_imsi=$(printf "001010000000%03d" "$i")
+
+        # 替換 IMSI 的最後三位數字 (模板中預設為 001010000000002)
+        sed -i "s/imsi: 001010000000002/imsi: ${new_imsi}/" "$new_file"
+
+        echo "✓ 已建立 $new_file (uicc0, IMSI: ...${new_imsi_suffix})"
     done
     
     echo ""

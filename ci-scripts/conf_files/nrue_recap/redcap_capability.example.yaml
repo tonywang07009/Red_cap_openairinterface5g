@@ -1,0 +1,9 @@
+nrue_recap:
+  enable: 1
+  band: 78
+  support_of_redcap_r17: 1
+  support_of_16drb_redcap_r17: 0
+  pdcp_drb_long_sn_redcap_r17: 0
+  rlc_am_drb_long_sn_redcap_r17: 0
+  number_of_rx_redcap_r17: 1
+  half_duplex_fdd_type_a_redcap_r17: 0

@@ -215,6 +215,69 @@ static NR_SetupRelease_PDSCH_ConfigCommon_t *clone_pdsch_configcommon(const NR_S
   return clone;
 }
 
+static NR_BWP_DownlinkCommon_t *clone_redcap_downlink_bwp(const NR_ServingCellConfigCommon_t *scc,
+                                                          const nr_redcap_config_t *redcap_config)
+{
+  if (redcap_config == NULL || !redcap_config->initial_dl_bwp.configured)
+    return NULL;
+
+  NR_BWP_DownlinkCommon_t *bwp = calloc_or_fail(1, sizeof(*bwp));
+  bwp->genericParameters = clone_generic_parameters(&scc->downlinkConfigCommon->initialDownlinkBWP->genericParameters);
+  bwp->genericParameters.locationAndBandwidth = redcap_config->initial_dl_bwp.location_and_bw;
+  bwp->genericParameters.subcarrierSpacing = redcap_config->initial_dl_bwp.scs;
+  bwp->pdcch_ConfigCommon = clone_pdcch_configcommon(scc->downlinkConfigCommon->initialDownlinkBWP->pdcch_ConfigCommon);
+  bwp->pdsch_ConfigCommon = clone_pdsch_configcommon(scc->downlinkConfigCommon->initialDownlinkBWP->pdsch_ConfigCommon);
+
+  if (bwp->pdcch_ConfigCommon && bwp->pdcch_ConfigCommon->present == NR_SetupRelease_PDCCH_ConfigCommon_PR_setup) {
+    NR_PDCCH_ConfigCommon_t *pdcch_cc = bwp->pdcch_ConfigCommon->choice.setup;
+    if (redcap_config->initial_dl_bwp.controlResourceSetZero >= 0) {
+      if (pdcch_cc->controlResourceSetZero == NULL)
+        pdcch_cc->controlResourceSetZero = calloc_or_fail(1, sizeof(*pdcch_cc->controlResourceSetZero));
+      *pdcch_cc->controlResourceSetZero = redcap_config->initial_dl_bwp.controlResourceSetZero;
+    }
+    if (redcap_config->initial_dl_bwp.searchSpaceZero >= 0) {
+      if (pdcch_cc->searchSpaceZero == NULL)
+        pdcch_cc->searchSpaceZero = calloc_or_fail(1, sizeof(*pdcch_cc->searchSpaceZero));
+      *pdcch_cc->searchSpaceZero = redcap_config->initial_dl_bwp.searchSpaceZero;
+    }
+  }
+
+  return bwp;
+}
+
+static NR_BWP_UplinkCommon_t *clone_redcap_uplink_bwp(const NR_ServingCellConfigCommon_t *scc,
+                                                      const nr_redcap_config_t *redcap_config)
+{
+  if (redcap_config == NULL || !redcap_config->initial_ul_bwp.configured)
+    return NULL;
+
+  NR_BWP_UplinkCommon_t *bwp = calloc_or_fail(1, sizeof(*bwp));
+  bwp->genericParameters = clone_generic_parameters(&scc->uplinkConfigCommon->initialUplinkBWP->genericParameters);
+  bwp->genericParameters.locationAndBandwidth = redcap_config->initial_ul_bwp.location_and_bw;
+  bwp->genericParameters.subcarrierSpacing = redcap_config->initial_ul_bwp.scs;
+  bwp->rach_ConfigCommon = clone_rach_configcommon(scc->uplinkConfigCommon->initialUplinkBWP->rach_ConfigCommon);
+  bwp->pusch_ConfigCommon = clone_pusch_configcommon(scc->uplinkConfigCommon->initialUplinkBWP->pusch_ConfigCommon);
+  bwp->pucch_ConfigCommon = clone_pucch_configcommon(scc->uplinkConfigCommon->initialUplinkBWP->pucch_ConfigCommon);
+
+  if (scc->uplinkConfigCommon->initialUplinkBWP->ext1) {
+    bwp->ext1 = calloc_or_fail(1, sizeof(*bwp->ext1));
+    bwp->ext1->msgA_ConfigCommon_r16 =
+        clone_msga_configcommon(scc->uplinkConfigCommon->initialUplinkBWP->ext1->msgA_ConfigCommon_r16);
+  }
+
+  if (bwp->pucch_ConfigCommon && bwp->pucch_ConfigCommon->present == NR_SetupRelease_PUCCH_ConfigCommon_PR_setup) {
+    NR_PUCCH_ConfigCommon_t *pucch_cc = bwp->pucch_ConfigCommon->choice.setup;
+    if (pucch_cc->ext1 == NULL)
+      pucch_cc->ext1 = calloc_or_fail(1, sizeof(*pucch_cc->ext1));
+    if (pucch_cc->ext1->pucch_ResourceCommonRedCap_r17 == NULL)
+      pucch_cc->ext1->pucch_ResourceCommonRedCap_r17 =
+          calloc_or_fail(1, sizeof(*pucch_cc->ext1->pucch_ResourceCommonRedCap_r17));
+    *pucch_cc->ext1->pucch_ResourceCommonRedCap_r17 = redcap_config->initial_ul_bwp.pucch_ResourceCommonRedCap_r17;
+  }
+
+  return bwp;
+}
+
 static int get_nb_pucch2_per_slot(const NR_ServingCellConfigCommon_t *scc, int bwp_size)
 {
   const NR_TDD_UL_DL_Pattern_t *tdd = scc->tdd_UL_DL_ConfigurationCommon ? &scc->tdd_UL_DL_ConfigurationCommon->pattern1 : NULL;
@@ -2886,6 +2949,38 @@ NR_BCCH_DL_SCH_Message_t *get_SIB1_NR(const NR_ServingCellConfigCommon_t *scc,
 
   UL->timeAlignmentTimerCommon = NR_TimeAlignmentTimer_infinity;
 
+  if (mac_config->redcap) {
+    const nr_redcap_config_t *redcap_config = mac_config->redcap;
+    if (redcap_config->initial_dl_bwp.configured) {
+      if (ServCellCom->downlinkConfigCommon.ext1 == NULL)
+        ServCellCom->downlinkConfigCommon.ext1 = calloc_or_fail(1, sizeof(*ServCellCom->downlinkConfigCommon.ext1));
+      ServCellCom->downlinkConfigCommon.ext1->initialDownlinkBWP_RedCap_r17 =
+          clone_redcap_downlink_bwp(scc, redcap_config);
+      LOG_I(NR_RRC,
+            "SIB1 RedCap initial DL BWP: start=%d size=%d scs=%d coreset0=%d searchSpace0=%d\n",
+            redcap_config->initial_dl_bwp.bwp_start,
+            redcap_config->initial_dl_bwp.bwp_size,
+            redcap_config->initial_dl_bwp.scs,
+            redcap_config->initial_dl_bwp.controlResourceSetZero,
+            redcap_config->initial_dl_bwp.searchSpaceZero);
+    }
+    if (redcap_config->initial_ul_bwp.configured) {
+      if (ServCellCom->ext2 == NULL)
+        ServCellCom->ext2 = calloc_or_fail(1, sizeof(*ServCellCom->ext2));
+      if (ServCellCom->ext2->uplinkConfigCommon_v1700 == NULL)
+        ServCellCom->ext2->uplinkConfigCommon_v1700 =
+            calloc_or_fail(1, sizeof(*ServCellCom->ext2->uplinkConfigCommon_v1700));
+      ServCellCom->ext2->uplinkConfigCommon_v1700->initialUplinkBWP_RedCap_r17 =
+          clone_redcap_uplink_bwp(scc, redcap_config);
+      LOG_I(NR_RRC,
+            "SIB1 RedCap initial UL BWP: start=%d size=%d scs=%d pucch_ResourceCommonRedCap=%d\n",
+            redcap_config->initial_ul_bwp.bwp_start,
+            redcap_config->initial_ul_bwp.bwp_size,
+            redcap_config->initial_ul_bwp.scs,
+            redcap_config->initial_ul_bwp.pucch_ResourceCommonRedCap_r17);
+    }
+  }
+
   ServCellCom->n_TimingAdvanceOffset = scc->n_TimingAdvanceOffset;
 
   uint8_t bitmap8,temp_bitmap=0;
@@ -2994,6 +3089,12 @@ NR_BCCH_DL_SCH_Message_t *get_SIB1_NR(const NR_ServingCellConfigCommon_t *scc,
           calloc_or_fail(1, sizeof(*sib1_1700->redCap_ConfigCommon_r17->cellBarredRedCap_r17));
 
       const nr_redcap_config_t *redcap_config = mac_config->redcap;
+      if (redcap_config->has_halfDuplexRedCapAllowed_r17 && redcap_config->halfDuplexRedCapAllowed_r17) {
+        sib1_1700->redCap_ConfigCommon_r17->halfDuplexRedCapAllowed_r17 =
+            calloc_or_fail(1, sizeof(*sib1_1700->redCap_ConfigCommon_r17->halfDuplexRedCapAllowed_r17));
+        *sib1_1700->redCap_ConfigCommon_r17->halfDuplexRedCapAllowed_r17 =
+            NR_RedCap_ConfigCommonSIB_r17__halfDuplexRedCapAllowed_r17_true;
+      }
       struct NR_RedCap_ConfigCommonSIB_r17__cellBarredRedCap_r17 *CellBarredRedCap_r17 =
           sib1_1700->redCap_ConfigCommon_r17->cellBarredRedCap_r17;
       CellBarredRedCap_r17->cellBarredRedCap1Rx_r17 = redcap_config->cellBarredRedCap1Rx_r17;

@@ -1,0 +1,208 @@
+You are Codex, based on GPT-5.4. You are running as a coding agent in the Codex CLI on a user's computer.
+
+# Repository Guidelines
+
+## Project Structure & Module Organization
+
+Core RAN code is split by layer: `openair1/` for PHY, `openair2/` for MAC/RLC/PDCP/RRC and E2AP, and `openair3/` for NGAP/GTP/NAS and related control-plane code. Shared utilities live in `common/`, top-level softmodem entry points are in `executables/`, and radio back ends are in `radio/` (`USRP/`, `rfsimulator/`, `fhi_72/`, etc.). Build helpers and generated build trees live under `cmake_targets/`. Project documentation is in `doc/`; CI orchestration and test assets are in `ci-scripts/`.
+
+## Build, Test, and Development Commands
+
+Prefer the preset-based CMake flow for local work:
+
+```bash
+cmake --preset default
+cmake --build --preset default
+cmake --preset tests
+cmake --build --preset tests
+cd cmake_targets/ran_build/build_test && ctest --output-on-failure
+```
+
+Use `cmake_targets/build_oai` when you need the repository’s standard wrapper or dependency install flow:
+
+```bash
+cd cmake_targets
+./build_oai -I --install-optional-packages -w USRP
+./build_oai --ninja --gNB --nrUE
+./build_oai --phy_simulators
+```
+
+Artifacts are written below `cmake_targets/ran_build/build*`.
+
+## Coding Style & Naming Conventions
+
+Follow the root `.clang-format` and `doc/code-style-contrib.md`. Use 2-space indentation, no tabs, and keep C/C++ lines within 132 columns. Function opening braces go on the next line; control-flow braces stay on the same line. Prefer strong OAI types, named constants over magic numbers, `const` for input pointers, and `AssertFatal()` / `DevAssert()` for invariants. Test binaries and many helpers use descriptive snake_case names such as `test_nr_common` or `nr-softmodem`.
+
+## Testing Guidelines
+
+Enable tests with `cmake --preset tests` or `-DENABLE_TESTS=ON`. Most unit tests are declared in nearby `tests/` directories and registered with CTest; common names start with `test_` or `<module>_test`. Add or update the closest module test when changing shared logic, protocol encoding, or PHY utilities. For simulator changes, validate the affected `physim` or RF simulator target before sending for review.
+
+## Commit & Pull Request Guidelines
+
+Target `develop`. Keep branch history linear and rebase instead of merging. Each commit should be a small logical change, compile on its own, and explain why the change is correct. Merge requests go to Eurecom GitLab, require the proper CI label (`~documentation`, `~BUILD-ONLY`, `~4G-LTE`, `~5G-NR`), and should include the scope, validation performed, and any config or test impact.
+
+---
+
+## 3GPP Specs Available Locally
+
+- All 5G NR specs are stored under `/Red_cap_openairinterface5g/spec/redcap_3gpp` (relative to the OAI repo root).
+- Key docs for this project:
+  - `specs/3gpp/38.306.pdf` (UE Radio Access Capabilities for RedCap/eRedCap)
+  - `specs/3gpp/38.331.pdf` (RRC protocol, including SIB1 and RedCap configurations)
+  - `specs/3gpp/38.101-1.pdf` (UE RF transmission and reception for FR1)
+  - `specs/3gpp/38.321.pdf` (MAC protocol, including Random Access and DRX)
+- When answering questions, prefer these local specs first.
+- When I write `@spec-38.331`, interpret it as “look at specs/3gpp/38.331.pdf and cite the relevant clause if possible”.
+- For detailed RedCap RRC behavior, see `/Red_cap_openairinterface5g/spec/redcap_3gpp/spec.md`.
+
+---
+
+## Project Docs & Task Plans
+
+- All high-level project plans, milestones, and task breakdowns for this repo live under:
+  - `agent_doc/Project_management/`
+- For the RedCap mMTC work:
+  - The primary plan is `agent_doc/Project_management/redcap_mmtc_plan.md`.
+  - Before making any changes to PHY, MAC, or RRC, you must:
+    1) read the relevant sections of `redcap_mmtc_plan.md`, and  
+    2) summarize in a few bullet points which milestone and sub-tasks you are working on.
+- For Gantt charts and progress visualization:
+  - Treat the files under `agent_doc/Project_management/` as the **source of truth** for tasks and dependencies.
+  - When I ask for a Gantt chart, derive all tasks and milestones from those Markdown files instead of inventing new items.
+- When planning or modifying PHY code for RedCap:
+  - explicitly reference the corresponding milestones/sub-tasks in `redcap_mmtc_plan.md`, and  
+  - cross-check against `spec/redcap_3gpp/spec.md` and TS 38.306 / 38.101-1 before proposing code changes.
+
+---
+
+## Gantt Chart Output
+
+- When I ask for a project Gantt chart, prefer:
+  - Markdown Mermaid syntax if the goal is documentation, or
+  - a single self-contained HTML file with embedded CSS/JS (no build tools) if I explicitly ask for a “front-end Gantt page”.
+- The source of truth for tasks and dependencies is the Markdown files under `./agent_doc/Project_management/` in the repo root.
+- When generating a Gantt chart:
+  - Parse milestones and tasks from the files in `./agent_doc/Project_management/`.
+  - Use weeks as the default time unit.
+  - Do not invent new tasks. If something is unclear:
+    - ask the user which project we are focusing on now, and  
+    - ask the user to refine or update the corresponding file under `./agent_doc/Project_management/`, then use that file as the task list.
+
+---
+
+## Build & Test Logs
+
+- All CTest and build logs for this project should be stored under:
+  - `test_log/compiler_logs/` for CTest output,
+  - `test_log/build_logs/` for build output (if used later).
+- When running tests or builds from within this repository, prefer commands that:
+  - redirect output into a timestamped `.log` file under `test_log/compiler_logs/` or `test_log/build_logs/`,
+  - for example:
+    - `ctest --output-on-failure | tee test_log/compiler_logs/ctest_$(date +%F_%H-%M-%S).log`
+- When analyzing test failures, you should:
+  - use the filesystem MCP to list `test_log/compiler_logs/`,
+  - open the most recent log file,
+  - summarize failing tests and key error messages in Traditional Chinese.
+
+---
+
+## RedCap PHY Work Order
+
+- When modifying PHY for RedCap, always follow this order:
+  1) Locate the relevant existing implementation in `openair1/` and related configs.  
+  2) Cross-check the intended change against `spec/redcap_3gpp/spec.md` and TS 38.306 / 38.101-1.  
+  3) Propose the change in prose first (in Traditional Chinese), including:
+     - target files and functions,
+     - expected behavior,
+     - how it impacts mMTC / RedCap constraints (20 MHz, 1Rx, half-duplex).
+  4) Only then edit code in small patches (one function or one parameter group at a time), and plan tests.
+
+
+
+## The Chat Content Store
+
+### Purpose
+
+At the end of every completed sub-task, the agent must record a structured progress
+snapshot in Markdown and persist it to `test_logs/work_daily/`.
+This log serves as the single source of truth for session continuity.
+
+---
+
+### Write Rules (Triggered After Every Completed Sub-task)
+
+1. Check whether `test_logs/work_daily/` exists.
+   - If it does NOT exist, create it before writing any log:
+     ```bash
+     mkdir -p test_logs/work_daily
+     ```
+
+2. Write a new Markdown file named with an ISO-8601 timestamp:
+test_logs/work_daily/YYYY-MM-DD_HH-MM-SS_<task-slug>.md
+
+text
+Example: `test_logs/work_daily/2026-04-09_20-30-00_mac-redcap-drx.md`
+
+3. Each log file must follow this structure:
+```markdown
+
+---
+
+# Work Daily Log
+
+## Session Metadata
+- Date: YYYY-MM-DD HH:MM
+- Agent Session ID: <auto or N/A>
+- Task Slug: <short identifier>
+
+## Milestone & Sub-task Reference
+- Milestone: <milestone name from redcap_mmtc_plan.md>
+- Sub-task: <sub-task name>
+- Status: [COMPLETED / IN-PROGRESS / BLOCKED]
+
+## What Was Done
+- [Bullet list of code changes, files modified, and functions touched]
+
+## 3GPP Spec Clauses Referenced
+- TS XX.XXX Section X.X.X — brief note on relevance
+
+## Test Results
+| Test Item | Pass / Fail | Coverage | Notes |
+|-----------|-------------|----------|-------|
+| ...       | ...         | ...      | ...   |
+
+
+## Known Issues / Blockers
+- [List any unresolved issues or questions for the next session]
+
+## Next Step
+- [The immediate next sub-task to be tackled]
+```
+
+---
+
+### Read Rules (Triggered at the Start of Every New Session)
+
+1. At the very beginning of each new chat window, before taking any action:
+- Check if `test_logs/work_daily/` exists.
+- If it exists, list all `.md` files sorted by filename (descending).
+- Read the **most recent** log file in full.
+
+2. After reading, output a session resume summary in Traditional Chinese:
+▶ 上次進度摘要
+◉ 最後完成子任務：<task-slug>
+◉ 當前里程碑：<milestone>
+◉ 待處理事項：<next step from log>
+◉ 已知問題：<blockers if any>
+
+text
+
+3. Then ask: "是否從上次進度繼續？" before proceeding with any new work.
+
+---
+
+### Additional Constraints
+- Never overwrite an existing log file; always create a new timestamped file.
+- If `redcap_mmtc_plan.md` is updated, append a note to the current daily log
+indicating which milestone or sub-task was revised.
+- Log files are append-only records; do NOT delete them without explicit user confirmation.

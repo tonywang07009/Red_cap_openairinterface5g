@@ -40,6 +40,7 @@
 #include "executables/softmodem-common.h"
 #include "SCHED_NR/phy_frame_config_nr.h"
 #include "oai_asn1.h"
+#include "openair3/UICC/usim_interface.h"
 
 #define ASIGN_P_VAL(dst, src) \
   do {                        \
@@ -1728,6 +1729,29 @@ static void configure_common_BWP_dl(NR_UE_MAC_INST_t *mac, int bwp_id, NR_BWP_Do
   }
 }
 
+static bool use_sib1_redcap_initial_bwp(void)
+{
+  nr_redcap_cfg_t redcap_cfg = {0};
+  return load_nr_redcap_config(NULL, &redcap_cfg) && redcap_cfg.support_of_redcap_r17;
+}
+
+static NR_BWP_DownlinkCommon_t *get_sib1_initial_dl_bwp(const NR_ServingCellConfigCommonSIB_t *scc, const bool is_redcap_ue)
+{
+  if (is_redcap_ue && scc->downlinkConfigCommon.ext1 && scc->downlinkConfigCommon.ext1->initialDownlinkBWP_RedCap_r17)
+    return scc->downlinkConfigCommon.ext1->initialDownlinkBWP_RedCap_r17;
+  return (NR_BWP_DownlinkCommon_t *)&scc->downlinkConfigCommon.initialDownlinkBWP;
+}
+
+static NR_BWP_UplinkCommon_t *get_sib1_initial_ul_bwp(const NR_ServingCellConfigCommonSIB_t *scc, const bool is_redcap_ue)
+{
+  if (scc->uplinkConfigCommon == NULL)
+    return NULL;
+  if (is_redcap_ue && scc->ext2 && scc->ext2->uplinkConfigCommon_v1700
+      && scc->ext2->uplinkConfigCommon_v1700->initialUplinkBWP_RedCap_r17)
+    return scc->ext2->uplinkConfigCommon_v1700->initialUplinkBWP_RedCap_r17;
+  return &scc->uplinkConfigCommon->initialUplinkBWP;
+}
+
 static void configure_common_BWP_ul(NR_UE_MAC_INST_t *mac, int bwp_id, NR_BWP_UplinkCommon_t *ul_common)
 {
   if (ul_common) {
@@ -1963,11 +1987,27 @@ void nr_rrc_mac_config_req_sib1(module_id_t module_id, int cc_idP, NR_SIB1_t *si
   LOG_D(NR_MAC, "Build SSB list\n");
   build_ssb_list(mac);
 
+  const bool is_redcap_ue = use_sib1_redcap_initial_bwp();
+  NR_BWP_DownlinkCommon_t *initial_dl_bwp = get_sib1_initial_dl_bwp(scc, is_redcap_ue);
+  NR_BWP_UplinkCommon_t *initial_ul_bwp = get_sib1_initial_ul_bwp(scc, is_redcap_ue);
+  if (is_redcap_ue && initial_dl_bwp != &scc->downlinkConfigCommon.initialDownlinkBWP) {
+    LOG_I(NR_MAC,
+          "Applying SIB1 RedCap initial DL BWP: start=%d size=%d\n",
+          NRRIV2PRBOFFSET(initial_dl_bwp->genericParameters.locationAndBandwidth, MAX_BWP_SIZE),
+          NRRIV2BW(initial_dl_bwp->genericParameters.locationAndBandwidth, MAX_BWP_SIZE));
+  }
+  if (is_redcap_ue && initial_ul_bwp && scc->uplinkConfigCommon && initial_ul_bwp != &scc->uplinkConfigCommon->initialUplinkBWP) {
+    LOG_I(NR_MAC,
+          "Applying SIB1 RedCap initial UL BWP: start=%d size=%d\n",
+          NRRIV2PRBOFFSET(initial_ul_bwp->genericParameters.locationAndBandwidth, MAX_BWP_SIZE),
+          NRRIV2BW(initial_ul_bwp->genericParameters.locationAndBandwidth, MAX_BWP_SIZE));
+  }
+
   int bwp_id = 0;
-  configure_common_BWP_dl(mac, bwp_id, &scc->downlinkConfigCommon.initialDownlinkBWP);
-  if (scc->uplinkConfigCommon) {
+  configure_common_BWP_dl(mac, bwp_id, initial_dl_bwp);
+  if (initial_ul_bwp && scc->uplinkConfigCommon) {
     mac->timeAlignmentTimerCommon = scc->uplinkConfigCommon->timeAlignmentTimerCommon;
-    configure_common_BWP_ul(mac, bwp_id, &scc->uplinkConfigCommon->initialUplinkBWP);
+    configure_common_BWP_ul(mac, bwp_id, initial_ul_bwp);
   }
   // set current BWP only if coming from non-connected state
   // otherwise it is just a periodically update of the SIB1 content

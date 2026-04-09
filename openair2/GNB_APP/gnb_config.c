@@ -1251,7 +1251,156 @@ static nr_ptrs_config_t *get_ptrs_config(int gnb_idx)
 
 /* Red cap */
 
-static nr_redcap_config_t *get_redcap_config(int gnb_idx)
+static int nr_redcap_fr1_max_prbs_from_scs(const long scs)
+{
+  switch (scs) {
+    case NR_SubcarrierSpacing_kHz15:
+      return 106;
+
+    case NR_SubcarrierSpacing_kHz30:
+      return 51;
+
+    default:
+      return -1;
+  }
+}
+
+static bool redcap_initial_bwp_requested(const int start, const int size, const int scs)
+{
+  return start >= 0 || size >= 0 || scs >= 0;
+}
+
+static void fill_redcap_initial_bwp(nr_redcap_bwp_config_t *cfg,
+                                    const char *direction,
+                                    const int start,
+                                    const int size,
+                                    const int scs,
+                                    const int common_param_a,
+                                    const int common_param_b,
+                                    const int param_a,
+                                    const int param_b,
+                                    const int full_bw)
+{
+  AssertFatal(start >= 0 && size > 0 && scs >= 0,
+              "RedCap %s initial BWP requires start/size/scs to be configured together\n",
+              direction);
+
+  const int max_prbs = nr_redcap_fr1_max_prbs_from_scs(scs);
+  AssertFatal(max_prbs > 0,
+              "RedCap %s initial BWP only supports FR1 SCS 15/30 kHz in the current implementation (configured scs=%d)\n",
+              direction,
+              scs);
+  AssertFatal(size <= max_prbs,
+              "RedCap %s initial BWP size %d exceeds the FR1 20 MHz limit for scs=%d (max %d PRBs)\n",
+              direction,
+              size,
+              scs,
+              max_prbs);
+  AssertFatal(start >= 0 && start + size <= full_bw,
+              "RedCap %s initial BWP start=%d size=%d exceeds the configured common carrier bandwidth %d\n",
+              direction,
+              start,
+              size,
+              full_bw);
+
+  *cfg = (nr_redcap_bwp_config_t){
+      .configured = true,
+      .scs = scs,
+      .bwp_start = start,
+      .bwp_size = size,
+      .location_and_bw = PRBalloc_to_locationandbandwidth(size, start),
+      .controlResourceSetZero = param_a >= 0 ? param_a : common_param_a,
+      .searchSpaceZero = param_b >= 0 ? param_b : common_param_b,
+      .pucch_ResourceCommonRedCap_r17 = param_a >= 0 ? param_a : common_param_a,
+  };
+}
+
+static void get_redcap_initial_bwp_config(nr_redcap_config_t *rc, int gnb_idx, const NR_ServingCellConfigCommon_t *scc)
+{
+  paramdef_t RedCap_BWP_Params[] = GNB_REDCAP_INITIAL_BWP_PARAMS_DESC;
+  char aprefix[MAX_OPTNAME_SIZE * 2 + 8];
+  snprintf(aprefix,
+           sizeof(aprefix),
+           "%s.[%d].%s.%s",
+           GNB_CONFIG_STRING_GNB_LIST,
+           gnb_idx,
+           GNB_CONFIG_STRING_REDCAP,
+           GNB_CONFIG_STRING_REDCAP_INITIAL_BWP_R17);
+  const int ret = config_get(config_get_if(), RedCap_BWP_Params, sizeofArray(RedCap_BWP_Params), aprefix);
+  if (ret <= 0)
+    return;
+
+  const int dl_start = *RedCap_BWP_Params[GNB_REDCAP_INITIAL_DL_BWP_START_R17_IDX].iptr;
+  const int dl_size = *RedCap_BWP_Params[GNB_REDCAP_INITIAL_DL_BWP_SIZE_R17_IDX].iptr;
+  const int dl_scs = *RedCap_BWP_Params[GNB_REDCAP_INITIAL_DL_BWP_SCS_R17_IDX].iptr;
+  const int dl_coreset0 = *RedCap_BWP_Params[GNB_REDCAP_INITIAL_DL_CORESET0_R17_IDX].iptr;
+  const int dl_ss0 = *RedCap_BWP_Params[GNB_REDCAP_INITIAL_DL_SS0_R17_IDX].iptr;
+  const int ul_start = *RedCap_BWP_Params[GNB_REDCAP_INITIAL_UL_BWP_START_R17_IDX].iptr;
+  const int ul_size = *RedCap_BWP_Params[GNB_REDCAP_INITIAL_UL_BWP_SIZE_R17_IDX].iptr;
+  const int ul_scs = *RedCap_BWP_Params[GNB_REDCAP_INITIAL_UL_BWP_SCS_R17_IDX].iptr;
+  const int ul_pucch = *RedCap_BWP_Params[GNB_REDCAP_INITIAL_UL_PUCCH_R17_IDX].iptr;
+
+  const NR_BWP_DownlinkCommon_t *common_dl_bwp = scc->downlinkConfigCommon->initialDownlinkBWP;
+  const NR_BWP_UplinkCommon_t *common_ul_bwp = scc->uplinkConfigCommon->initialUplinkBWP;
+  const int dl_bw = scc->downlinkConfigCommon->frequencyInfoDL->scs_SpecificCarrierList.list.array[0]->carrierBandwidth;
+  const int ul_bw = scc->uplinkConfigCommon->frequencyInfoUL->scs_SpecificCarrierList.list.array[0]->carrierBandwidth;
+  const int common_coreset0 = common_dl_bwp->pdcch_ConfigCommon->choice.setup->controlResourceSetZero
+                                  ? *common_dl_bwp->pdcch_ConfigCommon->choice.setup->controlResourceSetZero
+                                  : -1;
+  const int common_ss0 = common_dl_bwp->pdcch_ConfigCommon->choice.setup->searchSpaceZero
+                             ? *common_dl_bwp->pdcch_ConfigCommon->choice.setup->searchSpaceZero
+                             : -1;
+  const int common_pucch = common_ul_bwp->pucch_ConfigCommon->choice.setup->pucch_ResourceCommon
+                               ? *common_ul_bwp->pucch_ConfigCommon->choice.setup->pucch_ResourceCommon
+                               : -1;
+
+  if (redcap_initial_bwp_requested(dl_start, dl_size, dl_scs)) {
+    fill_redcap_initial_bwp(&rc->initial_dl_bwp,
+                            "DL",
+                            dl_start,
+                            dl_size,
+                            dl_scs,
+                            common_coreset0,
+                            common_ss0,
+                            dl_coreset0,
+                            dl_ss0,
+                            dl_bw);
+  }
+
+  if (redcap_initial_bwp_requested(ul_start, ul_size, ul_scs)) {
+    fill_redcap_initial_bwp(&rc->initial_ul_bwp,
+                            "UL",
+                            ul_start,
+                            ul_size,
+                            ul_scs,
+                            common_pucch,
+                            -1,
+                            ul_pucch,
+                            -1,
+                            ul_bw);
+  }
+
+  if (rc->initial_dl_bwp.configured) {
+    LOG_I(GNB_APP,
+          "RedCap initial DL BWP configured: start=%d size=%d scs=%d coreset0=%d searchSpace0=%d\n",
+          rc->initial_dl_bwp.bwp_start,
+          rc->initial_dl_bwp.bwp_size,
+          rc->initial_dl_bwp.scs,
+          rc->initial_dl_bwp.controlResourceSetZero,
+          rc->initial_dl_bwp.searchSpaceZero);
+  }
+
+  if (rc->initial_ul_bwp.configured) {
+    LOG_I(GNB_APP,
+          "RedCap initial UL BWP configured: start=%d size=%d scs=%d pucch_ResourceCommonRedCap=%d\n",
+          rc->initial_ul_bwp.bwp_start,
+          rc->initial_ul_bwp.bwp_size,
+          rc->initial_ul_bwp.scs,
+          rc->initial_ul_bwp.pucch_ResourceCommonRedCap_r17);
+  }
+}
+
+static nr_redcap_config_t *get_redcap_config(int gnb_idx, const NR_ServingCellConfigCommon_t *scc)
 {
   paramdef_t RedCap_Params[] = GNB_REDCAP_PARAMS_DESC;
   char aprefix[MAX_OPTNAME_SIZE * 2 + 8];
@@ -1273,12 +1422,18 @@ static nr_redcap_config_t *get_redcap_config(int gnb_idx)
   rc->cellBarredRedCap1Rx_r17 = *RedCap_Params[GNB_REDCAP_CELL_BARRED_REDCAP1_RX_R17_IDX].i8ptr;
   rc->cellBarredRedCap2Rx_r17 = *RedCap_Params[GNB_REDCAP_CELL_BARRED_REDCAP2_RX_R17_IDX].i8ptr;
   rc->intraFreqReselectionRedCap_r17 = *RedCap_Params[GNB_REDCAP_INTRA_FREQ_RESELECTION_REDCAP_R17_IDX].u8ptr;
+  rc->has_halfDuplexRedCapAllowed_r17 = *RedCap_Params[GNB_REDCAP_HALF_DUPLEX_REDCAP_ALLOWED_R17_IDX].i8ptr >= 0;
+  rc->halfDuplexRedCapAllowed_r17 = rc->has_halfDuplexRedCapAllowed_r17
+                                        ? *RedCap_Params[GNB_REDCAP_HALF_DUPLEX_REDCAP_ALLOWED_R17_IDX].i8ptr
+                                        : 0;
+  get_redcap_initial_bwp_config(rc, gnb_idx, scc);
 
   LOG_I(GNB_APP,
-        "cellBarredRedCap1Rx_r17 %d cellBarredRedCap2Rx_r17 %d intraFreqReselectionRedCap_r17 %d\n",
+        "cellBarredRedCap1Rx_r17 %d cellBarredRedCap2Rx_r17 %d intraFreqReselectionRedCap_r17 %d halfDuplexRedCapAllowed_r17 %s\n",
         rc->cellBarredRedCap1Rx_r17,
         rc->cellBarredRedCap2Rx_r17,
-        rc->intraFreqReselectionRedCap_r17);
+        rc->intraFreqReselectionRedCap_r17,
+        rc->has_halfDuplexRedCapAllowed_r17 ? (rc->halfDuplexRedCapAllowed_r17 ? "present" : "absent-by-config") : "absent");
   return rc;
 }
 
@@ -1397,15 +1552,12 @@ static void get_bwp_config(nr_mac_config_t *configuration, const NR_ServingCellC
 
     int bwp_size = *BWPParamList.paramarray[i][GNB_BWP_SIZE_IDX].iptr;
 
-    if()
-      if ( bwp_size > 51 ) // RedCap max 20Mhz = 51 PRB @ 30 kHZ 
-                          // mod 1
-      {
-
-            LOG_W(GNB_APP,
-          " BWP size %d exceeds RedCap max 51 PRBS \n", //exceeds == over range
+    AssertFatal(bwp_size > 0, "Invalid BWP size value %d\n", bwp_size);
+    if (configuration->redcap && bwp_size > 51)
+      LOG_I(GNB_APP,
+            "BWP size %d exceeds the RedCap initial-BWP 20 MHz limit; keeping it because bwp_list describes "
+            "cell/common BWPs and RedCap-specific initial BWPs are configured elsewhere\n",
             bwp_size);
-      }
 
     AssertFatal(bwp_start + bwp_size <= bw, "BWP start %d and BWP size %d exceeds full BW %d\n", 
                 bwp_start, bwp_size, bw);
@@ -1493,9 +1645,6 @@ void RCconfig_nr_macrlc(configmodule_interface_t *cfg)
   int tot_ant = config.pdsch_AntennaPorts.N1 * config.pdsch_AntennaPorts.N2 * config.pdsch_AntennaPorts.XP;
   AssertFatal(config.maxMIMO_layers != 0 && config.maxMIMO_layers <= tot_ant, "Invalid maxMIMO_layers %d\n", config.maxMIMO_layers);
 
-  config.redcap = get_redcap_config(0);
-  config.ptrs = get_ptrs_config(0);
-
   char aprefix[MAX_OPTNAME_SIZE * 2 + 8];
   snprintf(aprefix, sizeof(aprefix), "%s.[%d].%s", GNB_CONFIG_STRING_GNB_LIST, 0, GNB_CONFIG_STRING_TIMERS_CONFIG);
   GET_PARAMS(Timers_Params, GNB_TIMERS_PARAMS_DESC, aprefix);
@@ -1547,6 +1696,8 @@ void RCconfig_nr_macrlc(configmodule_interface_t *cfg)
         config.num_agg_level_candidates[PDCCH_AGG_LEVEL16]);
 
   NR_ServingCellConfigCommon_t *scc = get_scc_config(cfg, config.minRXTXTIME, config.do_SRS);
+  config.redcap = get_redcap_config(0, scc);
+  config.ptrs = get_ptrs_config(0);
   // BWP
   get_bwp_config(&config, scc);
   AssertFatal(config.num_additional_bwps <= 4, "Impossible to configure more than 4 additional BWPs\n");

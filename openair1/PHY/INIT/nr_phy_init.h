@@ -28,6 +28,8 @@
 int nr_get_ssb_start_symbol(const NR_DL_FRAME_PARMS *fp, uint8_t i_ssb);
 void nr_init_frame_parms(nfapi_nr_config_request_scf_t *config, NR_DL_FRAME_PARMS *frame_parms);
 int nr_init_frame_parms_ue(NR_DL_FRAME_PARMS *frame_parms, fapi_nr_config_request_t *config, uint16_t nr_band);
+void nr_validate_redcap_gnb_frame_parms(const NR_DL_FRAME_PARMS *frame_parms);
+void nr_validate_redcap_ue_frame_parms(const NR_DL_FRAME_PARMS *frame_parms);
 void nr_init_frame_parms_ue_sa(NR_DL_FRAME_PARMS *frame_parms, uint64_t downlink_frequency, int32_t uplink_frequency_offset, uint8_t mu, uint16_t nr_band);
 int nr_init_frame_parms_ue_sl(NR_DL_FRAME_PARMS *fp,
                               sl_nr_phy_config_request_t *config,

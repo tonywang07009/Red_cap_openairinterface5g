@@ -72,7 +72,7 @@ services:
 
     xapp-kpm-rc:
         # image: ${REGISTRY-oaisoftwarealliance/}oai-flexric:${FLEXRIC_TAG:-develop}
-        image: oai-flexric:custom-dev_dev
+        image: oai-flexric:custom-dev
         command: "stdbuf -o0 /usr/local/flexric/xApp/c/kpm_rc/xapp_kpm_rc"
         container_name: xapp-kpm-rc_redcap
         depends_on:
@@ -90,7 +90,7 @@ services:
 
     xapp-gtp-mac-rlc-pdcp-moni:
         # image: ${REGISTRY-oaisoftwarealliance/}oai-flexric:${FLEXRIC_TAG:-develop}
-        image: oai-flexric:custom-dev_dev
+        image: oai-flexric:custom-dev
         command: "stdbuf -o0 /usr/local/flexric/xApp/c/monitor/xapp_gtp_mac_rlc_pdcp_moni"
         container_name: xapp-gtp-mac-rlc-pdcp-moni_redcap
         depends_on:
@@ -1168,7 +1168,9 @@ services:
         environment:
             USE_ADDITIONAL_OPTIONS: >
                                     -E --rfsim -r 106 --numerology 1 
-                                    --uicc0.imsi 001010000000028 -C 3319680000 
+                                    --uicc0.imsi 001010000000028
+                                    -C 3630360000
+                                    --ssb 144
                                     --rfsimulator.serveraddr 192.168.70.140 --log_config.global_log_options level,nocolor,time
                                     --telnetsrv --telnetsrv.listenaddr 192.168.71.177 --telnetsrv.listenport 8118
         depends_on:
@@ -1179,7 +1181,7 @@ services:
         devices:
              - /dev/net/tun:/dev/net/tun
         volumes:
-            - ../../conf_files/nrue/nrue28.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml
+            - ../../conf_files/nrue_recap/nrue28.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml
         healthcheck:
             test: /bin/bash -c "pgrep nr-uesoftmodem"
             start_period: 10s
@@ -1187,8 +1189,6 @@ services:
             interval: 10s
             timeout: 5s
             retries: 5
-            
-
 networks:
     public_net:
         name: oai-cn5g-public-net

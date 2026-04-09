@@ -278,6 +278,7 @@ struct NR_DL_FRAME_PARMS {
   uint16_t tdd_slot_config;
   uint8_t tdd_period;
   bool print_ue_help_cmdline_log;
+  bool redcap_restricted;
 };
 
 // PRS config structures

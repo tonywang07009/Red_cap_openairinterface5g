@@ -24,11 +24,20 @@ extern "C" {
 #include <stdlib.h>
 #include "openair1/PHY/defs_nr_common.h"
 #include "openair1/PHY/INIT/nr_phy_init.h"
+#include "openair3/UICC/usim_interface.h"
 
 static softmodem_params_t softmodem_params;
 softmodem_params_t *get_softmodem_params(void)
 {
   return &softmodem_params;
+}
+
+bool load_nr_redcap_config(const char *sectionName, nr_redcap_cfg_t *cfg)
+{
+  (void)sectionName;
+  if (cfg != NULL)
+    *cfg = (nr_redcap_cfg_t){0};
+  return false;
 }
 }
 
@@ -52,6 +61,22 @@ uint32_t ref_get_slot_from_timestamp(openair0_timestamp ts, NR_DL_FRAME_PARMS *f
     samples_till_the_slot += get_samples_per_slot(slot_idx, fp);
   }
   return slot_idx;
+}
+
+static NR_DL_FRAME_PARMS make_redcap_fp(uint8_t mu)
+{
+  NR_DL_FRAME_PARMS fp;
+  memset(&fp, 0, sizeof(fp));
+  fp.numerology_index = mu;
+  fp.freq_range = FR1;
+  fp.nr_band = 78;
+  fp.dl_CarrierFreq = 3600000000;
+  fp.ul_CarrierFreq = 3510000000;
+  fp.N_RB_DL = (mu == NR_MU_0) ? 106 : 51;
+  fp.N_RB_UL = fp.N_RB_DL;
+  fp.nb_antennas_rx = 2;
+  fp.nb_antennas_tx = 1;
+  return fp;
 }
 
 void test_coherence_symbol_api(NR_DL_FRAME_PARMS *fp)
@@ -166,6 +191,39 @@ TEST(nr_frame_params, test_mu_0)
   nr_dump_frame_parms(&fp);
   test_coherence_symbol_api(&fp);
   test_coherence_slot_api(&fp);
+}
+
+TEST(nr_frame_params, redcap_gnb_validation_accepts_fr1_limits)
+{
+  NR_DL_FRAME_PARMS fp = make_redcap_fp(NR_MU_1);
+  fp.nb_antennas_tx = 2;
+
+  nr_validate_redcap_gnb_frame_parms(&fp);
+}
+
+TEST(nr_frame_params, redcap_gnb_validation_rejects_dl_bandwidth_over_20mhz)
+{
+  NR_DL_FRAME_PARMS fp = make_redcap_fp(NR_MU_1);
+  fp.nb_antennas_tx = 2;
+  fp.N_RB_DL = 52;
+
+  ASSERT_DEATH({ nr_validate_redcap_gnb_frame_parms(&fp); }, "exceeds 20 MHz limit");
+}
+
+TEST(nr_frame_params, redcap_ue_validation_rejects_extra_rx_branch)
+{
+  NR_DL_FRAME_PARMS fp = make_redcap_fp(NR_MU_0);
+  fp.nb_antennas_rx = 3;
+
+  ASSERT_DEATH({ nr_validate_redcap_ue_frame_parms(&fp); }, "requires 1 or 2 RX branches");
+}
+
+TEST(nr_frame_params, redcap_ue_validation_rejects_ul_mimo)
+{
+  NR_DL_FRAME_PARMS fp = make_redcap_fp(NR_MU_0);
+  fp.nb_antennas_tx = 2;
+
+  ASSERT_DEATH({ nr_validate_redcap_ue_frame_parms(&fp); }, "does not support UL MIMO");
 }
 
 int main(int argc, char **argv)
