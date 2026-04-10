@@ -156,7 +156,7 @@ services:
         devices:
              - /dev/net/tun:/dev/net/tun
         volumes:
-            - ../../conf_files/nrue_recap/nrue1.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml
+            - ${NRUE_CONFIG_1:-../../conf_files/nrue/nrue1.uicc.yaml}:/opt/oai-nr-ue/etc/nr-ue.yaml
         healthcheck:
             test: /bin/bash -c "pgrep nr-uesoftmodem"
             start_period: 10s
@@ -193,7 +193,7 @@ services:
         devices:
              - /dev/net/tun:/dev/net/tun
         volumes:
-            - ../../conf_files/nrue_recap/nrue2.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml
+            - ${NRUE_CONFIG_2:-../../conf_files/nrue_recap/nrue2.uicc.yaml}:/opt/oai-nr-ue/etc/nr-ue.yaml
         healthcheck:
             test: /bin/bash -c "pgrep nr-uesoftmodem"
             start_period: 10s

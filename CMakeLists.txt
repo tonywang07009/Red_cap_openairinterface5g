@@ -1230,6 +1230,7 @@ set (MAC_NR_SRC
   ${NR_GNB_MAC_DIR}/mac_rrc_dl_handler.c
   ${NR_GNB_MAC_DIR}/mac_rrc_ul_direct.c
   ${NR_GNB_MAC_DIR}/mac_rrc_ul_f1ap.c
+  ${NR_GNB_MAC_DIR}/nr_mac_redcap_bwp.c
   ${NR_GNB_MAC_DIR}/nr_mac_sdt_fsm.c
   ${NR_GNB_MAC_DIR}/nr_radio_config.c
  )
@@ -1253,6 +1254,7 @@ set (MAC_NR_SRC_UE
   ${NR_UE_MAC_DIR}/config_ue_sl.c
   ${NR_UE_MAC_DIR}/mac_tables.c
   ${NR_UE_MAC_DIR}/main_ue_nr.c
+  ${NR_UE_MAC_DIR}/nr_ue_redcap_bwp.c
   ${NR_UE_MAC_DIR}/nr_ue_procedures.c
   ${NR_UE_MAC_DIR}/nr_ue_procedures_sl.c
   ${NR_UE_MAC_DIR}/nr_ue_scheduler.c

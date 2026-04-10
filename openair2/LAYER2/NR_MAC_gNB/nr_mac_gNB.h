@@ -76,6 +76,7 @@
 #include "NR_CellGroupConfig.h"
 #include "NR_BCCH-DL-SCH-Message.h"
 #include "nr_mac_redcap.h"
+#include "nr_mac_redcap_bwp.h"
 #include "nr_radio_config.h"
 
 /* PHY */
@@ -149,17 +150,6 @@ typedef struct nr_mac_timers {
   int n311;
   int t319;
 } nr_mac_timers_t;
-
-typedef struct nr_redcap_bwp_config {
-  bool configured;
-  int scs;
-  int bwp_start;
-  int bwp_size;
-  int location_and_bw;
-  int controlResourceSetZero;
-  int searchSpaceZero;
-  int pucch_ResourceCommonRedCap_r17;
-} nr_redcap_bwp_config_t;
 
 typedef struct nr_redcap_config {
   int8_t cellBarredRedCap1Rx_r17;

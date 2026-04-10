@@ -1251,70 +1251,6 @@ static nr_ptrs_config_t *get_ptrs_config(int gnb_idx)
 
 /* Red cap */
 
-static int nr_redcap_fr1_max_prbs_from_scs(const long scs)
-{
-  switch (scs) {
-    case NR_SubcarrierSpacing_kHz15:
-      return 106;
-
-    case NR_SubcarrierSpacing_kHz30:
-      return 51;
-
-    default:
-      return -1;
-  }
-}
-
-static bool redcap_initial_bwp_requested(const int start, const int size, const int scs)
-{
-  return start >= 0 || size >= 0 || scs >= 0;
-}
-
-static void fill_redcap_initial_bwp(nr_redcap_bwp_config_t *cfg,
-                                    const char *direction,
-                                    const int start,
-                                    const int size,
-                                    const int scs,
-                                    const int common_param_a,
-                                    const int common_param_b,
-                                    const int param_a,
-                                    const int param_b,
-                                    const int full_bw)
-{
-  AssertFatal(start >= 0 && size > 0 && scs >= 0,
-              "RedCap %s initial BWP requires start/size/scs to be configured together\n",
-              direction);
-
-  const int max_prbs = nr_redcap_fr1_max_prbs_from_scs(scs);
-  AssertFatal(max_prbs > 0,
-              "RedCap %s initial BWP only supports FR1 SCS 15/30 kHz in the current implementation (configured scs=%d)\n",
-              direction,
-              scs);
-  AssertFatal(size <= max_prbs,
-              "RedCap %s initial BWP size %d exceeds the FR1 20 MHz limit for scs=%d (max %d PRBs)\n",
-              direction,
-              size,
-              scs,
-              max_prbs);
-  AssertFatal(start >= 0 && start + size <= full_bw,
-              "RedCap %s initial BWP start=%d size=%d exceeds the configured common carrier bandwidth %d\n",
-              direction,
-              start,
-              size,
-              full_bw);
-
-  *cfg = (nr_redcap_bwp_config_t){
-      .configured = true,
-      .scs = scs,
-      .bwp_start = start,
-      .bwp_size = size,
-      .location_and_bw = PRBalloc_to_locationandbandwidth(size, start),
-      .controlResourceSetZero = param_a >= 0 ? param_a : common_param_a,
-      .searchSpaceZero = param_b >= 0 ? param_b : common_param_b,
-      .pucch_ResourceCommonRedCap_r17 = param_a >= 0 ? param_a : common_param_a,
-  };
-}
-
 static void get_redcap_initial_bwp_config(nr_redcap_config_t *rc, int gnb_idx, const NR_ServingCellConfigCommon_t *scc)
 {
   paramdef_t RedCap_BWP_Params[] = GNB_REDCAP_INITIAL_BWP_PARAMS_DESC;
@@ -1360,30 +1296,31 @@ static void get_redcap_initial_bwp_config(nr_redcap_config_t *rc, int gnb_idx, c
               coreset0_mode);
   rc->coreset0_mode = (nr_redcap_coreset0_mode_t)coreset0_mode;
 
-  if (redcap_initial_bwp_requested(dl_start, dl_size, dl_scs)) {
-    fill_redcap_initial_bwp(&rc->initial_dl_bwp,
-                            "DL",
-                            dl_start,
-                            dl_size,
-                            dl_scs,
-                            common_coreset0,
-                            common_ss0,
-                            dl_coreset0,
-                            dl_ss0,
-                            dl_bw);
+  if (nr_redcap_initial_bwp_requested(dl_start, dl_size, dl_scs)) {
+    nr_redcap_configure_initial_bwp(&rc->initial_dl_bwp,
+                                    "DL",
+                                    dl_start,
+                                    dl_size,
+                                    dl_scs,
+                                    common_coreset0,
+                                    common_ss0,
+                                    dl_coreset0,
+                                    dl_ss0,
+                                    dl_bw);
+    nr_redcap_validate_coreset0_dl_bwp(rc->coreset0_mode, &rc->initial_dl_bwp, dl_bw);
   }
 
-  if (redcap_initial_bwp_requested(ul_start, ul_size, ul_scs)) {
-    fill_redcap_initial_bwp(&rc->initial_ul_bwp,
-                            "UL",
-                            ul_start,
-                            ul_size,
-                            ul_scs,
-                            common_pucch,
-                            -1,
-                            ul_pucch,
-                            -1,
-                            ul_bw);
+  if (nr_redcap_initial_bwp_requested(ul_start, ul_size, ul_scs)) {
+    nr_redcap_configure_initial_bwp(&rc->initial_ul_bwp,
+                                    "UL",
+                                    ul_start,
+                                    ul_size,
+                                    ul_scs,
+                                    common_pucch,
+                                    -1,
+                                    ul_pucch,
+                                    -1,
+                                    ul_bw);
   }
 
   if (rc->initial_dl_bwp.configured) {

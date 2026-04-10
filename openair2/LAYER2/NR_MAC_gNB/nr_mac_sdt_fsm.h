@@ -23,6 +23,7 @@
 #define __LAYER2_NR_MAC_GNB_NR_MAC_SDT_FSM_H__
 
 #include <stdbool.h>
+#include <stdio.h>
 #include <stdint.h>
 
 #include "nr_mac_redcap.h"
@@ -60,8 +61,13 @@ typedef struct {
 } nr_redcap_sdt_config_t;
 
 typedef struct {
+  nr_redcap_sdt_event_t event;
   nr_redcap_sdt_state_t from;
   nr_redcap_sdt_state_t to;
+  nr_redcap_sdt_path_t selected_path;
+  nr_redcap_rrc_state_t redcap_rrc_state;
+  uint16_t pending_payload_bytes;
+  bool accepted;
 } nr_redcap_sdt_transition_t;
 
 typedef struct {
@@ -79,6 +85,21 @@ bool nr_redcap_sdt_fsm_step(nr_redcap_sdt_fsm_t *fsm,
                             nr_redcap_sdt_transition_t *transition);
 const char *nr_redcap_sdt_state_to_string(nr_redcap_sdt_state_t state);
 const char *nr_redcap_sdt_path_to_string(nr_redcap_sdt_path_t path);
+/**
+ * @brief Return a stable string label for an SDT FSM event.
+ *
+ * @param event SDT FSM event identifier.
+ * @return Human-readable string label for @p event.
+ */
+const char *nr_redcap_sdt_event_to_string(nr_redcap_sdt_event_t event);
+/**
+ * @brief Write a single SDT FSM transition record to a stream.
+ *
+ * @param stream Output stream receiving the formatted transition line.
+ * @param transition Transition record produced by nr_redcap_sdt_fsm_step().
+ * @return Number of characters written, or a negative value on error.
+ */
+int nr_redcap_sdt_transition_fprintf(FILE *stream, const nr_redcap_sdt_transition_t *transition);
 
 #ifdef __cplusplus
 }

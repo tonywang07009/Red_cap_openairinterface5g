@@ -39,6 +39,7 @@
  333332
  302002
  302003
+ 302004
  020005
  030001
  030002
@@ -134,7 +135,7 @@
         <testCase id="333331">
                 <class>Attach_UE</class>
                 <desc>Attach OAI UE 1</desc>
-                <id>rfsim5g_ue</id>
+                <id>rfsim5g_redcap_ue1</id>
                 <node>carabe</node>
         </testCase>
 
@@ -148,7 +149,7 @@
         <testCase id="333332">
                 <class>Attach_UE</class>
                 <desc>Attach OAI UE 2 (RedCap)</desc>
-                <id>rfsim5g_ue2</id>
+                <id>rfsim5g_redcap_ue2</id>
                 <node>carabe</node>
         </testCase>
 
@@ -161,15 +162,22 @@
 
         <testCase id="302003">
                 <class>Custom_Command</class>
-                <desc>Verify gNB builds RedCap initial BWP into SIB1</desc>
+                <desc>Verify gNB builds RedCap initial DL BWP into SIB1</desc>
                 <node>localhost</node>
                 <command>[ $(docker logs rfsim5g-oai-gnb_redcap | grep -m1 "SIB1 RedCap initial DL BWP" | wc -l) -eq 1 ]</command>
+        </testCase>
+
+        <testCase id="302004">
+                <class>Custom_Command</class>
+                <desc>Verify gNB builds RedCap initial UL BWP into SIB1</desc>
+                <node>localhost</node>
+                <command>[ $(docker logs rfsim5g-oai-gnb_redcap | grep -m1 "SIB1 RedCap initial UL BWP" | wc -l) -eq 1 ]</command>
         </testCase>
 
         <testCase id="020005">
                 <class>Ping</class>
                 <desc>Ping ext-dn from both UEs</desc>
-                <id>rfsim5g_ue rfsim5g_ue2</id>
+                <id>rfsim5g_redcap_ue1 rfsim5g_redcap_ue2</id>
                 <node>carabe</node>
                 <svr_id>oai_ext_dn</svr_id>
                 <svr_node>carabe</svr_node>
@@ -179,9 +187,9 @@
 
         <testCase id="030001">
                 <class>Iperf</class>
-                <desc>Iperf RedCap UE2 (DL/60Mbps/UDP)(30 sec)</desc>
-                <iperf_args>-u -b 60M -t 30 -R</iperf_args>
-                <id>rfsim5g_ue2</id>
+                <desc>Iperf RedCap UE2 (UL/50Mbps/UDP)(30 sec)</desc>
+                <iperf_args>-u -b 50M -t 30</iperf_args>
+                <id>rfsim5g_redcap_ue2</id>
                 <node>carabe</node>
                 <svr_id>oai_ext_dn</svr_id>
                 <svr_node>carabe</svr_node>
@@ -194,7 +202,7 @@
                 <class>Iperf</class>
                 <desc>Iperf RedCap UE2 (UL/20Mbps/UDP)(30 sec)</desc>
                 <iperf_args>-u -b 20M -t 30</iperf_args>
-                <id>rfsim5g_ue2</id>
+                <id>rfsim5g_redcap_ue2</id>
                 <node>carabe</node>
                 <svr_id>oai_ext_dn</svr_id>
                 <svr_node>carabe</svr_node>
@@ -206,7 +214,7 @@
         <testCase id="444444">
                 <class>Detach_UE</class>
                 <desc>Detach OAI UE 1 and 2</desc>
-                <id>rfsim5g_ue rfsim5g_ue2</id>
+                <id>rfsim5g_redcap_ue1 rfsim5g_redcap_ue2</id>
                 <node>carabe</node>
         </testCase>
 

@@ -12,8 +12,9 @@ TARGET_TESTS = {
     "333332": "[Attach UE2 RedCap]",
     "302002": "[Verify UE2 RedCap]",
     "302003": "[Verify SIB1 RedCap initial DL BWP]",
+    "302004": "[Verify SIB1 RedCap initial UL BWP]",
     "020005": "[Ping both UEs]",
-    "030001": "[Iperf DL 60 Mbps UDP on UE2]",
+    "030001": "[Iperf UL 50 Mbps UDP on UE2]",
     "030002": "[Iperf UL 20 Mbps UDP on UE2]",
 }
 
@@ -132,6 +133,7 @@ def summarize_service_log(
 def summarize_gnb_log(artifacts_dir: Path, expected_mode: str | None) -> list[str]:
     markers = {
         "[SIB1 RedCap initial DL BWP]": re.compile(r"SIB1 RedCap initial DL BWP"),
+        "[SIB1 RedCap initial UL BWP]": re.compile(r"SIB1 RedCap initial UL BWP"),
         "[UE marked as RedCap]": re.compile(r"UE with RNTI [0-9a-fA-F]{4} is RedCap"),
     }
     if expected_mode in EXPECTED_MODE_MARKERS:
@@ -140,7 +142,7 @@ def summarize_gnb_log(artifacts_dir: Path, expected_mode: str | None) -> list[st
     gnb_log = find_service_log(artifacts_dir, "oai-gnb.logs")
     if gnb_log is None:
         return [
-            "- [gNB log]：未找到 `*-oai-gnb.logs`，無法交叉驗證 [302002] / [302003]。",
+            "- [gNB log]：未找到 `*-oai-gnb.logs`，無法交叉驗證 [302002] / [302003] / [302004]。",
         ]
 
     lines = [f"- [gNB log]：`{gnb_log}`"]
@@ -221,6 +223,7 @@ def build_report(args: argparse.Namespace) -> str:
     report.append("")
     report.append("## Exit Criteria")
     report.append("- [302003] 應為 [OK]，且 [gNB log] 內應出現 `SIB1 RedCap initial DL BWP`。")
+    report.append("- [302004] 應為 [OK]，且 [gNB log] 內應出現 `SIB1 RedCap initial UL BWP`。")
     report.append("- [302002] 應為 [OK]，且 [gNB log] 內應出現 `UE with RNTI .... is RedCap`。")
     if args.expected_mode:
         accepted_modes = ", ".join(f"`mode={alias}`" for alias in EXPECTED_MODE_ALIASES[args.expected_mode])
@@ -228,8 +231,9 @@ def build_report(args: argparse.Namespace) -> str:
     if args.expected_mode == "case-b":
         report.append("- [Case B] 應在 [gNB log] 中看到 `RedCap CORESET#0 Case B edge-aligned PRB allocation`。")
     report.append("- [333332] / [302002] 若成功，代表 RedCap UE 已完成 common search space 監聽與 attach，可視為 [PDCCH decode] 的 runtime 證據。")
-    report.append("- [030001] / [030002] 應為 [OK]，並可在對應 `iperf_client_rfsim5g_ue2.log` 中看到 [Receiver Bitrate] 與 [Packet Loss]。")
-    report.append("- [020005] 應為 [OK]，並可在 `ping_rfsim5g_ue*.log` 中看到 [0% 或可接受門檻內] 的 [packet loss]。")
+    report.append("- [UE2 log] 應同時看到 `Applying SIB1 RedCap initial DL BWP` 與 `Applying SIB1 RedCap initial UL BWP`，才算完成 UE 端雙向 RedCap BWP 套用。")
+    report.append("- [030001] / [030002] 應為 [OK]，並可在對應 `iperf_client_rfsim5g_redcap_ue2.log` 中看到 [Receiver Bitrate] 與 [Packet Loss]。")
+    report.append("- [020005] 應為 [OK]，並可在 `ping_rfsim5g_redcap_ue*.log` 中看到 [0% 或可接受門檻內] 的 [packet loss]。")
     report.append("")
     report.append("## Notes")
     report.append("- [⚠ Needs Verification]：若 `test_results.html` 或 artifacts 缺失，通常代表 scenario 尚未完整跑完，或在 deploy 前即失敗。")

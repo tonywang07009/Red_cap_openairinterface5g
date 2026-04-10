@@ -340,6 +340,24 @@ rfsim5g_ue2:
   DetachScript: docker stop rfsim5g-oai-nr-ue2
   MTU: 1500
 
+rfsim5g_redcap_ue1:
+  Host: "%%current_host%%"
+  NetworkScript: docker exec rfsim5g-oai-nr-ue1_redcap ip a show dev oaitun_ue1
+  CmdPrefix: docker exec rfsim5g-oai-nr-ue1_redcap
+  IF: oaitun_ue1
+  AttachScript: docker start rfsim5g-oai-nr-ue1_redcap
+  DetachScript: docker stop rfsim5g-oai-nr-ue1_redcap
+  MTU: 1500
+
+rfsim5g_redcap_ue2:
+  Host: "%%current_host%%"
+  NetworkScript: docker exec rfsim5g-oai-nr-ue2_redcap ip a show dev oaitun_ue1
+  CmdPrefix: docker exec rfsim5g-oai-nr-ue2_redcap
+  IF: oaitun_ue1
+  AttachScript: docker start rfsim5g-oai-nr-ue2_redcap
+  DetachScript: docker stop rfsim5g-oai-nr-ue2_redcap
+  MTU: 1500
+
 rfsim5g_ue3:
   Host: "%%current_host%%"
   NetworkScript: docker exec rfsim5g-oai-nr-ue3 ip a show dev oaitun_ue1

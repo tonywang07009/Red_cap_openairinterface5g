@@ -36,6 +36,7 @@
 #include "NR_MAC_UE/mac_proto.h"
 #include "NR_MAC-CellGroupConfig.h"
 #include "LAYER2/NR_MAC_COMMON/nr_mac_common.h"
+#include "LAYER2/NR_MAC_UE/nr_ue_redcap_bwp.h"
 #include "common/utils/nr/nr_common.h"
 #include "executables/softmodem-common.h"
 #include "SCHED_NR/phy_frame_config_nr.h"
@@ -1733,23 +1734,6 @@ static bool use_sib1_redcap_initial_bwp(void)
 {
   nr_redcap_cfg_t redcap_cfg = {0};
   return load_nr_redcap_config(NULL, &redcap_cfg) && redcap_cfg.support_of_redcap_r17;
-}
-
-static NR_BWP_DownlinkCommon_t *get_sib1_initial_dl_bwp(const NR_ServingCellConfigCommonSIB_t *scc, const bool is_redcap_ue)
-{
-  if (is_redcap_ue && scc->downlinkConfigCommon.ext1 && scc->downlinkConfigCommon.ext1->initialDownlinkBWP_RedCap_r17)
-    return scc->downlinkConfigCommon.ext1->initialDownlinkBWP_RedCap_r17;
-  return (NR_BWP_DownlinkCommon_t *)&scc->downlinkConfigCommon.initialDownlinkBWP;
-}
-
-static NR_BWP_UplinkCommon_t *get_sib1_initial_ul_bwp(const NR_ServingCellConfigCommonSIB_t *scc, const bool is_redcap_ue)
-{
-  if (scc->uplinkConfigCommon == NULL)
-    return NULL;
-  if (is_redcap_ue && scc->ext2 && scc->ext2->uplinkConfigCommon_v1700
-      && scc->ext2->uplinkConfigCommon_v1700->initialUplinkBWP_RedCap_r17)
-    return scc->ext2->uplinkConfigCommon_v1700->initialUplinkBWP_RedCap_r17;
-  return &scc->uplinkConfigCommon->initialUplinkBWP;
 }
 
 static void configure_common_BWP_ul(NR_UE_MAC_INST_t *mac, int bwp_id, NR_BWP_UplinkCommon_t *ul_common)

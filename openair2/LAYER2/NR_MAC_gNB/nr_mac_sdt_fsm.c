@@ -23,6 +23,22 @@
 
 #include <stddef.h>
 
+static void init_transition_record(const nr_redcap_sdt_fsm_t *fsm,
+                                   nr_redcap_sdt_event_t event,
+                                   nr_redcap_sdt_transition_t *transition)
+{
+  if (transition == NULL)
+    return;
+
+  transition->event = event;
+  transition->from = fsm->state;
+  transition->to = fsm->state;
+  transition->selected_path = fsm->selected_path;
+  transition->redcap_rrc_state = fsm->redcap_rrc_state;
+  transition->pending_payload_bytes = fsm->pending_payload_bytes;
+  transition->accepted = false;
+}
+
 static nr_redcap_rrc_state_t sdt_state_to_rrc_state(nr_redcap_sdt_state_t state)
 {
   switch (state) {
@@ -49,6 +65,12 @@ static bool move_to_state(nr_redcap_sdt_fsm_t *fsm,
   }
   fsm->state = next_state;
   fsm->redcap_rrc_state = sdt_state_to_rrc_state(next_state);
+  if (transition != NULL) {
+    transition->selected_path = fsm->selected_path;
+    transition->redcap_rrc_state = fsm->redcap_rrc_state;
+    transition->pending_payload_bytes = fsm->pending_payload_bytes;
+    transition->accepted = true;
+  }
   return true;
 }
 
@@ -73,10 +95,7 @@ bool nr_redcap_sdt_fsm_step(nr_redcap_sdt_fsm_t *fsm,
   if (fsm == NULL)
     return false;
 
-  if (transition != NULL) {
-    transition->from = fsm->state;
-    transition->to = fsm->state;
-  }
+  init_transition_record(fsm, event, transition);
 
   switch (event) {
     case NR_REDCAP_SDT_EVENT_UL_DATA_ARRIVAL:
@@ -154,4 +173,38 @@ const char *nr_redcap_sdt_path_to_string(nr_redcap_sdt_path_t path)
     default:
       return "unknown";
   }
+}
+
+const char *nr_redcap_sdt_event_to_string(nr_redcap_sdt_event_t event)
+{
+  switch (event) {
+    case NR_REDCAP_SDT_EVENT_UL_DATA_ARRIVAL:
+      return "ul-data-arrival";
+    case NR_REDCAP_SDT_EVENT_SELECT_PATH:
+      return "select-path";
+    case NR_REDCAP_SDT_EVENT_UL_GRANT_READY:
+      return "ul-grant-ready";
+    case NR_REDCAP_SDT_EVENT_UL_BURST_COMPLETE:
+      return "ul-burst-complete";
+    case NR_REDCAP_SDT_EVENT_RESET:
+      return "reset";
+    default:
+      return "unknown";
+  }
+}
+
+int nr_redcap_sdt_transition_fprintf(FILE *stream, const nr_redcap_sdt_transition_t *transition)
+{
+  if (stream == NULL || transition == NULL)
+    return -1;
+
+  return fprintf(stream,
+                 "event=%s accepted=%s from=%s to=%s path=%s rrc=%s pending_payload_bytes=%u\n",
+                 nr_redcap_sdt_event_to_string(transition->event),
+                 transition->accepted ? "true" : "false",
+                 nr_redcap_sdt_state_to_string(transition->from),
+                 nr_redcap_sdt_state_to_string(transition->to),
+                 nr_redcap_sdt_path_to_string(transition->selected_path),
+                 nr_redcap_rrc_state_to_string(transition->redcap_rrc_state),
+                 transition->pending_payload_bytes);
 }
