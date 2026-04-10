@@ -23,12 +23,8 @@ services:
             #1. the source dir
             - /home/tonywang/OAI/flexric:/flexric_src
             # :ro -> is read only
-        # keep the motived
-        command: sleep infinity
-            
         healthcheck:
-            test: ["CMD-SHELL", "echo 'I am ready for compilation'"]
-            # test: /bin/bash -c "pgrep nearRT-RIC"
+            test: /bin/bash -c "pgrep nearRT-RIC"
             interval: 10s
             timeout: 5s
             retries: 5
@@ -124,7 +120,7 @@ services:
                 ipv4_address: 192.168.70.140
                 # 70.151
         volumes:
-            - ../../conf_files/gnb.sa.band78.fr1.106PRB.usrpb210.redcap.yaml:/opt/oai-gnb/etc/gnb.yaml
+            - ${GNB_REDCAP_CONFIG:-../../conf_files/gnb.sa.band78.fr1.106PRB.usrpb210.redcap.yaml}:/opt/oai-gnb/etc/gnb.yaml
             # The /etc/gnb.yaml -> the file type need alament
         healthcheck:
             test: /bin/bash -c "pgrep nr-softmodem"

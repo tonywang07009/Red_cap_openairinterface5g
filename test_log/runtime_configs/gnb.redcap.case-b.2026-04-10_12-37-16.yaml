@@ -149,7 +149,6 @@ gNBs:
         cellBarredRedCap1Rx_r17: 1 # The 1 RX ue can into this cell ? 1: yes 0 : no
         cellBarredRedCap2Rx_r17: 1 # The 2 Rx ue can into this cell?  1: yes 0 : no
         halfDuplexRedCapAllowed_r17: 1
-        redcap_inactive_allowed: 1 # Enable local RedCap SDT / RRC_INACTIVE FSM hooks
         intraFreqReselectionRedCap_r17: 0 # Premit the ue can do the cell reselection
                                           # in the same fequency
                                           # for move ue , need shark hand cell
@@ -157,7 +156,7 @@ gNBs:
           initialDLBWPStart_r17: 0
           initialDLBWPSize_r17: 51
           initialDLBWPSubcarrierSpacing_r17: 1
-          coreset0_redcap_mode_r17: 0 # 0: Case A (type0 CSS), 1: Case B (edge-only commonControlResourceSet)
+          coreset0_redcap_mode_r17: 1 # 0: Case A (type0 CSS), 1: Case B (edge-only commonControlResourceSet)
           initialDLBWPControlResourceSetZero_r17: 10
           initialDLBWPSearchSpaceZero_r17: 0
           initialULBWPStart_r17: 0

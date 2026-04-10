@@ -1333,6 +1333,7 @@ static void get_redcap_initial_bwp_config(nr_redcap_config_t *rc, int gnb_idx, c
   const int dl_start = *RedCap_BWP_Params[GNB_REDCAP_INITIAL_DL_BWP_START_R17_IDX].iptr;
   const int dl_size = *RedCap_BWP_Params[GNB_REDCAP_INITIAL_DL_BWP_SIZE_R17_IDX].iptr;
   const int dl_scs = *RedCap_BWP_Params[GNB_REDCAP_INITIAL_DL_BWP_SCS_R17_IDX].iptr;
+  const int coreset0_mode = *RedCap_BWP_Params[GNB_REDCAP_CORESET0_MODE_R17_IDX].iptr;
   const int dl_coreset0 = *RedCap_BWP_Params[GNB_REDCAP_INITIAL_DL_CORESET0_R17_IDX].iptr;
   const int dl_ss0 = *RedCap_BWP_Params[GNB_REDCAP_INITIAL_DL_SS0_R17_IDX].iptr;
   const int ul_start = *RedCap_BWP_Params[GNB_REDCAP_INITIAL_UL_BWP_START_R17_IDX].iptr;
@@ -1353,6 +1354,11 @@ static void get_redcap_initial_bwp_config(nr_redcap_config_t *rc, int gnb_idx, c
   const int common_pucch = common_ul_bwp->pucch_ConfigCommon->choice.setup->pucch_ResourceCommon
                                ? *common_ul_bwp->pucch_ConfigCommon->choice.setup->pucch_ResourceCommon
                                : -1;
+
+  AssertFatal(nr_redcap_is_valid_coreset0_mode(coreset0_mode),
+              "RedCap coreset0_redcap_mode_r17=%d is invalid, expected 0 (Case A) or 1 (Case B)\n",
+              coreset0_mode);
+  rc->coreset0_mode = (nr_redcap_coreset0_mode_t)coreset0_mode;
 
   if (redcap_initial_bwp_requested(dl_start, dl_size, dl_scs)) {
     fill_redcap_initial_bwp(&rc->initial_dl_bwp,
@@ -1382,12 +1388,13 @@ static void get_redcap_initial_bwp_config(nr_redcap_config_t *rc, int gnb_idx, c
 
   if (rc->initial_dl_bwp.configured) {
     LOG_I(GNB_APP,
-          "RedCap initial DL BWP configured: start=%d size=%d scs=%d coreset0=%d searchSpace0=%d\n",
+          "RedCap initial DL BWP configured: start=%d size=%d scs=%d coreset0=%d searchSpace0=%d mode=%s\n",
           rc->initial_dl_bwp.bwp_start,
           rc->initial_dl_bwp.bwp_size,
           rc->initial_dl_bwp.scs,
           rc->initial_dl_bwp.controlResourceSetZero,
-          rc->initial_dl_bwp.searchSpaceZero);
+          rc->initial_dl_bwp.searchSpaceZero,
+          nr_redcap_coreset0_mode_to_string(rc->coreset0_mode));
   }
 
   if (rc->initial_ul_bwp.configured) {
@@ -1426,14 +1433,16 @@ static nr_redcap_config_t *get_redcap_config(int gnb_idx, const NR_ServingCellCo
   rc->halfDuplexRedCapAllowed_r17 = rc->has_halfDuplexRedCapAllowed_r17
                                         ? *RedCap_Params[GNB_REDCAP_HALF_DUPLEX_REDCAP_ALLOWED_R17_IDX].i8ptr
                                         : 0;
+  rc->inactive_allowed = *RedCap_Params[GNB_REDCAP_INACTIVE_ALLOWED_IDX].i8ptr > 0;
   get_redcap_initial_bwp_config(rc, gnb_idx, scc);
 
   LOG_I(GNB_APP,
-        "cellBarredRedCap1Rx_r17 %d cellBarredRedCap2Rx_r17 %d intraFreqReselectionRedCap_r17 %d halfDuplexRedCapAllowed_r17 %s\n",
+        "cellBarredRedCap1Rx_r17 %d cellBarredRedCap2Rx_r17 %d intraFreqReselectionRedCap_r17 %d halfDuplexRedCapAllowed_r17 %s redcap_inactive_allowed %s\n",
         rc->cellBarredRedCap1Rx_r17,
         rc->cellBarredRedCap2Rx_r17,
         rc->intraFreqReselectionRedCap_r17,
-        rc->has_halfDuplexRedCapAllowed_r17 ? (rc->halfDuplexRedCapAllowed_r17 ? "present" : "absent-by-config") : "absent");
+        rc->has_halfDuplexRedCapAllowed_r17 ? (rc->halfDuplexRedCapAllowed_r17 ? "present" : "absent-by-config") : "absent",
+        rc->inactive_allowed ? "true" : "false");
   return rc;
 }
 

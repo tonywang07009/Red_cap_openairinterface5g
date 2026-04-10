@@ -172,6 +172,6 @@ networks:
         name: oai-cn5g-public-net
         ipam:
             config:
-                - subnet: 192.168.70.128/26
+                - subnet: 192.168.70.0/23
         driver_opts:
             com.docker.network.bridge.name: "oai-cn5g"

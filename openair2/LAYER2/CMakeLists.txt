@@ -22,3 +22,6 @@
 add_subdirectory(nr_rlc)
 add_subdirectory(nr_pdcp)
 add_subdirectory(NR_MAC_UE)
+if (ENABLE_TESTS)
+  add_subdirectory(NR_MAC_gNB)
+endif()

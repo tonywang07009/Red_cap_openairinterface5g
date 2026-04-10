@@ -60,17 +60,17 @@ Target `develop`. Keep branch history linear and rebase instead of merging. Each
 ## Project Docs & Task Plans
 
 - All high-level project plans, milestones, and task breakdowns for this repo live under:
-  - `agent_doc/Project_management/`
+  - `agent_doc/Project_management/Simluation_v2.md`
 - For the RedCap mMTC work:
-  - The primary plan is `agent_doc/Project_management/redcap_mmtc_plan.md`.
+  - The primary plan is `agent_doc/Project_management`.
   - Before making any changes to PHY, MAC, or RRC, you must:
-    1) read the relevant sections of `redcap_mmtc_plan.md`, and  
+    1) read the relevant sections of `Simluation_v2.md`, and  
     2) summarize in a few bullet points which milestone and sub-tasks you are working on.
 - For Gantt charts and progress visualization:
   - Treat the files under `agent_doc/Project_management/` as the **source of truth** for tasks and dependencies.
   - When I ask for a Gantt chart, derive all tasks and milestones from those Markdown files instead of inventing new items.
 - When planning or modifying PHY code for RedCap:
-  - explicitly reference the corresponding milestones/sub-tasks in `redcap_mmtc_plan.md`, and  
+  - explicitly reference the corresponding milestones/sub-tasks in `Simluation_v2.md`, and  
   - cross-check against `spec/redcap_3gpp/spec.md` and TS 38.306 / 38.101-1 before proposing code changes.
 
 ---
@@ -146,10 +146,8 @@ Example: `test_logs/work_daily/2026-04-09_20-30-00_mac-redcap-drx.md`
 3. Each log file must follow this structure:
 ```markdown
 
----
 
 # Work Daily Log
-
 ## Session Metadata
 - Date: YYYY-MM-DD HH:MM
 - Agent Session ID: <auto or N/A>
@@ -184,7 +182,7 @@ Example: `test_logs/work_daily/2026-04-09_20-30-00_mac-redcap-drx.md`
 ### Read Rules (Triggered at the Start of Every New Session)
 
 1. At the very beginning of each new chat window, before taking any action:
-- Check if `test_logs/work_daily/` exists.
+- Check if `test_log/work_daily/` exists.
 - If it exists, list all `.md` files sorted by filename (descending).
 - Read the **most recent** log file in full.
 

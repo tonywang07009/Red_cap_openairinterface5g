@@ -831,7 +831,7 @@ bool init_RA(NR_UE_MAC_INST_t *mac, int frame)
     ra->Msg3_size = sizeof(uint16_t) + sizeof(NR_MAC_SUBHEADER_FIXED);
 
   // Random acces procedure initialization
-  mac->state = UE_PERFORMING_RA;
+  nr_ue_mac_set_state(mac, UE_PERFORMING_RA);
   ra->RA_active = true;
   NR_PRACH_RESOURCES_t *prach_resources = &ra->prach_resources;
   fapi_nr_config_request_t *cfg = &mac->phy_config.config_req;
@@ -1130,7 +1130,7 @@ void nr_ra_succeeded(NR_UE_MAC_INST_t *mac, const uint8_t gNB_index, const frame
   ra->RA_active = false;
   mac->msg3_C_RNTI = false;
   ra->ra_state = nrRA_SUCCEEDED;
-  mac->state = UE_CONNECTED;
+  nr_ue_mac_set_state(mac, UE_CONNECTED);
   free_and_zero(ra->Msg3_buffer);
   nr_mac_rrc_ra_ind(mac->ue_id, true);
 }
@@ -1196,7 +1196,7 @@ void nr_rar_not_successful(NR_UE_MAC_INST_t *mac)
 void trigger_MAC_UE_RA(NR_UE_MAC_INST_t *mac, dci_pdu_rel15_t *pdcch_order)
 {
   LOG_W(NR_MAC, "Triggering new RA procedure for UE with RNTI %x\n", mac->crnti);
-  mac->state = UE_PERFORMING_RA;
+  nr_ue_mac_set_state(mac, UE_PERFORMING_RA);
   reset_ra(mac, false);
   RA_config_t *ra = &mac->ra;
   mac->msg3_C_RNTI = true;

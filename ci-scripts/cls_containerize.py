@@ -33,6 +33,7 @@
 #-----------------------------------------------------------
 import sys	      # arg
 import re	       # reg
+import json
 import logging
 import os
 import shutil
@@ -106,11 +107,17 @@ def AnalyzeBuildLogs(image, lf):
 	return status, errors
 
 def GetImageName(ssh, svcName, file):
-	ret = ssh.run(f"docker compose -f {file} config --format json {svcName}  | jq -r '.services.\"{svcName}\".image'", silent=True)
+	ret = ssh.run(f"docker compose -f {file} config --format json {svcName}", silent=True, reportNonZero=False)
 	if ret.returncode != 0:
-		return f"cannot retrieve image info for {containerName}: {ret.stdout}"
-	else:
-		return ret.stdout.strip()
+		logging.warning(f"cannot retrieve image info for service {svcName}: {ret.stdout}")
+		return None
+
+	try:
+		data = json.loads(ret.stdout)
+		return data["services"][svcName]["image"]
+	except (json.JSONDecodeError, KeyError, TypeError) as err:
+		logging.warning(f"cannot parse image info for service {svcName}: {err}")
+		return None
 
 def ExistEnvFilePrint(ssh, wd, prompt='env vars in existing'):
 	ret = ssh.run(f'cat {wd}/.env', silent=True, reportNonZero=False)
@@ -136,6 +143,9 @@ def WriteEnvFile(ssh, services, wd, tag, flexric_tag):
 		# In some scenarios we have the choice of either pulling normal images
 		# or -asan images. We need to detect which kind we did pull.
 		fullImageName = GetImageName(ssh, svc, f"{wd}/docker-compose.y*ml")
+		if not fullImageName:
+			logging.warning(f"skip ASAN image detection for service {svc}: image name unavailable")
+			continue
 		image = fullImageName.split("/")[-1].split(":")[0]
 		# registry now includes the trailing slash ("oai-ci/")
 		checkimg = f"{registry}{image}-asan:{tag}"
@@ -221,18 +231,26 @@ def CheckLogs(self, filename, HTML, RAN):
 		HTML.htmleNBFailureMsg = ""
 	elif 'xapp' in name:
 		opt = f"Undeploy {name}"
-		with open(f'{filename}', "r") as f:
-			last_line = deque(f, maxlen=1).pop()
-		if ('Test xApp run SUCCESSFULLY' in last_line):
+		with open(f'{filename}', "r", encoding="utf-8", errors="ignore") as f:
+			last_lines = deque((line.strip() for line in f if line.strip()), maxlen=1)
+		last_line = last_lines[0] if last_lines else None
+		if last_line is None:
+			HTML.CreateHtmlTestRowQueue(opt, 'KO', ["xApp log is empty; cannot verify runtime status"])
+			success = False
+		elif ('Test xApp run SUCCESSFULLY' in last_line):
 			HTML.CreateHtmlTestRowQueue(opt, 'OK', ["xApp run successfully"])
 		else:
 			HTML.CreateHtmlTestRowQueue(opt, 'KO', ["xApp didn't run successfully"])
 			success = False
 	elif 'RIC' in name:
 		opt = f"Undeploy {name}"
-		with open(f'{filename}', 'r') as f:
-			last_line = deque(f, maxlen=1).pop()
-		if ('Removing E2 Node' in last_line):
+		with open(f'{filename}', 'r', encoding="utf-8", errors="ignore") as f:
+			last_lines = deque((line.strip() for line in f if line.strip()), maxlen=1)
+		last_line = last_lines[0] if last_lines else None
+		if last_line is None:
+			HTML.CreateHtmlTestRowQueue(opt, 'KO', ["nearRT-RIC log is empty; cannot verify E2 shutdown"])
+			success = False
+		elif ('Removing E2 Node' in last_line):
 			HTML.CreateHtmlTestRowQueue(opt, 'OK', ["nearRT-RIC run successfully"])
 		else:
 			HTML.CreateHtmlTestRowQueue(opt, 'KO', ["nearRT-RIC didn't run successfully"])
@@ -817,15 +835,24 @@ class Containerize():
 		with cls_cmd.getConnection(node) as ssh:
 			ExistEnvFilePrint(ssh, wd)
 			services = GetDeployedServices(ssh, wd_yaml)
-			copyin_res = None
-			ssh.run(f'docker compose -f {wd_yaml} stop')
-			if services is not None:
-				copyin_res = [CopyinServiceLog(ssh, lSourcePath, s, wd_yaml, ctx) for s in services]
-			else:
+			copyin_res = []
+			ssh.run(f'docker compose -f {wd_yaml} stop', reportNonZero=False)
+			if services is None:
 				logging.warning('could not identify services to stop => no log file')
-			ssh.run(f'docker compose -f {wd_yaml} down -v')
-			ssh.run(f'rm {wd}/.env')
-		if not copyin_res:
+			elif len(services) == 0:
+				logging.info('no deployed services detected during undeploy; skipping log collection')
+			else:
+				copyin_res = [CopyinServiceLog(ssh, lSourcePath, s, wd_yaml, ctx) for s in services]
+			ssh.run(f'docker compose -f {wd_yaml} down -v', reportNonZero=False)
+			ssh.run(f'rm -f {wd}/.env', reportNonZero=False)
+		if services is None:
+			HTML.CreateHtmlTestRowQueue('N/A', 'KO', ['Could not copy logfile(s)'])
+			logging.error(f"could not copy all files: {copyin_res=} {services=}")
+			success = False
+		elif len(services) == 0:
+			HTML.CreateHtmlTestRowQueue('N/A', 'OK', ['No deployed services found; cleanup completed'])
+			success = True
+		elif not copyin_res or not all(copyin_res):
 			HTML.CreateHtmlTestRowQueue('N/A', 'KO', ['Could not copy logfile(s)'])
 			logging.error(f"could not copy all files: {copyin_res=} {services=}")
 			success = False

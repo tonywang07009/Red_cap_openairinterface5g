@@ -45,6 +45,7 @@
 /* MAC */
 #include "LAYER2/NR_MAC_COMMON/nr_mac.h"
 #include "LAYER2/NR_MAC_COMMON/nr_mac_common.h"
+#include "../NR_MAC_gNB/nr_mac_redcap.h"
 #include "mac_defs_sl.h"
 
 /* RRC */
@@ -549,6 +550,7 @@ typedef struct {
 typedef struct NR_UE_MAC_INST_s {
   module_id_t ue_id;
   NR_UE_L2_STATE_t state;
+  nr_redcap_rrc_state_t redcap_rrc_state;
   int servCellIndex;
   long physCellId;
   bool get_sib1;
@@ -647,6 +649,28 @@ typedef struct NR_UE_MAC_INST_s {
   ue_mac_stats_t stats;
   notifiedFIFO_t input_nf;
 } NR_UE_MAC_INST_t;
+
+static inline nr_redcap_rrc_state_t nr_redcap_rrc_state_from_mac_state(const NR_UE_L2_STATE_t state)
+{
+  switch (state) {
+    case UE_CONNECTED:
+      return NR_REDCAP_RRC_CONNECTED;
+    case UE_NOT_SYNC:
+    case UE_NOT_SYNC_RECONF:
+    case UE_BARRED:
+    case UE_RECEIVING_SIB:
+    case UE_PERFORMING_RA:
+    case UE_DETACHING:
+    default:
+      return NR_REDCAP_RRC_IDLE;
+  }
+}
+
+static inline void nr_ue_mac_set_state(NR_UE_MAC_INST_t *mac, const NR_UE_L2_STATE_t state)
+{
+  mac->state = state;
+  mac->redcap_rrc_state = nr_redcap_rrc_state_from_mac_state(state);
+}
 
 static inline int GET_NTN_UE_K_OFFSET(const fapi_nr_ntn_config_t *ntn_ta, int scs)
 {

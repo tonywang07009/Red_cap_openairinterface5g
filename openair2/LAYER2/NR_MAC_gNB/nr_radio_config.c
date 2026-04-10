@@ -58,6 +58,9 @@
 #define PUCCH2_SIZE 8
 const uint8_t slotsperframe[5] = {10, 20, 40, 80, 160};
 
+static NR_ControlResourceSet_t *get_coreset_config(int bwp_id, int bwp_start, int bwp_size, uint64_t ssb_bitmap);
+uint64_t get_ssb_bitmap(const NR_ServingCellConfigCommon_t *scc);
+
 static NR_BWP_t clone_generic_parameters(const NR_BWP_t *gp)
 {
   NR_BWP_t clone = {0};
@@ -215,6 +218,72 @@ static NR_SetupRelease_PDSCH_ConfigCommon_t *clone_pdsch_configcommon(const NR_S
   return clone;
 }
 
+/**
+ * @brief Rebind cloned common search spaces to a commonControlResourceSet.
+ *
+ * The legacy initial DL BWP uses controlResourceSetZero/searchSpaceZero with
+ * CORESET#0. For RedCap Case B we switch to commonControlResourceSet, so each
+ * common search space cloned from the legacy BWP must reference the new CORESET
+ * identifier instead of CORESET#0.
+ *
+ * @param[in,out] pdcch_cc PDCCH common configuration inside the cloned RedCap BWP.
+ * @param[in] coreset_id Common CORESET identifier used by Case B.
+ */
+static void rebind_redcap_common_searchspaces_to_coreset(NR_PDCCH_ConfigCommon_t *pdcch_cc, const long coreset_id)
+{
+  if (pdcch_cc == NULL || pdcch_cc->commonSearchSpaceList == NULL)
+    return;
+
+  for (int i = 0; i < pdcch_cc->commonSearchSpaceList->list.count; i++) {
+    NR_SearchSpace_t *search_space = pdcch_cc->commonSearchSpaceList->list.array[i];
+    if (search_space->controlResourceSetId == NULL)
+      search_space->controlResourceSetId = calloc_or_fail(1, sizeof(*search_space->controlResourceSetId));
+    *search_space->controlResourceSetId = coreset_id;
+  }
+}
+
+/**
+ * @brief Convert a RedCap initial DL BWP to Case B commonControlResourceSet mode.
+ *
+ * @param[in] scc ServingCellConfigCommon used as source for SSB bitmap and carrier BW.
+ * @param[in] redcap_config Parsed RedCap configuration.
+ * @param[in,out] pdcch_cc Cloned PDCCH common configuration of the RedCap DL BWP.
+ */
+static void apply_redcap_case_b_common_coreset(const NR_ServingCellConfigCommon_t *scc,
+                                               const nr_redcap_config_t *redcap_config,
+                                               NR_PDCCH_ConfigCommon_t *pdcch_cc)
+{
+  const nr_redcap_bwp_config_t *dl_bwp = &redcap_config->initial_dl_bwp;
+  const int carrier_bw = scc->downlinkConfigCommon->frequencyInfoDL->scs_SpecificCarrierList.list.array[0]->carrierBandwidth;
+
+  AssertFatal(nr_redcap_is_edge_aligned_bwp(dl_bwp->bwp_start, dl_bwp->bwp_size, carrier_bw),
+              "RedCap CORESET#0 Case B requires an edge-aligned initial DL BWP, but start=%d size=%d carrier_bw=%d\n",
+              dl_bwp->bwp_start,
+              dl_bwp->bwp_size,
+              carrier_bw);
+  AssertFatal(pdcch_cc != NULL, "RedCap CORESET#0 Case B requires a valid PDCCH common configuration\n");
+  AssertFatal(pdcch_cc->commonSearchSpaceList != NULL,
+              "RedCap CORESET#0 Case B requires commonSearchSpaceList in the cloned initial DL BWP\n");
+  AssertFatal(pdcch_cc->commonControlResourceSet == NULL,
+              "RedCap CORESET#0 Case B expects no pre-existing commonControlResourceSet in the cloned initial DL BWP\n");
+
+  free(pdcch_cc->controlResourceSetZero);
+  pdcch_cc->controlResourceSetZero = NULL;
+  free(pdcch_cc->searchSpaceZero);
+  pdcch_cc->searchSpaceZero = NULL;
+  free(pdcch_cc->searchSpaceSIB1);
+  pdcch_cc->searchSpaceSIB1 = NULL;
+
+  pdcch_cc->commonControlResourceSet = get_coreset_config(0, dl_bwp->bwp_start, dl_bwp->bwp_size, get_ssb_bitmap(scc));
+  rebind_redcap_common_searchspaces_to_coreset(pdcch_cc, pdcch_cc->commonControlResourceSet->controlResourceSetId);
+  LOG_I(NR_MAC,
+        "RedCap CORESET#0 Case B edge-aligned PRB allocation: start=%d size=%d carrier_bw=%d common_coreset_id=%ld\n",
+        dl_bwp->bwp_start,
+        dl_bwp->bwp_size,
+        carrier_bw,
+        pdcch_cc->commonControlResourceSet->controlResourceSetId);
+}
+
 static NR_BWP_DownlinkCommon_t *clone_redcap_downlink_bwp(const NR_ServingCellConfigCommon_t *scc,
                                                           const nr_redcap_config_t *redcap_config)
 {
@@ -230,15 +299,25 @@ static NR_BWP_DownlinkCommon_t *clone_redcap_downlink_bwp(const NR_ServingCellCo
 
   if (bwp->pdcch_ConfigCommon && bwp->pdcch_ConfigCommon->present == NR_SetupRelease_PDCCH_ConfigCommon_PR_setup) {
     NR_PDCCH_ConfigCommon_t *pdcch_cc = bwp->pdcch_ConfigCommon->choice.setup;
-    if (redcap_config->initial_dl_bwp.controlResourceSetZero >= 0) {
-      if (pdcch_cc->controlResourceSetZero == NULL)
-        pdcch_cc->controlResourceSetZero = calloc_or_fail(1, sizeof(*pdcch_cc->controlResourceSetZero));
-      *pdcch_cc->controlResourceSetZero = redcap_config->initial_dl_bwp.controlResourceSetZero;
-    }
-    if (redcap_config->initial_dl_bwp.searchSpaceZero >= 0) {
-      if (pdcch_cc->searchSpaceZero == NULL)
-        pdcch_cc->searchSpaceZero = calloc_or_fail(1, sizeof(*pdcch_cc->searchSpaceZero));
-      *pdcch_cc->searchSpaceZero = redcap_config->initial_dl_bwp.searchSpaceZero;
+    if (redcap_config->coreset0_mode == NR_REDCAP_CORESET0_MODE_CASE_B) {
+      apply_redcap_case_b_common_coreset(scc, redcap_config, pdcch_cc);
+    } else {
+      if (redcap_config->initial_dl_bwp.controlResourceSetZero >= 0) {
+        if (pdcch_cc->controlResourceSetZero == NULL)
+          pdcch_cc->controlResourceSetZero = calloc_or_fail(1, sizeof(*pdcch_cc->controlResourceSetZero));
+        *pdcch_cc->controlResourceSetZero = redcap_config->initial_dl_bwp.controlResourceSetZero;
+      }
+      if (redcap_config->initial_dl_bwp.searchSpaceZero >= 0) {
+        if (pdcch_cc->searchSpaceZero == NULL)
+          pdcch_cc->searchSpaceZero = calloc_or_fail(1, sizeof(*pdcch_cc->searchSpaceZero));
+        *pdcch_cc->searchSpaceZero = redcap_config->initial_dl_bwp.searchSpaceZero;
+      }
+      LOG_I(NR_MAC,
+            "RedCap CORESET#0 Case A type0 CSS: start=%d size=%d coreset0=%d searchSpace0=%d\n",
+            redcap_config->initial_dl_bwp.bwp_start,
+            redcap_config->initial_dl_bwp.bwp_size,
+            redcap_config->initial_dl_bwp.controlResourceSetZero,
+            redcap_config->initial_dl_bwp.searchSpaceZero);
     }
   }
 
@@ -2957,12 +3036,13 @@ NR_BCCH_DL_SCH_Message_t *get_SIB1_NR(const NR_ServingCellConfigCommon_t *scc,
       ServCellCom->downlinkConfigCommon.ext1->initialDownlinkBWP_RedCap_r17 =
           clone_redcap_downlink_bwp(scc, redcap_config);
       LOG_I(NR_RRC,
-            "SIB1 RedCap initial DL BWP: start=%d size=%d scs=%d coreset0=%d searchSpace0=%d\n",
+            "SIB1 RedCap initial DL BWP: start=%d size=%d scs=%d coreset0=%d searchSpace0=%d mode=%s\n",
             redcap_config->initial_dl_bwp.bwp_start,
             redcap_config->initial_dl_bwp.bwp_size,
             redcap_config->initial_dl_bwp.scs,
             redcap_config->initial_dl_bwp.controlResourceSetZero,
-            redcap_config->initial_dl_bwp.searchSpaceZero);
+            redcap_config->initial_dl_bwp.searchSpaceZero,
+            nr_redcap_coreset0_mode_to_string(redcap_config->coreset0_mode));
     }
     if (redcap_config->initial_ul_bwp.configured) {
       if (ServCellCom->ext2 == NULL)

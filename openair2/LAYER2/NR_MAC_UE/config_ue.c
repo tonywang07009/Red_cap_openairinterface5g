@@ -1068,7 +1068,7 @@ void nr_rrc_mac_sched_sib(module_id_t module_id, int sched_sib)
     mac->get_otherSI[sched_sib - 2] = true;
 
   if (mac->state == UE_NOT_SYNC && mac->get_sib1)
-    mac->state = UE_RECEIVING_SIB;
+    nr_ue_mac_set_state(mac, UE_RECEIVING_SIB);
 }
 
 void nr_rrc_mac_config_req_mib(module_id_t module_id, int cc_idP, NR_MIB_t *mib, bool barred)
@@ -1080,11 +1080,11 @@ void nr_rrc_mac_config_req_mib(module_id_t module_id, int cc_idP, NR_MIB_t *mib,
   if (!mac->mib)
     mac->mib = calloc(1, sizeof(*mac->mib));
   if (barred)
-    mac->state = UE_BARRED;
+    nr_ue_mac_set_state(mac, UE_BARRED);
   else if (mac->state == UE_BARRED) {
     // it is synched as we received MIB
     // nr_ue_decode_mib is transitionining to the correct state
-    mac->state = UE_NOT_SYNC;
+    nr_ue_mac_set_state(mac, UE_NOT_SYNC);
   }
   update_mib_conf(mac->mib, mib);
   mac->phy_config.Mod_id = module_id;
@@ -1092,9 +1092,9 @@ void nr_rrc_mac_config_req_mib(module_id_t module_id, int cc_idP, NR_MIB_t *mib,
 
   nr_ue_decode_mib(mac, cc_idP);
   if (get_softmodem_params()->phy_test)
-    mac->state = UE_CONNECTED;
+    nr_ue_mac_set_state(mac, UE_CONNECTED);
   else if (mac->state == UE_NOT_SYNC_RECONF)
-    mac->state = UE_PERFORMING_RA;
+    nr_ue_mac_set_state(mac, UE_PERFORMING_RA);
 
   ret = pthread_mutex_unlock(&mac->if_mutex);
   AssertFatal(!ret, "mutex failed %d\n", ret);
@@ -1869,17 +1869,17 @@ void nr_rrc_mac_config_req_reset(module_id_t module_id, NR_UE_MAC_reset_cause_t 
       reset_mac_inst(mac);
       nr_ue_reset_sync_state(mac, false);
       release_mac_configuration(mac, cause);
-      mac->state = UE_DETACHING;
+      nr_ue_mac_set_state(mac, UE_DETACHING);
       break;
     case T300_EXPIRY:
       reset_ra(mac, false);
       reset_mac_inst(mac);
-      mac->state = UE_PERFORMING_RA; // still in sync but need to restart RA
+      nr_ue_mac_set_state(mac, UE_PERFORMING_RA); // still in sync but need to restart RA
       break;
     case REJECT:
       reset_ra(mac, false);
       reset_mac_inst(mac);
-      mac->state = UE_BARRED;
+      nr_ue_mac_set_state(mac, UE_BARRED);
       break;
     case RE_ESTABLISHMENT:
       reset_mac_inst(mac);
@@ -2019,7 +2019,7 @@ void nr_rrc_mac_config_req_sib1(module_id_t module_id, int cc_idP, NR_SIB1_t *si
     configure_timeAlignmentTimer(&mac->time_alignment_timer, mac->timeAlignmentTimerCommon, mac->current_UL_BWP->scs);
   }
   if (mac->state == UE_RECEIVING_SIB && can_start_ra)
-    mac->state = UE_PERFORMING_RA;
+    nr_ue_mac_set_state(mac, UE_PERFORMING_RA);
 
   mac->if_module->phy_config_request(&mac->phy_config);
   mac->phy_config.config_req.ntn_config.params_changed = false;
@@ -2041,7 +2041,7 @@ void nr_rrc_mac_config_other_sib(module_id_t module_id, NR_SIB19_r17_t *sib19, i
     mac->phy_config.config_req.ntn_config.params_changed = false;
   }
   if (mac->state == UE_RECEIVING_SIB && can_start_ra)
-    mac->state = UE_PERFORMING_RA;
+    nr_ue_mac_set_state(mac, UE_PERFORMING_RA);
   ret = pthread_mutex_unlock(&mac->if_mutex);
   AssertFatal(!ret, "mutex failed %d\n", ret);
 }
@@ -2092,7 +2092,7 @@ static void handle_reconfiguration_with_sync(NR_UE_MAC_INST_t *mac,
       configure_common_BWP_ul(mac, bwp_id, scc->uplinkConfigCommon->initialUplinkBWP);
   }
 
-  mac->state = UE_NOT_SYNC_RECONF;
+  nr_ue_mac_set_state(mac, UE_NOT_SYNC_RECONF);
   ra->ra_state = nrRA_UE_IDLE;
   nr_ue_mac_default_configs(mac);
 

@@ -535,9 +535,11 @@ typedef enum {
 #define GNB_CONFIG_HLP_STRING_CELL_BARRED_REDCAP2_RX_R17         "Value barred means that the cell is barred for a RedCap UE supporting 2 Rx branches\n"
 #define GNB_CONFIG_HLP_STRING_INTRA_FREQ_RESELECTION_REDCAP_R17  "Controls cell selection/reselection to intra-frequency cells for RedCap UEs when this cell is barred\n"
 #define GNB_CONFIG_HLP_STRING_HALF_DUPLEX_REDCAP_ALLOWED_R17     "Present means that a half-duplex RedCap UE may access this cell\n"
+#define GNB_CONFIG_HLP_STRING_REDCAP_INACTIVE_ALLOWED            "Enable the internal RedCap RRC_INACTIVE / SDT state machine hooks on the gNB side\n"
 #define GNB_CONFIG_HLP_STRING_REDCAP_INITIAL_DL_BWP_START_R17    "RedCap initial DL BWP start PRB in SIB1 (TS 38.331 initialDownlinkBWP-RedCap-r17)\n"
 #define GNB_CONFIG_HLP_STRING_REDCAP_INITIAL_DL_BWP_SIZE_R17     "RedCap initial DL BWP size in PRBs in SIB1 (TS 38.331 initialDownlinkBWP-RedCap-r17)\n"
 #define GNB_CONFIG_HLP_STRING_REDCAP_INITIAL_DL_BWP_SCS_R17      "RedCap initial DL BWP subcarrier spacing in SIB1\n"
+#define GNB_CONFIG_HLP_STRING_REDCAP_CORESET0_MODE_R17           "RedCap CORESET#0 mode for the initial DL BWP: 0=Case A via controlResourceSetZero/searchSpaceZero, 1=Case B via commonControlResourceSet on an edge-aligned BWP\n"
 #define GNB_CONFIG_HLP_STRING_REDCAP_INITIAL_DL_CORESET0_R17     "RedCap initial DL BWP controlResourceSetZero in SIB1; defaults to the common initial DL BWP value\n"
 #define GNB_CONFIG_HLP_STRING_REDCAP_INITIAL_DL_SS0_R17          "RedCap initial DL BWP searchSpaceZero in SIB1; defaults to the common initial DL BWP value\n"
 #define GNB_CONFIG_HLP_STRING_REDCAP_INITIAL_UL_BWP_START_R17    "RedCap initial UL BWP start PRB in SIB1 (TS 38.331 initialUplinkBWP-RedCap-r17)\n"
@@ -550,10 +552,12 @@ typedef enum {
 #define GNB_CONFIG_STRING_CELL_BARRED_REDCAP2_RX_R17        "cellBarredRedCap2Rx_r17"
 #define GNB_CONFIG_STRING_INTRA_FREQ_RESELECTION_REDCAP_R17 "intraFreqReselectionRedCap_r17"
 #define GNB_CONFIG_STRING_HALF_DUPLEX_REDCAP_ALLOWED_R17    "halfDuplexRedCapAllowed_r17"
+#define GNB_CONFIG_STRING_REDCAP_INACTIVE_ALLOWED           "redcap_inactive_allowed"
 #define GNB_CONFIG_STRING_REDCAP_INITIAL_BWP_R17            "redCapInitialBWP_r17"
 #define GNB_CONFIG_STRING_REDCAP_INITIAL_DL_BWP_START_R17   "initialDLBWPStart_r17"
 #define GNB_CONFIG_STRING_REDCAP_INITIAL_DL_BWP_SIZE_R17    "initialDLBWPSize_r17"
 #define GNB_CONFIG_STRING_REDCAP_INITIAL_DL_BWP_SCS_R17     "initialDLBWPSubcarrierSpacing_r17"
+#define GNB_CONFIG_STRING_REDCAP_CORESET0_MODE_R17          "coreset0_redcap_mode_r17"
 #define GNB_CONFIG_STRING_REDCAP_INITIAL_DL_CORESET0_R17    "initialDLBWPControlResourceSetZero_r17"
 #define GNB_CONFIG_STRING_REDCAP_INITIAL_DL_SS0_R17         "initialDLBWPSearchSpaceZero_r17"
 #define GNB_CONFIG_STRING_REDCAP_INITIAL_UL_BWP_START_R17   "initialULBWPStart_r17"
@@ -566,17 +570,20 @@ typedef enum {
 {GNB_CONFIG_STRING_CELL_BARRED_REDCAP2_RX_R17,        GNB_CONFIG_HLP_STRING_CELL_BARRED_REDCAP2_RX_R17,             0,        .i8ptr=NULL,     .defintval=-1,      TYPE_INT8,      0},\
 {GNB_CONFIG_STRING_INTRA_FREQ_RESELECTION_REDCAP_R17, GNB_CONFIG_HLP_STRING_INTRA_FREQ_RESELECTION_REDCAP_R17,      0,        .u8ptr=NULL,     .defuintval=0,      TYPE_UINT8,     0},\
 {GNB_CONFIG_STRING_HALF_DUPLEX_REDCAP_ALLOWED_R17,    GNB_CONFIG_HLP_STRING_HALF_DUPLEX_REDCAP_ALLOWED_R17,         0,        .i8ptr=NULL,     .defintval=-1,      TYPE_INT8,      0},\
+{GNB_CONFIG_STRING_REDCAP_INACTIVE_ALLOWED,           GNB_CONFIG_HLP_STRING_REDCAP_INACTIVE_ALLOWED,                0,        .i8ptr=NULL,     .defintval=0,       TYPE_INT8,      0},\
 }
 
 #define GNB_REDCAP_CELL_BARRED_REDCAP1_RX_R17_IDX            0
 #define GNB_REDCAP_CELL_BARRED_REDCAP2_RX_R17_IDX            1
 #define GNB_REDCAP_INTRA_FREQ_RESELECTION_REDCAP_R17_IDX     2
 #define GNB_REDCAP_HALF_DUPLEX_REDCAP_ALLOWED_R17_IDX        3
+#define GNB_REDCAP_INACTIVE_ALLOWED_IDX                       4
 
 #define GNB_REDCAP_INITIAL_BWP_PARAMS_DESC { \
 {GNB_CONFIG_STRING_REDCAP_INITIAL_DL_BWP_START_R17, GNB_CONFIG_HLP_STRING_REDCAP_INITIAL_DL_BWP_START_R17, 0, .iptr=NULL, .defintval=-1, TYPE_INT, 0},\
 {GNB_CONFIG_STRING_REDCAP_INITIAL_DL_BWP_SIZE_R17, GNB_CONFIG_HLP_STRING_REDCAP_INITIAL_DL_BWP_SIZE_R17, 0, .iptr=NULL, .defintval=-1, TYPE_INT, 0},\
 {GNB_CONFIG_STRING_REDCAP_INITIAL_DL_BWP_SCS_R17, GNB_CONFIG_HLP_STRING_REDCAP_INITIAL_DL_BWP_SCS_R17, 0, .iptr=NULL, .defintval=-1, TYPE_INT, 0},\
+{GNB_CONFIG_STRING_REDCAP_CORESET0_MODE_R17, GNB_CONFIG_HLP_STRING_REDCAP_CORESET0_MODE_R17, 0, .iptr=NULL, .defintval=0, TYPE_INT, 0},\
 {GNB_CONFIG_STRING_REDCAP_INITIAL_DL_CORESET0_R17, GNB_CONFIG_HLP_STRING_REDCAP_INITIAL_DL_CORESET0_R17, 0, .iptr=NULL, .defintval=-1, TYPE_INT, 0},\
 {GNB_CONFIG_STRING_REDCAP_INITIAL_DL_SS0_R17, GNB_CONFIG_HLP_STRING_REDCAP_INITIAL_DL_SS0_R17, 0, .iptr=NULL, .defintval=-1, TYPE_INT, 0},\
 {GNB_CONFIG_STRING_REDCAP_INITIAL_UL_BWP_START_R17, GNB_CONFIG_HLP_STRING_REDCAP_INITIAL_UL_BWP_START_R17, 0, .iptr=NULL, .defintval=-1, TYPE_INT, 0},\
@@ -588,12 +595,13 @@ typedef enum {
 #define GNB_REDCAP_INITIAL_DL_BWP_START_R17_IDX   0
 #define GNB_REDCAP_INITIAL_DL_BWP_SIZE_R17_IDX    1
 #define GNB_REDCAP_INITIAL_DL_BWP_SCS_R17_IDX     2
-#define GNB_REDCAP_INITIAL_DL_CORESET0_R17_IDX    3
-#define GNB_REDCAP_INITIAL_DL_SS0_R17_IDX         4
-#define GNB_REDCAP_INITIAL_UL_BWP_START_R17_IDX   5
-#define GNB_REDCAP_INITIAL_UL_BWP_SIZE_R17_IDX    6
-#define GNB_REDCAP_INITIAL_UL_BWP_SCS_R17_IDX     7
-#define GNB_REDCAP_INITIAL_UL_PUCCH_R17_IDX       8
+#define GNB_REDCAP_CORESET0_MODE_R17_IDX          3
+#define GNB_REDCAP_INITIAL_DL_CORESET0_R17_IDX    4
+#define GNB_REDCAP_INITIAL_DL_SS0_R17_IDX         5
+#define GNB_REDCAP_INITIAL_UL_BWP_START_R17_IDX   6
+#define GNB_REDCAP_INITIAL_UL_BWP_SIZE_R17_IDX    7
+#define GNB_REDCAP_INITIAL_UL_BWP_SCS_R17_IDX     8
+#define GNB_REDCAP_INITIAL_UL_PUCCH_R17_IDX       9
 
 /*-------------------------------------------------------------------------------------------------------------------------------------*/
 /*                                            PTRS configuration parameters                                                          */

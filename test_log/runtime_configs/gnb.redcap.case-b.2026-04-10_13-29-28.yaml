@@ -157,7 +157,7 @@ gNBs:
           initialDLBWPStart_r17: 0
           initialDLBWPSize_r17: 51
           initialDLBWPSubcarrierSpacing_r17: 1
-          coreset0_redcap_mode_r17: 0 # 0: Case A (type0 CSS), 1: Case B (edge-only commonControlResourceSet)
+          coreset0_redcap_mode_r17: 1 # 0: Case A (type0 CSS), 1: Case B (edge-only commonControlResourceSet)
           initialDLBWPControlResourceSetZero_r17: 10
           initialDLBWPSearchSpaceZero_r17: 0
           initialULBWPStart_r17: 0

@@ -201,7 +201,7 @@ void handle_ulsync_loss(NR_UE_MAC_INST_t *mac)
     clear_ul_config_request(mac);
 
   // Need to receive SIB19 again after loosing UL SYNC
-  mac->state = UE_RECEIVING_SIB;
+  nr_ue_mac_set_state(mac, UE_RECEIVING_SIB);
   // gNB needs to send PDCCH ORDER triggering RA after detecting ULSYNC LOSS
   LOG_W(NR_MAC, "Wait for PDCCH ORDER, RACH needs to performed to obtain ULSYNC.\n");
 }

@@ -75,6 +75,7 @@
 #include "NR_BCCH-BCH-Message.h"
 #include "NR_CellGroupConfig.h"
 #include "NR_BCCH-DL-SCH-Message.h"
+#include "nr_mac_redcap.h"
 #include "nr_radio_config.h"
 
 /* PHY */
@@ -166,6 +167,8 @@ typedef struct nr_redcap_config {
   uint8_t intraFreqReselectionRedCap_r17;
   bool has_halfDuplexRedCapAllowed_r17;
   uint8_t halfDuplexRedCapAllowed_r17;
+  bool inactive_allowed;
+  nr_redcap_coreset0_mode_t coreset0_mode;
   nr_redcap_bwp_config_t initial_dl_bwp;
   nr_redcap_bwp_config_t initial_ul_bwp;
 } nr_redcap_config_t;
