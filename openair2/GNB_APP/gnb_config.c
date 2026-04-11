@@ -1035,6 +1035,19 @@ static NR_ServingCellConfigCommon_t *get_scc_config(configmodule_interface_t *cf
   return scc;
 }
 
+static bool redcap_half_duplex_allowed_requested(int gnb_idx)
+{
+  paramdef_t redcap_params[] = GNB_REDCAP_PARAMS_DESC;
+  char aprefix[MAX_OPTNAME_SIZE * 2 + 8];
+  snprintf(aprefix, sizeof(aprefix), "%s.[%d].%s", GNB_CONFIG_STRING_GNB_LIST, gnb_idx, GNB_CONFIG_STRING_REDCAP);
+  const int ret = config_get(config_get_if(), redcap_params, sizeofArray(redcap_params), aprefix);
+
+  if (ret <= 0)
+    return false;
+
+  return *redcap_params[GNB_REDCAP_HALF_DUPLEX_REDCAP_ALLOWED_R17_IDX].i8ptr > 0;
+}
+
 static int read_du_cell_info(configmodule_interface_t *cfg,
                              bool separate_du,
                              uint32_t *gnb_id,
@@ -1561,6 +1574,15 @@ void RCconfig_nr_macrlc(configmodule_interface_t *cfg)
     LOG_E(GNB_APP, "RU information not present in config file. Assuming physical antenna ports equal to logical antenna ports %d\n", num_tx);
   }
   config.minRXTXTIME = *GNBParamList.paramarray[0][GNB_MINRXTXTIME_IDX].iptr;
+  const bool redcap_half_duplex_allowed = redcap_half_duplex_allowed_requested(0);
+  const int effective_min_rxtxtime = nr_redcap_effective_min_rxtxtime(redcap_half_duplex_allowed, config.minRXTXTIME);
+  if (effective_min_rxtxtime != config.minRXTXTIME) {
+    LOG_I(GNB_APP,
+          "RedCap half-duplex FDD is enabled, raising minTXRXTIME from %d to %d\n",
+          config.minRXTXTIME,
+          effective_min_rxtxtime);
+    config.minRXTXTIME = effective_min_rxtxtime;
+  }
   LOG_I(GNB_APP, "minTXRXTIME %d\n", config.minRXTXTIME);
   config.do_CSIRS = *GNBParamList.paramarray[0][GNB_DO_CSIRS_IDX].iptr;
   config.do_SRS = *GNBParamList.paramarray[0][GNB_DO_SRS_IDX].iptr;

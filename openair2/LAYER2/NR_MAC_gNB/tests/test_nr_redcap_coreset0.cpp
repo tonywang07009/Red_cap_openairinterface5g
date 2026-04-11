@@ -61,6 +61,41 @@ TEST(nr_redcap_coreset0, edge_alignment_rejects_invalid_ranges)
   EXPECT_FALSE(nr_redcap_is_edge_aligned_bwp(0, 0, 106));
 }
 
+TEST(nr_redcap_coreset0, effective_min_rxtxtime_keeps_non_redcap_value)
+{
+  EXPECT_EQ(2, nr_redcap_effective_min_rxtxtime(false, 2));
+}
+
+TEST(nr_redcap_coreset0, effective_min_rxtxtime_clamps_half_duplex_floor)
+{
+  EXPECT_EQ(NR_REDCAP_HD_FDD_MIN_RXTXTIME, nr_redcap_effective_min_rxtxtime(true, 2));
+}
+
+TEST(nr_redcap_coreset0, effective_min_rxtxtime_preserves_larger_gap)
+{
+  EXPECT_EQ(8, nr_redcap_effective_min_rxtxtime(true, 8));
+}
+
+TEST(nr_redcap_coreset0, sanitize_ul_prb_cap_keeps_zero_disabled)
+{
+  EXPECT_EQ(NR_REDCAP_UL_PRB_CAP_DISABLED, nr_redcap_sanitize_ul_prb_cap(0, 4));
+}
+
+TEST(nr_redcap_coreset0, sanitize_ul_prb_cap_clamps_to_min_grant)
+{
+  EXPECT_EQ(4, nr_redcap_sanitize_ul_prb_cap(2, 4));
+}
+
+TEST(nr_redcap_coreset0, effective_ul_prb_cap_preserves_unlimited_request)
+{
+  EXPECT_EQ(12, nr_redcap_effective_ul_prb_cap(12, NR_REDCAP_UL_PRB_CAP_DISABLED, 4));
+}
+
+TEST(nr_redcap_coreset0, effective_ul_prb_cap_clamps_runtime_limit)
+{
+  EXPECT_EQ(6, nr_redcap_effective_ul_prb_cap(12, 6, 4));
+}
+
 int main(int argc, char **argv)
 {
   testing::InitGoogleTest(&argc, argv);

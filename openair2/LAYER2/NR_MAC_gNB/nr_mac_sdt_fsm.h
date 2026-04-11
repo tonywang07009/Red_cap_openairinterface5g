@@ -23,6 +23,7 @@
 #define __LAYER2_NR_MAC_GNB_NR_MAC_SDT_FSM_H__
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdint.h>
 
@@ -78,11 +79,44 @@ typedef struct {
   nr_redcap_sdt_config_t config;
 } nr_redcap_sdt_fsm_t;
 
+#define NR_REDCAP_SDT_MSGA_PAYLOAD_THRESHOLD_BYTES 256
+
 void nr_redcap_sdt_fsm_init(nr_redcap_sdt_fsm_t *fsm, bool inactive_allowed, uint16_t msga_payload_threshold_bytes);
 bool nr_redcap_sdt_fsm_step(nr_redcap_sdt_fsm_t *fsm,
                             nr_redcap_sdt_event_t event,
                             uint16_t payload_bytes,
                             nr_redcap_sdt_transition_t *transition);
+/**
+ * @brief Expand a scheduler-observed UL grant into the SDT FSM burst-start sequence.
+ *
+ * The MAC scheduler only observes the moment when pending UL data is converted
+ * into a PUSCH grant. This helper derives the corresponding local FSM
+ * transitions in order: [UL_DATA_ARRIVAL] -> [SELECT_PATH] -> [UL_GRANT_READY].
+ *
+ * @param[in,out] fsm SDT FSM instance.
+ * @param payload_bytes Pending UL payload bytes that triggered the new grant.
+ * @param[out] transitions Caller-provided array receiving accepted transitions in order.
+ * @param max_transitions Capacity of @p transitions.
+ *
+ * @return Number of accepted transitions stored in @p transitions.
+ */
+size_t nr_redcap_sdt_start_ul_burst(nr_redcap_sdt_fsm_t *fsm,
+                                    uint16_t payload_bytes,
+                                    nr_redcap_sdt_transition_t *transitions,
+                                    size_t max_transitions);
+/**
+ * @brief Close an active SDT burst when the scheduler sees no more pending UL data.
+ *
+ * @param[in,out] fsm SDT FSM instance.
+ * @param has_pending_ul_bytes True when the UE still has pending UL data after processing.
+ * @param[out] transition Transition record for the accepted completion event.
+ *
+ * @retval true The FSM moved from [SDT_ACTIVE] to [INACTIVE] or [IDLE].
+ * @retval false The burst remains active or the FSM was not in a completable state.
+ */
+bool nr_redcap_sdt_complete_ul_burst(nr_redcap_sdt_fsm_t *fsm,
+                                     bool has_pending_ul_bytes,
+                                     nr_redcap_sdt_transition_t *transition);
 const char *nr_redcap_sdt_state_to_string(nr_redcap_sdt_state_t state);
 const char *nr_redcap_sdt_path_to_string(nr_redcap_sdt_path_t path);
 /**

@@ -19,9 +19,14 @@
  *      contact@openairinterface.org
  */
 
+#include <cstdlib>
+
 #include <gtest/gtest.h>
 
 extern "C" {
+#include "NR_ControlResourceSet.h"
+#include "NR_PDCCH-ConfigCommon.h"
+#include "NR_SearchSpace.h"
 #include "openair2/LAYER2/NR_MAC_gNB/nr_mac_redcap_bwp.h"
 }
 
@@ -102,6 +107,65 @@ TEST(nr_redcap_bwp, case_b_accepts_edge_aligned_bwp)
       .bwp_size = 51,
   };
   nr_redcap_validate_coreset0_dl_bwp(NR_REDCAP_CORESET0_MODE_CASE_B, &cfg, 106);
+}
+
+TEST(nr_redcap_bwp, case_b_conversion_rebinds_common_searchspaces_and_clears_type0_css)
+{
+  NR_PDCCH_ConfigCommon_t pdcch_cc = {};
+  pdcch_cc.controlResourceSetZero = static_cast<long *>(calloc(1, sizeof(*pdcch_cc.controlResourceSetZero)));
+  pdcch_cc.searchSpaceZero = static_cast<long *>(calloc(1, sizeof(*pdcch_cc.searchSpaceZero)));
+  pdcch_cc.searchSpaceSIB1 = static_cast<long *>(calloc(1, sizeof(*pdcch_cc.searchSpaceSIB1)));
+  pdcch_cc.commonSearchSpaceList =
+      static_cast<decltype(pdcch_cc.commonSearchSpaceList)>(calloc(1, sizeof(*pdcch_cc.commonSearchSpaceList)));
+  ASSERT_NE(pdcch_cc.controlResourceSetZero, nullptr);
+  ASSERT_NE(pdcch_cc.searchSpaceZero, nullptr);
+  ASSERT_NE(pdcch_cc.searchSpaceSIB1, nullptr);
+  ASSERT_NE(pdcch_cc.commonSearchSpaceList, nullptr);
+
+  auto *ss0 = static_cast<NR_SearchSpace_t *>(calloc(1, sizeof(NR_SearchSpace_t)));
+  auto *ss1 = static_cast<NR_SearchSpace_t *>(calloc(1, sizeof(NR_SearchSpace_t)));
+  ASSERT_NE(ss0, nullptr);
+  ASSERT_NE(ss1, nullptr);
+  ss1->controlResourceSetId = static_cast<long *>(calloc(1, sizeof(*ss1->controlResourceSetId)));
+  ASSERT_NE(ss1->controlResourceSetId, nullptr);
+  *ss1->controlResourceSetId = 3;
+  ASSERT_EQ(0, ASN_SEQUENCE_ADD(&pdcch_cc.commonSearchSpaceList->list, ss0));
+  ASSERT_EQ(0, ASN_SEQUENCE_ADD(&pdcch_cc.commonSearchSpaceList->list, ss1));
+
+  auto *common_coreset = static_cast<NR_ControlResourceSet_t *>(calloc(1, sizeof(NR_ControlResourceSet_t)));
+  ASSERT_NE(common_coreset, nullptr);
+  common_coreset->controlResourceSetId = 7;
+
+  nr_redcap_apply_case_b_common_coreset(&pdcch_cc, common_coreset);
+
+  EXPECT_EQ(nullptr, pdcch_cc.controlResourceSetZero);
+  EXPECT_EQ(nullptr, pdcch_cc.searchSpaceZero);
+  EXPECT_EQ(nullptr, pdcch_cc.searchSpaceSIB1);
+  ASSERT_EQ(common_coreset, pdcch_cc.commonControlResourceSet);
+  ASSERT_EQ(2, pdcch_cc.commonSearchSpaceList->list.count);
+  ASSERT_NE(pdcch_cc.commonSearchSpaceList->list.array[0]->controlResourceSetId, nullptr);
+  ASSERT_NE(pdcch_cc.commonSearchSpaceList->list.array[1]->controlResourceSetId, nullptr);
+  EXPECT_EQ(7, *pdcch_cc.commonSearchSpaceList->list.array[0]->controlResourceSetId);
+  EXPECT_EQ(7, *pdcch_cc.commonSearchSpaceList->list.array[1]->controlResourceSetId);
+
+  free(ss0->controlResourceSetId);
+  free(ss0);
+  free(ss1->controlResourceSetId);
+  free(ss1);
+  free(pdcch_cc.commonSearchSpaceList->list.array);
+  free(pdcch_cc.commonSearchSpaceList);
+  free(pdcch_cc.commonControlResourceSet);
+}
+
+TEST(nr_redcap_bwp, case_b_conversion_requires_common_searchspace_list)
+{
+  NR_PDCCH_ConfigCommon_t pdcch_cc = {};
+  auto *common_coreset = static_cast<NR_ControlResourceSet_t *>(calloc(1, sizeof(NR_ControlResourceSet_t)));
+  ASSERT_NE(common_coreset, nullptr);
+  common_coreset->controlResourceSetId = 9;
+
+  ASSERT_DEATH({ nr_redcap_apply_case_b_common_coreset(&pdcch_cc, common_coreset); }, "requires commonSearchSpaceList");
+  free(common_coreset);
 }
 
 int main(int argc, char **argv)

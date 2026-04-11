@@ -25,6 +25,9 @@
 #include <stdbool.h>
 #include "nr_mac_redcap.h"
 
+typedef struct NR_PDCCH_ConfigCommon NR_PDCCH_ConfigCommon_t;
+typedef struct NR_ControlResourceSet NR_ControlResourceSet_t;
+
 typedef struct nr_redcap_bwp_config {
   bool configured;
   int scs;
@@ -103,5 +106,17 @@ void nr_redcap_configure_initial_bwp(nr_redcap_bwp_config_t *cfg,
 void nr_redcap_validate_coreset0_dl_bwp(nr_redcap_coreset0_mode_t mode,
                                         const nr_redcap_bwp_config_t *dl_bwp,
                                         int carrier_bw);
+
+/**
+ * @brief Convert a cloned PDCCH common config from Type0 CSS mode to Case B common CORESET mode.
+ *
+ * The caller transfers ownership of @p common_coreset to @p pdcch_cc. The helper
+ * clears the legacy Type0 CSS fields and rebinds each common search space to the
+ * new CORESET identifier.
+ *
+ * @param[in,out] pdcch_cc Cloned PDCCH common configuration for the RedCap DL BWP.
+ * @param[in] common_coreset Replacement common CORESET for Case B.
+ */
+void nr_redcap_apply_case_b_common_coreset(NR_PDCCH_ConfigCommon_t *pdcch_cc, NR_ControlResourceSet_t *common_coreset);
 
 #endif

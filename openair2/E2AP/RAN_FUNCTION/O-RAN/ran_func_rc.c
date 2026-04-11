@@ -20,6 +20,7 @@
  */
 
 #include "ran_func_rc.h"
+#include "ran_func_rc_redcap.h"
 #include "ran_func_rc_subs.h"
 #include "ran_func_rc_extern.h"
 #include "ran_e2sm_ue_id.h"
@@ -28,6 +29,8 @@
 #include "../../flexric/src/agent/e2_agent_api.h"
 #include "openair2/E2AP/flexric/src/lib/sm/enc/enc_ue_id.h"
 #include "openair2/E2AP/flexric/src/sm/rc_sm/rc_sm_id.h"
+#include "openair2/LAYER2/NR_MAC_gNB/mac_proto.h"
+#include "openair2/LAYER2/NR_MAC_gNB/nr_mac_redcap.h"
 
 #include <stdio.h>
 #include <unistd.h>
@@ -312,7 +315,7 @@ static void fill_rc_control(ran_func_def_ctrl_t* ctrl)
 
   // Sequence of Control Actions
   // [0-65535]
-  ctrl_style->sz_seq_ctrl_act = 1;
+  ctrl_style->sz_seq_ctrl_act = 2;
   ctrl_style->seq_ctrl_act = calloc(ctrl_style->sz_seq_ctrl_act, sizeof(seq_ctrl_act_2_t));
   assert(ctrl_style->seq_ctrl_act != NULL && "Memory exhausted");
 
@@ -372,6 +375,25 @@ static void fill_rc_control(ran_func_def_ctrl_t* ctrl)
   const char ran_param_qos_flow_mapping_ind[] = "QoS Flow Mapping Indication";
   lst->ran_param[1].ran_param_name = cp_str_to_ba(ran_param_qos_flow_mapping_ind);
   lst->ran_param[1].ran_param_def = NULL;
+
+  seq_ctrl_act_2_t *redcap_ctrl_act = &ctrl_style->seq_ctrl_act[1];
+
+  redcap_ctrl_act->id = NR_REDCAP_RC_CTRL_ACT_ID_UL_PRB_CAP;
+  const char redcap_ctrl_act_name[] = "RedCap UL PRB allocation cap";
+  redcap_ctrl_act->name = cp_str_to_ba(redcap_ctrl_act_name);
+  redcap_ctrl_act->sz_seq_assoc_ran_param = 2;
+  redcap_ctrl_act->assoc_ran_param = calloc(redcap_ctrl_act->sz_seq_assoc_ran_param, sizeof(seq_ran_param_3_t));
+  assert(redcap_ctrl_act->assoc_ran_param != NULL && "Memory exhausted");
+
+  redcap_ctrl_act->assoc_ran_param[0].id = NR_REDCAP_RC_RAN_PARAM_ID_UE_RNTI;
+  const char redcap_rnti_name[] = "UE RNTI";
+  redcap_ctrl_act->assoc_ran_param[0].name = cp_str_to_ba(redcap_rnti_name);
+  redcap_ctrl_act->assoc_ran_param[0].def = NULL;
+
+  redcap_ctrl_act->assoc_ran_param[1].id = NR_REDCAP_RC_RAN_PARAM_ID_MAX_UL_PRB;
+  const char redcap_prb_cap_name[] = "Max UL PRB cap";
+  redcap_ctrl_act->assoc_ran_param[1].name = cp_str_to_ba(redcap_prb_cap_name);
+  redcap_ctrl_act->assoc_ran_param[1].def = NULL;
 
   // Sequence of Associated RAN 
   // Parameters for Control Outcome
@@ -898,41 +920,58 @@ sm_ag_if_ans_t write_ctrl_rc_sm(void const* data)
 
   assert(ctrl->hdr.format == FORMAT_1_E2SM_RC_CTRL_HDR && "Indication Header Format received not valid");
   assert(ctrl->msg.format == FORMAT_1_E2SM_RC_CTRL_MSG && "Indication Message Format received not valid");
-  assert(ctrl->hdr.frmt_1.ctrl_act_id == 2 && "Currently only QoS flow mapping configuration supported");
-
-  printf("QoS flow mapping configuration\n");
-
+  const uint16_t ctrl_act_id = ctrl->hdr.frmt_1.ctrl_act_id;
   const seq_ran_param_t* ran_param = ctrl->msg.frmt_1.ran_param;
 
-  // DRB ID
-  assert(ran_param[0].ran_param_id == 1 && "First RAN Parameter ID has to be DRB ID");
-  assert(ran_param[0].ran_param_val.type == ELEMENT_KEY_FLAG_TRUE_RAN_PARAMETER_VAL_TYPE);
-  printf("DRB ID %ld \n", ran_param[0].ran_param_val.flag_true->int_ran);
+  if (ctrl_act_id == 2) {
+    printf("QoS flow mapping configuration\n");
 
+    // DRB ID
+    assert(ran_param[0].ran_param_id == 1 && "First RAN Parameter ID has to be DRB ID");
+    assert(ran_param[0].ran_param_val.type == ELEMENT_KEY_FLAG_TRUE_RAN_PARAMETER_VAL_TYPE);
+    printf("DRB ID %ld \n", ran_param[0].ran_param_val.flag_true->int_ran);
 
-  // List of QoS Flows to be modified in DRB
-  assert(ran_param[1].ran_param_id == 2 && "Second RAN Parameter ID has to be List of QoS Flows");
-  assert(ran_param[1].ran_param_val.type == LIST_RAN_PARAMETER_VAL_TYPE);
-  printf("List of QoS Flows to be modified in DRB\n");
-  const lst_ran_param_t* lrp = ran_param[1].ran_param_val.lst->lst_ran_param;
+    // List of QoS Flows to be modified in DRB
+    assert(ran_param[1].ran_param_id == 2 && "Second RAN Parameter ID has to be List of QoS Flows");
+    assert(ran_param[1].ran_param_val.type == LIST_RAN_PARAMETER_VAL_TYPE);
+    printf("List of QoS Flows to be modified in DRB\n");
+    const lst_ran_param_t* lrp = ran_param[1].ran_param_val.lst->lst_ran_param;
 
-  // The following assertion should be true, but there is a bug in the std
-  // check src/sm/rc_sm/enc/rc_enc_asn.c:1085 and src/sm/rc_sm/enc/rc_enc_asn.c:984 
-  // assert(lrp->ran_param_struct.ran_param_struct[0].ran_param_id == 3);
+    // The following assertion should be true, but there is a bug in the std
+    // check src/sm/rc_sm/enc/rc_enc_asn.c:1085 and src/sm/rc_sm/enc/rc_enc_asn.c:984
+    // assert(lrp->ran_param_struct.ran_param_struct[0].ran_param_id == 3);
 
-  // QoS Flow Identifier
-  assert(lrp->ran_param_struct.ran_param_struct[0].ran_param_id == 4);
-  assert(lrp->ran_param_struct.ran_param_struct[0].ran_param_val.type == ELEMENT_KEY_FLAG_TRUE_RAN_PARAMETER_VAL_TYPE);
-  int64_t qfi = lrp->ran_param_struct.ran_param_struct[0].ran_param_val.flag_true->int_ran;
-  assert(qfi > -1 && qfi < 65);
+    // QoS Flow Identifier
+    assert(lrp->ran_param_struct.ran_param_struct[0].ran_param_id == 4);
+    assert(lrp->ran_param_struct.ran_param_struct[0].ran_param_val.type == ELEMENT_KEY_FLAG_TRUE_RAN_PARAMETER_VAL_TYPE);
+    int64_t qfi = lrp->ran_param_struct.ran_param_struct[0].ran_param_val.flag_true->int_ran;
+    assert(qfi > -1 && qfi < 65);
 
-  // QoS Flow Mapping Indication
-  assert(lrp->ran_param_struct.ran_param_struct[1].ran_param_id == 5);
-  assert(lrp->ran_param_struct.ran_param_struct[1].ran_param_val.type == ELEMENT_KEY_FLAG_FALSE_RAN_PARAMETER_VAL_TYPE);
-  int64_t dir = lrp->ran_param_struct.ran_param_struct[1].ran_param_val.flag_false->int_ran;
-  assert(dir == 0 || dir == 1);
+    // QoS Flow Mapping Indication
+    assert(lrp->ran_param_struct.ran_param_struct[1].ran_param_id == 5);
+    assert(lrp->ran_param_struct.ran_param_struct[1].ran_param_val.type == ELEMENT_KEY_FLAG_FALSE_RAN_PARAMETER_VAL_TYPE);
+    int64_t dir = lrp->ran_param_struct.ran_param_struct[1].ran_param_val.flag_false->int_ran;
+    assert(dir == 0 || dir == 1);
 
-  printf("qfi = %ld, dir %ld \n", qfi, dir);
+    printf("qfi = %ld, dir %ld \n", qfi, dir);
+  } else if (ctrl_act_id == NR_REDCAP_RC_CTRL_ACT_ID_UL_PRB_CAP) {
+    nr_redcap_rc_ul_prb_ctrl_t redcap_ctrl = {0};
+    assert(nr_redcap_parse_ul_prb_ctrl_message(&ctrl->msg.frmt_1, &redcap_ctrl) && "Malformed RedCap UL PRB control message");
+    assert(RC.nrmac[0] != NULL && "Expected active gNB MAC instance for RedCap UL PRB control");
+
+    gNB_MAC_INST *nrmac = RC.nrmac[0];
+    NR_UE_info_t *UE = find_nr_UE(&nrmac->UE_info, redcap_ctrl.rnti);
+    assert(UE != NULL && "RedCap UL PRB control targeted unknown RNTI");
+
+    const uint16_t effective_cap = nr_redcap_sanitize_ul_prb_cap(redcap_ctrl.max_ul_prbs, nrmac->min_grant_prb);
+    UE->UE_sched_ctrl.redcap_ul_prb_cap = effective_cap;
+    printf("RedCap UL PRB control RNTI %04x requested %u effective %u\n",
+           redcap_ctrl.rnti,
+           redcap_ctrl.max_ul_prbs,
+           effective_cap);
+  } else {
+    assert(false && "Unsupported RIC control action");
+  }
 
 
   sm_ag_if_ans_t ans = {.type = CTRL_OUTCOME_SM_AG_IF_ANS_V0};

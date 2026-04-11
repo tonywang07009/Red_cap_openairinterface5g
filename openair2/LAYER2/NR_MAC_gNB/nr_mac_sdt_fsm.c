@@ -23,6 +23,26 @@
 
 #include <stddef.h>
 
+/**
+ * @brief Append one accepted transition to a caller-provided transition array.
+ *
+ * @param transition Accepted transition record to append.
+ * @param[out] transitions Destination array.
+ * @param max_transitions Capacity of @p transitions.
+ * @param[in,out] num_transitions Current number of stored transitions.
+ */
+static void append_transition(const nr_redcap_sdt_transition_t *transition,
+                              nr_redcap_sdt_transition_t *transitions,
+                              size_t max_transitions,
+                              size_t *num_transitions)
+{
+  if (transition == NULL || transitions == NULL || num_transitions == NULL || !transition->accepted || *num_transitions >= max_transitions)
+    return;
+
+  transitions[*num_transitions] = *transition;
+  (*num_transitions)++;
+}
+
 static void init_transition_record(const nr_redcap_sdt_fsm_t *fsm,
                                    nr_redcap_sdt_event_t event,
                                    nr_redcap_sdt_transition_t *transition)
@@ -139,6 +159,48 @@ bool nr_redcap_sdt_fsm_step(nr_redcap_sdt_fsm_t *fsm,
     default:
       return false;
   }
+}
+
+size_t nr_redcap_sdt_start_ul_burst(nr_redcap_sdt_fsm_t *fsm,
+                                    uint16_t payload_bytes,
+                                    nr_redcap_sdt_transition_t *transitions,
+                                    size_t max_transitions)
+{
+  if (fsm == NULL || payload_bytes == 0)
+    return 0;
+
+  size_t num_transitions = 0;
+  nr_redcap_sdt_transition_t transition = {0};
+
+  if (fsm->state == NR_REDCAP_SDT_STATE_IDLE || fsm->state == NR_REDCAP_SDT_STATE_INACTIVE) {
+    if (!nr_redcap_sdt_fsm_step(fsm, NR_REDCAP_SDT_EVENT_UL_DATA_ARRIVAL, payload_bytes, &transition))
+      return num_transitions;
+    append_transition(&transition, transitions, max_transitions, &num_transitions);
+  }
+
+  if (fsm->state == NR_REDCAP_SDT_STATE_TRIGGER) {
+    if (!nr_redcap_sdt_fsm_step(fsm, NR_REDCAP_SDT_EVENT_SELECT_PATH, 0, &transition))
+      return num_transitions;
+    append_transition(&transition, transitions, max_transitions, &num_transitions);
+  }
+
+  if (fsm->state == NR_REDCAP_SDT_STATE_MSGA_PATH || fsm->state == NR_REDCAP_SDT_STATE_MSG3_PATH) {
+    if (!nr_redcap_sdt_fsm_step(fsm, NR_REDCAP_SDT_EVENT_UL_GRANT_READY, 0, &transition))
+      return num_transitions;
+    append_transition(&transition, transitions, max_transitions, &num_transitions);
+  }
+
+  return num_transitions;
+}
+
+bool nr_redcap_sdt_complete_ul_burst(nr_redcap_sdt_fsm_t *fsm,
+                                     bool has_pending_ul_bytes,
+                                     nr_redcap_sdt_transition_t *transition)
+{
+  if (fsm == NULL || has_pending_ul_bytes || fsm->state != NR_REDCAP_SDT_STATE_ACTIVE)
+    return false;
+
+  return nr_redcap_sdt_fsm_step(fsm, NR_REDCAP_SDT_EVENT_UL_BURST_COMPLETE, 0, transition);
 }
 
 const char *nr_redcap_sdt_state_to_string(nr_redcap_sdt_state_t state)

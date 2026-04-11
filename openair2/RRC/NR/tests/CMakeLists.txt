@@ -5,3 +5,11 @@ add_test(NAME rrc_bearers_test COMMAND rrc_bearers_test)
 target_include_directories(rrc_bearers_test PRIVATE ./common/utils/ds common/utils/LOG)
 target_link_libraries(rrc_bearers_test PRIVATE ds alg asn1_e1ap asn1_lte_rrc_hdrs asn1_nr_rrc_hdrs LOG T)
 target_compile_definitions(rrc_bearers_test PRIVATE ENABLE_TESTS)
+
+add_executable(test_nr_rrc_redcap
+  test_nr_rrc_redcap.cpp
+  ${OPENAIR2_DIR}/RRC/NR_UE/rrc_ue_redcap.c)
+add_dependencies(tests test_nr_rrc_redcap)
+add_test(NAME test_nr_rrc_redcap COMMAND ./test_nr_rrc_redcap)
+target_include_directories(test_nr_rrc_redcap PRIVATE ${CMAKE_SOURCE_DIR})
+target_link_libraries(test_nr_rrc_redcap PRIVATE GTest::gtest minimal_lib asn1_nr_rrc)

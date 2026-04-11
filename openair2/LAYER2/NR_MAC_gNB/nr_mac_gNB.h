@@ -77,6 +77,7 @@
 #include "NR_BCCH-DL-SCH-Message.h"
 #include "nr_mac_redcap.h"
 #include "nr_mac_redcap_bwp.h"
+#include "nr_mac_sdt_fsm.h"
 #include "nr_radio_config.h"
 
 /* PHY */
@@ -699,6 +700,10 @@ typedef struct {
   NR_list_t feedback_ul_harq;
   /// UL HARQ processes that await retransmission
   NR_list_t retrans_ul_harq;
+  /// Local RedCap SDT / RRC_INACTIVE state tracking for scheduler-side UL bursts
+  nr_redcap_sdt_fsm_t redcap_sdt_fsm;
+  /// Optional per-UE runtime UL PRB cap pushed through the RedCap xApp control path
+  uint16_t redcap_ul_prb_cap;
   NR_UE_mac_ce_ctrl_t UE_mac_ce_ctrl; // MAC CE related information
 
   /// Timer for RRC processing procedures and transmission activity

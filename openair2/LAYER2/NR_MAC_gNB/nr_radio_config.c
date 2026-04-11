@@ -219,30 +219,6 @@ static NR_SetupRelease_PDSCH_ConfigCommon_t *clone_pdsch_configcommon(const NR_S
 }
 
 /**
- * @brief Rebind cloned common search spaces to a commonControlResourceSet.
- *
- * The legacy initial DL BWP uses controlResourceSetZero/searchSpaceZero with
- * CORESET#0. For RedCap Case B we switch to commonControlResourceSet, so each
- * common search space cloned from the legacy BWP must reference the new CORESET
- * identifier instead of CORESET#0.
- *
- * @param[in,out] pdcch_cc PDCCH common configuration inside the cloned RedCap BWP.
- * @param[in] coreset_id Common CORESET identifier used by Case B.
- */
-static void rebind_redcap_common_searchspaces_to_coreset(NR_PDCCH_ConfigCommon_t *pdcch_cc, const long coreset_id)
-{
-  if (pdcch_cc == NULL || pdcch_cc->commonSearchSpaceList == NULL)
-    return;
-
-  for (int i = 0; i < pdcch_cc->commonSearchSpaceList->list.count; i++) {
-    NR_SearchSpace_t *search_space = pdcch_cc->commonSearchSpaceList->list.array[i];
-    if (search_space->controlResourceSetId == NULL)
-      search_space->controlResourceSetId = calloc_or_fail(1, sizeof(*search_space->controlResourceSetId));
-    *search_space->controlResourceSetId = coreset_id;
-  }
-}
-
-/**
  * @brief Convert a RedCap initial DL BWP to Case B commonControlResourceSet mode.
  *
  * @param[in] scc ServingCellConfigCommon used as source for SSB bitmap and carrier BW.
@@ -261,21 +237,9 @@ static void apply_redcap_case_b_common_coreset(const NR_ServingCellConfigCommon_
               dl_bwp->bwp_start,
               dl_bwp->bwp_size,
               carrier_bw);
-  AssertFatal(pdcch_cc != NULL, "RedCap CORESET#0 Case B requires a valid PDCCH common configuration\n");
-  AssertFatal(pdcch_cc->commonSearchSpaceList != NULL,
-              "RedCap CORESET#0 Case B requires commonSearchSpaceList in the cloned initial DL BWP\n");
-  AssertFatal(pdcch_cc->commonControlResourceSet == NULL,
-              "RedCap CORESET#0 Case B expects no pre-existing commonControlResourceSet in the cloned initial DL BWP\n");
-
-  free(pdcch_cc->controlResourceSetZero);
-  pdcch_cc->controlResourceSetZero = NULL;
-  free(pdcch_cc->searchSpaceZero);
-  pdcch_cc->searchSpaceZero = NULL;
-  free(pdcch_cc->searchSpaceSIB1);
-  pdcch_cc->searchSpaceSIB1 = NULL;
-
-  pdcch_cc->commonControlResourceSet = get_coreset_config(0, dl_bwp->bwp_start, dl_bwp->bwp_size, get_ssb_bitmap(scc));
-  rebind_redcap_common_searchspaces_to_coreset(pdcch_cc, pdcch_cc->commonControlResourceSet->controlResourceSetId);
+  nr_redcap_apply_case_b_common_coreset(
+      pdcch_cc,
+      get_coreset_config(0, dl_bwp->bwp_start, dl_bwp->bwp_size, get_ssb_bitmap(scc)));
   LOG_I(NR_MAC,
         "RedCap CORESET#0 Case B edge-aligned PRB allocation: start=%d size=%d carrier_bw=%d common_coreset_id=%ld\n",
         dl_bwp->bwp_start,

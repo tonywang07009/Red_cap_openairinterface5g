@@ -2979,6 +2979,7 @@ NR_UE_info_t *get_new_nr_ue_inst(uid_allocator_t *uia, rnti_t rnti, NR_CellGroup
   UE->ra = calloc(1, sizeof(*UE->ra));
   NR_UE_sched_ctrl_t *sched_ctrl = &UE->UE_sched_ctrl;
   sched_ctrl->ta_update = 31;
+  nr_redcap_sdt_fsm_init(&sched_ctrl->redcap_sdt_fsm, false, NR_REDCAP_SDT_MSGA_PAYLOAD_THRESHOLD_BYTES);
 
   /* Set default BWPs */
   AssertFatal(UE->sc_info.n_ul_bwp <= NR_MAX_NUM_BWP, "uplinkBWP_ToAddModList has %d BWP!\n", UE->sc_info.n_ul_bwp);
@@ -3058,6 +3059,8 @@ bool add_connected_nr_ue(gNB_MAC_INST *nr_mac, NR_UE_info_t *UE)
   // Initialize bler_stats
   init_bler_stats(&nr_mac->dl_bler, &sched_ctrl->dl_bler_stats, nr_mac->frame);
   init_bler_stats(&nr_mac->ul_bler, &sched_ctrl->ul_bler_stats, nr_mac->frame);
+  const bool inactive_allowed = nr_mac->radio_config.redcap && nr_mac->radio_config.redcap->inactive_allowed;
+  nr_redcap_sdt_fsm_init(&sched_ctrl->redcap_sdt_fsm, inactive_allowed, NR_REDCAP_SDT_MSGA_PAYLOAD_THRESHOLD_BYTES);
 
   dump_nr_list(UE_info->connected_ue_list);
   return true;

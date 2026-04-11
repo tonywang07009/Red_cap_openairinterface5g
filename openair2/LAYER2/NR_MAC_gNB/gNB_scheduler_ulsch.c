@@ -34,9 +34,132 @@
 #include "common/utils/nr/nr_common.h"
 #include "utils.h"
 #include <openair2/UTIL/OPT/opt.h>
+#include <stdlib.h>
 #include "LAYER2/nr_rlc/nr_rlc_oai_api.h"
 
 //#define SRS_IND_DEBUG
+
+#define NR_REDCAP_SDT_LOG_PATH_ENV "OAI_REDCAP_SDT_LOG"
+#define NR_REDCAP_SDT_LOG_PATH_DEFAULT "nrMAC_redcap_sdt.log"
+
+static FILE *nr_redcap_sdt_log_stream;
+static bool nr_redcap_sdt_log_open_failed;
+
+/**
+ * @brief Return the RedCap SDT transition log stream used by the runtime scheduler path.
+ *
+ * The log file path is controlled by the [OAI_REDCAP_SDT_LOG] environment
+ * variable. When the variable is absent, the scheduler appends to the local
+ * file [nrMAC_redcap_sdt.log].
+ *
+ * @return Writable log stream, or NULL if the file cannot be opened.
+ */
+static FILE *nr_redcap_sdt_get_log_stream(void)
+{
+  if (nr_redcap_sdt_log_stream != NULL || nr_redcap_sdt_log_open_failed)
+    return nr_redcap_sdt_log_stream;
+
+  const char *path = getenv(NR_REDCAP_SDT_LOG_PATH_ENV);
+  if (path == NULL || path[0] == '\0')
+    path = NR_REDCAP_SDT_LOG_PATH_DEFAULT;
+
+  nr_redcap_sdt_log_stream = fopen(path, "a");
+  if (nr_redcap_sdt_log_stream == NULL) {
+    nr_redcap_sdt_log_open_failed = true;
+    LOG_W(NR_MAC, "Cannot open RedCap SDT log file %s\n", path);
+  }
+
+  return nr_redcap_sdt_log_stream;
+}
+
+/**
+ * @brief Check whether the local RedCap SDT runtime hooks are enabled for a UE.
+ *
+ * @param nr_mac gNB MAC instance.
+ * @param UE UE context under evaluation.
+ *
+ * @retval true The UE is marked as [RedCap] and the gNB carries RedCap config.
+ * @retval false The current UE should not drive the SDT runtime hooks.
+ */
+static bool nr_redcap_sdt_enabled(const gNB_MAC_INST *nr_mac, const NR_UE_info_t *UE)
+{
+  return nr_mac != NULL && nr_mac->radio_config.redcap != NULL && UE != NULL && UE->is_redcap;
+}
+
+/**
+ * @brief Append one SDT transition record with runtime coordinates to the log file.
+ *
+ * @param frame Scheduler or reception frame attached to the transition.
+ * @param slot Scheduler or reception slot attached to the transition.
+ * @param rnti UE RNTI associated with the transition.
+ * @param transition Accepted FSM transition record.
+ */
+static void nr_redcap_sdt_log_transition(frame_t frame,
+                                         slot_t slot,
+                                         rnti_t rnti,
+                                         const nr_redcap_sdt_transition_t *transition)
+{
+  if (transition == NULL || !transition->accepted)
+    return;
+
+  FILE *stream = nr_redcap_sdt_get_log_stream();
+  if (stream == NULL)
+    return;
+
+  fprintf(stream, "frame=%d slot=%d rnti=%04x ", frame, slot, rnti);
+  nr_redcap_sdt_transition_fprintf(stream, transition);
+  fflush(stream);
+}
+
+/**
+ * @brief Advance the scheduler-side SDT FSM when a RedCap UE receives a new UL grant.
+ *
+ * @param nr_mac gNB MAC instance.
+ * @param UE UE context receiving the grant.
+ * @param frame Scheduling frame.
+ * @param slot Scheduling slot.
+ * @param payload_bytes Pending UL payload bytes seen by the scheduler.
+ */
+static void nr_redcap_sdt_note_ul_grant(gNB_MAC_INST *nr_mac,
+                                        NR_UE_info_t *UE,
+                                        frame_t frame,
+                                        slot_t slot,
+                                        uint16_t payload_bytes)
+{
+  if (!nr_redcap_sdt_enabled(nr_mac, UE))
+    return;
+
+  nr_redcap_sdt_transition_t transitions[3] = {0};
+  const size_t num_transitions =
+      nr_redcap_sdt_start_ul_burst(&UE->UE_sched_ctrl.redcap_sdt_fsm, payload_bytes, transitions, sizeof(transitions) / sizeof(transitions[0]));
+
+  for (size_t i = 0; i < num_transitions; ++i)
+    nr_redcap_sdt_log_transition(frame, slot, UE->rnti, &transitions[i]);
+}
+
+/**
+ * @brief Complete the scheduler-side SDT burst when no more UL data remains pending.
+ *
+ * @param nr_mac gNB MAC instance.
+ * @param UE UE context being updated.
+ * @param frame Reception frame.
+ * @param slot Reception slot.
+ */
+static void nr_redcap_sdt_maybe_complete_ul_burst(gNB_MAC_INST *nr_mac,
+                                                  NR_UE_info_t *UE,
+                                                  frame_t frame,
+                                                  slot_t slot)
+{
+  if (!nr_redcap_sdt_enabled(nr_mac, UE))
+    return;
+
+  NR_UE_sched_ctrl_t *sched_ctrl = &UE->UE_sched_ctrl;
+  const bool has_pending_ul_bytes = sched_ctrl->estimated_ul_buffer > sched_ctrl->sched_ul_bytes || sched_ctrl->SR;
+  nr_redcap_sdt_transition_t transition = {0};
+
+  if (nr_redcap_sdt_complete_ul_burst(&sched_ctrl->redcap_sdt_fsm, has_pending_ul_bytes, &transition))
+    nr_redcap_sdt_log_transition(frame, slot, UE->rnti, &transition);
+}
 
 /* \brief Get the number of UL TDAs that could be used in slot, reachable
  * via specific k2. The output parameter first_idx is a pointer to the first
@@ -1025,6 +1148,7 @@ static void _nr_rx_sdu(const module_id_t gnb_mod_idP,
         UE_scheduling_control->sched_ul_bytes = 0;
 
       nr_process_mac_pdu(gnb_mod_idP, UE, CC_idP, frameP, slotP, sduP, sdu_lenP, harq_pid);
+      nr_redcap_sdt_maybe_complete_ul_burst(gNB_mac, UE, frameP, slotP);
     } else {
       if (ul_cqi == 0xff || ul_cqi <= 128) {
         UE->UE_sched_ctrl.pusch_consecutive_dtx_cnt++;
@@ -2176,6 +2300,7 @@ static int  pf_ul(gNB_MAC_INST *nrmac,
     /* if it's for inactivity, min_grant_prb is enough, otherwise check what
      * would be the maximum */
     uint16_t max_rbSize = iterator->sched_inactive ? min_rb : bi.bwpSize;
+    max_rbSize = nr_redcap_effective_ul_prb_cap(max_rbSize, sched_ctrl->redcap_ul_prb_cap, min_rb);
     uint16_t available_rb = 1;
     while (rbStart + available_rb < bi.bwpSize && !(rballoc_mask[rbStart + bi.bwpStart + available_rb] & slbitmap) && available_rb < max_rbSize)
       available_rb++;
@@ -2415,6 +2540,7 @@ void post_process_ulsch(gNB_MAC_INST *nr_mac, post_process_pusch_t *pusch, NR_UE
   NR_ServingCellConfigCommon_t *scc = nr_mac->common_channels[0].ServingCellConfigCommon;
   NR_UE_sched_ctrl_t *sched_ctrl = &UE->UE_sched_ctrl;
   NR_UE_UL_BWP_t *current_BWP = &UE->current_UL_BWP;
+  const int pending_ul_payload = max(0, sched_ctrl->estimated_ul_buffer - sched_ctrl->sched_ul_bytes);
 
   /* the UE now has the grant for the request */
   sched_ctrl->SR = false;
@@ -2455,6 +2581,9 @@ void post_process_ulsch(gNB_MAC_INST *nr_mac, post_process_pusch_t *pusch, NR_UE
     UE->mac_stats.ulsch_total_bytes_scheduled += sched_pusch->tb_size;
     sched_ctrl->sched_ul_bytes += sched_pusch->tb_size;
     UE->mac_stats.ul.total_rbs += sched_pusch->rbSize;
+    const int burst_payload = pending_ul_payload > 0 ? pending_ul_payload : sched_pusch->tb_size;
+    const uint16_t payload_bytes = burst_payload > UINT16_MAX ? UINT16_MAX : burst_payload;
+    nr_redcap_sdt_note_ul_grant(nr_mac, UE, frame, slot, payload_bytes);
 
   } else {
     UE->mac_stats.ul.total_rbs_retx += sched_pusch->rbSize;
@@ -2655,7 +2784,11 @@ static void nr_ulsch_preprocessor(gNB_MAC_INST *nr_mac, post_process_pusch_t *pp
 
   // we assume the same K2 for all UEs
   const int koffset = get_NTN_Koffset(scc);
-  const int min_rxtx = nr_mac->radio_config.minRXTXTIME + koffset;
+  const bool redcap_half_duplex_allowed = nr_mac->radio_config.redcap != NULL
+                                          && nr_mac->radio_config.redcap->has_halfDuplexRedCapAllowed_r17
+                                          && nr_mac->radio_config.redcap->halfDuplexRedCapAllowed_r17;
+  const int min_rxtx = nr_redcap_effective_min_rxtxtime(redcap_half_duplex_allowed, nr_mac->radio_config.minRXTXTIME)
+                       + koffset;
 
   int num_beams = nr_mac->beam_info.beam_allocation ? nr_mac->beam_info.beams_per_period : 1;
   int bw = scc->uplinkConfigCommon->frequencyInfoUL->scs_SpecificCarrierList.list.array[0]->carrierBandwidth;

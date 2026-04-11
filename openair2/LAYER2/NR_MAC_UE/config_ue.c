@@ -1972,8 +1972,8 @@ void nr_rrc_mac_config_req_sib1(module_id_t module_id, int cc_idP, NR_SIB1_t *si
   build_ssb_list(mac);
 
   const bool is_redcap_ue = use_sib1_redcap_initial_bwp();
-  NR_BWP_DownlinkCommon_t *initial_dl_bwp = get_sib1_initial_dl_bwp(scc, is_redcap_ue);
-  NR_BWP_UplinkCommon_t *initial_ul_bwp = get_sib1_initial_ul_bwp(scc, is_redcap_ue);
+  NR_BWP_DownlinkCommon_t *initial_dl_bwp = nr_ue_get_sib1_initial_dl_bwp(scc, is_redcap_ue);
+  NR_BWP_UplinkCommon_t *initial_ul_bwp = nr_ue_get_sib1_initial_ul_bwp(scc, is_redcap_ue);
   if (is_redcap_ue && initial_dl_bwp != &scc->downlinkConfigCommon.initialDownlinkBWP) {
     LOG_I(NR_MAC,
           "Applying SIB1 RedCap initial DL BWP: start=%d size=%d\n",

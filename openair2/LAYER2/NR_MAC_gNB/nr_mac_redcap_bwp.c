@@ -22,6 +22,10 @@
 #include "nr_mac_redcap_bwp.h"
 
 #include "assertions.h"
+#include "common/utils/utils.h"
+#include "NR_ControlResourceSet.h"
+#include "NR_PDCCH-ConfigCommon.h"
+#include "NR_SearchSpace.h"
 
 #define NR_REDCAP_SCS_KHZ15_VALUE 0
 #define NR_REDCAP_SCS_KHZ30_VALUE 1
@@ -50,6 +54,19 @@ static int nr_redcap_location_and_bw(int nprb, int rb_start)
     return bwp_size * (nprb - 1) + rb_start;
 
   return bwp_size * (bwp_size + 1 - nprb) + (bwp_size - 1 - rb_start);
+}
+
+static void nr_redcap_rebind_common_searchspaces_to_coreset(NR_PDCCH_ConfigCommon_t *pdcch_cc, const long coreset_id)
+{
+  if (pdcch_cc == NULL || pdcch_cc->commonSearchSpaceList == NULL)
+    return;
+
+  for (int i = 0; i < pdcch_cc->commonSearchSpaceList->list.count; i++) {
+    NR_SearchSpace_t *search_space = pdcch_cc->commonSearchSpaceList->list.array[i];
+    if (search_space->controlResourceSetId == NULL)
+      search_space->controlResourceSetId = calloc_or_fail(1, sizeof(*search_space->controlResourceSetId));
+    *search_space->controlResourceSetId = coreset_id;
+  }
 }
 
 int nr_redcap_fr1_max_prbs_from_scs(long scs)
@@ -127,4 +144,24 @@ void nr_redcap_validate_coreset0_dl_bwp(nr_redcap_coreset0_mode_t mode,
               dl_bwp->bwp_start,
               dl_bwp->bwp_size,
               carrier_bw);
+}
+
+void nr_redcap_apply_case_b_common_coreset(NR_PDCCH_ConfigCommon_t *pdcch_cc, NR_ControlResourceSet_t *common_coreset)
+{
+  AssertFatal(pdcch_cc != NULL, "RedCap CORESET#0 Case B requires a valid PDCCH common configuration\n");
+  AssertFatal(pdcch_cc->commonSearchSpaceList != NULL,
+              "RedCap CORESET#0 Case B requires commonSearchSpaceList in the cloned initial DL BWP\n");
+  AssertFatal(pdcch_cc->commonControlResourceSet == NULL,
+              "RedCap CORESET#0 Case B expects no pre-existing commonControlResourceSet in the cloned initial DL BWP\n");
+  AssertFatal(common_coreset != NULL, "RedCap CORESET#0 Case B requires a replacement common CORESET\n");
+
+  free(pdcch_cc->controlResourceSetZero);
+  pdcch_cc->controlResourceSetZero = NULL;
+  free(pdcch_cc->searchSpaceZero);
+  pdcch_cc->searchSpaceZero = NULL;
+  free(pdcch_cc->searchSpaceSIB1);
+  pdcch_cc->searchSpaceSIB1 = NULL;
+
+  pdcch_cc->commonControlResourceSet = common_coreset;
+  nr_redcap_rebind_common_searchspaces_to_coreset(pdcch_cc, common_coreset->controlResourceSetId);
 }

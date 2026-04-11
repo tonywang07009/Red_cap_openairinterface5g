@@ -23,6 +23,7 @@
 #define __LAYER2_NR_MAC_GNB_NR_MAC_REDCAP_H__
 
 #include <stdbool.h>
+#include <stdint.h>
 
 typedef enum {
   NR_REDCAP_CORESET0_MODE_CASE_A = 0,
@@ -34,6 +35,9 @@ typedef enum {
   NR_REDCAP_RRC_INACTIVE = 1,
   NR_REDCAP_RRC_CONNECTED = 2,
 } nr_redcap_rrc_state_t;
+
+#define NR_REDCAP_HD_FDD_MIN_RXTXTIME 6
+#define NR_REDCAP_UL_PRB_CAP_DISABLED 0
 
 /**
  * @brief Check whether the configured RedCap CORESET#0 mode is supported.
@@ -79,6 +83,65 @@ static inline const char *nr_redcap_rrc_state_to_string(nr_redcap_rrc_state_t st
     default:
       return "unknown";
   }
+}
+
+/**
+ * @brief Clamp the effective scheduler DL/UL switching gap for RedCap HD-FDD.
+ *
+ * The current project plan uses [6 slots] as the local HD-FDD Type A
+ * scheduling assumption for RedCap. When the cell explicitly allows
+ * [halfDuplexRedCapAllowed-r17], the gNB shall not schedule with a smaller
+ * [minRXTXTIME] than this project-level assumption.
+ *
+ * @param half_duplex_redcap_allowed True when the RedCap SIB1/config path allows HD-FDD UEs.
+ * @param configured_min_rxtxtime Scheduler minRXTXTIME requested by configuration.
+ *
+ * @return Effective minRXTXTIME after applying the RedCap HD-FDD floor.
+ */
+static inline int nr_redcap_effective_min_rxtxtime(bool half_duplex_redcap_allowed, int configured_min_rxtxtime)
+{
+  if (!half_duplex_redcap_allowed)
+    return configured_min_rxtxtime;
+
+  return configured_min_rxtxtime >= NR_REDCAP_HD_FDD_MIN_RXTXTIME ? configured_min_rxtxtime : NR_REDCAP_HD_FDD_MIN_RXTXTIME;
+}
+
+/**
+ * @brief Sanitize a runtime UL PRB cap received for a specific UE.
+ *
+ * A value of [0] disables the runtime cap. Any non-zero cap smaller than the
+ * scheduler minimum grant is rounded up so the scheduler can still allocate a
+ * valid PUSCH grant.
+ *
+ * @param requested_cap Requested runtime UL PRB cap.
+ * @param min_grant_prb Minimum valid UL grant size for the cell.
+ *
+ * @return Effective stored UL PRB cap, or [0] when disabled.
+ */
+static inline uint16_t nr_redcap_sanitize_ul_prb_cap(uint16_t requested_cap, uint16_t min_grant_prb)
+{
+  if (requested_cap == NR_REDCAP_UL_PRB_CAP_DISABLED)
+    return NR_REDCAP_UL_PRB_CAP_DISABLED;
+
+  return requested_cap < min_grant_prb ? min_grant_prb : requested_cap;
+}
+
+/**
+ * @brief Clamp a requested UL RB allocation with an optional RedCap runtime cap.
+ *
+ * @param requested_rb Requested RB allocation before RedCap runtime control.
+ * @param configured_cap Stored runtime cap for the UE. [0] disables the cap.
+ * @param min_grant_prb Minimum valid UL grant size for the cell.
+ *
+ * @return Effective RB allocation upper bound after RedCap runtime control.
+ */
+static inline uint16_t nr_redcap_effective_ul_prb_cap(uint16_t requested_rb, uint16_t configured_cap, uint16_t min_grant_prb)
+{
+  const uint16_t effective_cap = nr_redcap_sanitize_ul_prb_cap(configured_cap, min_grant_prb);
+  if (effective_cap == NR_REDCAP_UL_PRB_CAP_DISABLED || requested_rb <= effective_cap)
+    return requested_rb;
+
+  return effective_cap;
 }
 
 /**
