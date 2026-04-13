@@ -113,12 +113,15 @@ services:
             ASAN_OPTIONS: detect_leaks=0
 
         depends_on:
-            - nearRT-RIC
+            nearRT-RIC:
+                condition: service_healthy
             
         networks:
             public_net:
                 ipv4_address: 192.168.70.140
                 # 70.151
+        tmpfs:
+            - /opt/oai-gnb/flexric-empty
         volumes:
             - ${GNB_REDCAP_CONFIG:-../../conf_files/gnb.sa.band78.fr1.106PRB.usrpb210.redcap.yaml}:/opt/oai-gnb/etc/gnb.yaml
             # The /etc/gnb.yaml -> the file type need alament
@@ -147,7 +150,6 @@ services:
                                     --ssb 144
                                     --rfsimulator.serveraddr 192.168.70.140 
                                     --log_config.global_log_options level,nocolor,time
-                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.150 --telnetsrv.listenport 8091
         depends_on:
             - oai-gnb
         networks:
@@ -180,11 +182,11 @@ services:
             USE_ADDITIONAL_OPTIONS: > 
                                     -E --rfsim -r 106 --numerology 1 
                                     --uicc0.imsi 001010000000002
+                                    --uecap_file /tmp/redcap_force_yaml_fallback/uecap-redcap.xml
                                     -C 3630360000 
                                     --ssb 144
                                     --rfsimulator.serveraddr 192.168.70.140 
                                     --log_config.global_log_options level,nocolor,time
-                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.151 --telnetsrv.listenport 8091
         depends_on:
             - oai-gnb
         networks:

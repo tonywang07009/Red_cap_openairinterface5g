@@ -65,11 +65,9 @@ RUN apt-get update && \
         iproute2 \
         iperf3 \
         iperf \
-        libyaml-cpp-dev && \
-# if the --sanitize option was used to build, additional packages are required
-    /bin/bash -c 'if [[ "$BUILD_OPTION" = "--sanitize" ]]; then DEBIAN_FRONTEND=noninteractive apt-get install --yes \
+        libyaml-cpp-dev \
         libasan8 \
-        libubsan1; fi' && \
+        libubsan1 && \
     apt-get clean -y && \
     rm -rf /var/lib/apt/lists/*
 

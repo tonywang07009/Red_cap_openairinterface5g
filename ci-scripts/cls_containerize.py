@@ -199,6 +199,16 @@ def GetDeployedServices(ssh, file):
 			deployed_services.append(s)
 	return deployed_services
 
+def RedCapE2AgentMode():
+	return os.environ.get("REDCAP_E2_AGENT_MODE", "enabled").strip().lower()
+
+def RedCapE2AgentDisabled():
+	return RedCapE2AgentMode() == "disabled"
+
+def ReadNonEmptyLogLines(filename):
+	with open(filename, "r", encoding="utf-8", errors="ignore") as f:
+		return [line.strip() for line in f if line.strip()]
+
 def CheckLogs(self, filename, HTML, RAN):
 	success = True
 	name = os.path.basename(filename)
@@ -231,27 +241,31 @@ def CheckLogs(self, filename, HTML, RAN):
 		HTML.htmleNBFailureMsg = ""
 	elif 'xapp' in name:
 		opt = f"Undeploy {name}"
-		with open(f'{filename}', "r", encoding="utf-8", errors="ignore") as f:
-			last_lines = deque((line.strip() for line in f if line.strip()), maxlen=1)
+		log_lines = ReadNonEmptyLogLines(filename)
+		last_lines = deque(log_lines, maxlen=1)
 		last_line = last_lines[0] if last_lines else None
 		if last_line is None:
 			HTML.CreateHtmlTestRowQueue(opt, 'KO', ["xApp log is empty; cannot verify runtime status"])
 			success = False
 		elif ('Test xApp run SUCCESSFULLY' in last_line):
 			HTML.CreateHtmlTestRowQueue(opt, 'OK', ["xApp run successfully"])
+		elif RedCapE2AgentDisabled() and any('The nearRT-RIC has no registered nodes.' in line for line in log_lines):
+			HTML.CreateHtmlTestRowQueue(opt, 'OK', ["xApp observed no registered E2 nodes as expected in disabled mode"])
 		else:
 			HTML.CreateHtmlTestRowQueue(opt, 'KO', ["xApp didn't run successfully"])
 			success = False
 	elif 'RIC' in name:
 		opt = f"Undeploy {name}"
-		with open(f'{filename}', 'r', encoding="utf-8", errors="ignore") as f:
-			last_lines = deque((line.strip() for line in f if line.strip()), maxlen=1)
+		log_lines = ReadNonEmptyLogLines(filename)
+		last_lines = deque(log_lines, maxlen=1)
 		last_line = last_lines[0] if last_lines else None
 		if last_line is None:
 			HTML.CreateHtmlTestRowQueue(opt, 'KO', ["nearRT-RIC log is empty; cannot verify E2 shutdown"])
 			success = False
 		elif ('Removing E2 Node' in last_line):
 			HTML.CreateHtmlTestRowQueue(opt, 'OK', ["nearRT-RIC run successfully"])
+		elif RedCapE2AgentDisabled() and any('Registered E2 nodes = 0.' in line for line in log_lines):
+			HTML.CreateHtmlTestRowQueue(opt, 'OK', ["nearRT-RIC observed zero registered E2 nodes as expected in disabled mode"])
 		else:
 			HTML.CreateHtmlTestRowQueue(opt, 'KO', ["nearRT-RIC didn't run successfully"])
 			success = False

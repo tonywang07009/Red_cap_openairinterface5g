@@ -235,12 +235,11 @@ RUs:
 
 # This way is setting the channel to do the simluaiton
 rfsimulator:
-  -
-    serveraddr: server
-    serverport: 4043
-    options: [] #("saviq"); or/and "chanmod"
-    modelname: AWGN
-    IQfile: /tmp/rfsimulator.iqs
+  serveraddr: server
+  serverport: 4043
+  options: [] #("saviq"); or/and "chanmod"
+  modelname: AWGN
+  IQfile: /tmp/rfsimulator.iqs
 
 security:
   # preferred ciphering algorithms

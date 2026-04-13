@@ -17,16 +17,6 @@ nrue_recap:
   number_of_rx_redcap_r17: 1
   half_duplex_fdd_type_a_redcap_r17: 1
 
-
-
-cells:
-  ru_id: 0
-  band: 78
-  rf_freq: 3630360000
-  numerology: 1
-  N_RB_DL: 106
-  ssb_start: 144
-
 # thread-pool: "-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1"
 
 #/* configuration for channel modelisation */

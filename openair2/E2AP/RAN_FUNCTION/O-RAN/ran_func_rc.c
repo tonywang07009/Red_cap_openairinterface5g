@@ -29,8 +29,10 @@
 #include "../../flexric/src/agent/e2_agent_api.h"
 #include "openair2/E2AP/flexric/src/lib/sm/enc/enc_ue_id.h"
 #include "openair2/E2AP/flexric/src/sm/rc_sm/rc_sm_id.h"
+#if defined(NGRAN_GNB_DU)
 #include "openair2/LAYER2/NR_MAC_gNB/mac_proto.h"
 #include "openair2/LAYER2/NR_MAC_gNB/nr_mac_redcap.h"
+#endif
 
 #include <stdio.h>
 #include <unistd.h>
@@ -39,6 +41,34 @@
 static pthread_once_t once_rc_mutex = PTHREAD_ONCE_INIT;
 static rc_subs_data_t rc_subs_data = {0};
 static pthread_mutex_t rc_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+#if defined(NGRAN_GNB_DU)
+/**
+ * @brief Apply a RedCap UL PRB control request on the serving gNB MAC UE context.
+ *
+ * This control path is only valid when the agent build includes the DU/gNB MAC scheduler.
+ * Pure [CU-UP] builds compile the RC service model as well, but they do not link the gNB MAC
+ * UE database and therefore cannot resolve [find_nr_UE()] or apply scheduler-side PRB caps.
+ *
+ * @param[in] redcap_ctrl Parsed RedCap UL PRB control message.
+ */
+static void apply_redcap_ul_prb_control(const nr_redcap_rc_ul_prb_ctrl_t *redcap_ctrl)
+{
+  assert(redcap_ctrl != NULL && "Expected parsed RedCap UL PRB control message");
+  assert(RC.nrmac[0] != NULL && "Expected active gNB MAC instance for RedCap UL PRB control");
+
+  gNB_MAC_INST *nrmac = RC.nrmac[0];
+  NR_UE_info_t *UE = find_nr_UE(&nrmac->UE_info, redcap_ctrl->rnti);
+  assert(UE != NULL && "RedCap UL PRB control targeted unknown RNTI");
+
+  const uint16_t effective_cap = nr_redcap_sanitize_ul_prb_cap(redcap_ctrl->max_ul_prbs, nrmac->min_grant_prb);
+  UE->UE_sched_ctrl.redcap_ul_prb_cap = effective_cap;
+  printf("RedCap UL PRB control RNTI %04x requested %u effective %u\n",
+         redcap_ctrl->rnti,
+         redcap_ctrl->max_ul_prbs,
+         effective_cap);
+}
+#endif
 
 static ngran_node_t get_e2_node_type(void)
 {
@@ -957,18 +987,11 @@ sm_ag_if_ans_t write_ctrl_rc_sm(void const* data)
   } else if (ctrl_act_id == NR_REDCAP_RC_CTRL_ACT_ID_UL_PRB_CAP) {
     nr_redcap_rc_ul_prb_ctrl_t redcap_ctrl = {0};
     assert(nr_redcap_parse_ul_prb_ctrl_message(&ctrl->msg.frmt_1, &redcap_ctrl) && "Malformed RedCap UL PRB control message");
-    assert(RC.nrmac[0] != NULL && "Expected active gNB MAC instance for RedCap UL PRB control");
-
-    gNB_MAC_INST *nrmac = RC.nrmac[0];
-    NR_UE_info_t *UE = find_nr_UE(&nrmac->UE_info, redcap_ctrl.rnti);
-    assert(UE != NULL && "RedCap UL PRB control targeted unknown RNTI");
-
-    const uint16_t effective_cap = nr_redcap_sanitize_ul_prb_cap(redcap_ctrl.max_ul_prbs, nrmac->min_grant_prb);
-    UE->UE_sched_ctrl.redcap_ul_prb_cap = effective_cap;
-    printf("RedCap UL PRB control RNTI %04x requested %u effective %u\n",
-           redcap_ctrl.rnti,
-           redcap_ctrl.max_ul_prbs,
-           effective_cap);
+#if defined(NGRAN_GNB_DU)
+    apply_redcap_ul_prb_control(&redcap_ctrl);
+#else
+    assert(false && "RedCap UL PRB control is not supported for CU-UP-only RC agent builds");
+#endif
   } else {
     assert(false && "Unsupported RIC control action");
   }

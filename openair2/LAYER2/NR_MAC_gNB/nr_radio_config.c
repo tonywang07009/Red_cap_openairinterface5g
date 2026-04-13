@@ -321,6 +321,37 @@ static NR_BWP_UplinkCommon_t *clone_redcap_uplink_bwp(const NR_ServingCellConfig
   return bwp;
 }
 
+/**
+ * @brief Compute the maximum number of UEs whose PUCCH1/PUCCH2 resources fit in the target BWP.
+ *
+ * The legacy implementation sized PUCCH resources against the global [MAX_MOBILES_PER_GNB] budget.
+ * This aborts for RedCap initial BWPs such as [51 PRBs], even in scenarios that only attach a small
+ * number of UEs. This helper derives the largest UE budget that still fits in the current BWP while
+ * keeping the existing PUCCH2 sizing formula unchanged.
+ *
+ * @param[in] scc ServingCellConfigCommon used to derive the UL slot budget.
+ * @param[in] bwp_size Current BWP size in PRBs.
+ * @return Maximum number of UEs that can be supported for PUCCH resource reservation, or [0] if none fit.
+ */
+static int get_max_supported_ues_for_pucch(const NR_ServingCellConfigCommon_t *scc, int bwp_size)
+{
+  const NR_TDD_UL_DL_Pattern_t *tdd = scc->tdd_UL_DL_ConfigurationCommon ? &scc->tdd_UL_DL_ConfigurationCommon->pattern1 : NULL;
+  const int n_slots_frame = slotsperframe[*scc->ssbSubcarrierSpacing];
+  int ul_slots_period = tdd ? tdd->nrofUplinkSlots + (tdd->nrofUplinkSymbols > 0) : n_slots_frame;
+  int n_slots_period = tdd ? n_slots_frame/get_nb_periods_per_frame(tdd->dl_UL_TransmissionPeriodicity) : n_slots_frame;
+  int max_meas_report_period = 320; // slots
+  int available_report_occasions = max_meas_report_period * ul_slots_period / n_slots_period;
+
+  for (int max_supported_ues = MAX_MOBILES_PER_GNB; max_supported_ues > 0; --max_supported_ues) {
+    int max_csi_reports = max_supported_ues << 1; // 2 reports per UE (RSRP and RI-PMI-CQI)
+    int nb_pucch2 = (max_csi_reports / (available_report_occasions + 1)) + 1;
+    if ((nb_pucch2 * PUCCH2_SIZE) + max_supported_ues <= bwp_size)
+      return max_supported_ues;
+  }
+
+  return 0;
+}
+
 static int get_nb_pucch2_per_slot(const NR_ServingCellConfigCommon_t *scc, int bwp_size)
 {
   const NR_TDD_UL_DL_Pattern_t *tdd = scc->tdd_UL_DL_ConfigurationCommon ? &scc->tdd_UL_DL_ConfigurationCommon->pattern1 : NULL;
@@ -328,15 +359,21 @@ static int get_nb_pucch2_per_slot(const NR_ServingCellConfigCommon_t *scc, int b
   int ul_slots_period = tdd ? tdd->nrofUplinkSlots + (tdd->nrofUplinkSymbols > 0) : n_slots_frame;
   int n_slots_period = tdd ? n_slots_frame/get_nb_periods_per_frame(tdd->dl_UL_TransmissionPeriodicity) : n_slots_frame;
   int max_meas_report_period = 320; // slots
-  int max_csi_reports = MAX_MOBILES_PER_GNB << 1; // 2 reports per UE (RSRP and RI-PMI-CQI)
+  const int max_supported_ues = get_max_supported_ues_for_pucch(scc, bwp_size);
+  AssertFatal(max_supported_ues > 0,
+              "Cannot allocate required PUCCH resources in BWP with %d PRBs\n",
+              bwp_size);
+  int max_csi_reports = max_supported_ues << 1; // 2 reports per UE (RSRP and RI-PMI-CQI)
   int available_report_occasions = max_meas_report_period * ul_slots_period / n_slots_period;
   int nb_pucch2 = (max_csi_reports / (available_report_occasions + 1)) + 1;
-  // in current implementation we need (nb_pucch2 * PUCCH2_SIZE) prbs for PUCCH2
-  // and MAX_MOBILES_PER_GNB prbs for PUCCH1
-  // checked for validity in verify_radio_configuration
-  AssertFatal((nb_pucch2 * PUCCH2_SIZE) + MAX_MOBILES_PER_GNB <= bwp_size,
-              "Cannot allocate all required PUCCH resources for max number of %d UEs in BWP with %d PRBs\n",
-              MAX_MOBILES_PER_GNB, bwp_size);
+  if (max_supported_ues < MAX_MOBILES_PER_GNB) {
+    LOG_I(NR_RRC,
+          "Reducing PUCCH reservation budget from %d to %d UEs for BWP with %d PRBs (PUCCH2 per slot %d)\n",
+          MAX_MOBILES_PER_GNB,
+          max_supported_ues,
+          bwp_size,
+          nb_pucch2);
+  }
   return nb_pucch2;
 }
 
@@ -3850,6 +3887,19 @@ static bool verify_radio_configuration(int uid, const NR_ServingCellConfigCommon
   }
 
   int curr_bwp = NRRIV2BW(scc->downlinkConfigCommon->initialDownlinkBWP->genericParameters.locationAndBandwidth, MAX_BWP_SIZE);
+  const int max_supported_ues = get_max_supported_ues_for_pucch(scc, curr_bwp);
+  if (max_supported_ues <= 0) {
+    LOG_E(NR_RRC, "UID %d, cannot allocate PUCCH resources in BWP with %d PRBs\n", uid, curr_bwp);
+    return false;
+  }
+  if (uid >= max_supported_ues) {
+    LOG_E(NR_RRC,
+          "UID %d exceeds PUCCH resource budget for BWP with %d PRBs (max supported UEs %d)\n",
+          uid,
+          curr_bwp,
+          max_supported_ues);
+    return false;
+  }
   int num_pucch2 = get_nb_pucch2_per_slot(scc, curr_bwp);
   int pucchres0_startingPRB = (PUCCH2_SIZE * num_pucch2) + uid;
   // see config_pucch_resset0
@@ -3858,7 +3908,7 @@ static bool verify_radio_configuration(int uid, const NR_ServingCellConfigCommon
     return false; // cannot allocate resources for PUCCH0
   }
   // see get_nb_pucch2_per_slot
-  if ((num_pucch2 * PUCCH2_SIZE) + MAX_MOBILES_PER_GNB > curr_bwp) {
+  if ((num_pucch2 * PUCCH2_SIZE) + max_supported_ues > curr_bwp) {
     LOG_E(NR_RRC, "UID %d, cannot allocate resources for PUCCH2, rejecting UE\n", uid);
     return false; // cannot allocate resources for PUCCH2
   }

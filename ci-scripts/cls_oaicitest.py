@@ -416,7 +416,11 @@ class OaiCiTest():
 		packetloss = result.group('packetloss')
 		result = re.search(r'rtt min\/avg\/max\/mdev = (?P<rtt_min>[0-9\.]+)\/(?P<rtt_avg>[0-9\.]+)\/(?P<rtt_max>[0-9\.]+)\/[0-9\.]+ ms', ping_output)
 		if result is None:
-			message = ue_header + ': Ping RTT_Min RTT_Avg RTT_Max Not Found!'
+			message = f'{ue_header}\nPacket Loss: {packetloss}%'
+			if float(packetloss) > float(self.ping_packetloss_threshold):
+				message += '\nPacket Loss too high'
+			else:
+				message += '\nPing RTT_Min RTT_Avg RTT_Max Not Found!'
 			return (False, message)
 		rtt_min = result.group('rtt_min')
 		rtt_avg = result.group('rtt_avg')
@@ -449,11 +453,16 @@ class OaiCiTest():
 			raise Exception("no module names in self.ue_ids or/and self.svr_id provided")
 		ues = [cls_module.Module_UE(ue_id, node, infra_file) for ue_id in self.ue_ids]
 		cn = cls_corenetwork.CoreNetwork(self.svr_id, self.svr_node, filename=infra_file)
-		with concurrent.futures.ThreadPoolExecutor(max_workers=64) as executor:
-			futures = [executor.submit(self.Ping_common, ctx, cn, ue) for ue in ues]
-			results = [f.result() for f in futures]
-			# each result in results is a tuple, first member goes to successes, second to messages
-			successes, messages = map(list, zip(*results))
+		ping_serial = os.getenv("OAI_CI_PING_SERIAL", "0") == "1"
+		if ping_serial:
+			logging.debug('Ping execution mode: serial')
+			results = [self.Ping_common(ctx, cn, ue) for ue in ues]
+		else:
+			with concurrent.futures.ThreadPoolExecutor(max_workers=64) as executor:
+				futures = [executor.submit(self.Ping_common, ctx, cn, ue) for ue in ues]
+				results = [f.result() for f in futures]
+		# each result in results is a tuple, first member goes to successes, second to messages
+		successes, messages = map(list, zip(*results))
 
 		success = len(successes) == len(ues) and all(successes)
 		logger = logging.info if success else logging.error

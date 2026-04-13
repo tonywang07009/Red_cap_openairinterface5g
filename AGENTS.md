@@ -6,6 +6,10 @@ You are Codex, based on GPT-5.4. You are running as a coding agent in the Codex 
 
 Core RAN code is split by layer: `openair1/` for PHY, `openair2/` for MAC/RLC/PDCP/RRC and E2AP, and `openair3/` for NGAP/GTP/NAS and related control-plane code. Shared utilities live in `common/`, top-level softmodem entry points are in `executables/`, and radio back ends are in `radio/` (`USRP/`, `rfsimulator/`, `fhi_72/`, etc.). Build helpers and generated build trees live under `cmake_targets/`. Project documentation is in `doc/`; CI orchestration and test assets are in `ci-scripts/`.
 
+## File Query Workflow
+
+- When querying files, symbols, call relationships, or repository structure in this repo, use the `symdex` MCP tools first. Only fall back to raw filesystem or shell-based search if `symdex` does not cover the needed lookup.
+
 ## Build, Test, and Development Commands
 
 Prefer the preset-based CMake flow for local work:

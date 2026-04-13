@@ -38,6 +38,13 @@
 #include "LAYER2/NR_MAC_UE/mac_proto.h"
 #include <executables/softmodem-common.h>
 #include "openair2/LAYER2/nr_rlc/nr_rlc_oai_api.h"
+#include "openair3/UICC/usim_interface.h"
+
+static bool use_redcap_msg3_ccch_lcid(void)
+{
+  nr_redcap_cfg_t redcap_cfg = {0};
+  return load_nr_redcap_config(NULL, &redcap_cfg) && redcap_cfg.support_of_redcap_r17;
+}
 
 int16_t get_prach_tx_power(NR_UE_MAC_INST_t *mac)
 {
@@ -1060,7 +1067,8 @@ static uint8_t *fill_msg3_pdu_from_rlc(NR_UE_MAC_INST_t *mac, uint8_t *pdu, int 
 {
   RA_config_t *ra = &mac->ra;
   // regular Msg3/MsgA_PUSCH with PDU coming from higher layers
-  *(NR_MAC_SUBHEADER_FIXED *)pdu = (NR_MAC_SUBHEADER_FIXED){.LCID = UL_SCH_LCID_CCCH_48_BITS};
+  const uint8_t ccch_lcid = use_redcap_msg3_ccch_lcid() ? UL_SCH_LCID_CCCH_48_BITS_REDCAP : UL_SCH_LCID_CCCH_48_BITS;
+  *(NR_MAC_SUBHEADER_FIXED *)pdu = (NR_MAC_SUBHEADER_FIXED){.LCID = ccch_lcid};
   pdu += sizeof(NR_MAC_SUBHEADER_FIXED);
   tbs_size_t len = nr_mac_rlc_data_req(mac->ue_id,
                                        mac->ue_id,

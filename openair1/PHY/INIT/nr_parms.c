@@ -90,11 +90,23 @@ static void nr_assert_redcap_fr1_grid_size(const char *node_name, const NR_DL_FR
 
 void nr_validate_redcap_gnb_frame_parms(const NR_DL_FRAME_PARMS *fp)
 {
+  const int max_prbs = nr_redcap_fr1_max_prbs(fp->numerology_index);
+
   AssertFatal(fp->freq_range == FR1,
               "gNB RedCap init validation currently supports FR1 only (band n%d, dl_CarrierFreq %lu)\n",
               fp->nr_band,
               fp->dl_CarrierFreq);
-  nr_assert_redcap_fr1_grid_size("gNB", fp);
+  AssertFatal(max_prbs > 0,
+              "gNB RedCap init validation currently supports SCS 15/30 kHz only (mu %u)\n",
+              fp->numerology_index);
+  if (fp->N_RB_DL > max_prbs || fp->N_RB_UL > max_prbs) {
+    LOG_I(PHY,
+          "gNB RedCap common grid uses DL/UL %d/%d PRBs for mu %u; allowing it because the 20 MHz limit is enforced on "
+          "RedCap-specific initial BWPs and UE frame parameters, not on the full serving-cell carrier\n",
+          fp->N_RB_DL,
+          fp->N_RB_UL,
+          fp->numerology_index);
+  }
   AssertFatal(fp->nb_antennas_tx > 0 && fp->nb_antennas_tx <= 2,
               "gNB RedCap cell profile exposes %u DL antenna ports, but RedCap FR1 requires DL layers/ports <= 2\n",
               fp->nb_antennas_tx);

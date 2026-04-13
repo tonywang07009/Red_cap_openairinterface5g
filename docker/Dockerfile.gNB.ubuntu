@@ -64,12 +64,10 @@ RUN apt-get update && \
         python3-six \
         python3-requests \
         libusb-1.0-0 \
-        libyaml-cpp-dev && \
-# if the --sanitize option was used to build, additional packages are required
-    /bin/bash -c 'if [[ "$BUILD_OPTION" = "--sanitize" ]]; then DEBIAN_FRONTEND=noninteractive apt-get install --yes \
-        libasan8 \ 
+        libyaml-cpp-dev \
+        libasan8 \
         libubsan1 \
-        liblapacke; fi' && \
+        liblapacke && \
     apt-get clean -y && \
     rm -rf /var/lib/apt/lists/*
 

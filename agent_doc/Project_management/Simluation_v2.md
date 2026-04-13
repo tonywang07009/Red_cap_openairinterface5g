@@ -2,7 +2,7 @@
 # Version: 3.0 | Language: English
 # Target: OpenAirInterface (OAI) 5G NR, FR1, 3GPP Rel-17 RedCap
 # Research Focus: UPLINK Scheduling under RedCap constraints
-# Last updated: 2026-04-10
+# Last updated: 2026-04-12
 
 You are a senior embedded systems and 5G RAN engineer acting as a
 Codex coding agent. Execute the following milestones sequentially.
@@ -202,6 +202,106 @@ Acceptance criteria:
   - State transition log matches expected sequence.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+## Milestone 4-B: DRX / eDRX / PSM Low-Power Operation
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Rationale:
+- [mMTC / RedCap] 的核心價值不只在 [smaller BWP]，也在 [battery life]。
+- 現有 plan 尚未把 [Connected DRX]、[Idle/Inactive eDRX]、[PSM] 納入正式 deliverables。
+- [2026-04-12 symdex gap scan] 顯示：
+  - [NR Connected DRX] 在 UE config path 仍顯示 `DRX not implemented!`
+  - [NR eDRX] 目前只看到 ASN.1 field，未見 SIB1 encode / parse / runtime wiring
+  - [PSM] 在此 repo 只看到 legacy [EPS T3412] timer handling，未見 [T3324 / 5GS PSM negotiation] path
+
+Sub-task breakdown:
+1. Task Name: [NR Connected DRX]
+   - Corresponding 3GPP Spec Clause:
+     - TS 38.321 Section 5.7
+     - TS 38.331 [VERIFY AGAINST TS 38.331 dedicated `drx-Config` clause]
+   - Prerequisite Tasks:
+     - [Milestone 2: RRC / SIB1 Support]
+     - [Milestone 3: BWP & CORESET#0]
+     - [Milestone 4: SDT / RRC_INACTIVE]
+
+2. Task Name: [NR eDRX for RRC_IDLE / RRC_INACTIVE]
+   - Corresponding 3GPP Spec Clause:
+     - TS 38.331 [VERIFY AGAINST clause for `eDRX-AllowedIdle-r17`]
+     - TS 38.331 [VERIFY AGAINST clause for `eDRX-AllowedInactive-r17`]
+   - Prerequisite Tasks:
+     - [Milestone 2: RRC / SIB1 Support]
+     - [Milestone 4: SDT / RRC_INACTIVE]
+
+3. Task Name: [PSM / NAS timer integration]
+   - Corresponding 3GPP Spec Clause:
+     - [VERIFY AGAINST TS 24.501 for `T3324` / periodic registration update / PSM]
+   - Prerequisite Tasks:
+     - [Milestone 4: SDT / RRC_INACTIVE]
+     - [Milestone 5: existing RFsim SA integration path]
+     - [External dependency: CN/AMF behavior outside this repo]
+
+Tasks:
+1. Implement [Connected Mode DRX] for NR UE/gNB:
+   - Parse and apply dedicated `drx-Config` instead of logging
+     `DRX not implemented!`.
+   - Add local timer/state handling for:
+     - `drx-onDurationTimer`
+     - `drx-InactivityTimer`
+     - `drx-LongCycleStartOffset`
+     - `drx-ShortCycle` [optional]
+   - Ensure UE MAC and gNB scheduling decisions are aligned with
+     [TS 38.321 Section 5.7].
+
+2. Implement [Idle / Inactive eDRX] exposure and handling:
+   - Add SIB1 support for:
+     - `eDRX-AllowedIdle-r17`
+     - `eDRX-AllowedInactive-r17`
+   - Add UE-side parsing and state gating for [RRC_IDLE] and
+     [RRC_INACTIVE] paging behavior.
+   - Reuse the [RRC_INACTIVE] plumbing from [Milestone 4] where possible.
+
+3. Plan and implement [PSM] interface hooks:
+   - Add UE-side logging and state tracking for [T3324 / T3412-like]
+     low-power timers [VERIFY AGAINST TS 24.501].
+   - Document CN/AMF dependencies explicitly because full PSM
+     negotiation is outside pure RAN scope.
+   - Add host/runtime validation steps that confirm whether the UE
+     received and applied the target NAS timers.
+
+4. Add test and validation assets:
+   - Unit test for [NR DRX] timer configuration acceptance.
+   - Host/runtime validation for [eDRX SIB1 fields] in logs or decoded ASN.1.
+   - Host/runtime validation for [PSM timer presence] in NAS logs.
+
+Status note [2026-04-12]:
+- [Connected DRX / NR] is [NOT IMPLEMENTED] end-to-end in the current repo.
+  Evidence:
+  - `openair2/LAYER2/NR_MAC_UE/config_ue.c` logs
+    `DRX not implemented! Configuration not handled!`
+- [DRX MAC CE / paging DRX] has partial skeleton code paths,
+  but this is not equivalent to [working NR CDRX].
+- [eDRX] currently appears only in ASN.1 definitions and not in
+  active NR RRC runtime wiring.
+- [PSM] is not implemented for the current [NR RedCap + 5GC] path in this repo.
+
+Target files (expected):
+  openair2/LAYER2/NR_MAC_UE/config_ue.c            (modified)
+  openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_dlsch.c (modified)
+  openair2/LAYER2/NR_MAC_gNB/gNB_scheduler.c       (modified)
+  openair2/RRC/NR/rrc_gNB.c                        (modified)
+  openair2/RRC/NR_UE/rrc_UE.c                      (modified)
+  openair2/RRC/NR/MESSAGES/ASN.1/nr-rrc-17.3.0.asn1 (reference only)
+  ci-scripts/conf_files/gnb.sa.band78.fr1.106PRB.usrpb210.redcap.yaml
+  ci-scripts/conf_files/nrue_recap/nrue*.uicc.yaml
+
+Acceptance criteria:
+  - [NR Connected DRX] no longer logs [not implemented] when dedicated
+    `drx-Config` is present.
+  - [eDRX-AllowedIdle-r17] and [eDRX-AllowedInactive-r17] can be
+    encoded/decoded and verified in the RedCap runtime path.
+  - [PSM] scope and dependency boundary are explicitly documented,
+    with at least one reproducible host-side validation step for NAS timers.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ## Milestone 5: Integration & UL Throughput Targets
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -235,7 +335,7 @@ Tasks:
    Use Docker Compose to orchestrate the following services
    in dependency order:
      mysql → oai-amf → oai-smf → oai-upf
-       → nearRT-RIC (FlexRIC, 192.168.70.155)
+      → nearRT-RIC (FlexRIC, 192.168.70.180)
          → oai-gnb (RedCap config + e2_agent)
            → oai-nr-ue1 (baseline UE)
              → oai-nr-ue2 (RedCap, 1Rx, HD-FDD)
@@ -292,6 +392,9 @@ Acceptance criteria:
   - The runtime evidence also retains the DL control-plane check:
     `[302003]` must confirm `SIB1 RedCap initial DL BWP` appears in the
     gNB log while UL throughput cases remain UL-only.
+  - The runtime evidence also confirms the E2/xApp control path:
+    `[302005]` / `[302006]` must show `RedCap UL PRB control RNTI`
+    in the gNB log before the capped UL follow-up case.
   - Existing `5g_rfsimulator_flexric_redcap/docker-compose.yml`
     is sufficient to launch the integrated RedCap scenario.
 
@@ -319,6 +422,17 @@ Status note [2026-04-10]:
     restricted to UL direction
 - Existing XML / case-matrix helpers may still be retained for regression
   debugging, but they are [secondary] to the compose-based integration path.
+
+Status note [2026-04-12]:
+- Added a host-side FlexRIC RC control injection path for the RedCap UL PRB cap:
+  - `ci-scripts/redcap_ul_prb_ctrl_xapp.c`
+  - `ci-scripts/redcap_send_ul_prb_control.sh`
+- The RedCap RF-sim XML runtime now inserts:
+  - `[302005]` apply E2/xApp RedCap UL PRB cap
+  - `[302006]` verify gNB applied the cap
+- Local sandbox validation remains [BLOCKED] for the live Docker path, but the
+  new helper can now be compiled and dry-run checked without requiring a full
+  end-to-end host rerun in this environment.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ## Milestone 6: Conclusion & Documentation Generation
@@ -402,7 +516,7 @@ Generate a Markdown tutorial manual at:
       └─► oai-amf
             └─► oai-smf
                   └─► oai-upf
-                        └─► nearRT-RIC  (FlexRIC, 192.168.70.155)
+                        └─► nearRT-RIC  (FlexRIC, 192.168.70.180)
                               └─► oai-gnb  (RedCap + e2_agent)
                                     └─► oai-nr-ue1  (baseline UE)
                                           └─► oai-nr-ue2  (RedCap, 1Rx, HD-FDD)
@@ -574,20 +688,18 @@ Task 4 — Docker Compose for RedCap + RIC:
         `UE2 = RedCap`
 
   (b) Ensure nearRT-RIC service remains present in this compose path:
-        image: oai-flexric:latest
-        container_name: rfsim5g-nearrt-ric
+        image: oai-flexric:custom-dev
+        container_name: nearRT-RIC_redcap
         networks:
           public_net:
-            ipv4_address: 192.168.70.155
-        ports:
-          - "36421:36421/sctp"
+            ipv4_address: 192.168.70.180
         volumes:
           - ./conf/flexric.conf:
               /usr/local/etc/flexric/flexric.conf
         healthcheck:
           test: ["CMD", "pgrep", "nearRT-RIC"]
-          interval: 5s
-          timeout: 3s
+          interval: 10s
+          timeout: 5s
           retries: 5
 
   (c) Keep `depends_on` for `oai-gnb` on `nearRT-RIC`:
@@ -604,9 +716,10 @@ M1: PHY Constraints              | [~]  | [x]  | [x]  | In Progress
 M2: RRC / SIB1                   | [~]  | [~]  | [~]  | In Progress
 M3: BWP & CORESET#0              | [x]  | [~]  | [~]  | Waiting for host runtime
 M4: SDT / RRC_INACTIVE           | [~]  | [x]  | [ ]  | In Progress
+M4-B: DRX / eDRX / PSM           | [ ]  | [ ]  | [ ]  | Planned from 2026-04-12 gap scan
 M5: Integration & UL Throughput  | [~]  | [!]  | [~]  | Blocked by Docker runtime
 M6-A: Tutorial Manual            | [ ]  | [ ]  | [ ]  | Pending
 M6-B: Reference Manual           | [ ]  | [ ]  | [ ]  | Pending
 M6-C: Automation Scripts         | [ ]  | [ ]  | [ ]  | Pending
 ---------------------------------|------|------|------|---------------------------
-Overall: active partial progress in M1/M2/M3/M4/M5; host Docker runtime is still required for end-to-end evidence
+Overall: active partial progress in M1/M2/M3/M4/M5; [DRX / eDRX / PSM] is now tracked as a formal gap; host Docker runtime is still required for end-to-end evidence
