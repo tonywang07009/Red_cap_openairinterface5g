@@ -1,8 +1,8 @@
 # RedCap mMTC Project Plan — Codex Agent Work Log
-# Version: 3.0 | Language: English
+# Version: 3.1 | Language: English
 # Target: OpenAirInterface (OAI) 5G NR, FR1, 3GPP Rel-17 RedCap
-# Research Focus: UPLINK Scheduling under RedCap constraints
-# Last updated: 2026-04-12
+# Research Focus: Compose-based scalable RedCap/mMTC runtime architecture and UPLINK scheduling under RedCap constraints
+# Last updated: 2026-04-13
 
 You are a senior embedded systems and 5G RAN engineer acting as a
 Codex coding agent. Execute the following milestones sequentially.
@@ -26,12 +26,23 @@ Repository alignment notes:
 - Canonical daily work log path is `test_logs/work_daily/`.
   Treat `test_log/work_daily/` as a legacy mirror if it exists.
 - Current project scope priority:
-  [Primary deliverables] are [PHY / MAC RedCap behavior] plus
-  integration through the existing
-  `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/` assets.
+  [Primary deliverables] are [PHY / MAC RedCap behavior] plus a
+  [compose-based RedCap / mMTC runtime architecture] rooted in the
+  vendor-working `ci-scripts/yaml_files/5g_rfsimulator_flexric/`
+  topology.
+  `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/` must be
+  treated as a [delta-compatible runtime path] layered on top of that
+  working FlexRIC compose, not as a separate long-term architecture.
+  Mandatory Milestone 5 runtime deliverables are now split into:
+  - [Fixed-UE validation path]:
+    keep named `oai-nr-ue1` / `oai-nr-ue2` for CI/runtime evidence
+    such as `[UE1 normal]` vs `[UE2 RedCap]`.
+  - [Scalable mMTC path]:
+    add a Compose-driven scaling model for [30+ UE], while preserving
+    [docker compose] as the operator-facing launch interface.
   New XML scenarios, extra manuals, or generic CI scaffolding are
   [optional validation assets], not mandatory milestone outputs,
-  unless the existing compose-based path is insufficient.
+  unless the compose-based scaling path is insufficient.
 - Progress tracker legend:
   `[x]` = complete, `[~]` = partial/in progress,
   `[!]` = blocked by environment, `[ ]` = not started.
@@ -302,7 +313,7 @@ Acceptance criteria:
     with at least one reproducible host-side validation step for NAS timers.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-## Milestone 5: Integration & UL Throughput Targets
+## Milestone 5: Compose Architecture, Integration & UL Throughput Targets
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Research note: This project targets UPLINK scheduling.
@@ -310,38 +321,87 @@ All throughput validation must measure UL direction.
 
 Scope boundary:
 - [In scope]:
-  - Integrate completed [PHY / MAC / RRC] RedCap work into the existing
-    `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.yml`.
-  - Ensure `oai-gnb` mounts a RedCap gNB YAML and `oai-nr-ue`
-    mounts RedCap UE YAML assets that exercise the implemented behavior.
-  - Use optional XML / host wrappers only as debugging or regression helpers.
+  - Rebase the RedCap runtime path on the vendor-working
+    `ci-scripts/yaml_files/5g_rfsimulator_flexric/docker-compose.yml`
+    architecture.
+  - Keep `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/`
+    as a [base-compatible derivative] that carries RedCap-specific
+    deltas only.
+  - Preserve a [fixed-UE validation path] with named
+    `oai-nr-ue1` / `oai-nr-ue2` services for CI/runtime evidence.
+  - Add a [scalable mMTC path] that can grow beyond [30 UE]
+    while staying inside a [docker compose] launch model.
+  - Use optional XML / host wrappers only as debugging, regression,
+    or evidence-collection helpers.
 - [Out of scope]:
-  - Creating a separate mandatory compose file such as
-    `docker-compose.redcap.yml` if the existing flexric_redcap compose is enough.
+  - Maintaining a structurally divergent handcrafted RedCap compose
+    when the vendor FlexRIC compose can be reused as the base.
+  - Requiring a non-Compose orchestration model for the target runtime.
   - Treating XML/runtime helper scripts as the primary deliverable.
 
 Tasks:
-1. Wire completed RedCap runtime configs into the existing compose:
-   - `oai-gnb` mounts a RedCap gNB YAML containing the required
-     BWP / CORESET#0 / RedCap SIB1 / e2_agent settings.
-   - `oai-nr-ue2` mounts the active RedCap UE YAML asset carrying
-     UICC + RedCap capability + RF/SSB parameters.
-   - `oai-nr-ue1` may remain a baseline non-RedCap UE asset when the
-     active scenario explicitly validates `[UE1 normal]` vs `[UE2 RedCap]`.
-   - Keep the integration anchored on
-     `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.yml`.
+1. Rebase the RedCap runtime compose architecture:
+   - Use `ci-scripts/yaml_files/5g_rfsimulator_flexric/docker-compose.yml`
+     as the [source-of-truth architecture] for:
+       service ordering,
+       external CN networking,
+       multi-UE service shape,
+       and FlexRIC wiring.
+   - Refactor
+     `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.yml`
+     so it remains [base-compatible] with the vendor FlexRIC compose and
+     carries only RedCap-specific deltas:
+       RedCap gNB YAML,
+       RedCap UE YAML,
+       RedCap capability options,
+       and runtime validation-specific overrides.
 
-2. Run end-to-end simulation:
-   Use Docker Compose to orchestrate the following services
-   in dependency order:
-     mysql → oai-amf → oai-smf → oai-upf
-      → nearRT-RIC (FlexRIC, 192.168.70.180)
-         → oai-gnb (RedCap config + e2_agent)
-           → oai-nr-ue1 (baseline UE)
-             → oai-nr-ue2 (RedCap, 1Rx, HD-FDD)
-               → oai-ext-dn (iperf3 server)
+2. Preserve the fixed-UE validation path:
+   - Keep named `oai-nr-ue1` and `oai-nr-ue2` services for CI/runtime
+     evidence.
+   - Preserve the semantics:
+       `UE1 = baseline / non-RedCap`
+       `UE2 = RedCap`
+   - Ensure this path remains launchable with `docker compose up`
+     and stays compatible with the existing XML/runtime wrappers.
 
-   UL throughput test procedure:
+3. Add a scalable mMTC / RedCap UE path:
+   - Introduce a scale-friendly UE service such as
+     `oai-nr-ue-mmtc` or an equivalent generated Compose overlay.
+   - Runtime generation logic must derive, per UE instance:
+       IMSI,
+       mounted `nr-ue` YAML,
+       RedCap enable flag,
+       optional half-duplex capability,
+       and telnet / listen parameters.
+   - The operator-facing workflow must remain Docker Compose-based and
+     continue to center on `docker compose up`.
+   - Preferred day-to-day UX:
+       `docker compose -f docker-compose.yml -f docker-compose.mmtc.yml up -d`
+   - A generated Compose override / overlay is the preferred way to keep
+     a [pure `docker compose up`] workflow while materializing [30+ UE].
+   - `docker compose up --scale oai-nr-ue-mmtc=<N> -d` may remain as an
+     engineering shortcut or secondary workflow, but it must not be the
+     only scalable operator path.
+   - First scaling target:
+       [32 UE]
+     Follow-up target:
+       [64 UE]
+
+4. Run end-to-end simulation in two layers:
+   - [Fixed-UE validation layer]:
+       mysql → oai-amf → oai-smf → oai-upf
+        → nearRT-RIC (FlexRIC, 192.168.70.180)
+           → oai-gnb (RedCap config + e2_agent)
+             → oai-nr-ue1 (baseline UE)
+               → oai-nr-ue2 (RedCap, 1Rx, HD-FDD)
+                 → oai-ext-dn (iperf3 server)
+   - [Scalable mMTC layer]:
+       same CN + RIC + gNB base
+         → `oai-nr-ue-mmtc[*]` instances under Compose scaling
+         → attach / ping / smoke throughput validation on a subset
+
+   UL throughput test procedure for the fixed validation path:
 
    Step 1 — Start iperf3 server on the core network side:
      docker exec -d rfsim5g-oai-ext-dn iperf3 -s
@@ -366,7 +426,7 @@ Tasks:
        -J           : JSON output for machine parsing
      NOTE: Do NOT use -R flag. -R reverses to DL direction.
 
-3. Implement `redcap_tput_logger()` only if throughput post-processing
+5. Implement `redcap_tput_logger()` only if throughput post-processing
    is still missing after the compose-based integration is stable:
    - Input:  /tmp/redcap_ul_result.json (iperf3 JSON)
    - Output CSV columns:
@@ -374,18 +434,45 @@ Tasks:
        jitter_ms
    - Print PASS if mean throughput_ul_mbps >= 30, else FAIL.
 
-4. Document open gaps vs. full 3GPP Rel-17 RedCap compliance only as
-   a lightweight closing artifact after integration is working:
+6. Document open gaps vs. full 3GPP Rel-17 RedCap compliance and
+   scaling readiness only as a lightweight closing artifact after
+   the architecture rebase is working:
    - Use tags: [IMPLEMENTED], [PARTIAL], [NOT IMPLEMENTED].
+   - Explicitly note whether each gap applies to:
+       [fixed-UE validation path],
+       [scalable mMTC path],
+       or [both].
 
 Target files (expected):
+  ci-scripts/yaml_files/5g_rfsimulator_flexric/docker-compose.yml  (reference baseline)
   ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.yml
+  ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.mmtc.yml  (new overlay or generated target)
+  ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/scripts/ue_mmtc_entrypoint.sh
   ci-scripts/conf_files/gnb.sa.band78.fr1.106PRB.usrpb210.redcap.yaml
   ci-scripts/conf_files/nrue_recap/nrue*.uicc.yaml
   common/utils/redcap_tput_logger.py
   doc/redcap_compliance_gap.md  (optional)
 
 Acceptance criteria:
+  - `5g_rfsimulator_flexric_redcap/docker-compose.yml` remains
+    structurally aligned with the vendor
+    `5g_rfsimulator_flexric/docker-compose.yml` service model.
+  - The fixed-UE path still launches with Docker Compose and retains
+    runtime evidence for:
+      `[UE1 normal]`,
+      `[UE2 RedCap]`,
+      `[302003]`,
+      `[302004]`,
+      and E2/xApp control checks.
+  - The scalable mMTC path can launch [>30 UE] without manually
+    hand-writing one static UE service block per new UE.
+  - The preferred scalable operator workflow remains
+    `docker compose up` through a generated or maintained
+    Compose overlay / override.
+  - `docker compose up --scale oai-nr-ue-mmtc=<N> -d`
+    may be supported as a secondary engineering workflow, but
+    the project must not depend solely on that command for
+    [30+ UE] operation.
   - iperf3 reports >= 30 Mbps sustained UL throughput.
   - No traffic bypasses the TUN interface (verify via
     `ip route` inside UE container).
@@ -395,10 +482,9 @@ Acceptance criteria:
   - The runtime evidence also confirms the E2/xApp control path:
     `[302005]` / `[302006]` must show `RedCap UL PRB control RNTI`
     in the gNB log before the capped UL follow-up case.
-  - Existing `5g_rfsimulator_flexric_redcap/docker-compose.yml`
-    is sufficient to launch the integrated RedCap scenario.
+  - Existing Compose-based launch remains the mandatory operator path.
 
-Status note [2026-04-10]:
+Status note [2026-04-13]:
 - Host runtime on a Docker-enabled machine surfaced CI/runtime blockers
   before [attach] execution:
   - `cls_containerize.py` used a removed `jq` dependency and crashed on a
@@ -418,8 +504,20 @@ Status note [2026-04-10]:
     DL `-R` iperf case was replaced with a `UL/50M/UDP` case to match
     the project throughput policy
   - `[302003]` remains the explicit DL control-plane validation for
-    `[SIB1 RedCap initial DL BWP]`; only the throughput portion is
-    restricted to UL direction
+    the fixed-UE path while UL throughput cases remain UL-only.
+- New project-direction update:
+  - `5g_rfsimulator_flexric/` is now the agreed [source-of-truth architecture].
+  - `5g_rfsimulator_flexric_redcap/` must be rebased as a
+    [delta-compatible derivative] instead of continuing as an
+    independently evolving compose architecture.
+  - The current `UE2` user-plane blocker in the fixed validation path
+    should now be debugged in the context of that architecture rebase,
+    not by growing more ad-hoc scenario-specific patches.
+  - [30+ UE mMTC scaling under Docker Compose] is now an explicit
+    Milestone 5 deliverable, with [32 UE] as the first formal target.
+  - The preferred user-facing launch workflow must remain
+    [docker compose up]; generated overlays or templates are preferred
+    over manually hand-maintaining dozens of static UE blocks.
 - Existing XML / case-matrix helpers may still be retained for regression
   debugging, but they are [secondary] to the compose-based integration path.
 
@@ -510,6 +608,15 @@ Generate a Markdown tutorial manual at:
       ip route show table all | grep oaitun_ue1
 
 --- Chapter 4: Docker Deployment ---
+  [Architecture rule]:
+    Use `ci-scripts/yaml_files/5g_rfsimulator_flexric/docker-compose.yml`
+    as the [source-of-truth architecture].
+    Treat `5g_rfsimulator_flexric_redcap/` as a [delta-compatible]
+    extension carrying:
+      RedCap gNB config,
+      RedCap UE config,
+      and mMTC scaling overlays.
+
   Full service dependency order:
 
     mysql
@@ -522,12 +629,24 @@ Generate a Markdown tutorial manual at:
                                           └─► oai-nr-ue2  (RedCap, 1Rx, HD-FDD)
                                                 └─► oai-ext-dn  (iperf3)
 
-  Launch command:
+  [Fixed-UE validation path] launch command:
     docker compose -f doc/tutorial_resources/oai-cn5g/docker-compose.yaml up -d
     docker compose -f ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.yml \
       up -d nearRT-RIC oai-gnb oai-nr-ue1 oai-nr-ue2 xapp-rc-moni
 
-  Health-check steps:
+  [Scalable mMTC path] launch command:
+    docker compose -f doc/tutorial_resources/oai-cn5g/docker-compose.yaml up -d
+    docker compose \
+      -f ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.yml \
+      -f ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.mmtc.yml \
+      up -d
+
+  [Secondary engineering shortcut]:
+    docker compose \
+      -f ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.yml \
+      up --scale oai-nr-ue-mmtc=<N> -d
+
+  Health-check steps for the [fixed-UE validation path]:
     1. Confirm E2 SCTP link:
          docker logs rfsim5g-oai-gnb_redcap | grep "E2 Setup Response"
     2. Confirm RedCap SIB1 DL control-plane marker:
@@ -536,6 +655,18 @@ Generate a Markdown tutorial manual at:
          docker logs rfsim5g-oai-gnb_redcap | grep -E "UE with RNTI [0-9a-f]{4} is RedCap"
     4. Confirm TUN interface exists in UE2 container:
          docker exec rfsim5g-oai-nr-ue2_redcap ip addr show oaitun_ue1
+
+  Health-check steps for the [scalable mMTC path]:
+    1. Confirm the overlay created the expected [30+ UE] service set.
+    2. Confirm a sampled subset of UEs receives:
+         IMSI,
+         PDU session IP,
+         and `oaitun_ue1`.
+    3. Confirm attach / ping / smoke UL traffic on a subset instead of
+       requiring full iperf on every UE instance.
+    4. Confirm the launch workflow remains centered on
+         `docker compose up`
+       rather than manually expanding static UE service blocks.
 
 --- Chapter 5: Integration with xApp / rApp / dApp ---
   Integration path table:
@@ -676,10 +807,18 @@ Task 3 — Manual skeleton generator:
 Task 4 — Docker Compose for RedCap + RIC:
   File: ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/
           docker-compose.yml
-  Base: existing compose path already used by the RedCap RF-sim scenario.
+        ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/
+          docker-compose.mmtc.yml
+        ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/scripts/
+          ue_mmtc_entrypoint.sh
+  Base:
+    `ci-scripts/yaml_files/5g_rfsimulator_flexric/docker-compose.yml`
+    is the [source-of-truth architecture].
+    The RedCap compose path must remain a [delta-compatible derivative].
   Modifications required:
 
-  (a) Keep gNB/UE config mounting overrideable through env-backed volumes:
+  (a) Preserve the [fixed-UE validation path] for CI/runtime evidence:
+      Keep gNB/UE config mounting overrideable through env-backed volumes:
         `GNB_REDCAP_CONFIG`
         `NRUE_CONFIG_1`
         `NRUE_CONFIG_2`
@@ -706,6 +845,27 @@ Task 4 — Docker Compose for RedCap + RIC:
         depends_on:
           - nearRT-RIC
 
+  (d) Add a [scalable mMTC path] without manually cloning
+      `oai-nr-ue1..N` forever:
+        - introduce `oai-nr-ue-mmtc` or an equivalent scale-friendly UE block
+        - derive per-instance:
+            IMSI
+            UE YAML
+            RedCap enable / disable
+            optional half-duplex flag
+            telnet / listen port
+        - keep the main operator workflow centered on
+            `docker compose up`
+          by using a generated or maintained Compose overlay / override
+        - allow `--scale` only as a secondary engineering shortcut
+
+  (e) Ensure the RedCap compose keeps architectural alignment with
+      the vendor FlexRIC compose for:
+        service ordering
+        container naming conventions where practical
+        external CN networking
+        and FlexRIC wiring
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ## Progress Tracker (auto-update after each milestone)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -717,9 +877,9 @@ M2: RRC / SIB1                   | [~]  | [~]  | [~]  | In Progress
 M3: BWP & CORESET#0              | [x]  | [~]  | [~]  | Waiting for host runtime
 M4: SDT / RRC_INACTIVE           | [~]  | [x]  | [ ]  | In Progress
 M4-B: DRX / eDRX / PSM           | [ ]  | [ ]  | [ ]  | Planned from 2026-04-12 gap scan
-M5: Integration & UL Throughput  | [~]  | [!]  | [~]  | Blocked by Docker runtime
+M5: Compose Rebase & mMTC Scaling| [~]  | [!]  | [~]  | In Progress; fixed-UE UE2 user-plane blocker
 M6-A: Tutorial Manual            | [ ]  | [ ]  | [ ]  | Pending
 M6-B: Reference Manual           | [ ]  | [ ]  | [ ]  | Pending
 M6-C: Automation Scripts         | [ ]  | [ ]  | [ ]  | Pending
 ---------------------------------|------|------|------|---------------------------
-Overall: active partial progress in M1/M2/M3/M4/M5; [DRX / eDRX / PSM] is now tracked as a formal gap; host Docker runtime is still required for end-to-end evidence
+Overall: active partial progress in M1/M2/M3/M4/M5; [Milestone 5] now targets [flexric-based compose rebase + 30+ UE mMTC scaling under docker compose up]; [DRX / eDRX / PSM] remains a formal gap; host Docker runtime is still required for end-to-end evidence

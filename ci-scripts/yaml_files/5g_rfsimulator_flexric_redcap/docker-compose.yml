@@ -1,3 +1,9 @@
+#
+# RedCap runtime derivative of `../5g_rfsimulator_flexric/docker-compose.yml`.
+# Keep the service topology aligned with the vendor FlexRIC compose while
+# preserving RedCap-specific RF/UE config deltas and `*_redcap` container
+# names required by the current CI/runtime tooling.
+#
 services:
     nearRT-RIC:
         #image: ${REGISTRY-oaisoftwarealliance/}oai-flexric:${FLEXRIC_TAG:-develop}
@@ -150,6 +156,7 @@ services:
                                     --ssb 144
                                     --rfsimulator.serveraddr 192.168.70.140 
                                     --log_config.global_log_options level,nocolor,time
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.150 --telnetsrv.listenport 8091
         depends_on:
             - oai-gnb
         networks:
@@ -187,6 +194,7 @@ services:
                                     --ssb 144
                                     --rfsimulator.serveraddr 192.168.70.140 
                                     --log_config.global_log_options level,nocolor,time
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.151 --telnetsrv.listenport 8092
         depends_on:
             - oai-gnb
         networks:
@@ -224,7 +232,7 @@ services:
                                     --ssb 144
                                     --rfsimulator.serveraddr 192.168.70.140 
                                     --log_config.global_log_options level,nocolor,time
-                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.152 --telnetsrv.listenport 8091
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.152 --telnetsrv.listenport 8093
         depends_on:
             - oai-gnb
         networks:
@@ -262,7 +270,7 @@ services:
                                     --ssb 144
                                     --rfsimulator.serveraddr 192.168.70.140 
                                     --log_config.global_log_options level,nocolor,time
-                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.153 --telnetsrv.listenport 8091
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.153 --telnetsrv.listenport 8094
         depends_on:
             - oai-gnb
         networks:
@@ -300,7 +308,7 @@ services:
                                     --ssb 144
                                     --rfsimulator.serveraddr 192.168.70.140 
                                     --log_config.global_log_options level,nocolor,time
-                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.154 --telnetsrv.listenport 8091
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.154 --telnetsrv.listenport 8095
         depends_on:
             - oai-gnb
         networks:
@@ -338,7 +346,7 @@ services:
                                     --ssb 144
                                     --rfsimulator.serveraddr 192.168.70.140 
                                     --log_config.global_log_options level,nocolor,time
-                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.155 --telnetsrv.listenport 8091
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.155 --telnetsrv.listenport 8096
         depends_on:
             - oai-gnb
         networks:
@@ -376,7 +384,7 @@ services:
                                     --ssb 144
                                     --rfsimulator.serveraddr 192.168.70.140 
                                     --log_config.global_log_options level,nocolor,time
-                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.156 --telnetsrv.listenport 8091
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.156 --telnetsrv.listenport 8097
         depends_on:
             - oai-gnb
         networks:
@@ -414,7 +422,7 @@ services:
                                     --ssb 144
                                     --rfsimulator.serveraddr 192.168.70.140 
                                     --log_config.global_log_options level,nocolor,time
-                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.157 --telnetsrv.listenport 8091
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.157 --telnetsrv.listenport 8098
         depends_on:
             - oai-gnb
         networks:
@@ -452,7 +460,7 @@ services:
                                     --ssb 144
                                     --rfsimulator.serveraddr 192.168.70.140 
                                     --log_config.global_log_options level,nocolor,time
-                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.158 --telnetsrv.listenport 8091
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.158 --telnetsrv.listenport 8099
         depends_on:
             - oai-gnb
         networks:
@@ -490,7 +498,7 @@ services:
                                     --ssb 144
                                     --rfsimulator.serveraddr 192.168.70.140 
                                     --log_config.global_log_options level,nocolor,time
-                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.159 --telnetsrv.listenport 8091
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.159 --telnetsrv.listenport 8100
         depends_on:
             - oai-gnb
         networks:
@@ -528,7 +536,7 @@ services:
                                     --ssb 144
                                     --rfsimulator.serveraddr 192.168.70.140 
                                     --log_config.global_log_options level,nocolor,time
-                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.160 --telnetsrv.listenport 8091
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.160 --telnetsrv.listenport 8101
         depends_on:
             - oai-gnb
         networks:
@@ -566,7 +574,7 @@ services:
                                     --ssb 144
                                     --rfsimulator.serveraddr 192.168.70.140 
                                     --log_config.global_log_options level,nocolor,time
-                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.161 --telnetsrv.listenport 8091
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.161 --telnetsrv.listenport 8102
         depends_on:
             - oai-gnb
         networks:
@@ -604,7 +612,7 @@ services:
                                     --ssb 144
                                     --rfsimulator.serveraddr 192.168.70.140 
                                     --log_config.global_log_options level,nocolor,time
-                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.162 --telnetsrv.listenport 8091
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.162 --telnetsrv.listenport 8103
         depends_on:
             - oai-gnb
         networks:
@@ -642,7 +650,7 @@ services:
                                     --ssb 144
                                     --rfsimulator.serveraddr 192.168.70.140 
                                     --log_config.global_log_options level,nocolor,time
-                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.163 --telnetsrv.listenport 8091
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.163 --telnetsrv.listenport 8104
         depends_on:
             - oai-gnb
         networks:
@@ -680,7 +688,7 @@ services:
                                     --ssb 144
                                     --rfsimulator.serveraddr 192.168.70.140 
                                     --log_config.global_log_options level,nocolor,time
-                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.164 --telnetsrv.listenport 8091
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.164 --telnetsrv.listenport 8105
         depends_on:
             - oai-gnb
         networks:
@@ -718,7 +726,7 @@ services:
                                     --ssb 144
                                     --rfsimulator.serveraddr 192.168.70.140 
                                     --log_config.global_log_options level,nocolor,time
-                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.165 --telnetsrv.listenport 8091
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.165 --telnetsrv.listenport 8106
         depends_on:
             - oai-gnb
         networks:
@@ -756,7 +764,7 @@ services:
                                     --ssb 144
                                     --rfsimulator.serveraddr 192.168.70.140 
                                     --log_config.global_log_options level,nocolor,time
-                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.166 --telnetsrv.listenport 8091
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.166 --telnetsrv.listenport 8107
         depends_on:
             - oai-gnb
         networks:
@@ -794,7 +802,7 @@ services:
                                     --ssb 144
                                     --rfsimulator.serveraddr 192.168.70.140 
                                     --log_config.global_log_options level,nocolor,time
-                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.167 --telnetsrv.listenport 8091
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.167 --telnetsrv.listenport 8108
         depends_on:
             - oai-gnb
         networks:
@@ -832,7 +840,7 @@ services:
                                     --ssb 144
                                     --rfsimulator.serveraddr 192.168.70.140 
                                     --log_config.global_log_options level,nocolor,time
-                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.168 --telnetsrv.listenport 8091
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.168 --telnetsrv.listenport 8109
         depends_on:
             - oai-gnb
         networks:
@@ -870,7 +878,7 @@ services:
                                     --ssb 144
                                     --rfsimulator.serveraddr 192.168.70.140 
                                     --log_config.global_log_options level,nocolor,time
-                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.169 --telnetsrv.listenport 8091
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.169 --telnetsrv.listenport 8110
         depends_on:
             - oai-gnb
         networks:
@@ -908,7 +916,7 @@ services:
                                     --ssb 144
                                     --rfsimulator.serveraddr 192.168.70.140 
                                     --log_config.global_log_options level,nocolor,time
-                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.170 --telnetsrv.listenport 8091
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.170 --telnetsrv.listenport 8111
         depends_on:
             - oai-gnb
         networks:
@@ -946,7 +954,7 @@ services:
                                     --ssb 144
                                     --rfsimulator.serveraddr 192.168.70.140 
                                     --log_config.global_log_options level,nocolor,time
-                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.171 --telnetsrv.listenport 8091
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.171 --telnetsrv.listenport 8112
         depends_on:
             - oai-gnb
         networks:
@@ -984,7 +992,7 @@ services:
                                     --ssb 144
                                     --rfsimulator.serveraddr 192.168.70.140 
                                     --log_config.global_log_options level,nocolor,time
-                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.172 --telnetsrv.listenport 8091
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.172 --telnetsrv.listenport 8113
         depends_on:
             - oai-gnb
         networks:
@@ -1022,7 +1030,7 @@ services:
                                     --ssb 144
                                     --rfsimulator.serveraddr 192.168.70.140 
                                     --log_config.global_log_options level,nocolor,time
-                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.173 --telnetsrv.listenport 8091
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.173 --telnetsrv.listenport 8114
         depends_on:
             - oai-gnb
         networks:
@@ -1060,7 +1068,7 @@ services:
                                     --ssb 144
                                     --rfsimulator.serveraddr 192.168.70.140 
                                     --log_config.global_log_options level,nocolor,time
-                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.174 --telnetsrv.listenport 8091
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.174 --telnetsrv.listenport 8115
         depends_on:
             - oai-gnb
         networks:
@@ -1098,7 +1106,7 @@ services:
                                     --ssb 144
                                     --rfsimulator.serveraddr 192.168.70.140 
                                     --log_config.global_log_options level,nocolor,time
-                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.175 --telnetsrv.listenport 8091
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.175 --telnetsrv.listenport 8116
         depends_on:
             - oai-gnb
         networks:
@@ -1136,7 +1144,7 @@ services:
                                     --ssb 144
                                     --rfsimulator.serveraddr 192.168.70.140 
                                     --log_config.global_log_options level,nocolor,time
-                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.176 --telnetsrv.listenport 8091
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.176 --telnetsrv.listenport 8117
         depends_on:
             - oai-gnb
         networks:

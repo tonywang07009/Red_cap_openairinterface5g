@@ -36,6 +36,7 @@
  000004
  333331
  302001
+ 000005
  333332
  302002
  302003
@@ -128,11 +129,10 @@
         </testCase>
 
         <testCase id="000004">
-                <class>Deploy_Object</class>
-                <desc>Deploy 2 OAI 5G NR-UEs in RedCap RF sim SA</desc>
+                <class>Custom_Command</class>
+                <desc>Prepare OAI 5G NR-UE1 container in RedCap RF sim SA</desc>
                 <node>localhost</node>
-                <yaml_path>ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap</yaml_path>
-                <services>oai-nr-ue1 oai-nr-ue2</services>
+                <command>docker compose -f yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.yml create oai-nr-ue1</command>
         </testCase>
 
         <testCase id="333331">
@@ -147,6 +147,13 @@
                 <desc>Verify UE 1 is normal (no RedCap)</desc>
                 <node>localhost</node>
                 <command>[ $(docker logs rfsim5g-oai-nr-ue1_redcap | grep -Ec "Built UE NR capability from nrue_recap YAML|nrue_recap RedCap config|Applying SIB1 RedCap initial (DL|UL) BWP") -eq 0 ]</command>
+        </testCase>
+
+        <testCase id="000005">
+                <class>Custom_Command</class>
+                <desc>Prepare OAI 5G NR-UE2 (RedCap) container in RF sim SA</desc>
+                <node>localhost</node>
+                <command>docker compose -f yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.yml create oai-nr-ue2</command>
         </testCase>
 
         <testCase id="333332">
@@ -180,13 +187,13 @@
         <testCase id="040001">
                 <class>IdleSleep</class>
                 <desc>Sleep for RedCap UE2 user-plane stabilization</desc>
-                <idle_sleep_time_in_sec>5</idle_sleep_time_in_sec>
+                <idle_sleep_time_in_sec>35</idle_sleep_time_in_sec>
         </testCase>
 
         <testCase id="020005">
                 <class>Ping</class>
                 <desc>Ping ext-dn from both UEs</desc>
-                <id>rfsim5g_redcap_ue1 rfsim5g_redcap_ue2</id>
+                <id>rfsim5g_redcap_ue2 rfsim5g_redcap_ue1</id>
                 <node>carabe</node>
                 <svr_id>oai_ext_dn</svr_id>
                 <svr_node>carabe</svr_node>
