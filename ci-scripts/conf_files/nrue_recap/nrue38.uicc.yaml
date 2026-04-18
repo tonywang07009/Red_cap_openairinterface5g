@@ -1,5 +1,5 @@
 uicc0:
-  imsi: 001010000000030
+  imsi: 001010000000038
   key: fec86ba6eb707ed08905757b1bb44b8f
   opc: C42449363BBAD02B66D16BC975D77CC1
   dnn: oai
@@ -16,17 +16,6 @@ nrue_recap:
   rlc_am_drb_long_sn_redcap_r17: 0
   number_of_rx_redcap_r17: 1
   half_duplex_fdd_type_a_redcap_r17: 1
-
-
-
-cells:
-  ru_id: 0
-  band: 78
-  rf_freq: 3630360000
-  numerology: 1
-  N_RB_DL: 106
-  ssb_start: 144
-
 # thread-pool: "-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1"
 
 #/* configuration for channel modelisation */

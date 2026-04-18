@@ -52,8 +52,7 @@ for ((idx=START_UE_INDEX; idx<=TOTAL_UES; idx++)); do
       MMTC_REDCAP_ENABLE: \${MMTC_REDCAP_ENABLE:-1}
       MMTC_REDCAP_NUM_RX: \${MMTC_REDCAP_NUM_RX:-1}
       MMTC_REDCAP_HALF_DUPLEX: \${MMTC_REDCAP_HALF_DUPLEX:-1}
-      MMTC_TEMPLATE_CONFIG_REDCAP: /opt/oai-nr-ue/etc/nr-ue-redcap.yaml
-      MMTC_TEMPLATE_CONFIG_NORMAL: /opt/oai-nr-ue/etc/nr-ue-normal.yaml
+      MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
       MMTC_BAND: \${MMTC_BAND:-78}
       MMTC_RF_FREQ: \${MMTC_RF_FREQ:-3630360000}
       MMTC_NUMEROLOGY: \${MMTC_NUMEROLOGY:-1}
@@ -75,8 +74,7 @@ for ((idx=START_UE_INDEX; idx<=TOTAL_UES; idx++)); do
     devices:
       - /dev/net/tun:/dev/net/tun
     volumes:
-      - ../../conf_files/nrue_recap/nrue30.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue-redcap.yaml:ro
-      - ../../conf_files/nrue/nrue1.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue-normal.yaml:ro
+      - ../../conf_files/nrue_recap/nrue${idx}.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
       - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
     healthcheck:
       test: /bin/bash -c "pgrep nr-uesoftmodem"

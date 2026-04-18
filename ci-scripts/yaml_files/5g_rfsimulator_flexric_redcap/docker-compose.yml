@@ -42,8 +42,10 @@ services:
         command: "stdbuf -o0 /usr/local/flexric/xApp/c/monitor/xapp_rc_moni"
         container_name: xapp-rc-moni_redcap
         depends_on:
-            - nearRT-RIC
-            - oai-gnb
+            nearRT-RIC:
+                condition: service_healthy
+            oai-gnb:
+                condition: service_healthy
         networks:
             public_net:
                 ipv4_address: 192.168.70.184
@@ -60,8 +62,10 @@ services:
         command: "stdbuf -o0 /usr/local/flexric/xApp/c/monitor/xapp_kpm_moni"
         container_name: xapp-kpm-moni_redcap
         depends_on:
-            - nearRT-RIC
-            - oai-gnb
+            nearRT-RIC:
+                condition: service_healthy
+            oai-gnb:
+                condition: service_healthy
         networks:
             public_net:
                 ipv4_address: 192.168.70.185
@@ -78,8 +82,10 @@ services:
         command: "stdbuf -o0 /usr/local/flexric/xApp/c/kpm_rc/xapp_kpm_rc"
         container_name: xapp-kpm-rc_redcap
         depends_on:
-            - nearRT-RIC
-            - oai-gnb
+            nearRT-RIC:
+                condition: service_healthy
+            oai-gnb:
+                condition: service_healthy
         networks:
             public_net:
                 ipv4_address: 192.168.70.186
@@ -96,8 +102,10 @@ services:
         command: "stdbuf -o0 /usr/local/flexric/xApp/c/monitor/xapp_gtp_mac_rlc_pdcp_moni"
         container_name: xapp-gtp-mac-rlc-pdcp-moni_redcap
         depends_on:
-            - nearRT-RIC
-            - oai-gnb
+            nearRT-RIC:
+                condition: service_healthy
+            oai-gnb:
+                condition: service_healthy
         networks:
             public_net:
                 ipv4_address: 192.168.70.187
@@ -110,6 +118,7 @@ services:
 
     oai-gnb:
         image: ${REGISTRY-oaisoftwarealliance/}${GNB_IMG:-oai-gnb}:${TAG:-develop}
+        restart: on-failure:3
         privileged: true
         container_name: rfsim5g-oai-gnb_redcap
         environment:

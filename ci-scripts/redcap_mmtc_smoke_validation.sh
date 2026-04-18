@@ -16,6 +16,10 @@ SLEEP_AFTER_UP=${MMTC_SLEEP_AFTER_UP:-25}
 START_XAPP=${MMTC_START_XAPP:-0}
 PREPARE_ONLY=${MMTC_SMOKE_PREPARE_ONLY:-0}
 RESET_CN=${MMTC_RESET_CN:-1}
+GNB_WARMUP=${MMTC_GNB_WARMUP:-5}
+UE_START_GAP=${MMTC_UE_START_GAP:-3}
+FORWARD_PING_MODE=${MMTC_FORWARD_PING_MODE:-serial}
+RUN_REVERSE_PING=${MMTC_RUN_REVERSE_PING:-1}
 
 OVERLAY_GENERATOR="${REPO_ROOT}/ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/scripts/generate_mmtc_overlay.sh"
 CN_DB_GENERATOR="${REPO_ROOT}/ci-scripts/generate_mmtc_cn_db_overlay.sh"
@@ -29,6 +33,14 @@ FAILURES=0
 mkdir -p "${LOG_DIR}"
 mkdir -p "${RUNTIME_CONFIG_DIR}"
 
+declare -a PING_UE_INDICES=()
+declare -a PING_CONTAINER_NAMES=()
+declare -a PING_TARGET_IPS=()
+declare -a PING_TARGET_SOURCES=()
+declare -a PING_UE_IPV4S=()
+declare -a PING_LOG_FILES=()
+declare -a REVERSE_PING_LOG_FILES=()
+
 capture_cmd()
 {
   local output_file="$1"
@@ -38,6 +50,92 @@ capture_cmd()
     echo "# command: $*"
     "$@" 2>&1
   } > "${output_file}" || true
+}
+
+capture_ue_net_state()
+{
+  local container_name="$1"
+  local output_file="$2"
+
+  capture_cmd "${output_file}" docker exec "${container_name}" sh -c '
+    echo "## ip -br address"
+    ip -br address || true
+    echo
+    echo "## ip route"
+    ip route || true
+    echo
+    echo "## ip rule"
+    ip rule show || true
+    echo
+    echo "## ip -s link show dev oaitun_ue1"
+    ip -s link show dev oaitun_ue1 || true
+    echo
+    echo "## ip -s link show dev eth0"
+    ip -s link show dev eth0 || true
+    echo
+    echo "## /proc/net/dev"
+    cat /proc/net/dev || true
+  '
+}
+
+capture_shared_user_plane_snapshot()
+{
+  local phase="$1"
+  capture_container_snapshot "gNB-${phase}" "rfsim5g-oai-gnb_redcap" "${LOG_DIR}/mmtc_smoke_${TIMESTAMP}_gnb_${phase}.log"
+  capture_container_snapshot "UPF-${phase}" "oai-upf" "${LOG_DIR}/mmtc_smoke_${TIMESTAMP}_upf_${phase}.log"
+  capture_container_snapshot "ext-dn-${phase}" "oai-ext-dn" "${LOG_DIR}/mmtc_smoke_${TIMESTAMP}_extdn_${phase}.log"
+}
+
+run_reverse_ping_for_ue()
+{
+  local ue_idx="$1"
+  local ue_tun_ipv4="$2"
+  local reverse_ping_log="$3"
+
+  if [ "${RUN_REVERSE_PING}" != "1" ] || [ -z "${ue_tun_ipv4}" ]; then
+    return 0
+  fi
+
+  echo "[INFO] Reverse ping from ext-dn to ${ue_tun_ipv4}"
+  if ! docker exec oai-ext-dn ping -c "${REVERSE_PING_COUNT}" "${ue_tun_ipv4}" | tee "${reverse_ping_log}"; then
+    echo "[WARN] Reverse ping from ext-dn to ${ue_tun_ipv4} failed"
+    FAILURES=$((FAILURES + 1))
+    return 1
+  fi
+
+  return 0
+}
+
+run_parallel_forward_pings()
+{
+  local -a pids=()
+
+  echo "[INFO] Starting parallel forward ping for ${#PING_CONTAINER_NAMES[@]} UE(s)"
+
+  for idx in "${!PING_CONTAINER_NAMES[@]}"; do
+    local container_name="${PING_CONTAINER_NAMES[$idx]}"
+    local target_ip="${PING_TARGET_IPS[$idx]}"
+    local target_source="${PING_TARGET_SOURCES[$idx]}"
+    local ue_ipv4="${PING_UE_IPV4S[$idx]}"
+    local ping_log="${PING_LOG_FILES[$idx]}"
+
+    echo "[INFO] Parallel ping ${container_name} -> ${target_ip} (source=${target_source}, UE IPv4=${ue_ipv4:-unknown})"
+    (
+      docker exec "${container_name}" ping -I oaitun_ue1 -c "${PING_COUNT}" "${target_ip}"
+    ) | tee "${ping_log}" &
+    pids+=($!)
+  done
+
+  for idx in "${!pids[@]}"; do
+    local ue_idx="${PING_UE_INDICES[$idx]}"
+    local container_name="${PING_CONTAINER_NAMES[$idx]}"
+    local target_ip="${PING_TARGET_IPS[$idx]}"
+
+    if ! wait "${pids[$idx]}"; then
+      echo "[WARN] ${container_name} ping failed (IMSI $(printf '001010%09d' "${ue_idx}"), target ${target_ip})"
+      FAILURES=$((FAILURES + 1))
+    fi
+  done
 }
 
 capture_container_snapshot()
@@ -68,6 +166,23 @@ capture_container_snapshot()
       cat /proc/net/dev || true
     ' 2>&1 || true
   } > "${output_file}" || true
+}
+
+start_sample_ues()
+{
+  local compose_args=("$@")
+  local sample_count=${#SAMPLE_UES[@]}
+
+  for idx in "${!SAMPLE_UES[@]}"; do
+    local service_name="oai-nr-ue${SAMPLE_UES[$idx]}"
+    echo "[INFO] Starting sampled UE service: ${service_name}"
+    docker compose "${compose_args[@]}" up -d "${service_name}"
+
+    if [ "${UE_START_GAP}" -gt 0 ] && [ $((idx + 1)) -lt "${sample_count}" ]; then
+      echo "[INFO] Waiting ${UE_START_GAP}s before launching the next sampled UE"
+      sleep "${UE_START_GAP}"
+    fi
+  done
 }
 
 extract_tun_ipv4()
@@ -133,6 +248,11 @@ for ue_idx in "${SAMPLE_UES[@]}"; do
   fi
 done
 
+if [ "${FORWARD_PING_MODE}" != "serial" ] && [ "${FORWARD_PING_MODE}" != "parallel" ]; then
+  echo "Invalid MMTC_FORWARD_PING_MODE: ${FORWARD_PING_MODE}" >&2
+  exit 1
+fi
+
 "${OVERLAY_GENERATOR}" "${TOTAL_UES}" "${OVERLAY_COMPOSE}"
 
 CN_DB_SQL="${RUNTIME_CONFIG_DIR}/oai_db_mmtc_${TOTAL_UES}.sql"
@@ -156,6 +276,10 @@ else
 fi
 echo "[INFO] Service list        : ${SERVICE_LIST[*]}"
 echo "[INFO] CN DB overlay       : ${CN_DB_SQL}"
+echo "[INFO] gNB warmup          : ${GNB_WARMUP}s"
+echo "[INFO] UE start gap        : ${UE_START_GAP}s"
+echo "[INFO] forward ping mode   : ${FORWARD_PING_MODE}"
+echo "[INFO] reverse ping        : ${RUN_REVERSE_PING}"
 
 if [ "${PREPARE_ONLY}" = "1" ]; then
   echo "[INFO] Prepare-only mode active; overlay generated at ${OVERLAY_COMPOSE}"
@@ -168,7 +292,18 @@ if [ "${RESET_CN}" = "1" ]; then
 fi
 
 docker compose -f "${CN_COMPOSE}" -f "${CN_DB_COMPOSE_OVERLAY}" up -d
-docker compose -f "${BASE_COMPOSE}" -f "${OVERLAY_COMPOSE}" up -d "${SERVICE_LIST[@]}"
+docker compose -f "${BASE_COMPOSE}" -f "${OVERLAY_COMPOSE}" up -d nearRT-RIC oai-gnb
+
+if [ "${START_XAPP}" = "1" ]; then
+  docker compose -f "${BASE_COMPOSE}" -f "${OVERLAY_COMPOSE}" up -d xapp-rc-moni
+fi
+
+if [ "${GNB_WARMUP}" -gt 0 ]; then
+  echo "[INFO] Waiting ${GNB_WARMUP}s for gNB / nearRT-RIC warmup before UE attach"
+  sleep "${GNB_WARMUP}"
+fi
+
+start_sample_ues -f "${BASE_COMPOSE}" -f "${OVERLAY_COMPOSE}"
 
 echo "[INFO] Waiting ${SLEEP_AFTER_UP}s for sampled UEs to settle"
 sleep "${SLEEP_AFTER_UP}"
@@ -280,25 +415,19 @@ for ue_idx in "${SAMPLE_UES[@]}"; do
   fi
 
   docker exec "${container_name}" ip route get "${effective_ext_dn_ip}" > "${ue_route_get}" 2>&1 || true
-  capture_cmd "${ue_net_pre}" docker exec "${container_name}" sh -c '
-    echo "## ip -br address"
-    ip -br address || true
-    echo
-    echo "## ip route"
-    ip route || true
-    echo
-    echo "## ip rule"
-    ip rule show || true
-    echo
-    echo "## ip -s link show dev oaitun_ue1"
-    ip -s link show dev oaitun_ue1 || true
-    echo
-    echo "## ip -s link show dev eth0"
-    ip -s link show dev eth0 || true
-    echo
-    echo "## /proc/net/dev"
-    cat /proc/net/dev || true
-  '
+  PING_UE_INDICES+=("${ue_idx}")
+  PING_CONTAINER_NAMES+=("${container_name}")
+  PING_TARGET_IPS+=("${effective_ext_dn_ip}")
+  PING_TARGET_SOURCES+=("${target_source}")
+  PING_UE_IPV4S+=("${ue_tun_ipv4}")
+  PING_LOG_FILES+=("${ping_log}")
+  REVERSE_PING_LOG_FILES+=("${reverse_ping_log}")
+
+  if [ "${FORWARD_PING_MODE}" = "parallel" ]; then
+    continue
+  fi
+
+  capture_ue_net_state "${container_name}" "${ue_net_pre}"
   capture_container_snapshot "gNB-pre-ping" "rfsim5g-oai-gnb_redcap" "${gnb_pre}"
   capture_container_snapshot "UPF-pre-ping" "oai-upf" "${upf_pre}"
   capture_container_snapshot "ext-dn-pre-ping" "oai-ext-dn" "${extdn_pre}"
@@ -309,37 +438,26 @@ for ue_idx in "${SAMPLE_UES[@]}"; do
     FAILURES=$((FAILURES + 1))
   fi
 
-  if [ -n "${ue_tun_ipv4}" ]; then
-    echo "[INFO] Reverse ping from ext-dn to ${ue_tun_ipv4}"
-    if ! docker exec oai-ext-dn ping -c "${REVERSE_PING_COUNT}" "${ue_tun_ipv4}" | tee "${reverse_ping_log}"; then
-      echo "[WARN] Reverse ping from ext-dn to ${ue_tun_ipv4} failed" | tee -a "${ue_target}"
-      FAILURES=$((FAILURES + 1))
-    fi
-  fi
+  run_reverse_ping_for_ue "${ue_idx}" "${ue_tun_ipv4}" "${reverse_ping_log}" || true
 
-  capture_cmd "${ue_net_post}" docker exec "${container_name}" sh -c '
-    echo "## ip -br address"
-    ip -br address || true
-    echo
-    echo "## ip route"
-    ip route || true
-    echo
-    echo "## ip rule"
-    ip rule show || true
-    echo
-    echo "## ip -s link show dev oaitun_ue1"
-    ip -s link show dev oaitun_ue1 || true
-    echo
-    echo "## ip -s link show dev eth0"
-    ip -s link show dev eth0 || true
-    echo
-    echo "## /proc/net/dev"
-    cat /proc/net/dev || true
-  '
+  capture_ue_net_state "${container_name}" "${ue_net_post}"
   capture_container_snapshot "gNB-post-ping" "rfsim5g-oai-gnb_redcap" "${gnb_post}"
   capture_container_snapshot "UPF-post-ping" "oai-upf" "${upf_post}"
   capture_container_snapshot "ext-dn-post-ping" "oai-ext-dn" "${extdn_post}"
 done
+
+if [ "${FORWARD_PING_MODE}" = "parallel" ] && [ "${#PING_CONTAINER_NAMES[@]}" -gt 0 ]; then
+  capture_shared_user_plane_snapshot "pre_parallel_ping"
+  run_parallel_forward_pings
+
+  if [ "${RUN_REVERSE_PING}" = "1" ]; then
+    for idx in "${!PING_UE_INDICES[@]}"; do
+      run_reverse_ping_for_ue "${PING_UE_INDICES[$idx]}" "${PING_UE_IPV4S[$idx]}" "${REVERSE_PING_LOG_FILES[$idx]}" || true
+    done
+  fi
+
+  capture_shared_user_plane_snapshot "post_parallel_ping"
+fi
 
 echo "[INFO] Smoke validation completed"
 echo "[INFO] Logs stored under ${LOG_DIR}"
