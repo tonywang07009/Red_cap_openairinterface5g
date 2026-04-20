@@ -32,6 +32,9 @@
 #include <time.h>
 #include <dlfcn.h>
 #include <sys/resource.h>
+#include <execinfo.h>
+#include <stdlib.h>
+#include <unistd.h>
 #include "UTIL/OPT/opt.h"
 #include "common/config/config_userapi.h"
 #include "common/utils/load_module_shlib.h"
@@ -47,6 +50,7 @@ int usrp_tx_thread = 0;
 uint8_t nfapi_mode=0;
 
 static struct timespec start;
+static int mmtc_segv_backtrace_enabled;
 
 static softmodem_params_t softmodem_params;
 softmodem_params_t *get_softmodem_params(void) {
@@ -200,19 +204,18 @@ void softmodem_printresources(int sig, telnet_printfunc_t pf) {
 }
 
 void signal_handler(int sig) {
-  //void *array[10];
-  //size_t size;
-
   if (sig==SIGSEGV) {
-    // get void*'s for all entries on the stack
-    /* backtrace uses malloc, that is not good in signal handlers
-     * I let the code, because it would be nice to make it better
-    size = backtrace(array, 10);
-    // print out all the frames to stderr
-    fprintf(stderr, "Error: signal %d:\n", sig);
-    backtrace_symbols_fd(array, size, 2);
-    */
-    exit(-1);
+    if (mmtc_segv_backtrace_enabled > 0) {
+      void *frames[64];
+      int frame_count = backtrace(frames, sizeofArray(frames));
+      dprintf(STDERR_FILENO,
+              "[CGDBG][SIG] caught SIGSEGV pid=%d, backtrace frames=%d\n",
+              (int)getpid(),
+              frame_count);
+      if (frame_count > 0)
+        backtrace_symbols_fd(frames, frame_count, STDERR_FILENO);
+    }
+    _exit(128 + SIGSEGV);
   } else {
     if(sig==SIGINT ||sig==SOFTMODEM_RTSIGNAL)
       softmodem_printresources(sig,(telnet_printfunc_t)printf);
@@ -228,17 +231,16 @@ void signal_handler(int sig) {
 void set_softmodem_sighandler(void) {
   struct sigaction  act,oldact;
   clock_gettime(CLOCK_BOOTTIME, &start);
+  const char *bt_env = getenv("MMTC_SEGV_BACKTRACE");
+  mmtc_segv_backtrace_enabled = (bt_env != NULL && atoi(bt_env) > 0) ? 1 : 0;
   memset(&act,0,sizeof(act));
   act.sa_handler=signal_handler;
   sigaction(SOFTMODEM_RTSIGNAL,&act,&oldact);
   // Disabled in order generate a core dump for analysis with gdb
   // Enable for clean exit on CTRL-C (i.e. record player, USRP...) 
   signal(SIGINT,  signal_handler);
-  # if 0
-  printf("Send signal %d to display resource usage...\n",SIGRTMIN+1);
-  signal(SIGSEGV, signal_handler);
-  signal(SIGTERM, signal_handler);
-  signal(SIGABRT, signal_handler);
-  #endif
+  if (mmtc_segv_backtrace_enabled > 0) {
+    LOG_W(UTIL, "[CGDBG][SIG] MMTC_SEGV_BACKTRACE=1, installing SIGSEGV handler with backtrace output\n");
+    signal(SIGSEGV, signal_handler);
+  }
 }
-

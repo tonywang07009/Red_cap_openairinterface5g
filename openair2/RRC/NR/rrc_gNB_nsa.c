@@ -146,7 +146,7 @@ static NR_RadioBearerConfig_t *get_default_rbconfig(int eps_bearer_id,
   rbconfig->drb_ToAddModList = calloc_or_fail(1, sizeof(*rbconfig->drb_ToAddModList));
   NR_DRB_ToAddMod_t *drb_ToAddMod = calloc_or_fail(1, sizeof(*drb_ToAddMod));
   drb_ToAddMod->drb_Identity = rb_id;
-  drb_ToAddMod->pdcp_Config = nr_rrc_build_pdcp_config_ie(false, false, pdcp_config);
+  drb_ToAddMod->pdcp_Config = nr_rrc_build_pdcp_config_ie(false, false, pdcp_config, false);
   asn1cCalloc(drb_ToAddMod->cnAssociation, cn_association);
   cn_association->present = NR_DRB_ToAddMod__cnAssociation_PR_eps_BearerIdentity;
   cn_association->choice.eps_BearerIdentity = eps_bearer_id;

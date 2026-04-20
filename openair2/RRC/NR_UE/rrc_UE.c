@@ -945,16 +945,58 @@ static void nr_rrc_ue_process_masterCellGroup(NR_UE_RRC_INST_t *rrc,
                                               int gNB_index)
 {
   AssertFatal(!fullConfig, "fullConfig not supported yet\n");
+  AssertFatal(masterCellGroup != NULL && masterCellGroup->buf != NULL && masterCellGroup->size > 0,
+              "Invalid masterCellGroup in UE %ld (ptr=%p buf=%p size=%zu)\n",
+              rrc->ue_id,
+              (void *)masterCellGroup,
+              masterCellGroup ? (void *)masterCellGroup->buf : NULL,
+              (size_t)(masterCellGroup ? masterCellGroup->size : 0));
   NR_CellGroupConfig_t *cellGroupConfig = NULL;
   asn_dec_rval_t dec_rval = uper_decode(NULL,
                                         &asn_DEF_NR_CellGroupConfig, //might be added prefix later
                                         (void **)&cellGroupConfig,
                                         (uint8_t *)masterCellGroup->buf,
                                         masterCellGroup->size, 0, 0);
-  if ((dec_rval.code != RC_OK) && (dec_rval.consumed == 0)) {
-    LOG_E(NR_RRC, "CellGroupConfig decode error\n");
+  if (dec_rval.code != RC_OK) {
+    LOG_W(NR_RRC,
+          "[CGDBG][UE %ld] CellGroupConfig decode non-OK: code=%d consumed=%zu/%zu cfg=%p\n",
+          rrc->ue_id,
+          dec_rval.code,
+          dec_rval.consumed,
+          (size_t)masterCellGroup->size,
+          (void *)cellGroupConfig);
+    LOG_E(NR_RRC,
+          "[CGDBG][UE %ld] reject CellGroupConfig decode (code=%d consumed=%zu/%zu)\n",
+          rrc->ue_id,
+          dec_rval.code,
+          dec_rval.consumed,
+          (size_t)masterCellGroup->size);
+    ASN_STRUCT_FREE(asn_DEF_NR_CellGroupConfig, cellGroupConfig);
     return;
   }
+  AssertFatal(cellGroupConfig != NULL, "CellGroupConfig decode returned NULL for UE %ld\n", rrc->ue_id);
+  NR_ServingCellConfig_t *scd = cellGroupConfig->spCellConfig ? cellGroupConfig->spCellConfig->spCellConfigDedicated : NULL;
+  NR_UplinkConfig_t *ul_cfg = scd ? scd->uplinkConfig : NULL;
+  NR_BWP_UplinkDedicated_t *init_ul_dedicated = ul_cfg ? ul_cfg->initialUplinkBWP : NULL;
+  struct NR_SetupRelease_PUCCH_Config *pucch_cfg_sr = init_ul_dedicated ? init_ul_dedicated->pucch_Config : NULL;
+  LOG_I(NR_RRC,
+        "[CGDBG][UE %ld] decoded CellGroupConfig: cfg=%p spCell=%p scd=%p macCG=%p rlcAdd=%p rlcRel=%p\n",
+        rrc->ue_id,
+        (void *)cellGroupConfig,
+        (void *)cellGroupConfig->spCellConfig,
+        (void *)scd,
+        (void *)cellGroupConfig->mac_CellGroupConfig,
+        (void *)cellGroupConfig->rlc_BearerToAddModList,
+        (void *)cellGroupConfig->rlc_BearerToReleaseList);
+  LOG_I(NR_RRC,
+        "[CGDBG][UE %ld][PUCCHCFG] scd=%p ul_cfg=%p init_ul_ded=%p pucch_cfg_sr=%p present=%d setup=%p\n",
+        rrc->ue_id,
+        (void *)scd,
+        (void *)ul_cfg,
+        (void *)init_ul_dedicated,
+        (void *)pucch_cfg_sr,
+        pucch_cfg_sr ? pucch_cfg_sr->present : -1,
+        (void *)(pucch_cfg_sr && pucch_cfg_sr->present == NR_SetupRelease_PUCCH_Config_PR_setup ? pucch_cfg_sr->choice.setup : NULL));
   if (LOG_DEBUGFLAG(DEBUG_ASN1)) {
     xer_fprint(stdout, &asn_DEF_NR_CellGroupConfig, (const void *) cellGroupConfig);
   }
@@ -969,6 +1011,13 @@ static void nr_rrc_ue_process_masterCellGroup(NR_UE_RRC_INST_t *rrc,
   mac_msg->UE_NR_Capability = rrc->UECap.UE_NR_Capability;
   mac_msg->hfn = rrc->current_hfn;
   mac_msg->frame = rrc->current_frame;
+  LOG_I(NR_RRC,
+        "[CGDBG][UE %ld] enqueue CellGroupConfig to MAC: q=%p cfg=%p hfn=%d frame=%d\n",
+        rrc->ue_id,
+        (void *)rrc->mac_input_nf,
+        (void *)cellGroupConfig,
+        rrc->current_hfn,
+        rrc->current_frame);
   nr_rrc_send_msg_to_mac(rrc, &rrc_msg);
 }
 

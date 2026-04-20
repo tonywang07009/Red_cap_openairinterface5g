@@ -291,7 +291,17 @@ void update_mac_ul_timers(NR_UE_MAC_INST_t *mac)
 
 void remove_ul_config_last_item(fapi_nr_ul_config_request_pdu_t *pdu)
 {
-  pdu->privateNBpdus--;
+  if (pdu == NULL || pdu->privateNBpdus == NULL) {
+    LOG_E(NR_MAC, "[CGDBG][ULCFG] remove_ul_config_last_item invalid input pdu=%p\n", (void *)pdu);
+    return;
+  }
+
+  if (*pdu->privateNBpdus == 0) {
+    LOG_W(NR_MAC, "[CGDBG][ULCFG] remove_ul_config_last_item called with zero PDU count\n");
+    return;
+  }
+
+  (*pdu->privateNBpdus)--;
 }
 
 void release_ul_config(fapi_nr_ul_config_request_pdu_t *configPerSlot, bool clearIt)
@@ -1605,7 +1615,7 @@ static bool schedule_uci_on_pusch(NR_UE_MAC_INST_t *mac,
 {
   fapi_nr_ul_config_request_pdu_t *ulcfg_pdu = lockGet_ul_iterator(mac, frame_tx, slot_tx);
   if (!ulcfg_pdu)
-    return NULL;
+    return false;
 
   nfapi_nr_ue_pusch_pdu_t *pusch_pdu = NULL;
   while (ulcfg_pdu->pdu_type != FAPI_NR_END) {
@@ -1617,35 +1627,100 @@ static bool schedule_uci_on_pusch(NR_UE_MAC_INST_t *mac,
       int nr_of_symbols = 0;
       int start_symbol_index = 0;
       if (pucch->initial_pucch_id > -1 && pucch->pucch_resource == NULL) {
+        if (!current_UL_BWP || !current_UL_BWP->pucch_ConfigCommon || !current_UL_BWP->pucch_ConfigCommon->pucch_ResourceCommon) {
+          LOG_W(NR_MAC,
+                "[CGDBG][PUCCH-UCI] skip overlap check: missing initial common resource ue=%d frame=%d slot=%d init_id=%d curUL=%p cfgCommon=%p resCommon=%p\n",
+                mac->ue_id,
+                frame_tx,
+                slot_tx,
+                pucch->initial_pucch_id,
+                (void *)current_UL_BWP,
+                current_UL_BWP ? (void *)current_UL_BWP->pucch_ConfigCommon : NULL,
+                (current_UL_BWP && current_UL_BWP->pucch_ConfigCommon) ? (void *)current_UL_BWP->pucch_ConfigCommon->pucch_ResourceCommon : NULL);
+          release_ul_config(ulcfg_pdu, false);
+          return false;
+        }
         const int idx = *current_UL_BWP->pucch_ConfigCommon->pucch_ResourceCommon;
+        if (idx < 0 || idx > 15) {
+          LOG_W(NR_MAC,
+                "[CGDBG][PUCCH-UCI] skip overlap check: invalid initial common resource idx=%d ue=%d frame=%d slot=%d\n",
+                idx,
+                mac->ue_id,
+                frame_tx,
+                slot_tx);
+          release_ul_config(ulcfg_pdu, false);
+          return false;
+        }
         const initial_pucch_resource_t pucch_resourcecommon = get_initial_pucch_resource(idx);
         start_symbol_index = pucch_resourcecommon.startingSymbolIndex;
         nr_of_symbols = pucch_resourcecommon.nrofSymbols;
       }
       else {
+        if (!pucchres) {
+          LOG_W(NR_MAC,
+                "[CGDBG][PUCCH-UCI] skip overlap check: missing dedicated pucch resource ue=%d frame=%d slot=%d init_id=%d\n",
+                mac->ue_id,
+                frame_tx,
+                slot_tx,
+                pucch->initial_pucch_id);
+          release_ul_config(ulcfg_pdu, false);
+          return false;
+        }
         switch(pucchres->format.present) {
           case NR_PUCCH_Resource__format_PR_format0 :
+            if (!pucchres->format.choice.format0) {
+              LOG_W(NR_MAC, "[CGDBG][PUCCH-UCI] skip overlap check: format0 resource is NULL ue=%d frame=%d slot=%d\n", mac->ue_id, frame_tx, slot_tx);
+              release_ul_config(ulcfg_pdu, false);
+              return false;
+            }
             nr_of_symbols = pucchres->format.choice.format0->nrofSymbols;
             start_symbol_index = pucchres->format.choice.format0->startingSymbolIndex;
             break;
           case NR_PUCCH_Resource__format_PR_format1 :
+            if (!pucchres->format.choice.format1) {
+              LOG_W(NR_MAC, "[CGDBG][PUCCH-UCI] skip overlap check: format1 resource is NULL ue=%d frame=%d slot=%d\n", mac->ue_id, frame_tx, slot_tx);
+              release_ul_config(ulcfg_pdu, false);
+              return false;
+            }
             nr_of_symbols = pucchres->format.choice.format1->nrofSymbols;
             start_symbol_index = pucchres->format.choice.format1->startingSymbolIndex;
             break;
           case NR_PUCCH_Resource__format_PR_format2 :
+            if (!pucchres->format.choice.format2) {
+              LOG_W(NR_MAC, "[CGDBG][PUCCH-UCI] skip overlap check: format2 resource is NULL ue=%d frame=%d slot=%d\n", mac->ue_id, frame_tx, slot_tx);
+              release_ul_config(ulcfg_pdu, false);
+              return false;
+            }
             nr_of_symbols = pucchres->format.choice.format2->nrofSymbols;
             start_symbol_index = pucchres->format.choice.format2->startingSymbolIndex;
             break;
           case NR_PUCCH_Resource__format_PR_format3 :
+            if (!pucchres->format.choice.format3) {
+              LOG_W(NR_MAC, "[CGDBG][PUCCH-UCI] skip overlap check: format3 resource is NULL ue=%d frame=%d slot=%d\n", mac->ue_id, frame_tx, slot_tx);
+              release_ul_config(ulcfg_pdu, false);
+              return false;
+            }
             nr_of_symbols = pucchres->format.choice.format3->nrofSymbols;
             start_symbol_index = pucchres->format.choice.format3->startingSymbolIndex;
             break;
           case NR_PUCCH_Resource__format_PR_format4 :
+            if (!pucchres->format.choice.format4) {
+              LOG_W(NR_MAC, "[CGDBG][PUCCH-UCI] skip overlap check: format4 resource is NULL ue=%d frame=%d slot=%d\n", mac->ue_id, frame_tx, slot_tx);
+              release_ul_config(ulcfg_pdu, false);
+              return false;
+            }
             nr_of_symbols = pucchres->format.choice.format4->nrofSymbols;
             start_symbol_index = pucchres->format.choice.format4->startingSymbolIndex;
             break;
           default :
-            AssertFatal(false, "Undefined PUCCH format \n");
+            LOG_W(NR_MAC,
+                  "[CGDBG][PUCCH-UCI] skip overlap check: undefined format=%d ue=%d frame=%d slot=%d\n",
+                  pucchres->format.present,
+                  mac->ue_id,
+                  frame_tx,
+                  slot_tx);
+            release_ul_config(ulcfg_pdu, false);
+            return false;
         }
       }
       int final_symbol = nr_of_symbols + start_symbol_index;
@@ -1677,7 +1752,17 @@ static bool schedule_uci_on_pusch(NR_UE_MAC_INST_t *mac,
   // and does not transmit the PUCCH if the UE does not multiplex aperiodic or semi-persistent CSI reports in the PUSCH
   bool mux_done = false;
   if (pucch->n_harq > 0) {
-    NR_PUSCH_Config_t *pusch_Config = mac->current_UL_BWP->pusch_Config;
+    if (!current_UL_BWP) {
+      LOG_W(NR_MAC,
+            "[CGDBG][PUCCH-UCI] skip UCI mux: current_UL_BWP is NULL ue=%d frame=%d slot=%d\n",
+            mac->ue_id,
+            frame_tx,
+            slot_tx);
+      release_ul_config(ulcfg_pdu, false);
+      return false;
+    }
+
+    NR_PUSCH_Config_t *pusch_Config = current_UL_BWP->pusch_Config;
     if (pusch_Config && pusch_Config->uci_OnPUSCH) {
       NR_UCI_OnPUSCH_t *onPusch = pusch_Config->uci_OnPUSCH->choice.setup;
       AssertFatal(onPusch &&
@@ -1775,8 +1860,26 @@ static void nr_ue_pucch_scheduler(NR_UE_MAC_INST_t *mac, frame_t frame, int slot
                                       mac->crnti, // FIXME not sure this is valid for all pucch instances
                                       &pucch[j],
                                       &pdu->pucch_config_pdu);
-      if (ret != 0)
+      if (ret != 0) {
+        LOG_W(NR_MAC,
+              "[CGDBG][PUCCH] configure failed ue=%d frame=%d slot=%d ret=%d j=%d init_id=%d "
+              "res=%p O_ACK=%d O_SR=%d O_CSI=%d pdu_fmt=%d pdu_start=%d pdu_nsym=%d pdu_prb=%d\n",
+              mac->ue_id,
+              frame,
+              slot,
+              ret,
+              j,
+              pucch[j].initial_pucch_id,
+              (void *)pucch[j].pucch_resource,
+              pucch[j].n_harq,
+              pucch[j].n_sr,
+              pucch[j].n_csi,
+              pdu->pucch_config_pdu.format_type,
+              pdu->pucch_config_pdu.start_symbol_index,
+              pdu->pucch_config_pdu.nr_of_symbols,
+              pdu->pucch_config_pdu.prb_start);
         remove_ul_config_last_item(pdu);
+      }
       release_ul_config(pdu, false);
     }
   }
@@ -1797,6 +1900,14 @@ static void nr_schedule_csi_for_im(NR_UE_MAC_INST_t *mac, int frame, int slot)
   int period, offset;
 
   NR_UE_DL_BWP_t *current_DL_BWP = mac->current_DL_BWP;
+  if (current_DL_BWP == NULL) {
+    LOG_E(NR_MAC,
+          "[CGDBG][DLBWP] skip CSI-IM scheduling: current_DL_BWP is NULL ue=%d frame=%d slot=%d\n",
+          mac->ue_id,
+          frame,
+          slot);
+    return;
+  }
   int mu = current_DL_BWP->scs;
   uint16_t bwp_size = current_DL_BWP->BWPSize;
   uint16_t bwp_start = current_DL_BWP->BWPStart;

@@ -144,6 +144,23 @@ void pucch_procedures_ue_nr(PHY_VARS_NR_UE *ue,
   for (int i=0; i<2; i++) {
     if(pucch_vars->active[i]) {
       const fapi_nr_ul_config_pucch_pdu *pucch_pdu = &pucch_vars->pucch_pdu[i];
+      const int first_symbol = pucch_pdu->start_symbol_index;
+      const int nb_symbols = pucch_pdu->nr_of_symbols;
+      const int last_symbol = first_symbol + nb_symbols;
+      if (nb_symbols <= 0 || first_symbol < 0 || last_symbol > NR_NUMBER_OF_SYMBOLS_PER_SLOT) {
+        LOG_E(PHY,
+              "[CGDBG][PUCCHPHY] drop invalid PUCCH pdu ue=%d slot=%d idx=%d format=%d start=%d n_sym=%d prb_start=%d bwp_start=%d\n",
+              ue->Mod_id,
+              nr_slot_tx,
+              i,
+              pucch_pdu->format_type,
+              first_symbol,
+              nb_symbols,
+              pucch_pdu->prb_start,
+              pucch_pdu->bwp_start);
+        pucch_vars->active[i] = false;
+        continue;
+      }
       for (int symb_idx = 0; symb_idx < pucch_pdu->nr_of_symbols; symb_idx++) {
         int symb = pucch_pdu->start_symbol_index + symb_idx;
         was_symbol_used[symb] = true;

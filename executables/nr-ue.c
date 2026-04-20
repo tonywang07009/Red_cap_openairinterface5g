@@ -564,8 +564,30 @@ static int UE_dl_preprocessing(PHY_VARS_NR_UE *UE,
     if (!elt) {
       break;
     }
+    nr_mac_rrc_message_t *rrc_msg = NotifiedFifoData(elt);
+    void *elt_ptr = (void *)elt;
+    void *data_ptr = (void *)rrc_msg;
+    const int payload_type = rrc_msg ? rrc_msg->payload_type : -1;
+    LOG_I(PHY,
+          "[CGDBG][UE %d][FIFO] before process_msg_rcc_to_mac elt=%p data=%p payload=%d\n",
+          UE->Mod_id,
+          elt_ptr,
+          data_ptr,
+          payload_type);
     process_msg_rcc_to_mac(NotifiedFifoData(elt), UE->Mod_id);
+    LOG_I(PHY,
+          "[CGDBG][UE %d][FIFO] after process_msg_rcc_to_mac elt=%p data=%p payload=%d\n",
+          UE->Mod_id,
+          elt_ptr,
+          data_ptr,
+          payload_type);
     delNotifiedFIFO_elt(elt);
+    LOG_I(PHY,
+          "[CGDBG][UE %d][FIFO] after delNotifiedFIFO_elt elt=%p data=%p payload=%d\n",
+          UE->Mod_id,
+          elt_ptr,
+          data_ptr,
+          payload_type);
   } while (true);
 
   if (UE->if_inst)
@@ -986,8 +1008,30 @@ void *UE_thread(void *arg)
             // We must wait the RRC layer decoded the MIB and sent us the frame number
             notifiedFIFO_elt_t *elt = pullNotifiedFIFO(&mac->input_nf);
             AssertFatal(elt != NULL, "fifo error while waiting for MIB");
+            nr_mac_rrc_message_t *rrc_msg = NotifiedFifoData(elt);
+            void *elt_ptr = (void *)elt;
+            void *data_ptr = (void *)rrc_msg;
+            const int payload_type = rrc_msg ? rrc_msg->payload_type : -1;
+            LOG_I(PHY,
+                  "[CGDBG][UE %d][FIFO] sync-before process_msg_rcc_to_mac elt=%p data=%p payload=%d\n",
+                  UE->Mod_id,
+                  elt_ptr,
+                  data_ptr,
+                  payload_type);
             process_msg_rcc_to_mac(NotifiedFifoData(elt), UE->Mod_id);
+            LOG_I(PHY,
+                  "[CGDBG][UE %d][FIFO] sync-after process_msg_rcc_to_mac elt=%p data=%p payload=%d\n",
+                  UE->Mod_id,
+                  elt_ptr,
+                  data_ptr,
+                  payload_type);
             delNotifiedFIFO_elt(elt);
+            LOG_I(PHY,
+                  "[CGDBG][UE %d][FIFO] sync-after delNotifiedFIFO_elt elt=%p data=%p payload=%d\n",
+                  UE->Mod_id,
+                  elt_ptr,
+                  data_ptr,
+                  payload_type);
             decoded_frame_rx = mac->mib_frame;
           }
           LOG_A(PHY,

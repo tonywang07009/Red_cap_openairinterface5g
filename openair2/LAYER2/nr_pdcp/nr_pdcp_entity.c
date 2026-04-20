@@ -33,6 +33,16 @@
 
 #include "LOG/log.h"
 
+static int mmtc_pdcp_trace_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled < 0) {
+    const char *e = getenv("MMTC_PDCP_TRACE");
+    enabled = (e != NULL && atoi(e) != 0) ? 1 : 0;
+  }
+  return enabled;
+}
+
 /**
  * @brief returns the maximum PDCP PDU size
  *        which corresponds to data PDU for DRBs with 18 bits PDCP SN
@@ -71,7 +81,14 @@ static void nr_pdcp_entity_recv_pdu(nr_pdcp_entity_t *entity,
   }
 
   if (entity->type != NR_PDCP_SRB && !(buffer[0] & 0x80)) {
-    LOG_E(PDCP, "%s:%d:%s: fatal\n", __FILE__, __LINE__, __FUNCTION__);
+    LOG_W(PDCP,
+          "[CGDBG][PDCP-RX-DCBIT] is_gnb=%d rb=%d type=%d size=%d b0=0x%02x b1=0x%02x\n",
+          entity->is_gnb,
+          entity->rb_id,
+          entity->type,
+          size,
+          buffer[0],
+          size > 1 ? buffer[1] : 0);
     /* TODO: This is something of a hack. The most significant bit
        in buffer[0] should be 1 if the packet is a data packet. We are
        processing malformed data packets if the most significant bit
@@ -157,7 +174,20 @@ static void nr_pdcp_entity_recv_pdu(nr_pdcp_entity_t *entity,
 
   if (rcvd_count < entity->rx_deliv
       || nr_pdcp_sdu_in_list(entity->rx_list, rcvd_count)) {
-    LOG_W(PDCP, "discard NR PDU rcvd_count=%d, entity->rx_deliv %d,sdu_in_list %d\n", rcvd_count,entity->rx_deliv,nr_pdcp_sdu_in_list(entity->rx_list,rcvd_count));
+    LOG_W(PDCP,
+          "[CGDBG][PDCP-RX-DROP] is_gnb=%d rb=%d type=%d size=%d sn=%d hfn=%u count=%u rx_deliv=%u rx_next=%u sdu_in_list=%d b0=0x%02x b1=0x%02x\n",
+          entity->is_gnb,
+          entity->rb_id,
+          entity->type,
+          size,
+          rcvd_sn,
+          rcvd_hfn,
+          rcvd_count,
+          entity->rx_deliv,
+          entity->rx_next,
+          nr_pdcp_sdu_in_list(entity->rx_list, rcvd_count),
+          buffer[0],
+          size > 1 ? buffer[1] : 0);
     entity->stats.rxpdu_dd_pkts++;
     entity->stats.rxpdu_dd_bytes += size;
 
@@ -292,6 +322,20 @@ static int nr_pdcp_entity_process_sdu(nr_pdcp_entity_t *entity,
                    (unsigned char *)buf + header_size + sdap_header_size,
                    size + integrity_size - sdap_header_size,
                    entity->rb_id, count, entity->is_gnb ? 1 : 0);
+  }
+
+  if (mmtc_pdcp_trace_enabled() && entity->type != NR_PDCP_SRB) {
+    LOG_I(PDCP,
+          "[CGDBG][PDCP-TX] is_gnb=%d rb=%d type=%d size=%d count=%u sn=%d tx_next=%u b0=0x%02x b1=0x%02x\n",
+          entity->is_gnb,
+          entity->rb_id,
+          entity->type,
+          size,
+          count,
+          sn,
+          entity->tx_next,
+          (uint8_t)buf[0],
+          size > 1 ? (uint8_t)buf[1] : 0);
   }
 
   entity->tx_next++;

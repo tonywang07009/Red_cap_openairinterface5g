@@ -92,6 +92,37 @@ void nr_generate_pucch0(const PHY_VARS_NR_UE *ue,
    */
   // the value of u,v (delta always 0 for PUCCH) has to be calculated according to TS 38.211 Subclause 6.3.2.2.1
   uint8_t u[2] = {0}, v[2] = {0};
+  if (pucch_pdu->nr_of_symbols <= 0 || pucch_pdu->nr_of_symbols > 2) {
+    LOG_E(PHY,
+          "[CGDBG][PUCCHPHY] invalid format0 n_sym=%d ue=%d slot=%d start=%d prb=%d bwp_start=%d\n",
+          pucch_pdu->nr_of_symbols,
+          ue->Mod_id,
+          nr_slot_tx,
+          pucch_pdu->start_symbol_index,
+          pucch_pdu->prb_start,
+          pucch_pdu->bwp_start);
+    return;
+  }
+  if (pucch_pdu->start_symbol_index < 0
+      || pucch_pdu->start_symbol_index + pucch_pdu->nr_of_symbols > NR_NUMBER_OF_SYMBOLS_PER_SLOT) {
+    LOG_E(PHY,
+          "[CGDBG][PUCCHPHY] invalid format0 symbols ue=%d slot=%d start=%d n_sym=%d\n",
+          ue->Mod_id,
+          nr_slot_tx,
+          pucch_pdu->start_symbol_index,
+          pucch_pdu->nr_of_symbols);
+    return;
+  }
+  if (txdataF == NULL || txdataF[0] == NULL || frame_parms->ofdm_symbol_size <= 0) {
+    LOG_E(PHY,
+          "[CGDBG][PUCCHPHY] invalid inputs ue=%d slot=%d txdataF=%p txdataF0=%p ofdm_symbol_size=%d\n",
+          ue->Mod_id,
+          nr_slot_tx,
+          (void *)txdataF,
+          txdataF ? (void *)txdataF[0] : NULL,
+          frame_parms->ofdm_symbol_size);
+    return;
+  }
 
   LOG_D(PHY,"pucch0: slot %d nr_symbols %d, start_symbol %d, prb_start %d, second_hop_prb %d,  group_hop_flag %d, sequence_hop_flag %d, mcs %d\n",
         nr_slot_tx,pucch_pdu->nr_of_symbols,pucch_pdu->start_symbol_index,pucch_pdu->prb_start,pucch_pdu->second_hop_prb,pucch_pdu->group_hop_flag,pucch_pdu->sequence_hop_flag,pucch_pdu->mcs);
@@ -121,9 +152,22 @@ void nr_generate_pucch0(const PHY_VARS_NR_UE *ue,
                                                  pucch_pdu->start_symbol_index,
                                                  nr_slot_tx);
     int l2 = l + pucch_pdu->start_symbol_index;
-    int re_offset = (12 * prb_offset[l]) + frame_parms->first_carrier_offset;
-    if (re_offset>= frame_parms->ofdm_symbol_size) 
-      re_offset-=frame_parms->ofdm_symbol_size;
+    const int raw_re_offset = (12 * prb_offset[l]) + frame_parms->first_carrier_offset;
+    if (raw_re_offset < 0 || raw_re_offset >= (2 * frame_parms->ofdm_symbol_size)) {
+      LOG_W(PHY,
+            "[CGDBG][PUCCHPHY] suspicious RE offset ue=%d slot=%d l=%d raw=%d ofdm=%d prb_offset=%d start_prb=%d bwp_start=%d\n",
+            ue->Mod_id,
+            nr_slot_tx,
+            l,
+            raw_re_offset,
+            frame_parms->ofdm_symbol_size,
+            prb_offset[l],
+            pucch_pdu->prb_start,
+            pucch_pdu->bwp_start);
+    }
+    int re_offset = raw_re_offset % frame_parms->ofdm_symbol_size;
+    if (re_offset < 0)
+      re_offset += frame_parms->ofdm_symbol_size;
 
     //txptr = &txdataF[0][re_offset];
 #ifdef DEBUG_NR_PUCCH_TX

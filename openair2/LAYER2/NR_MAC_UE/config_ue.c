@@ -796,9 +796,13 @@ static void configure_ss_coreset(NR_BWP_PDCCH_t *pdcch, NR_PDCCH_Config_t *pdcch
 
 static int lcid_cmp(const void *a, const void *b)
 {
-  long priority_a = (*((nr_lcordered_info_t**)a))->priority;
+  const nr_lcordered_info_t *lc_a = *((nr_lcordered_info_t * const *)a);
+  const nr_lcordered_info_t *lc_b = *((nr_lcordered_info_t * const *)b);
+  AssertFatal(lc_a != NULL, "[CGDBG][LC] qsort comparator got NULL lhs\n");
+  AssertFatal(lc_b != NULL, "[CGDBG][LC] qsort comparator got NULL rhs\n");
+  long priority_a = lc_a->priority;
   AssertFatal(priority_a > 0 && priority_a < 17, "Invalid priority value %ld\n", priority_a);
-  long priority_b = (*((nr_lcordered_info_t**)b))->priority;
+  long priority_b = lc_b->priority;
   AssertFatal(priority_b > 0 && priority_b < 17, "Invalid priority value %ld\n", priority_b);
   return priority_a - priority_b;
 }
@@ -990,6 +994,14 @@ static void configure_logicalChannelBearer(NR_UE_MAC_INST_t *mac,
   if (rlc_toadd_list) {
     for (int i = 0; i < rlc_toadd_list->list.count; i++) {
       NR_RLC_BearerConfig_t *rlc_bearer = rlc_toadd_list->list.array[i];
+      if (rlc_bearer == NULL) {
+        LOG_E(NR_MAC,
+              "[CGDBG][LC][UE %d] rlc_toadd_list[%d] is NULL (count=%d)\n",
+              mac->ue_id,
+              i,
+              rlc_toadd_list->list.count);
+        continue;
+      }
       nr_lcid_rb_t rb = configure_lcid_rb(rlc_bearer);
       int lc_identity = rlc_bearer->logicalChannelIdentity;
       NR_LogicalChannelConfig_t *mac_lc_config = rlc_bearer->mac_LogicalChannelConfig;
@@ -1023,6 +1035,16 @@ static void configure_logicalChannelBearer(NR_UE_MAC_INST_t *mac,
     }
 
     // reorder the logical channels as per its priority
+    for (int i = 0; i < mac->lc_ordered_list.count; i++) {
+      if (mac->lc_ordered_list.array[i] == NULL) {
+        LOG_E(NR_MAC,
+              "[CGDBG][LC][UE %d] skip qsort: lc_ordered_list.array[%d] is NULL (count=%d)\n",
+              mac->ue_id,
+              i,
+              mac->lc_ordered_list.count);
+        return;
+      }
+    }
     qsort(mac->lc_ordered_list.array, mac->lc_ordered_list.count, sizeof(nr_lcordered_info_t*), lcid_cmp);
   }
 }
@@ -1156,11 +1178,15 @@ static void setup_puschconfig(NR_UE_MAC_INST_t *mac, NR_PUSCH_Config_t *source, 
                            source->dmrs_UplinkForPUSCH_MappingTypeA,
                            NR_DMRS_UplinkConfig_t,
                            asn_DEF_NR_SetupRelease_DMRS_UplinkConfig);
+  if (source->dmrs_UplinkForPUSCH_MappingTypeA && source->dmrs_UplinkForPUSCH_MappingTypeA->present == 1)
+    target->dmrs_UplinkForPUSCH_MappingTypeA = NULL;
   if (source->dmrs_UplinkForPUSCH_MappingTypeB)
     HANDLE_SETUPRELEASE_IE(target->dmrs_UplinkForPUSCH_MappingTypeB,
                            source->dmrs_UplinkForPUSCH_MappingTypeB,
                            NR_DMRS_UplinkConfig_t,
                            asn_DEF_NR_SetupRelease_DMRS_UplinkConfig);
+  if (source->dmrs_UplinkForPUSCH_MappingTypeB && source->dmrs_UplinkForPUSCH_MappingTypeB->present == 1)
+    target->dmrs_UplinkForPUSCH_MappingTypeB = NULL;
   if (source->pusch_PowerControl) {
     if (!target->pusch_PowerControl)
       target->pusch_PowerControl = calloc(1, sizeof(*target->pusch_PowerControl));
@@ -1668,8 +1694,10 @@ static void configure_dedicated_BWP_ul(NR_UE_MAC_INST_t *mac, int bwp_id, NR_BWP
     NR_UE_UL_BWP_t *bwp = get_ul_bwp_structure(mac, bwp_id, true);
     bwp->bwp_id = bwp_id;
     if(ul_dedicated->pucch_Config) {
-      if (ul_dedicated->pucch_Config->present == NR_SetupRelease_PUCCH_Config_PR_release)
+      if (ul_dedicated->pucch_Config->present == NR_SetupRelease_PUCCH_Config_PR_release) {
         asn1cFreeStruc(asn_DEF_NR_PUCCH_Config, bwp->pucch_Config);
+        bwp->pucch_Config = NULL;
+      }
       if (ul_dedicated->pucch_Config->present == NR_SetupRelease_PUCCH_Config_PR_setup) {
         if (!bwp->pucch_Config)
           bwp->pucch_Config = calloc(1, sizeof(*bwp->pucch_Config));
@@ -1677,8 +1705,10 @@ static void configure_dedicated_BWP_ul(NR_UE_MAC_INST_t *mac, int bwp_id, NR_BWP
       }
     }
     if(ul_dedicated->pusch_Config) {
-      if (ul_dedicated->pusch_Config->present == NR_SetupRelease_PUSCH_Config_PR_release)
+      if (ul_dedicated->pusch_Config->present == NR_SetupRelease_PUSCH_Config_PR_release) {
         asn1cFreeStruc(asn_DEF_NR_PUSCH_Config, bwp->pusch_Config);
+        bwp->pusch_Config = NULL;
+      }
       if (ul_dedicated->pusch_Config->present == NR_SetupRelease_PUSCH_Config_PR_setup) {
         if (!bwp->pusch_Config)
           bwp->pusch_Config = calloc(1, sizeof(*bwp->pusch_Config));
@@ -1686,8 +1716,10 @@ static void configure_dedicated_BWP_ul(NR_UE_MAC_INST_t *mac, int bwp_id, NR_BWP
       }
     }
     if(ul_dedicated->srs_Config) {
-      if (ul_dedicated->srs_Config->present == NR_SetupRelease_SRS_Config_PR_release)
+      if (ul_dedicated->srs_Config->present == NR_SetupRelease_SRS_Config_PR_release) {
         asn1cFreeStruc(asn_DEF_NR_SRS_Config, bwp->srs_Config);
+        bwp->srs_Config = NULL;
+      }
       if (ul_dedicated->srs_Config->present == NR_SetupRelease_SRS_Config_PR_setup) {
         if (!bwp->srs_Config)
           bwp->srs_Config = calloc(1, sizeof(*bwp->srs_Config));
@@ -1771,11 +1803,24 @@ static void configure_common_BWP_ul(NR_UE_MAC_INST_t *mac, int bwp_id, NR_BWP_Up
                                  NR_MsgA_ConfigCommon_r16_t,
                                  asn_DEF_NR_MsgA_ConfigCommon_r16);
     }
+    LOG_I(MAC,
+          "[CGDBG][PUCCHCFG] ue=%d bwp_id=%d ul_common_pucchCfgCommon=%p present=%d old_bwp_pucchCfgCommon=%p\n",
+          mac->ue_id,
+          bwp_id,
+          (void *)ul_common->pucch_ConfigCommon,
+          ul_common->pucch_ConfigCommon ? ul_common->pucch_ConfigCommon->present : -1,
+          (void *)bwp->pucch_ConfigCommon);
     if (ul_common->pucch_ConfigCommon)
       HANDLE_SETUPRELEASE_DIRECT(bwp->pucch_ConfigCommon,
                                  ul_common->pucch_ConfigCommon,
                                  NR_PUCCH_ConfigCommon_t,
                                  asn_DEF_NR_PUCCH_ConfigCommon);
+    LOG_I(MAC,
+          "[CGDBG][PUCCHCFG] ue=%d bwp_id=%d new_bwp_pucchCfgCommon=%p resourceCommon=%p\n",
+          mac->ue_id,
+          bwp_id,
+          (void *)bwp->pucch_ConfigCommon,
+          (void *)(bwp->pucch_ConfigCommon ? bwp->pucch_ConfigCommon->pucch_ResourceCommon : NULL));
     if (ul_common->pusch_ConfigCommon) {
       if (ul_common->pusch_ConfigCommon->present == NR_SetupRelease_PUSCH_ConfigCommon_PR_setup) {
         UPDATE_IE(bwp->tdaList_Common,
@@ -2295,6 +2340,13 @@ static uint32_t get_data_inactivity_timer(long setup)
 
 static void configure_maccellgroup(NR_UE_MAC_INST_t *mac, const NR_MAC_CellGroupConfig_t *mcg)
 {
+  if (mac->current_UL_BWP == NULL) {
+    LOG_E(NR_MAC,
+          "[CGDBG][UE %d] skip configure_maccellgroup: current_UL_BWP is NULL (mcg=%p)\n",
+          mac->ue_id,
+          (void *)mcg);
+    return;
+  }
   NR_UE_SCHEDULING_INFO *si = &mac->scheduling_info;
   int scs = mac->current_UL_BWP->scs;
   if (mcg->drx_Config)
@@ -2718,6 +2770,21 @@ void release_dl_BWP(NR_UE_MAC_INST_t *mac, int index)
 {
   NR_UE_DL_BWP_t *bwp = mac->dl_BWPs.array[index];
   int bwp_id = bwp->bwp_id;
+  LOG_I(MAC,
+        "[CGDBG][UE %d] release_dl_BWP idx=%d bwp_id=%d bwp=%p curDL=%p\n",
+        mac->ue_id,
+        index,
+        bwp_id,
+        (void *)bwp,
+        (void *)mac->current_DL_BWP);
+  if (mac->current_DL_BWP == bwp) {
+    LOG_W(MAC,
+          "[CGDBG][UE %d] releasing current_DL_BWP bwp_id=%d ptr=%p (set current_DL_BWP=NULL before free)\n",
+          mac->ue_id,
+          bwp_id,
+          (void *)bwp);
+    mac->current_DL_BWP = NULL;
+  }
   asn_sequence_del(&mac->dl_BWPs, index, 0);
 
   free(bwp->cyclicprefix);
@@ -2736,6 +2803,21 @@ void release_dl_BWP(NR_UE_MAC_INST_t *mac, int index)
 void release_ul_BWP(NR_UE_MAC_INST_t *mac, int index)
 {
   NR_UE_UL_BWP_t *bwp = mac->ul_BWPs.array[index];
+  LOG_I(MAC,
+        "[CGDBG][UE %d] release_ul_BWP idx=%d bwp_id=%ld bwp=%p curUL=%p\n",
+        mac->ue_id,
+        index,
+        (long)bwp->bwp_id,
+        (void *)bwp,
+        (void *)mac->current_UL_BWP);
+  if (mac->current_UL_BWP == bwp) {
+    LOG_W(MAC,
+          "[CGDBG][UE %d] releasing current_UL_BWP bwp_id=%ld ptr=%p (set current_UL_BWP=NULL before free)\n",
+          mac->ue_id,
+          (long)bwp->bwp_id,
+          (void *)bwp);
+    mac->current_UL_BWP = NULL;
+  }
   asn_sequence_del(&mac->ul_BWPs, index, 0);
 
   free(bwp->cyclicprefix);
@@ -2753,6 +2835,14 @@ void release_ul_BWP(NR_UE_MAC_INST_t *mac, int index)
 
 static void configure_BWPs(NR_UE_MAC_INST_t *mac, NR_ServingCellConfig_t *scd)
 {
+  LOG_I(MAC,
+        "[CGDBG][UE %d] configure_BWPs start scd=%p curUL=%p curDL=%p dlCount=%d ulCount=%d\n",
+        mac->ue_id,
+        (void *)scd,
+        (void *)mac->current_UL_BWP,
+        (void *)mac->current_DL_BWP,
+        mac->dl_BWPs.count,
+        mac->ul_BWPs.count);
   configure_dedicated_BWP_dl(mac, 0, scd->initialDownlinkBWP);
   if (scd->downlinkBWP_ToReleaseList) {
     for (int i = 0; i < scd->downlinkBWP_ToReleaseList->list.count; i++) {
@@ -2796,12 +2886,27 @@ static void configure_BWPs(NR_UE_MAC_INST_t *mac, NR_ServingCellConfig_t *scd)
       AssertFatal(mac->current_UL_BWP, "Couldn't find UL-BWP %ld\n", *scd->uplinkConfig->firstActiveUplinkBWP_Id);
     }
   }
+  LOG_I(MAC,
+        "[CGDBG][UE %d] configure_BWPs end curUL=%p curDL=%p dlCount=%d ulCount=%d\n",
+        mac->ue_id,
+        (void *)mac->current_UL_BWP,
+        (void *)mac->current_DL_BWP,
+        mac->dl_BWPs.count,
+        mac->ul_BWPs.count);
 }
 
 static void handle_mac_uecap_info(NR_UE_MAC_INST_t *mac, NR_UE_NR_Capability_t *ue_Capability)
 {
   if (!ue_Capability->featureSets)
     return;
+  if (mac->current_UL_BWP == NULL || mac->current_DL_BWP == NULL) {
+    LOG_E(NR_MAC,
+          "[CGDBG][UE %d] skip handle_mac_uecap_info: missing BWP (curUL=%p curDL=%p)\n",
+          mac->ue_id,
+          (void *)mac->current_UL_BWP,
+          (void *)mac->current_DL_BWP);
+    return;
+  }
   if (ue_Capability->featureSets->featureSetsDownlinkPerCC) {
     struct NR_FeatureSets__featureSetsDownlinkPerCC *fs_dlcc_list = ue_Capability->featureSets->featureSetsDownlinkPerCC;
     for (int i = 0; i < fs_dlcc_list->list.count; i++) {
@@ -2840,10 +2945,26 @@ void nr_rrc_mac_config_req_cg(module_id_t module_id,
                               NR_UE_NR_Capability_t *ue_Capability)
 {
   LOG_I(MAC,"[UE %d] Applying CellGroupConfig from gNodeB\n", module_id);
+  AssertFatal(cell_group_config != NULL, "[CGDBG][UE %d] CellGroupConfig should not be NULL\n", module_id);
   NR_UE_MAC_INST_t *mac = get_mac_inst(module_id);
+  AssertFatal(mac != NULL,
+              "[CGDBG][UE %d] get_mac_inst returned NULL (cfg=%p)\n",
+              module_id,
+              (void *)cell_group_config);
+  LOG_I(MAC,
+        "[CGDBG][UE %d] entry cfg=%p mac=%p state=%d curUL=%p curDL=%p tagCount=%d hfn=%d frame=%d\n",
+        module_id,
+        (void *)cell_group_config,
+        (void *)mac,
+        mac->state,
+        (void *)mac->current_UL_BWP,
+        (void *)mac->current_DL_BWP,
+        mac->TAG_list.count,
+        hfn,
+        frame);
+  bool guarded_path = false;
   int ret = pthread_mutex_lock(&mac->if_mutex);
   AssertFatal(!ret, "mutex failed %d\n", ret);
-  AssertFatal(cell_group_config, "CellGroupConfig should not be NULL\n");
 
   if (cell_group_config->physicalCellGroupConfig)
     configure_physicalcellgroup(mac, cell_group_config->physicalCellGroupConfig);
@@ -2860,25 +2981,107 @@ void nr_rrc_mac_config_req_cg(module_id_t module_id,
       mac->tag_Id = scd->tag_Id;
       configure_servingcell_info(mac, scd);
       configure_BWPs(mac, scd);
+      LOG_I(MAC,
+            "[CGDBG][UE %d] post-BWP scd=%p tagId=%ld curUL=%p curDL=%p\n",
+            module_id,
+            (void *)scd,
+            mac->tag_Id,
+            (void *)mac->current_UL_BWP,
+            (void *)mac->current_DL_BWP);
     }
   }
 
-  if (cell_group_config->mac_CellGroupConfig)
-    configure_maccellgroup(mac, cell_group_config->mac_CellGroupConfig);
-
-  for (int j = 0; j < mac->TAG_list.count; j++) {
-    // apply the Timing Advance Command for the indicated TAG
-    if (mac->TAG_list.array[j]->tag_Id == mac->tag_Id)
-      configure_timeAlignmentTimer(&mac->time_alignment_timer, mac->TAG_list.array[j]->timeAlignmentTimer, mac->current_UL_BWP->scs);
+  if (cell_group_config->mac_CellGroupConfig) {
+    if (mac->current_UL_BWP == NULL) {
+      LOG_E(MAC,
+            "[CGDBG][UE %d] skip mac_CellGroupConfig apply: current_UL_BWP is NULL (cfg=%p)\n",
+            module_id,
+            (void *)cell_group_config);
+      guarded_path = true;
+    } else {
+      configure_maccellgroup(mac, cell_group_config->mac_CellGroupConfig);
+    }
   }
 
-  configure_logicalChannelBearer(mac, cell_group_config->rlc_BearerToAddModList, cell_group_config->rlc_BearerToReleaseList);
+  if (mac->TAG_list.count > 0) {
+    if (mac->current_UL_BWP == NULL) {
+      LOG_E(MAC,
+            "[CGDBG][UE %d] skip TAG timer apply: current_UL_BWP is NULL with TAG_list.count=%d (tag_Id=%ld)\n",
+            module_id,
+            mac->TAG_list.count,
+            mac->tag_Id);
+      guarded_path = true;
+    }
+  }
+  for (int j = 0; j < mac->TAG_list.count; j++) {
+    // apply the Timing Advance Command for the indicated TAG
+    if (mac->TAG_list.array[j] == NULL) {
+      LOG_E(MAC,
+            "[CGDBG][UE %d] TAG_list.array[%d] is NULL (count=%d)\n",
+            module_id,
+            j,
+            mac->TAG_list.count);
+      guarded_path = true;
+      continue;
+    }
+    if (mac->TAG_list.array[j]->tag_Id == mac->tag_Id) {
+      if (mac->current_UL_BWP == NULL) {
+        LOG_E(MAC,
+              "[CGDBG][UE %d] skip configure_timeAlignmentTimer: current_UL_BWP is NULL (tag_Id=%ld)\n",
+              module_id,
+              mac->tag_Id);
+        guarded_path = true;
+        break;
+      }
+      configure_timeAlignmentTimer(&mac->time_alignment_timer, mac->TAG_list.array[j]->timeAlignmentTimer, mac->current_UL_BWP->scs);
+    }
+  }
 
-  if (ue_Capability)
-    handle_mac_uecap_info(mac, ue_Capability);
+  const int rlc_add_count = cell_group_config->rlc_BearerToAddModList ? cell_group_config->rlc_BearerToAddModList->list.count : 0;
+  const int rlc_rel_count = cell_group_config->rlc_BearerToReleaseList ? cell_group_config->rlc_BearerToReleaseList->list.count : 0;
+  LOG_I(MAC,
+        "[CGDBG][LC][UE %d] before configure_logicalChannelBearer add=%d rel=%d lc_count=%d\n",
+        module_id,
+        rlc_add_count,
+        rlc_rel_count,
+        mac->lc_ordered_list.count);
+  configure_logicalChannelBearer(mac, cell_group_config->rlc_BearerToAddModList, cell_group_config->rlc_BearerToReleaseList);
+  LOG_I(MAC,
+        "[CGDBG][LC][UE %d] after configure_logicalChannelBearer add=%d rel=%d lc_count=%d\n",
+        module_id,
+        rlc_add_count,
+        rlc_rel_count,
+        mac->lc_ordered_list.count);
+
+  if (ue_Capability) {
+    if (mac->current_UL_BWP == NULL || mac->current_DL_BWP == NULL) {
+      LOG_E(MAC,
+            "[CGDBG][UE %d] skip UE capability apply: missing BWP (curUL=%p curDL=%p)\n",
+            module_id,
+            (void *)mac->current_UL_BWP,
+            (void *)mac->current_DL_BWP);
+      guarded_path = true;
+    } else {
+      handle_mac_uecap_info(mac, ue_Capability);
+    }
+  }
 
   if (!mac->dl_config_request || !mac->ul_config_request)
     ue_init_config_request(mac, mac->frame_structure.numb_slots_frame);
   ret = pthread_mutex_unlock(&mac->if_mutex);
   AssertFatal(!ret, "mutex failed %d\n", ret);
+  LOG_I(MAC,
+        "[CGDBG][UE %d] exit cfg=%p curUL=%p curDL=%p tagCount=%d guarded=%d\n",
+        module_id,
+        (void *)cell_group_config,
+        (void *)mac->current_UL_BWP,
+        (void *)mac->current_DL_BWP,
+        mac->TAG_list.count,
+        guarded_path ? 1 : 0);
+  if (guarded_path) {
+    LOG_W(MAC,
+          "[CGDBG][UE %d] CellGroupConfig applied with guarded path (cfg=%p)\n",
+          module_id,
+          (void *)cell_group_config);
+  }
 }

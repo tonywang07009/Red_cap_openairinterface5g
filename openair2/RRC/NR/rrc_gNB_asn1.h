@@ -28,6 +28,9 @@
 #include "NR_RadioBearerConfig.h"
 #include "openair2/LAYER2/nr_pdcp/nr_pdcp_configuration.h"
 
-NR_PDCP_Config_t *nr_rrc_build_pdcp_config_ie(const bool integrity, const bool ciphering, const nr_pdcp_configuration_t *pdcp);
+NR_PDCP_Config_t *nr_rrc_build_pdcp_config_ie(const bool integrity,
+                                              const bool ciphering,
+                                              const nr_pdcp_configuration_t *pdcp,
+                                              const bool force_sn_size_12bits);
 
 #endif

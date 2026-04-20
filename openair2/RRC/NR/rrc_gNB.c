@@ -450,6 +450,8 @@ static NR_SDAP_Config_t *nr_rrc_build_sdap_config_ie(const int pdusession_id,
 NR_DRB_ToAddModList_t *createDRBlist(gNB_RRC_UE_t *ue, bool reestablish, bool do_integrity, bool do_ciphering)
 {
   NR_DRB_ToAddModList_t *DRB_configList = CALLOC(sizeof(*DRB_configList), 1);
+  const bool force_sn_size_12bits =
+      ue->redcap_cap && ue->redcap_cap->support_of_redcap_r17 && !ue->redcap_cap->pdcp_drb_long_sn_redcap_r17;
 
   FOR_EACH_SEQ_ARR(drb_t *, drb, &ue->drbs) {
     rrc_pdu_session_param_t *pduSession = find_pduSession(&ue->pduSessions, drb->pdusession_id);
@@ -465,7 +467,8 @@ NR_DRB_ToAddModList_t *createDRBlist(gNB_RRC_UE_t *ue, bool reestablish, bool do
     NR_DRB_ToAddMod_t *drb_ToAddMod = calloc_or_fail(1, sizeof(*drb_ToAddMod));
     drb_ToAddMod->drb_Identity = drb->drb_id;
     // PDCP config
-    drb_ToAddMod->pdcp_Config = nr_rrc_build_pdcp_config_ie(do_integrity, do_ciphering, &drb->pdcp_config);
+    drb_ToAddMod->pdcp_Config =
+        nr_rrc_build_pdcp_config_ie(do_integrity, do_ciphering, &drb->pdcp_config, force_sn_size_12bits);
     if (reestablish) {
       asn1cCallocOne(drb_ToAddMod->reestablishPDCP, NR_DRB_ToAddMod__reestablishPDCP_true);
     }

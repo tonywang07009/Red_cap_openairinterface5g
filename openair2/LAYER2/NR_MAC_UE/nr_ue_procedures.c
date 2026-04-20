@@ -33,6 +33,7 @@
 
 #include <stdio.h>
 #include <math.h>
+#include <stdlib.h>
 
 /* exe */
 #include "executables/nr-softmodem.h"
@@ -1600,6 +1601,28 @@ initial_pucch_resource_t get_initial_pucch_resource(const int idx)
   return initial_pucch_resource[idx];
 }
 
+static int mmtc_pucch_common_fallback_bwp0_enabled(void)
+{
+  static int cached = -1;
+  if (cached >= 0)
+    return cached;
+  const char *env = getenv("MMTC_PUCCH_COMMON_FALLBACK_BWP0");
+  cached = (env != NULL && atoi(env) > 0) ? 1 : 0;
+  return cached;
+}
+
+static NR_UE_UL_BWP_t *find_ul_bwp_by_id(const NR_UE_MAC_INST_t *mac, const int bwp_id)
+{
+  if (mac == NULL)
+    return NULL;
+  for (int i = 0; i < mac->ul_BWPs.count; i++) {
+    NR_UE_UL_BWP_t *candidate = mac->ul_BWPs.array[i];
+    if (candidate != NULL && candidate->bwp_id == bwp_id)
+      return candidate;
+  }
+  return NULL;
+}
+
 int nr_ue_configure_pucch(NR_UE_MAC_INST_t *mac,
                            int slot,
                            frame_t frame,
@@ -1607,7 +1630,38 @@ int nr_ue_configure_pucch(NR_UE_MAC_INST_t *mac,
                            PUCCH_sched_t *pucch,
                            fapi_nr_ul_config_pucch_pdu *pucch_pdu)
 {
+  if (mac == NULL || pucch == NULL || pucch_pdu == NULL) {
+    LOG_E(NR_MAC,
+          "[CGDBG][PUCCH] invalid args mac=%p pucch=%p pdu=%p frame=%d slot=%d\n",
+          (void *)mac,
+          (void *)pucch,
+          (void *)pucch_pdu,
+          frame,
+          slot);
+    return -1;
+  }
   NR_UE_UL_BWP_t *current_UL_BWP = mac->current_UL_BWP;
+  if (current_UL_BWP == NULL) {
+    LOG_E(NR_MAC,
+          "[CGDBG][PUCCH] current_UL_BWP is NULL ue=%d frame=%d slot=%d rnti=0x%04x\n",
+          mac->ue_id,
+          frame,
+          slot,
+          rnti);
+    return -1;
+  }
+  NR_PUCCH_ConfigCommon_t *pucch_ConfigCommon = current_UL_BWP->pucch_ConfigCommon;
+  if (pucch_ConfigCommon == NULL) {
+    LOG_E(NR_MAC,
+          "[CGDBG][PUCCH] pucch_ConfigCommon is NULL ue=%d frame=%d slot=%d rnti=0x%04x ulbwp=%p\n",
+          mac->ue_id,
+          frame,
+          slot,
+          rnti,
+          (void *)current_UL_BWP);
+    return -1;
+  }
+  NR_PUCCH_ConfigCommon_t *effective_pucch_ConfigCommon = pucch_ConfigCommon;
   NR_UE_ServingCell_Info_t *sc_info = &mac->sc_info;
   NR_PUCCH_FormatConfig_t *pucchfmt;
   long *pusch_id = NULL;
@@ -1620,14 +1674,64 @@ int nr_ue_configure_pucch(NR_UE_MAC_INST_t *mac,
   // configure pucch from Table 9.2.1-1
   // only for ack/nack
   if (pucch->initial_pucch_id > -1 && pucch->pucch_resource == NULL) {
-    const int idx = *current_UL_BWP->pucch_ConfigCommon->pucch_ResourceCommon;
+    NR_UE_UL_BWP_t *pucch_initial_bwp = current_UL_BWP;
+    NR_PUCCH_ConfigCommon_t *pucch_initial_common = pucch_ConfigCommon;
+    if (pucch_initial_common->pucch_ResourceCommon == NULL && mmtc_pucch_common_fallback_bwp0_enabled()) {
+      NR_UE_UL_BWP_t *bwp0 = find_ul_bwp_by_id(mac, 0);
+      NR_PUCCH_ConfigCommon_t *bwp0_common = bwp0 ? bwp0->pucch_ConfigCommon : NULL;
+      if (bwp0_common && bwp0_common->pucch_ResourceCommon) {
+        LOG_W(NR_MAC,
+              "[CGDBG][PUCCH-FALLBACK] use BWP0 common resource ue=%d frame=%d slot=%d current_bwp_id=%ld bwp0=%p current=%p\n",
+              mac->ue_id,
+              frame,
+              slot,
+              current_UL_BWP->bwp_id,
+              (void *)bwp0,
+              (void *)current_UL_BWP);
+        pucch_initial_bwp = bwp0;
+        pucch_initial_common = bwp0_common;
+        effective_pucch_ConfigCommon = bwp0_common;
+      } else {
+        LOG_W(NR_MAC,
+              "[CGDBG][PUCCH-FALLBACK] BWP0 fallback unavailable ue=%d frame=%d slot=%d current_bwp_id=%ld bwp0=%p bwp0_common=%p bwp0_resource=%p\n",
+              mac->ue_id,
+              frame,
+              slot,
+              current_UL_BWP->bwp_id,
+              (void *)bwp0,
+              (void *)bwp0_common,
+              (void *)(bwp0_common ? bwp0_common->pucch_ResourceCommon : NULL));
+      }
+    }
+    if (pucch_initial_common->pucch_ResourceCommon == NULL) {
+      LOG_E(NR_MAC,
+            "[CGDBG][PUCCH] pucch_ResourceCommon is NULL for initial PUCCH ue=%d frame=%d slot=%d initial_id=%d bwp_id=%ld fallback=%d\n",
+            mac->ue_id,
+            frame,
+            slot,
+            pucch->initial_pucch_id,
+            current_UL_BWP->bwp_id,
+            mmtc_pucch_common_fallback_bwp0_enabled());
+      return -1;
+    }
+    const int idx = *pucch_initial_common->pucch_ResourceCommon;
+    if (idx < 0 || idx >= (int)(sizeof(initial_pucch_resource) / sizeof(initial_pucch_resource[0]))) {
+      LOG_E(NR_MAC,
+            "[CGDBG][PUCCH] invalid pucch_ResourceCommon=%d ue=%d frame=%d slot=%d bwp_id=%ld\n",
+            idx,
+            mac->ue_id,
+            frame,
+            slot,
+            pucch_initial_bwp->bwp_id);
+      return -1;
+    }
     const initial_pucch_resource_t pucch_resourcecommon = get_initial_pucch_resource(idx);
     pucch_pdu->format_type = pucch_resourcecommon.format;
     pucch_pdu->start_symbol_index = pucch_resourcecommon.startingSymbolIndex;
     pucch_pdu->nr_of_symbols = pucch_resourcecommon.nrofSymbols;
 
-    pucch_pdu->bwp_size = current_UL_BWP->BWPSize;
-    pucch_pdu->bwp_start = current_UL_BWP->BWPStart;
+    pucch_pdu->bwp_size = pucch_initial_bwp->BWPSize;
+    pucch_pdu->bwp_start = pucch_initial_bwp->BWPStart;
 
     pucch_pdu->prb_size = 1; // format 0 or 1
     int RB_BWP_offset;
@@ -1673,17 +1777,25 @@ int nr_ue_configure_pucch(NR_UE_MAC_INST_t *mac,
     if (pusch_Config) {
       pusch_id = pusch_Config->dataScramblingIdentityPUSCH;
       struct NR_SetupRelease_DMRS_UplinkConfig *tmp = pusch_Config->dmrs_UplinkForPUSCH_MappingTypeA;
-      if (tmp && tmp->choice.setup->transformPrecodingDisabled != NULL)
+      if (tmp && tmp->present == 2 && tmp->choice.setup && tmp->choice.setup->transformPrecodingDisabled != NULL)
         id0 = tmp->choice.setup->transformPrecodingDisabled->scramblingID0;
       else {
         struct NR_SetupRelease_DMRS_UplinkConfig *tmp = pusch_Config->dmrs_UplinkForPUSCH_MappingTypeB;
-        if (tmp && tmp->choice.setup->transformPrecodingDisabled != NULL)
+        if (tmp && tmp->present == 2 && tmp->choice.setup && tmp->choice.setup->transformPrecodingDisabled != NULL)
           id0 = tmp->choice.setup->transformPrecodingDisabled->scramblingID0;
       }
     }
 
     NR_PUCCH_Config_t *pucch_Config = current_UL_BWP->pucch_Config;
-    AssertFatal(pucch_Config, "no pucch_Config\n");
+    if (pucch_Config == NULL) {
+      LOG_E(NR_MAC,
+            "[CGDBG][PUCCH] no pucch_Config ue=%d frame=%d slot=%d rnti=0x%04x\n",
+            mac->ue_id,
+            frame,
+            slot,
+            rnti);
+      return -1;
+    }
 
     pucch_pdu->bwp_size = current_UL_BWP->BWPSize;
     pucch_pdu->bwp_start = current_UL_BWP->BWPStart;
@@ -1700,6 +1812,14 @@ int nr_ue_configure_pucch(NR_UE_MAC_INST_t *mac,
 
     switch(pucchres->format.present) {
       case NR_PUCCH_Resource__format_PR_format0 :
+        if (pucchres->format.choice.format0 == NULL) {
+          LOG_E(NR_MAC,
+                "[CGDBG][PUCCH] format0 choice is NULL ue=%d frame=%d slot=%d\n",
+                mac->ue_id,
+                frame,
+                slot);
+          return -1;
+        }
         pucch_pdu->format_type = 0;
         pucch_pdu->initial_cyclic_shift = pucchres->format.choice.format0->initialCyclicShift;
         pucch_pdu->nr_of_symbols = pucchres->format.choice.format0->nrofSymbols;
@@ -1707,6 +1827,14 @@ int nr_ue_configure_pucch(NR_UE_MAC_INST_t *mac,
         pucch_pdu->mcs = get_pucch0_mcs(pucch->n_harq, pucch->n_sr, pucch->ack_payload, pucch->sr_payload);
         break;
       case NR_PUCCH_Resource__format_PR_format1 :
+        if (pucchres->format.choice.format1 == NULL) {
+          LOG_E(NR_MAC,
+                "[CGDBG][PUCCH] format1 choice is NULL ue=%d frame=%d slot=%d\n",
+                mac->ue_id,
+                frame,
+                slot);
+          return -1;
+        }
         pucch_pdu->format_type = 1;
         pucch_pdu->initial_cyclic_shift = pucchres->format.choice.format1->initialCyclicShift;
         pucch_pdu->nr_of_symbols = pucchres->format.choice.format1->nrofSymbols;
@@ -1726,6 +1854,18 @@ int nr_ue_configure_pucch(NR_UE_MAC_INST_t *mac,
         }
         break;
       case NR_PUCCH_Resource__format_PR_format2 :
+        if (pucchres->format.choice.format2 == NULL
+            || pucch_Config->format2 == NULL
+            || pucch_Config->format2->choice.setup == NULL) {
+          LOG_E(NR_MAC,
+                "[CGDBG][PUCCH] invalid format2 config ue=%d frame=%d slot=%d res=%p cfgf2=%p\n",
+                mac->ue_id,
+                frame,
+                slot,
+                (void *)pucchres->format.choice.format2,
+                (void *)pucch_Config->format2);
+          return -1;
+        }
         pucch_pdu->format_type = 2;
         pucch_pdu->n_bit = n_uci;
         pucch_pdu->nr_of_symbols = pucchres->format.choice.format2->nrofSymbols;
@@ -1744,20 +1884,26 @@ int nr_ue_configure_pucch(NR_UE_MAC_INST_t *mac,
         pucch_pdu->payload = (pucch->csi_part1_payload << (pucch->n_harq + pucch->n_sr)) | (pucch->sr_payload << pucch->n_harq) | pucch->ack_payload;
         break;
       case NR_PUCCH_Resource__format_PR_format3 :
+        if (pucchres->format.choice.format3 == NULL
+            || pucch_Config->format3 == NULL
+            || pucch_Config->format3->choice.setup == NULL) {
+          LOG_E(NR_MAC,
+                "[CGDBG][PUCCH] invalid format3 config ue=%d frame=%d slot=%d res=%p cfgf3=%p\n",
+                mac->ue_id,
+                frame,
+                slot,
+                (void *)pucchres->format.choice.format3,
+                (void *)pucch_Config->format3);
+          return -1;
+        }
         pucch_pdu->format_type = 3;
         pucch_pdu->n_bit = n_uci;
         pucch_pdu->nr_of_symbols = pucchres->format.choice.format3->nrofSymbols;
         pucch_pdu->start_symbol_index = pucchres->format.choice.format3->startingSymbolIndex;
         pucch_pdu->data_scrambling_id = pusch_id != NULL ? *pusch_id : mac->physCellId;
-        if (pucch_Config->format3 == NULL) {
-          pucch_pdu->pi_2bpsk = 0;
-          pucch_pdu->add_dmrs_flag = 0;
-        }
-        else {
-          pucchfmt = pucch_Config->format3->choice.setup;
-          pucch_pdu->pi_2bpsk = pucchfmt->pi2BPSK!= NULL ?  1 : 0;
-          pucch_pdu->add_dmrs_flag = pucchfmt->additionalDMRS!= NULL ?  1 : 0;
-        }
+        pucchfmt = pucch_Config->format3->choice.setup;
+        pucch_pdu->pi_2bpsk = pucchfmt->pi2BPSK!= NULL ?  1 : 0;
+        pucch_pdu->add_dmrs_flag = pucchfmt->additionalDMRS!= NULL ?  1 : 0;
         int f3_dmrs_symbols;
         if (pucchres->format.choice.format3->nrofSymbols==4)
           f3_dmrs_symbols = 1<<pucch_pdu->freq_hop_flag;
@@ -1779,13 +1925,21 @@ int nr_ue_configure_pucch(NR_UE_MAC_INST_t *mac,
         pucch_pdu->payload = (pucch->csi_part1_payload << (pucch->n_harq + pucch->n_sr)) | (pucch->sr_payload << pucch->n_harq) | pucch->ack_payload;
         break;
       case NR_PUCCH_Resource__format_PR_format4 :
+        if (pucchres->format.choice.format4 == NULL) {
+          LOG_E(NR_MAC,
+                "[CGDBG][PUCCH] format4 choice is NULL ue=%d frame=%d slot=%d\n",
+                mac->ue_id,
+                frame,
+                slot);
+          return -1;
+        }
         pucch_pdu->format_type = 4;
         pucch_pdu->nr_of_symbols = pucchres->format.choice.format4->nrofSymbols;
         pucch_pdu->start_symbol_index = pucchres->format.choice.format4->startingSymbolIndex;
         pucch_pdu->pre_dft_occ_len = pucchres->format.choice.format4->occ_Length;
         pucch_pdu->pre_dft_occ_idx = pucchres->format.choice.format4->occ_Index;
         pucch_pdu->data_scrambling_id = pusch_id!= NULL ? *pusch_id : mac->physCellId;
-        if (pucch_Config->format3 == NULL) {
+        if (pucch_Config->format3 == NULL || pucch_Config->format3->choice.setup == NULL) {
           pucch_pdu->pi_2bpsk = 0;
           pucch_pdu->add_dmrs_flag = 0;
         }
@@ -1820,14 +1974,12 @@ int nr_ue_configure_pucch(NR_UE_MAC_INST_t *mac,
     return -1;
   }
 
-  NR_PUCCH_ConfigCommon_t *pucch_ConfigCommon = current_UL_BWP->pucch_ConfigCommon;
-
-  if (pucch_ConfigCommon->hoppingId != NULL)
-    pucch_pdu->hopping_id = *pucch_ConfigCommon->hoppingId;
+  if (effective_pucch_ConfigCommon->hoppingId != NULL)
+    pucch_pdu->hopping_id = *effective_pucch_ConfigCommon->hoppingId;
   else
     pucch_pdu->hopping_id = mac->physCellId;
 
-  switch (pucch_ConfigCommon->pucch_GroupHopping){
+  switch (effective_pucch_ConfigCommon->pucch_GroupHopping){
       case 0 :
       // if neither, both disabled
       pucch_pdu->group_hop_flag = 0;
@@ -4291,4 +4443,3 @@ static void nr_ue_process_rar(NR_UE_MAC_INST_t *mac, nr_downlink_indication_t *d
 #endif
   return;
 }
-

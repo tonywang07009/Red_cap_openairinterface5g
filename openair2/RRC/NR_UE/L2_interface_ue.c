@@ -34,8 +34,81 @@
 #include "assertions.h"
 #include "LAYER2/NR_MAC_COMMON/nr_mac.h"
 #include "openair2/LAYER2/NR_MAC_UE/mac_proto.h"
+#include <limits.h>
+#include <stdlib.h>
 
 typedef uint32_t channel_t;
+
+typedef struct cgcfg_deferred_free_s {
+  NR_CellGroupConfig_t *cg;
+  int instance_id;
+  unsigned long long due_tick;
+  struct cgcfg_deferred_free_s *next;
+} cgcfg_deferred_free_t;
+
+static cgcfg_deferred_free_t *cgcfg_deferred_head;
+static unsigned long long cgcfg_free_tick;
+
+static int get_env_nonneg_int(const char *name, int default_value)
+{
+  const char *val = getenv(name);
+  if (val == NULL || *val == '\0')
+    return default_value;
+  char *endptr = NULL;
+  long parsed = strtol(val, &endptr, 10);
+  if (endptr == val)
+    return default_value;
+  if (parsed < 0)
+    return 0;
+  if (parsed > INT_MAX)
+    return INT_MAX;
+  return (int)parsed;
+}
+
+static void flush_deferred_cellgroupconfig(void)
+{
+  cgcfg_free_tick++;
+  cgcfg_deferred_free_t **curr = &cgcfg_deferred_head;
+  while (*curr != NULL) {
+    cgcfg_deferred_free_t *node = *curr;
+    if (node->due_tick > cgcfg_free_tick) {
+      curr = &node->next;
+      continue;
+    }
+    *curr = node->next;
+    LOG_I(NR_MAC,
+          "[CGDBG][UE %d] deferred free CellGroupConfig at tick=%llu cfg=%p\n",
+          node->instance_id,
+          cgcfg_free_tick,
+          (void *)node->cg);
+    ASN_STRUCT_FREE(asn_DEF_NR_CellGroupConfig, node->cg);
+    free(node);
+  }
+}
+
+static void enqueue_deferred_cellgroupconfig(int instance_id, NR_CellGroupConfig_t *cg, int defer_ticks)
+{
+  cgcfg_deferred_free_t *node = calloc(1, sizeof(*node));
+  if (node == NULL) {
+    LOG_W(NR_MAC,
+          "[CGDBG][UE %d] deferred free allocation failed, fallback immediate free cfg=%p\n",
+          instance_id,
+          (void *)cg);
+    ASN_STRUCT_FREE(asn_DEF_NR_CellGroupConfig, cg);
+    return;
+  }
+  node->cg = cg;
+  node->instance_id = instance_id;
+  node->due_tick = cgcfg_free_tick + (unsigned long long)defer_ticks;
+  if (cgcfg_deferred_head == NULL) {
+    cgcfg_deferred_head = node;
+    return;
+  }
+  cgcfg_deferred_free_t *tail = cgcfg_deferred_head;
+  while (tail->next != NULL)
+    tail = tail->next;
+  tail->next = node;
+}
 
 void nr_mac_rrc_meas_ind_ue(module_id_t module_id, uint32_t gNB_index, uint16_t Nid_cell, bool csi_meas, bool is_neighboring_cell, int rsrp_dBm)
 {
@@ -137,19 +210,58 @@ void nr_mac_rrc_data_ind_ue(const module_id_t module_id,
 
 void process_msg_rcc_to_mac(nr_mac_rrc_message_t *msg, int instance_id)
 {
+  flush_deferred_cellgroupconfig();
   switch (msg->payload_type) {
     case NR_MAC_RRC_CONFIG_RESET:
       nr_rrc_mac_config_req_reset(instance_id, msg->payload.config_reset.cause);
       break;
-    case NR_MAC_RRC_CONFIG_CG:
+    case NR_MAC_RRC_CONFIG_CG: {
+      NR_CellGroupConfig_t *cg = msg->payload.config_cg.cellGroupConfig;
+      LOG_I(NR_MAC,
+            "[CGDBG][UE %d] dequeue CellGroupConfig: cfg=%p uecap=%p hfn=%d frame=%d\n",
+            instance_id,
+            (void *)cg,
+            (void *)msg->payload.config_cg.UE_NR_Capability,
+            msg->payload.config_cg.hfn,
+            msg->payload.config_cg.frame);
+      AssertFatal(cg != NULL, "[CGDBG][UE %d] NULL CellGroupConfig message\n", instance_id);
       nr_rrc_mac_config_req_cg(instance_id,
                                0,
                                msg->payload.config_cg.hfn,
                                msg->payload.config_cg.frame,
                                msg->payload.config_cg.cellGroupConfig,
                                msg->payload.config_cg.UE_NR_Capability);
-      ASN_STRUCT_FREE(asn_DEF_NR_CellGroupConfig, msg->payload.config_cg.cellGroupConfig);
-      break;
+      LOG_I(NR_MAC,
+            "[CGDBG][UE %d] returned from nr_rrc_mac_config_req_cg cfg=%p\n",
+            instance_id,
+            (void *)cg);
+      const int nofree = get_env_nonneg_int("MMTC_CGCFG_NOFREE", 0);
+      const int defer_slots = get_env_nonneg_int("MMTC_CGCFG_DEFER_FREE_SLOTS", 0);
+      LOG_I(NR_MAC,
+            "[CGDBG][UE %d] pre-free gate cfg=%p nofree=%d defer_slots=%d\n",
+            instance_id,
+            (void *)cg,
+            nofree,
+            defer_slots);
+      if (nofree > 0) {
+        LOG_W(NR_MAC,
+              "[CGDBG][UE %d] skip free CellGroupConfig (MMTC_CGCFG_NOFREE=1) cfg=%p\n",
+              instance_id,
+              (void *)cg);
+      } else if (defer_slots > 0) {
+        LOG_I(NR_MAC,
+              "[CGDBG][UE %d] defer free CellGroupConfig by %d ticks cfg=%p now=%llu due=%llu\n",
+              instance_id,
+              defer_slots,
+              (void *)cg,
+              cgcfg_free_tick,
+              cgcfg_free_tick + (unsigned long long)defer_slots);
+        enqueue_deferred_cellgroupconfig(instance_id, cg, defer_slots);
+      } else {
+        LOG_I(NR_MAC, "[CGDBG][UE %d] free CellGroupConfig: cfg=%p\n", instance_id, (void *)cg);
+        ASN_STRUCT_FREE(asn_DEF_NR_CellGroupConfig, msg->payload.config_cg.cellGroupConfig);
+      }
+    } break;
     case NR_MAC_RRC_CONFIG_MIB:
       nr_rrc_mac_config_req_mib(instance_id,
                                 0,

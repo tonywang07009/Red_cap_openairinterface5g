@@ -20,6 +20,10 @@ GNB_WARMUP=${MMTC_GNB_WARMUP:-5}
 UE_START_GAP=${MMTC_UE_START_GAP:-3}
 FORWARD_PING_MODE=${MMTC_FORWARD_PING_MODE:-serial}
 RUN_REVERSE_PING=${MMTC_RUN_REVERSE_PING:-1}
+IMAGE_REGISTRY=${MMTC_IMAGE_REGISTRY:-}
+IMAGE_TAG=${MMTC_IMAGE_TAG:-latest}
+GNB_IMAGE_NAME=${MMTC_GNB_IMAGE_NAME:-oai-gnb}
+NRUE_IMAGE_NAME=${MMTC_NRUE_IMAGE_NAME:-oai-nr-ue}
 
 OVERLAY_GENERATOR="${REPO_ROOT}/ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/scripts/generate_mmtc_overlay.sh"
 CN_DB_GENERATOR="${REPO_ROOT}/ci-scripts/generate_mmtc_cn_db_overlay.sh"
@@ -29,6 +33,13 @@ CN_COMPOSE="${REPO_ROOT}/doc/tutorial_resources/oai-cn5g/docker-compose.yaml"
 LOG_DIR="${REPO_ROOT}/test_log/compiler_logs"
 RUNTIME_CONFIG_DIR="${REPO_ROOT}/test_log/runtime_configs"
 FAILURES=0
+GNB_RESTART_COUNT=0
+UE_RUNNING_COUNT=0
+UE_ATTACH_COUNT=0
+UE_PDU_ACCEPT_COUNT=0
+UE_TUN_COUNT=0
+UE_FORWARD_PING_OK_COUNT=0
+UE_REVERSE_PING_OK_COUNT=0
 
 mkdir -p "${LOG_DIR}"
 mkdir -p "${RUNTIME_CONFIG_DIR}"
@@ -40,6 +51,15 @@ declare -a PING_TARGET_SOURCES=()
 declare -a PING_UE_IPV4S=()
 declare -a PING_LOG_FILES=()
 declare -a REVERSE_PING_LOG_FILES=()
+
+compose_with_images()
+{
+  REGISTRY="${IMAGE_REGISTRY}" \
+  TAG="${IMAGE_TAG}" \
+  GNB_IMG="${GNB_IMAGE_NAME}" \
+  NRUE_IMG="${NRUE_IMAGE_NAME}" \
+    docker compose "$@"
+}
 
 capture_cmd()
 {
@@ -103,6 +123,7 @@ run_reverse_ping_for_ue()
     return 1
   fi
 
+  UE_REVERSE_PING_OK_COUNT=$((UE_REVERSE_PING_OK_COUNT + 1))
   return 0
 }
 
@@ -134,6 +155,8 @@ run_parallel_forward_pings()
     if ! wait "${pids[$idx]}"; then
       echo "[WARN] ${container_name} ping failed (IMSI $(printf '001010%09d' "${ue_idx}"), target ${target_ip})"
       FAILURES=$((FAILURES + 1))
+    else
+      UE_FORWARD_PING_OK_COUNT=$((UE_FORWARD_PING_OK_COUNT + 1))
     fi
   done
 }
@@ -176,7 +199,7 @@ start_sample_ues()
   for idx in "${!SAMPLE_UES[@]}"; do
     local service_name="oai-nr-ue${SAMPLE_UES[$idx]}"
     echo "[INFO] Starting sampled UE service: ${service_name}"
-    docker compose "${compose_args[@]}" up -d "${service_name}"
+    compose_with_images "${compose_args[@]}" up -d "${service_name}"
 
     if [ "${UE_START_GAP}" -gt 0 ] && [ $((idx + 1)) -lt "${sample_count}" ]; then
       echo "[INFO] Waiting ${UE_START_GAP}s before launching the next sampled UE"
@@ -280,6 +303,7 @@ echo "[INFO] gNB warmup          : ${GNB_WARMUP}s"
 echo "[INFO] UE start gap        : ${UE_START_GAP}s"
 echo "[INFO] forward ping mode   : ${FORWARD_PING_MODE}"
 echo "[INFO] reverse ping        : ${RUN_REVERSE_PING}"
+echo "[INFO] image selection     : REGISTRY='${IMAGE_REGISTRY}' TAG='${IMAGE_TAG}' GNB='${GNB_IMAGE_NAME}' NRUE='${NRUE_IMAGE_NAME}'"
 
 if [ "${PREPARE_ONLY}" = "1" ]; then
   echo "[INFO] Prepare-only mode active; overlay generated at ${OVERLAY_COMPOSE}"
@@ -287,15 +311,15 @@ if [ "${PREPARE_ONLY}" = "1" ]; then
 fi
 
 if [ "${RESET_CN}" = "1" ]; then
-  docker compose -f "${BASE_COMPOSE}" -f "${OVERLAY_COMPOSE}" down --remove-orphans >/dev/null 2>&1 || true
-  docker compose -f "${CN_COMPOSE}" -f "${CN_DB_COMPOSE_OVERLAY}" rm -sfv >/dev/null 2>&1 || true
+  compose_with_images -f "${BASE_COMPOSE}" -f "${OVERLAY_COMPOSE}" down --remove-orphans >/dev/null 2>&1 || true
+  compose_with_images -f "${CN_COMPOSE}" -f "${CN_DB_COMPOSE_OVERLAY}" rm -sfv >/dev/null 2>&1 || true
 fi
 
-docker compose -f "${CN_COMPOSE}" -f "${CN_DB_COMPOSE_OVERLAY}" up -d
-docker compose -f "${BASE_COMPOSE}" -f "${OVERLAY_COMPOSE}" up -d nearRT-RIC oai-gnb
+compose_with_images -f "${CN_COMPOSE}" -f "${CN_DB_COMPOSE_OVERLAY}" up -d
+compose_with_images -f "${BASE_COMPOSE}" -f "${OVERLAY_COMPOSE}" up -d nearRT-RIC oai-gnb
 
 if [ "${START_XAPP}" = "1" ]; then
-  docker compose -f "${BASE_COMPOSE}" -f "${OVERLAY_COMPOSE}" up -d xapp-rc-moni
+  compose_with_images -f "${BASE_COMPOSE}" -f "${OVERLAY_COMPOSE}" up -d xapp-rc-moni
 fi
 
 if [ "${GNB_WARMUP}" -gt 0 ]; then
@@ -316,6 +340,7 @@ AUSF_LOG="${LOG_DIR}/mmtc_smoke_${TIMESTAMP}_ausf.log"
 SMF_LOG="${LOG_DIR}/mmtc_smoke_${TIMESTAMP}_smf.log"
 UPF_LOG="${LOG_DIR}/mmtc_smoke_${TIMESTAMP}_upf.log"
 GNB_LOG="${LOG_DIR}/mmtc_smoke_${TIMESTAMP}_gnb.log"
+GNB_STATE_LOG="${LOG_DIR}/mmtc_smoke_${TIMESTAMP}_gnb_state.log"
 
 docker logs mysql > "${MYSQL_CONTAINER_LOG}" 2>&1 || true
 docker logs oai-amf > "${AMF_LOG}" 2>&1 || true
@@ -324,6 +349,21 @@ docker logs oai-ausf > "${AUSF_LOG}" 2>&1 || true
 docker logs oai-smf > "${SMF_LOG}" 2>&1 || true
 docker logs oai-upf > "${UPF_LOG}" 2>&1 || true
 docker logs rfsim5g-oai-gnb_redcap > "${GNB_LOG}" 2>&1 || true
+{
+  echo "# collected_at=$(date --iso-8601=seconds)"
+  echo "## restart_count"
+  docker inspect rfsim5g-oai-gnb_redcap --format '{{.RestartCount}}' 2>&1 || true
+  echo
+  echo "## state_json"
+  docker inspect rfsim5g-oai-gnb_redcap --format '{{json .State}}' 2>&1 || true
+} > "${GNB_STATE_LOG}" || true
+
+GNB_RESTART_COUNT=$(docker inspect rfsim5g-oai-gnb_redcap --format '{{.RestartCount}}' 2>/dev/null || echo 0)
+echo "[INFO] gNB restart count : ${GNB_RESTART_COUNT} (state log: ${GNB_STATE_LOG})"
+if [ "${GNB_RESTART_COUNT}" != "0" ]; then
+  echo "[WARN] gNB restarted ${GNB_RESTART_COUNT} time(s) during this smoke run"
+  FAILURES=$((FAILURES + 1))
+fi
 
 MYSQL_STATUS=$(docker inspect mysql --format '{{.State.Status}}' 2>/dev/null || echo missing)
 echo "[INFO] mysql container status : ${MYSQL_STATUS}"
@@ -381,6 +421,16 @@ for ue_idx in "${SAMPLE_UES[@]}"; do
   docker exec "${container_name}" ip route > "${ue_route}" 2>&1 || true
   docker exec "${container_name}" ip rule show > "${ue_rule}" 2>&1 || true
 
+  if grep -q '"Status":"running"' "${ue_state}"; then
+    UE_RUNNING_COUNT=$((UE_RUNNING_COUNT + 1))
+  fi
+  if grep -q "Received Registration Accept" "${ue_markers}"; then
+    UE_ATTACH_COUNT=$((UE_ATTACH_COUNT + 1))
+  fi
+  if grep -q "Received PDU Session Establishment Accept" "${ue_markers}"; then
+    UE_PDU_ACCEPT_COUNT=$((UE_PDU_ACCEPT_COUNT + 1))
+  fi
+
   echo "[INFO] Checking ${container_name} TUN interface"
   if ! docker exec "${container_name}" ip a show dev oaitun_ue1 | tee "${tun_log}"; then
     echo "[WARN] ${container_name} has no oaitun_ue1 (IMSI ${imsi})"
@@ -389,6 +439,7 @@ for ue_idx in "${SAMPLE_UES[@]}"; do
     FAILURES=$((FAILURES + 1))
     continue
   fi
+  UE_TUN_COUNT=$((UE_TUN_COUNT + 1))
 
   ue_tun_ipv4=$(extract_tun_ipv4 "${tun_log}")
   derived_ext_dn_ip=$(derive_subnet_peer_ipv4 "${ue_tun_ipv4}")
@@ -436,6 +487,8 @@ for ue_idx in "${SAMPLE_UES[@]}"; do
   if ! docker exec "${container_name}" ping -I oaitun_ue1 -c "${PING_COUNT}" "${effective_ext_dn_ip}" | tee "${ping_log}"; then
     echo "[WARN] ${container_name} ping failed (IMSI ${imsi}, target ${effective_ext_dn_ip})"
     FAILURES=$((FAILURES + 1))
+  else
+    UE_FORWARD_PING_OK_COUNT=$((UE_FORWARD_PING_OK_COUNT + 1))
   fi
 
   run_reverse_ping_for_ue "${ue_idx}" "${ue_tun_ipv4}" "${reverse_ping_log}" || true
@@ -459,6 +512,7 @@ if [ "${FORWARD_PING_MODE}" = "parallel" ] && [ "${#PING_CONTAINER_NAMES[@]}" -g
   capture_shared_user_plane_snapshot "post_parallel_ping"
 fi
 
+echo "[SUMMARY] sample=${#SAMPLE_UES[@]} running=${UE_RUNNING_COUNT} attach=${UE_ATTACH_COUNT} pdu=${UE_PDU_ACCEPT_COUNT} tun=${UE_TUN_COUNT} forward_ping_ok=${UE_FORWARD_PING_OK_COUNT} reverse_ping_ok=${UE_REVERSE_PING_OK_COUNT} gnb_restart=${GNB_RESTART_COUNT} failures=${FAILURES} mode=${FORWARD_PING_MODE}"
 echo "[INFO] Smoke validation completed"
 echo "[INFO] Logs stored under ${LOG_DIR}"
 
@@ -473,5 +527,6 @@ if [ "${FAILURES}" -ne 0 ]; then
   echo "       ${SMF_LOG}"
   echo "       ${UPF_LOG}"
   echo "       ${GNB_LOG}"
+  echo "       ${GNB_STATE_LOG}"
   exit 1
 fi

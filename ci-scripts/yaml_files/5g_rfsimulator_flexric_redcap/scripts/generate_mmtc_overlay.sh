@@ -31,6 +31,21 @@ cat > "$OUTPUT_FILE" <<EOF
 services:
 EOF
 
+# Keep base UE1..UE${BASE_FIXED_UE_COUNT} aligned with mMTC runtime knobs.
+# These services already exist in docker-compose.yml; here we only override env.
+for ((idx=1; idx<=BASE_FIXED_UE_COUNT; idx++)); do
+  cat >> "$OUTPUT_FILE" <<EOF
+  oai-nr-ue${idx}:
+    environment:
+      MMTC_CGCFG_NOFREE: \${MMTC_CGCFG_NOFREE:-0}
+      MMTC_CGCFG_DEFER_FREE_SLOTS: \${MMTC_CGCFG_DEFER_FREE_SLOTS:-0}
+      MMTC_PUCCH_COMMON_FALLBACK_BWP0: \${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
+      MMTC_SEGV_BACKTRACE: \${MMTC_SEGV_BACKTRACE:-0}
+      MMTC_PDCP_TRACE: \${MMTC_PDCP_TRACE:-0}
+
+EOF
+done
+
 for ((idx=START_UE_INDEX; idx<=TOTAL_UES; idx++)); do
   imsi=$(printf '001010%09d' "$idx")
   ip_last=$((149 + idx))
@@ -58,6 +73,11 @@ for ((idx=START_UE_INDEX; idx<=TOTAL_UES; idx++)); do
       MMTC_NUMEROLOGY: \${MMTC_NUMEROLOGY:-1}
       MMTC_N_RB_DL: \${MMTC_N_RB_DL:-106}
       MMTC_SSB_START: \${MMTC_SSB_START:-144}
+      MMTC_CGCFG_NOFREE: \${MMTC_CGCFG_NOFREE:-0}
+      MMTC_CGCFG_DEFER_FREE_SLOTS: \${MMTC_CGCFG_DEFER_FREE_SLOTS:-0}
+      MMTC_PUCCH_COMMON_FALLBACK_BWP0: \${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
+      MMTC_SEGV_BACKTRACE: \${MMTC_SEGV_BACKTRACE:-0}
+      MMTC_PDCP_TRACE: \${MMTC_PDCP_TRACE:-0}
       USE_ADDITIONAL_OPTIONS: >
         -E --rfsim -r 106 --numerology 1
         --uicc0.imsi ${imsi}
@@ -87,4 +107,4 @@ for ((idx=START_UE_INDEX; idx<=TOTAL_UES; idx++)); do
 EOF
 done
 
-echo "Generated mMTC overlay: $OUTPUT_FILE (UE${START_UE_INDEX}..UE${TOTAL_UES})"
+echo "Generated mMTC overlay: $OUTPUT_FILE (UE1..UE${TOTAL_UES})"

@@ -25,6 +25,7 @@
 #include <stdbool.h>
 #include <signal.h>
 #include <errno.h>
+#include <stdlib.h>
 
 #include "T.h"
 #include "common/oai_version.h"
@@ -327,6 +328,9 @@ int main(int argc, char **argv)
   memset(tx_max_power,0,sizeof(int)*MAX_NUM_CCs);
   // initialize logging
   logInit();
+  const char *mmtc_bt = getenv("MMTC_SEGV_BACKTRACE");
+  if (mmtc_bt != NULL && atoi(mmtc_bt) > 0)
+    set_softmodem_sighandler();
   // get options and fill parameters from configuration file
 
   get_options(uniqCfg); // Command-line options specific for NRUE
@@ -419,8 +423,30 @@ int main(int argc, char **argv)
           if (!elt) {
             break;
           }
+          nr_mac_rrc_message_t *rrc_msg = NotifiedFifoData(elt);
+          void *elt_ptr = (void *)elt;
+          void *data_ptr = (void *)rrc_msg;
+          const int payload_type = rrc_msg ? rrc_msg->payload_type : -1;
+          LOG_I(PHY,
+                "[CGDBG][UE %d][FIFO] init-before process_msg_rcc_to_mac elt=%p data=%p payload=%d\n",
+                inst,
+                elt_ptr,
+                data_ptr,
+                payload_type);
           process_msg_rcc_to_mac(NotifiedFifoData(elt), inst);
+          LOG_I(PHY,
+                "[CGDBG][UE %d][FIFO] init-after process_msg_rcc_to_mac elt=%p data=%p payload=%d\n",
+                inst,
+                elt_ptr,
+                data_ptr,
+                payload_type);
           delNotifiedFIFO_elt(elt);
+          LOG_I(PHY,
+                "[CGDBG][UE %d][FIFO] init-after delNotifiedFIFO_elt elt=%p data=%p payload=%d\n",
+                inst,
+                elt_ptr,
+                data_ptr,
+                payload_type);
         } while (true);
         fapi_nr_config_request_t *nrUE_config = &UE[CC_id]->nrUE_config;
         nr_init_frame_parms_ue(&UE[CC_id]->frame_parms, nrUE_config, mac->nr_band);
@@ -529,4 +555,3 @@ int main(int argc, char **argv)
   free(pckg);
   return 0;
 }
-

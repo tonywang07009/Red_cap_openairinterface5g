@@ -54,7 +54,6 @@ eDRX: Support for extended DRX cycles (e.g., up to 10485.76 seconds in RRC_IDLE)
 .
 
 # Work Rhythm & “Labor Law” for the Agent
-## Work Rhythm & “Labor Law” for the Agent
 
 - Treat the work session as a sequence of **small tasks**. A “small task” is:
   - implementing or refactoring a single function, **or**
