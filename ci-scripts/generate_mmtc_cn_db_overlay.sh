@@ -27,7 +27,7 @@ fi
 
 emit_auth_rows() {
   local idx imsi suffix
-  for ((idx=29; idx<=TOTAL_UES; idx++)); do
+  for ((idx=1; idx<=TOTAL_UES; idx++)); do
     imsi=$(printf '001010%09d' "${idx}")
     if [ "${idx}" -lt "${TOTAL_UES}" ]; then
       suffix=","
@@ -41,7 +41,7 @@ emit_auth_rows() {
 
 emit_session_rows() {
   local idx imsi suffix ue_ip_octet
-  for ((idx=29; idx<=TOTAL_UES; idx++)); do
+  for ((idx=1; idx<=TOTAL_UES; idx++)); do
     imsi=$(printf '001010%09d' "${idx}")
     ue_ip_octet=$((idx + 1))
     if [ "${idx}" -lt "${TOTAL_UES}" ]; then
@@ -65,7 +65,7 @@ START TRANSACTION;
 
 EOF
 
-if [ "${TOTAL_UES}" -ge 29 ]; then
+if [ "${TOTAL_UES}" -ge 1 ]; then
   cat >> "${OUTPUT_SQL}" <<'EOF'
 INSERT INTO `AuthenticationSubscription`
 (`ueid`, `authenticationMethod`, `encPermanentKey`, `protectionParameterId`, `sequenceNumber`, `authenticationManagementField`, `algorithmId`, `encOpcKey`, `encTopcKey`, `vectorGenerationInHss`, `n5gcAuthMethod`, `rgAuthenticationInd`, `supi`)

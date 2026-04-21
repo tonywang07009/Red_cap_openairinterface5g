@@ -3892,16 +3892,18 @@ static bool verify_radio_configuration(int uid, const NR_ServingCellConfigCommon
     LOG_E(NR_RRC, "UID %d, cannot allocate PUCCH resources in BWP with %d PRBs\n", uid, curr_bwp);
     return false;
   }
-  if (uid >= max_supported_ues) {
-    LOG_E(NR_RRC,
-          "UID %d exceeds PUCCH resource budget for BWP with %d PRBs (max supported UEs %d)\n",
+  const bool pucch_oversubscribe = uid >= max_supported_ues;
+  const int pucch_uid = pucch_oversubscribe ? (uid % max_supported_ues) : uid;
+  if (pucch_oversubscribe) {
+    LOG_W(NR_RRC,
+          "UID %d exceeds PUCCH resource budget for BWP with %d PRBs (max supported UEs %d), reusing reservation index %d\n",
           uid,
           curr_bwp,
-          max_supported_ues);
-    return false;
+          max_supported_ues,
+          pucch_uid);
   }
   int num_pucch2 = get_nb_pucch2_per_slot(scc, curr_bwp);
-  int pucchres0_startingPRB = (PUCCH2_SIZE * num_pucch2) + uid;
+  int pucchres0_startingPRB = (PUCCH2_SIZE * num_pucch2) + pucch_uid;
   // see config_pucch_resset0
   if (pucchres0_startingPRB >= curr_bwp) {
     LOG_E(NR_RRC, "UID %d, cannot allocate resources for PUCCH0, rejecting UE\n", uid);
@@ -3912,7 +3914,7 @@ static bool verify_radio_configuration(int uid, const NR_ServingCellConfigCommon
     LOG_E(NR_RRC, "UID %d, cannot allocate resources for PUCCH2, rejecting UE\n", uid);
     return false; // cannot allocate resources for PUCCH2
   }
-  const int idx = (uid * 2 / num_pucch2) + 1;
+  const int idx = (pucch_uid * 2 / num_pucch2) + 1;
   int offset = get_ul_slot_offset(fs, idx, true);
   // see set_csi_meas_periodicity
   if (offset >= 320) {

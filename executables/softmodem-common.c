@@ -52,6 +52,20 @@ uint8_t nfapi_mode=0;
 static struct timespec start;
 static int mmtc_segv_backtrace_enabled;
 
+static bool mmtc_is_fatal_signal(const int sig)
+{
+  switch (sig) {
+    case SIGSEGV:
+    case SIGABRT:
+    case SIGBUS:
+    case SIGILL:
+    case SIGFPE:
+      return true;
+    default:
+      return false;
+  }
+}
+
 static softmodem_params_t softmodem_params;
 softmodem_params_t *get_softmodem_params(void) {
   return &softmodem_params;
@@ -204,18 +218,18 @@ void softmodem_printresources(int sig, telnet_printfunc_t pf) {
 }
 
 void signal_handler(int sig) {
-  if (sig==SIGSEGV) {
-    if (mmtc_segv_backtrace_enabled > 0) {
-      void *frames[64];
-      int frame_count = backtrace(frames, sizeofArray(frames));
-      dprintf(STDERR_FILENO,
-              "[CGDBG][SIG] caught SIGSEGV pid=%d, backtrace frames=%d\n",
-              (int)getpid(),
-              frame_count);
-      if (frame_count > 0)
-        backtrace_symbols_fd(frames, frame_count, STDERR_FILENO);
-    }
-    _exit(128 + SIGSEGV);
+  if (mmtc_segv_backtrace_enabled > 0 && mmtc_is_fatal_signal(sig)) {
+    void *frames[64];
+    int frame_count = backtrace(frames, sizeofArray(frames));
+    dprintf(STDERR_FILENO,
+            "[CGDBG][SIG] caught fatal signal %d (%s) pid=%d, backtrace frames=%d\n",
+            sig,
+            strsignal(sig),
+            (int)getpid(),
+            frame_count);
+    if (frame_count > 0)
+      backtrace_symbols_fd(frames, frame_count, STDERR_FILENO);
+    _exit(128 + sig);
   } else {
     if(sig==SIGINT ||sig==SOFTMODEM_RTSIGNAL)
       softmodem_printresources(sig,(telnet_printfunc_t)printf);
@@ -240,7 +254,12 @@ void set_softmodem_sighandler(void) {
   // Enable for clean exit on CTRL-C (i.e. record player, USRP...) 
   signal(SIGINT,  signal_handler);
   if (mmtc_segv_backtrace_enabled > 0) {
-    LOG_W(UTIL, "[CGDBG][SIG] MMTC_SEGV_BACKTRACE=1, installing SIGSEGV handler with backtrace output\n");
+    dprintf(STDERR_FILENO,
+            "[CGDBG][SIG] MMTC_SEGV_BACKTRACE=1, installing fatal signal handlers for SIGSEGV/SIGABRT/SIGBUS/SIGILL/SIGFPE\n");
     signal(SIGSEGV, signal_handler);
+    signal(SIGABRT, signal_handler);
+    signal(SIGBUS, signal_handler);
+    signal(SIGILL, signal_handler);
+    signal(SIGFPE, signal_handler);
   }
 }

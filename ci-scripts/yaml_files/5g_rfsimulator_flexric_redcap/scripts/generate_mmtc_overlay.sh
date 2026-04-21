@@ -29,6 +29,10 @@ cat > "$OUTPUT_FILE" <<EOF
 #   while keeping the operator workflow centered on:
 #     docker compose -f docker-compose.yml -f docker-compose.mmtc.yml up -d
 services:
+  oai-gnb:
+    environment:
+      MMTC_SEGV_BACKTRACE: \${MMTC_SEGV_BACKTRACE:-0}
+
 EOF
 
 # Keep base UE1..UE${BASE_FIXED_UE_COUNT} aligned with mMTC runtime knobs.

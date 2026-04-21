@@ -4,6 +4,10 @@
 #   while keeping the operator workflow centered on:
 #     docker compose -f docker-compose.yml -f docker-compose.mmtc.yml up -d
 services:
+  oai-gnb:
+    environment:
+      MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
+
   oai-nr-ue1:
     environment:
       MMTC_CGCFG_NOFREE: ${MMTC_CGCFG_NOFREE:-0}
