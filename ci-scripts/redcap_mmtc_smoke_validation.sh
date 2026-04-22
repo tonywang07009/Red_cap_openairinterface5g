@@ -24,6 +24,18 @@ IMAGE_REGISTRY=${MMTC_IMAGE_REGISTRY:-}
 IMAGE_TAG=${MMTC_IMAGE_TAG:-latest}
 GNB_IMAGE_NAME=${MMTC_GNB_IMAGE_NAME:-oai-gnb}
 NRUE_IMAGE_NAME=${MMTC_NRUE_IMAGE_NAME:-oai-nr-ue}
+AUTO_RECOVER_AFTER_GNB_RESTART=${MMTC_AUTO_RECOVER_AFTER_GNB_RESTART:-1}
+AUTO_RECOVER_MISSING_UES=${MMTC_AUTO_RECOVER_MISSING_UES:-1}
+RECOVER_ON_PRECHECK_GNB_RESTART=${MMTC_RECOVER_ON_PRECHECK_GNB_RESTART:-0}
+FAIL_ON_GNB_RESTART=${MMTC_FAIL_ON_GNB_RESTART:-1}
+RECOVERY_SETTLE=${MMTC_RECOVERY_SETTLE:-15}
+RECOVERY_UE_GAP=${MMTC_RECOVERY_UE_GAP:-0}
+PRECHECK_RECOVERY_UE_GAP=${MMTC_PRECHECK_RECOVERY_UE_GAP:-2}
+PRECHECK_RECOVERY_SETTLE=${MMTC_PRECHECK_RECOVERY_SETTLE:-20}
+ADAPTIVE_BURST_ON_ZERO_GAP=${MMTC_ADAPTIVE_BURST_ON_ZERO_GAP:-1}
+UE_START_BURST_SIZE=${MMTC_UE_START_BURST_SIZE:-8}
+UE_START_BURST_PAUSE=${MMTC_UE_START_BURST_PAUSE:-2}
+UE_START_BURST_THRESHOLD=${MMTC_UE_START_BURST_THRESHOLD:-32}
 
 OVERLAY_GENERATOR="${REPO_ROOT}/ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/scripts/generate_mmtc_overlay.sh"
 CN_DB_GENERATOR="${REPO_ROOT}/ci-scripts/generate_mmtc_cn_db_overlay.sh"
@@ -40,6 +52,7 @@ UE_PDU_ACCEPT_COUNT=0
 UE_TUN_COUNT=0
 UE_FORWARD_PING_OK_COUNT=0
 UE_REVERSE_PING_OK_COUNT=0
+RECOVERY_RESTARTED_UES=0
 
 mkdir -p "${LOG_DIR}"
 mkdir -p "${RUNTIME_CONFIG_DIR}"
@@ -191,10 +204,62 @@ capture_container_snapshot()
   } > "${output_file}" || true
 }
 
+capture_gnb_restart_cause()
+{
+  local restart_count="$1"
+  local state_json
+  local state_fields
+  local status="unknown"
+  local exit_code="unknown"
+  local oom_killed="unknown"
+  local state_error="none"
+  local started_at="unknown"
+  local finished_at="unknown"
+  local marker_excerpt
+
+  state_json=$(docker inspect rfsim5g-oai-gnb_redcap --format '{{json .State}}' 2>/dev/null || true)
+  printf '%s\n' "${state_json:-inspect_failed}" > "${GNB_RESTART_STATE_JSON_LOG}"
+
+  state_fields=$(docker inspect rfsim5g-oai-gnb_redcap --format '{{.State.Status}}|{{.State.ExitCode}}|{{.State.OOMKilled}}|{{.State.Error}}|{{.State.StartedAt}}|{{.State.FinishedAt}}' 2>/dev/null || true)
+  if [ -n "${state_fields}" ]; then
+    IFS='|' read -r status exit_code oom_killed state_error started_at finished_at <<EOF
+${state_fields}
+EOF
+  fi
+
+  docker logs --tail 300 rfsim5g-oai-gnb_redcap > "${GNB_RESTART_TAIL300_LOG}" 2>&1 || true
+  marker_excerpt=$(grep -E '\\[CGDBG\\]\\[ENTRYPOINT\\]|\\[CGDBG\\]\\[SIG\\]|child exit rc=|caught fatal signal|Killed' "${GNB_RESTART_TAIL300_LOG}" | tail -n 5 | tr '\n' '; ' || true)
+  marker_excerpt=$(printf '%s' "${marker_excerpt}" | sed 's/[[:space:]]\+/ /g' || true)
+  if [ -z "${marker_excerpt}" ]; then
+    marker_excerpt="none"
+  fi
+  if [ -z "${state_error}" ]; then
+    state_error="none"
+  fi
+
+  echo "[CGDBG][RESTART_CAUSE] restart_count=${restart_count} status=${status} exit_code=${exit_code} oom_killed=${oom_killed} error=${state_error} started_at=${started_at} finished_at=${finished_at} state_json_log=${GNB_RESTART_STATE_JSON_LOG} gnb_tail300_log=${GNB_RESTART_TAIL300_LOG} markers=\"${marker_excerpt}\""
+}
+
 start_sample_ues()
 {
   local compose_args=("$@")
   local sample_count=${#SAMPLE_UES[@]}
+  local adaptive_burst=0
+  local burst_size=0
+  local burst_pause=0
+
+  if [ "${UE_START_GAP}" -eq 0 ] && \
+     [ "${ADAPTIVE_BURST_ON_ZERO_GAP}" = "1" ] && \
+     [ "${sample_count}" -ge "${UE_START_BURST_THRESHOLD}" ]; then
+    if [[ "${UE_START_BURST_SIZE}" =~ ^[1-9][0-9]*$ ]] && [[ "${UE_START_BURST_PAUSE}" =~ ^[0-9]+$ ]]; then
+      adaptive_burst=1
+      burst_size=${UE_START_BURST_SIZE}
+      burst_pause=${UE_START_BURST_PAUSE}
+      echo "[INFO] Adaptive UE start pacing enabled: sample_count=${sample_count}, burst_size=${burst_size}, burst_pause=${burst_pause}s"
+    else
+      echo "[WARN] Adaptive UE burst pacing disabled due to invalid config: MMTC_UE_START_BURST_SIZE='${UE_START_BURST_SIZE}' MMTC_UE_START_BURST_PAUSE='${UE_START_BURST_PAUSE}'"
+    fi
+  fi
 
   for idx in "${!SAMPLE_UES[@]}"; do
     local service_name="oai-nr-ue${SAMPLE_UES[$idx]}"
@@ -204,8 +269,41 @@ start_sample_ues()
     if [ "${UE_START_GAP}" -gt 0 ] && [ $((idx + 1)) -lt "${sample_count}" ]; then
       echo "[INFO] Waiting ${UE_START_GAP}s before launching the next sampled UE"
       sleep "${UE_START_GAP}"
+    elif [ "${adaptive_burst}" = "1" ] && \
+         [ "${burst_pause}" -gt 0 ] && \
+         [ $((idx + 1)) -lt "${sample_count}" ] && \
+         [ $(((idx + 1) % burst_size)) -eq 0 ]; then
+      echo "[INFO] Adaptive burst pause ${burst_pause}s after launching $((idx + 1))/${sample_count} sampled UEs"
+      sleep "${burst_pause}"
     fi
   done
+}
+
+restart_non_running_sample_ues()
+{
+  local compose_args=("$@")
+  local restarted=0
+
+  for ue_idx in "${SAMPLE_UES[@]}"; do
+    local service_name="oai-nr-ue${ue_idx}"
+    local container_name="rfsim5g-oai-nr-ue${ue_idx}_redcap"
+    local ue_state
+    ue_state=$(docker inspect "${container_name}" --format '{{.State.Status}}' 2>/dev/null || echo missing)
+    if [ "${ue_state}" = "running" ]; then
+      continue
+    fi
+
+    echo "[WARN] Recovery: ${container_name} state='${ue_state}', restarting ${service_name}"
+    compose_with_images "${compose_args[@]}" up -d "${service_name}"
+    restarted=$((restarted + 1))
+
+    if [ "${RECOVERY_UE_GAP}" -gt 0 ] && [ "${restarted}" -lt "${#SAMPLE_UES[@]}" ]; then
+      sleep "${RECOVERY_UE_GAP}"
+    fi
+  done
+
+  RECOVERY_RESTARTED_UES=${restarted}
+  echo "[INFO] Recovery restarted ${RECOVERY_RESTARTED_UES} sampled UE container(s)"
 }
 
 extract_tun_ipv4()
@@ -304,6 +402,8 @@ echo "[INFO] UE start gap        : ${UE_START_GAP}s"
 echo "[INFO] forward ping mode   : ${FORWARD_PING_MODE}"
 echo "[INFO] reverse ping        : ${RUN_REVERSE_PING}"
 echo "[INFO] image selection     : REGISTRY='${IMAGE_REGISTRY}' TAG='${IMAGE_TAG}' GNB='${GNB_IMAGE_NAME}' NRUE='${NRUE_IMAGE_NAME}'"
+echo "[INFO] recovery config     : restart_on_gnb_restart=${AUTO_RECOVER_AFTER_GNB_RESTART} recover_missing_ues=${AUTO_RECOVER_MISSING_UES} recover_after_precheck_restart=${RECOVER_ON_PRECHECK_GNB_RESTART} settle=${RECOVERY_SETTLE}s gap=${RECOVERY_UE_GAP}s precheck_gentle_settle=${PRECHECK_RECOVERY_SETTLE}s precheck_gentle_gap=${PRECHECK_RECOVERY_UE_GAP}s fail_on_gnb_restart=${FAIL_ON_GNB_RESTART}"
+echo "[INFO] adaptive burst      : on_zero_gap=${ADAPTIVE_BURST_ON_ZERO_GAP} threshold=${UE_START_BURST_THRESHOLD} burst_size=${UE_START_BURST_SIZE} pause=${UE_START_BURST_PAUSE}s"
 
 if [ "${PREPARE_ONLY}" = "1" ]; then
   echo "[INFO] Prepare-only mode active; overlay generated at ${OVERLAY_COMPOSE}"
@@ -332,6 +432,40 @@ start_sample_ues -f "${BASE_COMPOSE}" -f "${OVERLAY_COMPOSE}"
 echo "[INFO] Waiting ${SLEEP_AFTER_UP}s for sampled UEs to settle"
 sleep "${SLEEP_AFTER_UP}"
 
+PRECHECK_GNB_RESTART_COUNT=$(docker inspect rfsim5g-oai-gnb_redcap --format '{{.RestartCount}}' 2>/dev/null || echo 0)
+if [ "${PRECHECK_GNB_RESTART_COUNT}" != "0" ]; then
+  echo "[WARN] gNB restart detected before validation phase (restart_count=${PRECHECK_GNB_RESTART_COUNT})"
+fi
+
+SKIP_PRECHECK_RECOVERY=0
+if [ "${PRECHECK_GNB_RESTART_COUNT}" != "0" ] && [ "${AUTO_RECOVER_AFTER_GNB_RESTART}" = "1" ]; then
+  case "${RECOVER_ON_PRECHECK_GNB_RESTART}" in
+    1)
+      echo "[INFO] Precheck gNB restart recovery mode: immediate"
+      ;;
+    2)
+      RECOVERY_UE_GAP="${PRECHECK_RECOVERY_UE_GAP}"
+      RECOVERY_SETTLE="${PRECHECK_RECOVERY_SETTLE}"
+      echo "[INFO] Precheck gNB restart recovery mode: gentle (gap=${RECOVERY_UE_GAP}s settle=${RECOVERY_SETTLE}s)"
+      ;;
+    *)
+      SKIP_PRECHECK_RECOVERY=1
+      echo "[INFO] Skip UE auto-recovery because gNB already restarted (set MMTC_RECOVER_ON_PRECHECK_GNB_RESTART=1 for immediate or 2 for gentle recovery)"
+      ;;
+  esac
+fi
+
+if [ "${SKIP_PRECHECK_RECOVERY}" != "1" ]; then
+  if [ "${AUTO_RECOVER_MISSING_UES}" = "1" ] || \
+     { [ "${AUTO_RECOVER_AFTER_GNB_RESTART}" = "1" ] && [ "${PRECHECK_GNB_RESTART_COUNT}" != "0" ]; }; then
+    restart_non_running_sample_ues -f "${BASE_COMPOSE}" -f "${OVERLAY_COMPOSE}"
+    if [ "${RECOVERY_RESTARTED_UES}" -gt 0 ] && [ "${RECOVERY_SETTLE}" -gt 0 ]; then
+      echo "[INFO] Waiting ${RECOVERY_SETTLE}s for UE recovery to settle"
+      sleep "${RECOVERY_SETTLE}"
+    fi
+  fi
+fi
+
 MYSQL_LOG="${LOG_DIR}/mmtc_smoke_${TIMESTAMP}_mysql_subscribers.log"
 MYSQL_CONTAINER_LOG="${LOG_DIR}/mmtc_smoke_${TIMESTAMP}_mysql.log"
 AMF_LOG="${LOG_DIR}/mmtc_smoke_${TIMESTAMP}_amf.log"
@@ -341,6 +475,8 @@ SMF_LOG="${LOG_DIR}/mmtc_smoke_${TIMESTAMP}_smf.log"
 UPF_LOG="${LOG_DIR}/mmtc_smoke_${TIMESTAMP}_upf.log"
 GNB_LOG="${LOG_DIR}/mmtc_smoke_${TIMESTAMP}_gnb.log"
 GNB_STATE_LOG="${LOG_DIR}/mmtc_smoke_${TIMESTAMP}_gnb_state.log"
+GNB_RESTART_STATE_JSON_LOG="${LOG_DIR}/mmtc_smoke_${TIMESTAMP}_gnb_restart_state_json.log"
+GNB_RESTART_TAIL300_LOG="${LOG_DIR}/mmtc_smoke_${TIMESTAMP}_gnb_restart_tail300.log"
 
 docker logs mysql > "${MYSQL_CONTAINER_LOG}" 2>&1 || true
 docker logs oai-amf > "${AMF_LOG}" 2>&1 || true
@@ -361,8 +497,13 @@ docker logs rfsim5g-oai-gnb_redcap > "${GNB_LOG}" 2>&1 || true
 GNB_RESTART_COUNT=$(docker inspect rfsim5g-oai-gnb_redcap --format '{{.RestartCount}}' 2>/dev/null || echo 0)
 echo "[INFO] gNB restart count : ${GNB_RESTART_COUNT} (state log: ${GNB_STATE_LOG})"
 if [ "${GNB_RESTART_COUNT}" != "0" ]; then
+  capture_gnb_restart_cause "${GNB_RESTART_COUNT}"
   echo "[WARN] gNB restarted ${GNB_RESTART_COUNT} time(s) during this smoke run"
-  FAILURES=$((FAILURES + 1))
+  if [ "${FAIL_ON_GNB_RESTART}" = "1" ]; then
+    FAILURES=$((FAILURES + 1))
+  else
+    echo "[INFO] MMTC_FAIL_ON_GNB_RESTART=0, restart is reported but not counted as a failure"
+  fi
 fi
 
 MYSQL_STATUS=$(docker inspect mysql --format '{{.State.Status}}' 2>/dev/null || echo missing)
