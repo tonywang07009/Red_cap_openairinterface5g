@@ -2853,6 +2853,43 @@ static BIT_STRING_t bit_string_clone(const BIT_STRING_t *orig)
   return bs;
 }
 
+/**
+ * @brief Populate RedCap-specific SIB1 IEs in [SIB1-v1700].
+ *
+ * Field mapping notes:
+ * - [redCap-ConfigCommon-r17] container: [TS 38.331, clause reference ⚠ Needs Verification]
+ * - [halfDuplexRedCapAllowed-r17]: [TS 38.331, clause reference ⚠ Needs Verification]
+ * - [cellBarredRedCap1Rx-r17]/[cellBarredRedCap2Rx-r17]: [TS 38.331, clause reference ⚠ Needs Verification]
+ * - [intraFreqReselectionRedCap-r17]: [TS 38.331, clause reference ⚠ Needs Verification]
+ *
+ * @param[out] sib1_v1700 SIB1 non-critical extension container to fill.
+ * @param[in] redcap_config Parsed gNB RedCap configuration.
+ */
+static void fill_redcap_sib1(NR_SIB1_v1700_IEs_t *sib1_v1700, const nr_redcap_config_t *redcap_config)
+{
+  AssertFatal(sib1_v1700 != NULL, "fill_redcap_sib1(): sib1_v1700 must not be NULL\n");
+  AssertFatal(redcap_config != NULL, "fill_redcap_sib1(): redcap_config must not be NULL\n");
+
+  sib1_v1700->redCap_ConfigCommon_r17 = calloc_or_fail(1, sizeof(*sib1_v1700->redCap_ConfigCommon_r17));
+  sib1_v1700->redCap_ConfigCommon_r17->cellBarredRedCap_r17 =
+      calloc_or_fail(1, sizeof(*sib1_v1700->redCap_ConfigCommon_r17->cellBarredRedCap_r17));
+
+  if (redcap_config->has_halfDuplexRedCapAllowed_r17 && redcap_config->halfDuplexRedCapAllowed_r17) {
+    sib1_v1700->redCap_ConfigCommon_r17->halfDuplexRedCapAllowed_r17 =
+        calloc_or_fail(1, sizeof(*sib1_v1700->redCap_ConfigCommon_r17->halfDuplexRedCapAllowed_r17));
+    *sib1_v1700->redCap_ConfigCommon_r17->halfDuplexRedCapAllowed_r17 =
+        NR_RedCap_ConfigCommonSIB_r17__halfDuplexRedCapAllowed_r17_true;
+  }
+
+  struct NR_RedCap_ConfigCommonSIB_r17__cellBarredRedCap_r17 *cell_barred =
+      sib1_v1700->redCap_ConfigCommon_r17->cellBarredRedCap_r17;
+  cell_barred->cellBarredRedCap1Rx_r17 = redcap_config->cellBarredRedCap1Rx_r17;
+  cell_barred->cellBarredRedCap2Rx_r17 = redcap_config->cellBarredRedCap2Rx_r17;
+
+  sib1_v1700->intraFreqReselectionRedCap_r17 = calloc_or_fail(1, sizeof(*sib1_v1700->intraFreqReselectionRedCap_r17));
+  *sib1_v1700->intraFreqReselectionRedCap_r17 = redcap_config->intraFreqReselectionRedCap_r17;
+}
+
 NR_BCCH_DL_SCH_Message_t *get_SIB1_NR(const NR_ServingCellConfigCommon_t *scc,
                                       const plmn_id_t *plmn,
                                       uint64_t cellID,
@@ -3165,23 +3202,8 @@ NR_BCCH_DL_SCH_Message_t *get_SIB1_NR(const NR_ServingCellConfigCommon_t *scc,
     NR_SIB1_v1700_IEs_t *sib1_1700 = sib1_1630->nonCriticalExtension;
 
     if (mac_config->redcap) {
-      sib1_1700->redCap_ConfigCommon_r17 = calloc_or_fail(1, sizeof(*sib1_1700->redCap_ConfigCommon_r17));
-      sib1_1700->redCap_ConfigCommon_r17->cellBarredRedCap_r17 =
-          calloc_or_fail(1, sizeof(*sib1_1700->redCap_ConfigCommon_r17->cellBarredRedCap_r17));
-
       const nr_redcap_config_t *redcap_config = mac_config->redcap;
-      if (redcap_config->has_halfDuplexRedCapAllowed_r17 && redcap_config->halfDuplexRedCapAllowed_r17) {
-        sib1_1700->redCap_ConfigCommon_r17->halfDuplexRedCapAllowed_r17 =
-            calloc_or_fail(1, sizeof(*sib1_1700->redCap_ConfigCommon_r17->halfDuplexRedCapAllowed_r17));
-        *sib1_1700->redCap_ConfigCommon_r17->halfDuplexRedCapAllowed_r17 =
-            NR_RedCap_ConfigCommonSIB_r17__halfDuplexRedCapAllowed_r17_true;
-      }
-      struct NR_RedCap_ConfigCommonSIB_r17__cellBarredRedCap_r17 *CellBarredRedCap_r17 =
-          sib1_1700->redCap_ConfigCommon_r17->cellBarredRedCap_r17;
-      CellBarredRedCap_r17->cellBarredRedCap1Rx_r17 = redcap_config->cellBarredRedCap1Rx_r17;
-      CellBarredRedCap_r17->cellBarredRedCap2Rx_r17 = redcap_config->cellBarredRedCap2Rx_r17;
-      sib1_1700->intraFreqReselectionRedCap_r17 = calloc_or_fail(1, sizeof(*sib1_1700->intraFreqReselectionRedCap_r17));
-      *sib1_1700->intraFreqReselectionRedCap_r17 = redcap_config->intraFreqReselectionRedCap_r17;
+      fill_redcap_sib1(sib1_1700, redcap_config);
     }
 
     if (is_ntn_band(band)) {

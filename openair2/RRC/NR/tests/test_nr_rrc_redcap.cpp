@@ -107,6 +107,21 @@ TEST(NrRrcRedcap, OneRxAndTwoRxBarringFollowSib1Fields)
   ASN_STRUCT_FREE(asn_DEF_NR_SIB1_v1700_IEs, sib1);
 }
 
+TEST(NrRrcRedcap, ParseRedCapSib1ContainerHandlesMissingAndPresentIes)
+{
+  EXPECT_EQ(nr_rrc_parse_redcap_sib1(nullptr), nullptr);
+
+  NR_SIB1_v1700_IEs_t sib1 = {};
+  EXPECT_EQ(nr_rrc_parse_redcap_sib1(&sib1), nullptr);
+
+  sib1.redCap_ConfigCommon_r17 =
+      static_cast<NR_RedCap_ConfigCommonSIB_r17_t *>(calloc(1, sizeof(*sib1.redCap_ConfigCommon_r17)));
+  ASSERT_NE(sib1.redCap_ConfigCommon_r17, nullptr);
+  EXPECT_EQ(nr_rrc_parse_redcap_sib1(&sib1), sib1.redCap_ConfigCommon_r17);
+
+  ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_NR_SIB1_v1700_IEs, &sib1);
+}
+
 TEST(NrRrcRedcap, SIB1RedCapFieldsEncodeAndDecodeWithoutAsn1Error)
 {
   NR_SIB1_v1700_IEs_t *sib1 = make_redcap_sib1(

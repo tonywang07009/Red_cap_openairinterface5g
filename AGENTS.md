@@ -64,17 +64,22 @@ Target `develop`. Keep branch history linear and rebase instead of merging. Each
 ## Project Docs & Task Plans
 
 - All high-level project plans, milestones, and task breakdowns for this repo live under:
+  - `agent_doc/Project_management/`
+- Active execution project path:
+  - `agent_doc/Project_management/projects/redcap_mmtc_priority_execution_v1/project_plan.md`
+- Baseline milestone definition file:
   - `agent_doc/Project_management/Simluation_v2.md`
 - For the RedCap mMTC work:
-  - The primary plan is `agent_doc/Project_management`.
+  - The primary execution plan is `agent_doc/Project_management/projects/redcap_mmtc_priority_execution_v1/project_plan.md`.
+  - `Simluation_v2.md` remains the baseline milestone/spec definition.
   - Before making any changes to PHY, MAC, or RRC, you must:
-    1) read the relevant sections of `Simluation_v2.md`, and  
+    1) read the relevant sections of `project_plan.md` and `Simluation_v2.md`, and  
     2) summarize in a few bullet points which milestone and sub-tasks you are working on.
 - For Gantt charts and progress visualization:
-  - Treat the files under `agent_doc/Project_management/` as the **source of truth** for tasks and dependencies.
+  - Treat `project_plan.md` as the primary source of truth, with `Simluation_v2.md` as the baseline reference.
   - When I ask for a Gantt chart, derive all tasks and milestones from those Markdown files instead of inventing new items.
 - When planning or modifying PHY code for RedCap:
-  - explicitly reference the corresponding milestones/sub-tasks in `Simluation_v2.md`, and  
+  - explicitly reference the corresponding milestones/sub-tasks in `project_plan.md` and `Simluation_v2.md`, and  
   - cross-check against `spec/redcap_3gpp/spec.md` and TS 38.306 / 38.101-1 before proposing code changes.
 
 ---
@@ -156,9 +161,10 @@ Example: `test_logs/work_daily/2026-04-09_20-30-00_mac-redcap-drx.md`
 - Date: YYYY-MM-DD HH:MM
 - Agent Session ID: <auto or N/A>
 - Task Slug: <short identifier>
+- Project Path: agent_doc/Project_management/projects/redcap_mmtc_priority_execution_v1/project_plan.md
 
 ## Milestone & Sub-task Reference
-- Milestone: <milestone name from redcap_mmtc_plan.md>
+- Milestone: <milestone name from project_plan.md / Simluation_v2.md>
 - Sub-task: <sub-task name>
 - Status: [COMPLETED / IN-PROGRESS / BLOCKED]
 
@@ -205,6 +211,6 @@ text
 
 ### Additional Constraints
 - Never overwrite an existing log file; always create a new timestamped file.
-- If `redcap_mmtc_plan.md` is updated, append a note to the current daily log
+- If `agent_doc/Project_management/projects/redcap_mmtc_priority_execution_v1/project_plan.md` is updated, append a note to the current daily log
 indicating which milestone or sub-task was revised.
 - Log files are append-only records; do NOT delete them without explicit user confirmation.

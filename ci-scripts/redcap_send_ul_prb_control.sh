@@ -46,15 +46,21 @@ normalize_integer()
 
 extract_redcap_rnti()
 {
-  docker logs rfsim5g-oai-gnb_redcap 2>&1 | sed -nE 's/.*UE with RNTI ([0-9a-fA-F]{4}) is RedCap.*/\1/p' | tail -n 1
+  docker logs rfsim5g-oai-gnb_redcap 2>&1 | sed -nE 's/.*UE with RNTI ([0-9a-fA-F]{4}) is RedCap.*/0x\1/p' | tail -n 1
 }
 
 stage_plugin_libs()
 {
   rm -f "${PLUGIN_DIR}"/lib*_sm.so
-  while IFS= read -r so_path; do
+  mapfile -t sm_libs < <(find "${FLEXRIC_BUILD}/src/sm" -type f -name 'lib*_sm.so' | sort)
+  if [[ ${#sm_libs[@]} -eq 0 ]]; then
+    echo "No FlexRIC service-model libraries found under ${FLEXRIC_BUILD}/src/sm" >&2
+    return 1
+  fi
+
+  for so_path in "${sm_libs[@]}"; do
     ln -sf "${so_path}" "${PLUGIN_DIR}/$(basename "${so_path}")"
-  done < <(find "${FLEXRIC_BUILD}/src/sm" -mindepth 2 -maxdepth 2 -type f -name 'lib*_sm.so' | sort)
+  done
 }
 
 build_xapp()

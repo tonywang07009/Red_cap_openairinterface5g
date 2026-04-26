@@ -52,12 +52,23 @@ NR_UE_NR_Capability_t *nr_rrc_build_redcap_ue_capability(const nr_redcap_cfg_t *
   return cap;
 }
 
+const NR_RedCap_ConfigCommonSIB_r17_t *nr_rrc_parse_redcap_sib1(const NR_SIB1_v1700_IEs_t *sib1_v1700)
+{
+  if (sib1_v1700 == NULL)
+    return NULL;
+
+  return sib1_v1700->redCap_ConfigCommon_r17;
+}
+
 bool nr_rrc_redcap_sib1_access_allowed(const nr_redcap_cfg_t *cfg, const NR_SIB1_v1700_IEs_t *sib1_v1700)
 {
-  if (cfg == NULL || !cfg->support_of_redcap_r17 || sib1_v1700 == NULL || sib1_v1700->redCap_ConfigCommon_r17 == NULL)
+  if (cfg == NULL || !cfg->support_of_redcap_r17)
     return true;
 
-  const NR_RedCap_ConfigCommonSIB_r17_t *redcap_sib = sib1_v1700->redCap_ConfigCommon_r17;
+  const NR_RedCap_ConfigCommonSIB_r17_t *redcap_sib = nr_rrc_parse_redcap_sib1(sib1_v1700);
+  if (redcap_sib == NULL)
+    return true;
+
   if (cfg->half_duplex_fdd_type_a_redcap_r17 && redcap_sib->halfDuplexRedCapAllowed_r17 == NULL) {
     LOG_W(NR_RRC,
           "RedCap UE is configured as half-duplex FDD Type A, but SIB1 omits halfDuplexRedCapAllowed-r17: treating cell as barred\n");

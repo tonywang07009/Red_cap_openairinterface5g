@@ -1,0 +1,14 @@
+{
+  "generated_at_utc": "2026-04-25T13:30:23.703964+00:00",
+  "base_ref": "HEAD~1",
+  "head_ref": "HEAD",
+  "extensions": [
+    ".c",
+    ".h",
+    ".cc",
+    ".cpp",
+    ".hpp"
+  ],
+  "function_count": 0,
+  "functions": []
+}

@@ -12,6 +12,7 @@ extern "C" {
 #endif
 
 NR_UE_NR_Capability_t *nr_rrc_build_redcap_ue_capability(const nr_redcap_cfg_t *cfg);
+const NR_RedCap_ConfigCommonSIB_r17_t *nr_rrc_parse_redcap_sib1(const NR_SIB1_v1700_IEs_t *sib1_v1700);
 bool nr_rrc_redcap_sib1_access_allowed(const nr_redcap_cfg_t *cfg, const NR_SIB1_v1700_IEs_t *sib1_v1700);
 
 #ifdef __cplusplus

@@ -218,14 +218,14 @@
                 <class>Custom_Command</class>
                 <desc>Apply RedCap UL PRB cap to UE 2 via FlexRIC RC control</desc>
                 <node>localhost</node>
-                <command>if [ "${REDCAP_E2_AGENT_MODE:-enabled}" = "disabled" ]; then echo "Skipping RedCap UL PRB control in disabled E2 mode"; else REDCAP_UL_PRB_CAP=${REDCAP_UL_PRB_CAP:-32} ci-scripts/redcap_send_ul_prb_control.sh; fi</command>
+                <command>if [ "${REDCAP_E2_AGENT_MODE:-enabled}" = "disabled" ]; then echo "Skipping RedCap UL PRB control in disabled E2 mode"; else REDCAP_UL_PRB_CAP=${REDCAP_UL_PRB_CAP:-32} ./redcap_send_ul_prb_control.sh; fi</command>
         </testCase>
 
         <testCase id="302006">
                 <class>Custom_Command</class>
                 <desc>Verify gNB applied RedCap UL PRB cap</desc>
                 <node>localhost</node>
-                <command>if [ "${REDCAP_E2_AGENT_MODE:-enabled}" = "disabled" ]; then echo "Skipping gNB RedCap UL PRB verification in disabled E2 mode"; else [ $(docker logs rfsim5g-oai-gnb_redcap | grep -m1 "RedCap UL PRB control RNTI" | wc -l) -eq 1 ]; fi</command>
+                <command>if [ "${REDCAP_E2_AGENT_MODE:-enabled}" = "disabled" ]; then echo "Skipping gNB RedCap UL PRB verification in disabled E2 mode"; else ./redcap_verify_ul_prb_control.sh; fi</command>
         </testCase>
 
         <testCase id="030002">
