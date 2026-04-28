@@ -98,6 +98,10 @@ typedef struct {
   bool is_rrc_inactive;
   /* Timer T3512 */
   int t3512;
+  /* Timer T3324 active time for PSM (-1 = disabled/unavailable) */
+  int t3324;
+  bool psm_configured;
+  bool psm_active_time_expired;
   // Timer t3448 in seconds (-1 = disabled)
   int t3448;
   // Timer t3446 in seconds (-1 = disabled)

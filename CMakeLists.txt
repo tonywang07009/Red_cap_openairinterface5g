@@ -1185,6 +1185,7 @@ set(NR_L2_SRC_UE
   ${NR_UE_RRC_DIR}/L2_interface_ue.c
   ${NR_UE_RRC_DIR}/main_ue.c
   ${NR_UE_RRC_DIR}/rrc_UE.c
+  ${NR_UE_RRC_DIR}/rrc_ue_lowpower.c
   ${NR_UE_RRC_DIR}/rrc_ue_redcap.c
   ${NR_UE_RRC_DIR}/rrc_timers_and_constants.c
   ${NR_UE_RRC_DIR}/rrc_sl_preconfig.c
@@ -1255,6 +1256,7 @@ set (MAC_NR_SRC_UE
   ${NR_UE_MAC_DIR}/config_ue_sl.c
   ${NR_UE_MAC_DIR}/mac_tables.c
   ${NR_UE_MAC_DIR}/main_ue_nr.c
+  ${NR_UE_MAC_DIR}/nr_ue_drx.c
   ${NR_UE_MAC_DIR}/nr_ue_redcap_bwp.c
   ${NR_UE_MAC_DIR}/nr_ue_procedures.c
   ${NR_UE_MAC_DIR}/nr_ue_procedures_sl.c

@@ -35,6 +35,7 @@
 #include "mac_defs.h"
 #include "NR_MAC_UE/mac_proto.h"
 #include "NR_MAC-CellGroupConfig.h"
+#include "NR_SetupRelease.h"
 #include "LAYER2/NR_MAC_COMMON/nr_mac_common.h"
 #include "LAYER2/NR_MAC_UE/nr_ue_redcap_bwp.h"
 #include "common/utils/nr/nr_common.h"
@@ -2338,6 +2339,235 @@ static uint32_t get_data_inactivity_timer(long setup)
   return timer_s;
 }
 
+/**
+ * @brief Convert a DRX millisecond value to slots for the UE numerology.
+ *
+ * @param ms Timer duration in milliseconds.
+ * @param scs UE subcarrier spacing index.
+ * @return Timer duration in slots.
+ */
+static uint32_t nr_drx_ms_to_slots(uint32_t ms, int scs)
+{
+  return ms << scs;
+}
+
+/**
+ * @brief Decode the NR DRX on-duration timer into slots.
+ *
+ * @param drx DRX setup from RRC.
+ * @param scs UE subcarrier spacing index.
+ * @return On-duration timer in slots.
+ */
+static uint32_t nr_drx_on_duration_slots(const NR_DRX_Config_t *drx, int scs)
+{
+  if (drx->drx_onDurationTimer.present == NR_DRX_Config__drx_onDurationTimer_PR_subMilliSeconds)
+    return 1;
+  AssertFatal(drx->drx_onDurationTimer.present == NR_DRX_Config__drx_onDurationTimer_PR_milliSeconds,
+              "Invalid DRX onDurationTimer present %d\n",
+              drx->drx_onDurationTimer.present);
+
+  static const uint16_t values_ms[] = {1, 2, 3, 4, 5, 6, 8, 10, 20, 30, 40, 50, 60, 80, 100, 200, 300, 400, 500, 600, 800, 1000, 1200, 1600};
+  const long index = drx->drx_onDurationTimer.choice.milliSeconds;
+  const size_t values_count = sizeof(values_ms) / sizeof(values_ms[0]);
+  AssertFatal(index >= 0 && index < (long)values_count, "Invalid DRX onDurationTimer value %ld\n", index);
+  return nr_drx_ms_to_slots(values_ms[index], scs);
+}
+
+/**
+ * @brief Decode the NR DRX inactivity timer into slots.
+ *
+ * @param drx DRX setup from RRC.
+ * @param scs UE subcarrier spacing index.
+ * @return Inactivity timer in slots.
+ */
+static uint32_t nr_drx_inactivity_slots(const NR_DRX_Config_t *drx, int scs)
+{
+  static const uint16_t values_ms[] = {0, 1, 2, 3, 4, 5, 6, 8, 10, 20, 30, 40, 50, 60, 80, 100, 200, 300, 500, 750, 1280, 1920, 2560};
+  const long index = drx->drx_InactivityTimer;
+  const size_t values_count = sizeof(values_ms) / sizeof(values_ms[0]);
+  AssertFatal(index >= 0 && index < (long)values_count, "Invalid DRX inactivity timer value %ld\n", index);
+  return nr_drx_ms_to_slots(values_ms[index], scs);
+}
+
+/**
+ * @brief Decode NR DRX retransmission timer enum values into slots.
+ *
+ * @param timer DRX retransmission timer enum value.
+ * @return Retransmission timer in slots.
+ */
+static uint32_t nr_drx_retransmission_slots(long timer)
+{
+  static const uint16_t values_slots[] = {0, 1, 2, 4, 6, 8, 16, 24, 33, 40, 64, 80, 96, 112, 128, 160, 320};
+  const size_t values_count = sizeof(values_slots) / sizeof(values_slots[0]);
+  AssertFatal(timer >= 0 && timer < (long)values_count, "Invalid DRX retransmission timer value %ld\n", timer);
+  return values_slots[timer];
+}
+
+/**
+ * @brief Decode NR DRX short-cycle enum values into slots.
+ *
+ * @param timer DRX short-cycle enum value.
+ * @param scs UE subcarrier spacing index.
+ * @return Short cycle in slots.
+ */
+static uint32_t nr_drx_short_cycle_slots(long timer, int scs)
+{
+  static const uint16_t values_ms[] = {2, 3, 4, 5, 6, 7, 8, 10, 14, 16, 20, 30, 32, 35, 40, 64, 80, 128, 160, 256, 320, 512, 640};
+  const size_t values_count = sizeof(values_ms) / sizeof(values_ms[0]);
+  AssertFatal(timer >= 0 && timer < (long)values_count, "Invalid DRX short cycle value %ld\n", timer);
+  return nr_drx_ms_to_slots(values_ms[timer], scs);
+}
+
+/**
+ * @brief Decode NR DRX long-cycle choice into cycle and offset slots.
+ *
+ * @param drx DRX setup from RRC.
+ * @param scs UE subcarrier spacing index.
+ * @param cycle_slots Decoded cycle duration in slots.
+ * @param offset_slots Decoded cycle offset in slots.
+ */
+static void nr_drx_long_cycle_slots(const NR_DRX_Config_t *drx, int scs, uint32_t *cycle_slots, uint32_t *offset_slots)
+{
+  uint32_t cycle_ms = 0;
+  long offset_ms = 0;
+  switch (drx->drx_LongCycleStartOffset.present) {
+    case NR_DRX_Config__drx_LongCycleStartOffset_PR_ms10:
+      cycle_ms = 10;
+      offset_ms = drx->drx_LongCycleStartOffset.choice.ms10;
+      break;
+    case NR_DRX_Config__drx_LongCycleStartOffset_PR_ms20:
+      cycle_ms = 20;
+      offset_ms = drx->drx_LongCycleStartOffset.choice.ms20;
+      break;
+    case NR_DRX_Config__drx_LongCycleStartOffset_PR_ms32:
+      cycle_ms = 32;
+      offset_ms = drx->drx_LongCycleStartOffset.choice.ms32;
+      break;
+    case NR_DRX_Config__drx_LongCycleStartOffset_PR_ms40:
+      cycle_ms = 40;
+      offset_ms = drx->drx_LongCycleStartOffset.choice.ms40;
+      break;
+    case NR_DRX_Config__drx_LongCycleStartOffset_PR_ms60:
+      cycle_ms = 60;
+      offset_ms = drx->drx_LongCycleStartOffset.choice.ms60;
+      break;
+    case NR_DRX_Config__drx_LongCycleStartOffset_PR_ms64:
+      cycle_ms = 64;
+      offset_ms = drx->drx_LongCycleStartOffset.choice.ms64;
+      break;
+    case NR_DRX_Config__drx_LongCycleStartOffset_PR_ms70:
+      cycle_ms = 70;
+      offset_ms = drx->drx_LongCycleStartOffset.choice.ms70;
+      break;
+    case NR_DRX_Config__drx_LongCycleStartOffset_PR_ms80:
+      cycle_ms = 80;
+      offset_ms = drx->drx_LongCycleStartOffset.choice.ms80;
+      break;
+    case NR_DRX_Config__drx_LongCycleStartOffset_PR_ms128:
+      cycle_ms = 128;
+      offset_ms = drx->drx_LongCycleStartOffset.choice.ms128;
+      break;
+    case NR_DRX_Config__drx_LongCycleStartOffset_PR_ms160:
+      cycle_ms = 160;
+      offset_ms = drx->drx_LongCycleStartOffset.choice.ms160;
+      break;
+    case NR_DRX_Config__drx_LongCycleStartOffset_PR_ms256:
+      cycle_ms = 256;
+      offset_ms = drx->drx_LongCycleStartOffset.choice.ms256;
+      break;
+    case NR_DRX_Config__drx_LongCycleStartOffset_PR_ms320:
+      cycle_ms = 320;
+      offset_ms = drx->drx_LongCycleStartOffset.choice.ms320;
+      break;
+    case NR_DRX_Config__drx_LongCycleStartOffset_PR_ms512:
+      cycle_ms = 512;
+      offset_ms = drx->drx_LongCycleStartOffset.choice.ms512;
+      break;
+    case NR_DRX_Config__drx_LongCycleStartOffset_PR_ms640:
+      cycle_ms = 640;
+      offset_ms = drx->drx_LongCycleStartOffset.choice.ms640;
+      break;
+    case NR_DRX_Config__drx_LongCycleStartOffset_PR_ms1024:
+      cycle_ms = 1024;
+      offset_ms = drx->drx_LongCycleStartOffset.choice.ms1024;
+      break;
+    case NR_DRX_Config__drx_LongCycleStartOffset_PR_ms1280:
+      cycle_ms = 1280;
+      offset_ms = drx->drx_LongCycleStartOffset.choice.ms1280;
+      break;
+    case NR_DRX_Config__drx_LongCycleStartOffset_PR_ms2048:
+      cycle_ms = 2048;
+      offset_ms = drx->drx_LongCycleStartOffset.choice.ms2048;
+      break;
+    case NR_DRX_Config__drx_LongCycleStartOffset_PR_ms2560:
+      cycle_ms = 2560;
+      offset_ms = drx->drx_LongCycleStartOffset.choice.ms2560;
+      break;
+    case NR_DRX_Config__drx_LongCycleStartOffset_PR_ms5120:
+      cycle_ms = 5120;
+      offset_ms = drx->drx_LongCycleStartOffset.choice.ms5120;
+      break;
+    case NR_DRX_Config__drx_LongCycleStartOffset_PR_ms10240:
+      cycle_ms = 10240;
+      offset_ms = drx->drx_LongCycleStartOffset.choice.ms10240;
+      break;
+    default:
+      AssertFatal(false, "Invalid DRX long cycle present %d\n", drx->drx_LongCycleStartOffset.present);
+  }
+
+  AssertFatal(offset_ms >= 0 && offset_ms < (long)cycle_ms, "Invalid DRX long-cycle offset %ld for cycle %u\n", offset_ms, cycle_ms);
+  *cycle_slots = nr_drx_ms_to_slots(cycle_ms, scs);
+  *offset_slots = nr_drx_ms_to_slots(offset_ms, scs);
+}
+
+/**
+ * @brief Configure UE MAC Connected DRX state from RRC MAC-CellGroupConfig.
+ *
+ * @param mac UE MAC instance.
+ * @param drx_config RRC setup/release wrapper for DRX.
+ * @param scs UE subcarrier spacing index.
+ */
+static void configure_drx(NR_UE_MAC_INST_t *mac, const NR_SetupRelease_DRX_Config_t *drx_config, int scs)
+{
+  nr_drx_config_t *dst = &mac->scheduling_info.drx_config;
+  if (!drx_config)
+    return;
+
+  if (drx_config->present == NR_SetupRelease_DRX_Config_PR_release) {
+    memset(dst, 0, sizeof(*dst));
+    LOG_I(NR_MAC, "Released Connected DRX configuration\n");
+    return;
+  }
+
+  AssertFatal(drx_config->present == NR_SetupRelease_DRX_Config_PR_setup, "Invalid DRX setup/release present %d\n", drx_config->present);
+  const NR_DRX_Config_t *drx = drx_config->choice.setup;
+  AssertFatal(drx, "DRX setup is NULL\n");
+
+  memset(dst, 0, sizeof(*dst));
+  dst->configured = true;
+  dst->on_duration_slots = nr_drx_on_duration_slots(drx, scs);
+  dst->inactivity_slots = nr_drx_inactivity_slots(drx, scs);
+  dst->harq_rtt_dl_slots = drx->drx_HARQ_RTT_TimerDL;
+  dst->harq_rtt_ul_slots = drx->drx_HARQ_RTT_TimerUL;
+  dst->retransmission_dl_slots = nr_drx_retransmission_slots(drx->drx_RetransmissionTimerDL);
+  dst->retransmission_ul_slots = nr_drx_retransmission_slots(drx->drx_RetransmissionTimerUL);
+  nr_drx_long_cycle_slots(drx, scs, &dst->long_cycle_slots, &dst->long_cycle_offset_slots);
+  dst->slot_offset = drx->drx_SlotOffset;
+  if (drx->shortDRX) {
+    dst->short_cycle_configured = true;
+    dst->short_cycle_slots = nr_drx_short_cycle_slots(drx->shortDRX->drx_ShortCycle, scs);
+    dst->short_cycle_timer = drx->shortDRX->drx_ShortCycleTimer;
+  }
+
+  LOG_I(NR_MAC,
+        "Configured Connected DRX: onDuration=%u slots inactivity=%u slots longCycle=%u slots offset=%u slots shortCycle=%u\n",
+        dst->on_duration_slots,
+        dst->inactivity_slots,
+        dst->long_cycle_slots,
+        dst->long_cycle_offset_slots,
+        dst->short_cycle_configured);
+}
+
 static void configure_maccellgroup(NR_UE_MAC_INST_t *mac, const NR_MAC_CellGroupConfig_t *mcg)
 {
   if (mac->current_UL_BWP == NULL) {
@@ -2350,7 +2580,7 @@ static void configure_maccellgroup(NR_UE_MAC_INST_t *mac, const NR_MAC_CellGroup
   NR_UE_SCHEDULING_INFO *si = &mac->scheduling_info;
   int scs = mac->current_UL_BWP->scs;
   if (mcg->drx_Config)
-    LOG_E(NR_MAC, "DRX not implemented! Configuration not handled!\n");
+    configure_drx(mac, mcg->drx_Config, scs);
   if (mcg->schedulingRequestConfig) {
     const NR_SchedulingRequestConfig_t *src = mcg->schedulingRequestConfig;
     if (src->schedulingRequestToReleaseList) {

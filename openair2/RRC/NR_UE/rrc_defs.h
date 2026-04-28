@@ -155,6 +155,8 @@ typedef struct UE_RRC_SI_INFO_NR_s {
   NR_UE_RRC_SI_INFO_r17 SInfo_r17;
   // Extracted from SIB1
   int scs;
+  bool edrx_allowed_idle_r17;
+  bool edrx_allowed_inactive_r17;
   int sib19_periodicity;
   int sib19_windowposition;
   int si_windowlength;

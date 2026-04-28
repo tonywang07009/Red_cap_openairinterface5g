@@ -18,3 +18,10 @@ target_link_libraries(test_nr_ue_redcap_bwp PRIVATE GTest::gtest minimal_lib asn
 add_dependencies(tests test_nr_ue_redcap_bwp)
 add_test(NAME test_nr_ue_redcap_bwp
   COMMAND ./test_nr_ue_redcap_bwp)
+
+add_executable(test_nr_ue_drx
+  test_nr_ue_drx.cpp)
+target_link_libraries(test_nr_ue_drx PRIVATE nr_ue_drx GTest::gtest minimal_lib)
+add_dependencies(tests test_nr_ue_drx)
+add_test(NAME test_nr_ue_drx
+  COMMAND ./test_nr_ue_drx)

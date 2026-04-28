@@ -113,6 +113,21 @@ Target `develop`. Keep branch history linear and rebase instead of merging. Each
   - open the most recent log file,
   - summarize failing tests and key error messages in Traditional Chinese.
 
+## Mandatory Rebuild After C/C++ Changes
+
+- After every C or C++ source/header modification, immediately rebuild the affected OAI target before moving to the next task.
+- For UE-side changes, run at least:
+  - `cmake --build --preset default --target nr-uesoftmodem`
+- For gNB-side changes, run at least:
+  - `cmake --build --preset default --target nr-softmodem`
+- For shared or cross-layer changes, build every affected side and the closest unit-test target.
+- At the end of each small sub-task, run the corresponding unit test target and `ctest -R <test-name> --output-on-failure`.
+- Clearly separate these statuses in reports:
+  - [source build PASS/FAIL]
+  - [unit test PASS/FAIL]
+  - [container image rebuilt or not]
+  - [RFsim UE/gNB/CN runtime PASS/FAIL]
+
 ---
 
 ## RedCap PHY Work Order

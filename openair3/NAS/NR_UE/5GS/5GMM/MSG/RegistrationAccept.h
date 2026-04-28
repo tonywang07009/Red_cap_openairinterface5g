@@ -37,6 +37,7 @@
 #include "MessageType.h"
 #include "FGSMobileIdentity.h"
 #include "ds/byte_array.h"
+#include "fgmm_lib.h"
 
 #ifndef REGISTRATION_ACCEPT_H_
 #define REGISTRATION_ACCEPT_H_
@@ -76,6 +77,10 @@ typedef struct registration_accept_msg_tag {
   // Configured NSSAI (Optional)
   nr_nas_msg_snssai_t config_nssai[NAS_MAX_NUMBER_SLICES];
   uint8_t num_configured_slices;
+  // T3512 value (Optional, IEI 0x5E, 3GPP TS 24.501 Table 8.2.7.1.1)
+  gprs_timer_t *t3512;
+  // T3324 active time value (Optional, IEI 0x6A, 3GPP TS 24.501 Table 8.2.7.1.1)
+  gprs_timer_t *t3324;
 } registration_accept_msg;
 
 size_t decode_registration_accept(registration_accept_msg *registrationaccept, const byte_array_t buffer);

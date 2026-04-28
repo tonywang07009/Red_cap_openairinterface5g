@@ -39,6 +39,7 @@
 #include "NR_MAC_COMMON/nr_mac.h"
 #include "NR_MAC_COMMON/nr_mac_common.h"
 #include "NR_MAC_UE/mac_proto.h"
+#include "NR_MAC_UE/nr_ue_drx.h"
 
 /* utils */
 #include "assertions.h"
@@ -1157,12 +1158,18 @@ void nr_ue_dl_scheduler(NR_UE_MAC_INST_t *mac, nr_downlink_indication_t *dl_info
   if (mac->state == UE_NOT_SYNC || mac->state == UE_NOT_SYNC_RECONF || mac->state == UE_DETACHING)
     return;
 
-  if (mac->state == UE_CONNECTED) {
+  const bool connected_drx_active = mac->state != UE_CONNECTED || nr_ue_drx_is_active(mac, rx_frame, rx_slot);
+
+  if (mac->state == UE_CONNECTED && connected_drx_active) {
     nr_schedule_csirs_reception(mac, rx_frame, rx_slot);
     nr_schedule_csi_for_im(mac, rx_frame, rx_slot);
   }
 
-  ue_dci_configuration(mac, dl_config, rx_frame, rx_slot);
+  if (connected_drx_active) {
+    ue_dci_configuration(mac, dl_config, rx_frame, rx_slot);
+    if (dl_config->number_pdus > 0 && mac->state == UE_CONNECTED)
+      nr_ue_drx_note_activity(mac, rx_frame, rx_slot);
+  }
 
   if (mac->ul_time_alignment.ta_apply != no_ta)
     schedule_ta_command(dl_config, mac);
@@ -1431,6 +1438,7 @@ void nr_ue_ul_scheduler(NR_UE_MAC_INST_t *mac, nr_uplink_indication_t *ul_info)
                                     pdu->rb_start);
 
           nr_ue_get_sdu(mac, cc_id, frame_tx, slot_tx, gNB_index, ulsch_input_buffer, TBS_bytes, tx_power, P_CMAX, &BSRsent);
+          nr_ue_drx_note_activity(mac, frame_tx, slot_tx);
           pdu->tx_request_body.fapiTxPdu = ulsch_input_buffer;
           pdu->tx_request_body.pdu_length = TBS_bytes;
           number_of_pdus++;

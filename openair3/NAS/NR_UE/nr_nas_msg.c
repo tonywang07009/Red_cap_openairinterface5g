@@ -75,6 +75,7 @@
 #include "ds/byte_array.h"
 #include "key_nas_deriver.h"
 #include "nr-uesoftmodem.h"
+#include "nr_nas_lowpower.h"
 
 static nr_ue_nas_t nr_ue_nas[MAX_NUM_NR_UE_INST] = {0};
 
@@ -676,6 +677,7 @@ nr_ue_nas_t *get_ue_nas_info(module_id_t module_id)
 {
   AssertFatal(module_id < MAX_NUM_NR_UE_INST, "Invalid module_id %d\n", module_id);
   if (!nr_ue_nas[module_id].uicc) {
+    nr_nas_psm_init(&nr_ue_nas[module_id]);
     nr_ue_nas[module_id].uicc = checkUicc(module_id);
     nr_ue_nas[module_id].UE_id = module_id;
   }
@@ -1846,6 +1848,12 @@ static void handle_registration_accept(nr_ue_nas_t *nas, const uint8_t *pdu_buff
         : msg.result == FGS_REGISTRATION_RESULT_NON_3GPP ? "non-3PP"
                                                          : "3GPP and non-3GPP");
   LOG_I(NAS, "SMS %s in 5GS Registration Result\n", msg.sms_allowed ? "allowed" : "not allowed");
+  LOG_I(NAS,
+        "NAS PSM timers: T3324=%d sec T3512=%d sec configured=%d low_power_ready=%d\n",
+        nas->t3324,
+        nas->t3512,
+        nas->psm_configured,
+        nr_nas_psm_low_power_ready(nas));
 
   pdu_buffer += decoded;
   // process GUTI

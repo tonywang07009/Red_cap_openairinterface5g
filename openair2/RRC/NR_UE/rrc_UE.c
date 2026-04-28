@@ -73,6 +73,7 @@
 #include "nr_nas_msg.h"
 #include "openair2/SDAP/nr_sdap/nr_sdap_entity.h"
 #include "rrc_ue_redcap.h"
+#include "rrc_ue_lowpower.h"
 
 static NR_UE_RRC_INST_t *NR_UE_rrc_inst[MAX_NUM_NR_UE_INST] = {0};
 /* NAS Attach request with IMSI */
@@ -510,6 +511,11 @@ static void nr_rrc_process_sib1(NR_UE_RRC_INST_t *rrc, NR_UE_RRC_SI_INFO *SI_inf
   AssertFatal(sib1->servingCellConfigCommon, "configuration issue in SIB1\n");
   SI_info->scs = sib1->servingCellConfigCommon->downlinkConfigCommon.initialDownlinkBWP.genericParameters.subcarrierSpacing;
   SI_info->si_windowlength = (sib1->si_SchedulingInfo) ? sib1->si_SchedulingInfo->si_WindowLength : 0;
+  nr_rrc_apply_sib1_edrx(SI_info, sib1_v1700);
+  LOG_I(NR_RRC,
+        "SIB1 eDRX allowed: idle=%d inactive=%d\n",
+        SI_info->edrx_allowed_idle_r17,
+        SI_info->edrx_allowed_inactive_r17);
   // configure default SI
   nr_rrc_configure_default_SI(SI_info, sib1->si_SchedulingInfo, si_SchedInfo_v1700);
   rrc->is_NTN_UE = verify_NTN_access(SI_info, sib1_v1700);

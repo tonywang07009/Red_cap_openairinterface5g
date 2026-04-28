@@ -247,6 +247,23 @@ typedef struct {
   bool was_mac_reset;
 } nr_phr_info_t;
 
+typedef struct {
+  bool configured;
+  uint32_t on_duration_slots;
+  uint32_t inactivity_slots;
+  uint64_t active_until_slot;
+  uint32_t harq_rtt_dl_slots;
+  uint32_t harq_rtt_ul_slots;
+  uint32_t retransmission_dl_slots;
+  uint32_t retransmission_ul_slots;
+  uint32_t long_cycle_slots;
+  uint32_t long_cycle_offset_slots;
+  bool short_cycle_configured;
+  uint32_t short_cycle_slots;
+  uint32_t short_cycle_timer;
+  uint32_t slot_offset;
+} nr_drx_config_t;
+
 // LTE structure, might need to be adapted for NR
 typedef struct {
   // lcs scheduling info
@@ -265,6 +282,7 @@ typedef struct {
   NR_timer_t periodicBSR_Timer;
 
   nr_phr_info_t phr_info;
+  nr_drx_config_t drx_config;
 } NR_UE_SCHEDULING_INFO;
 
 typedef enum {
