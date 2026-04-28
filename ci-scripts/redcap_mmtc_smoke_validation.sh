@@ -36,6 +36,15 @@ ADAPTIVE_BURST_ON_ZERO_GAP=${MMTC_ADAPTIVE_BURST_ON_ZERO_GAP:-1}
 UE_START_BURST_SIZE=${MMTC_UE_START_BURST_SIZE:-8}
 UE_START_BURST_PAUSE=${MMTC_UE_START_BURST_PAUSE:-2}
 UE_START_BURST_THRESHOLD=${MMTC_UE_START_BURST_THRESHOLD:-32}
+IPERF_ENABLE=${MMTC_IPERF_ENABLE:-0}
+IPERF_SAMPLE_UES_RAW=${MMTC_IPERF_SAMPLE_UES:-"${SAMPLE_UES_RAW}"}
+IPERF_RATE=${MMTC_IPERF_RATE:-30M}
+IPERF_DURATION=${MMTC_IPERF_DURATION:-20}
+IPERF_UDP=${MMTC_IPERF_UDP:-1}
+IPERF_SERVER_IP=${MMTC_IPERF_SERVER_IP:-}
+IPERF_TCP_MIN_MBIT=${MMTC_IPERF_TCP_MIN_MBIT:-}
+IPERF_QUIESCE_NON_SELECTED=${MMTC_IPERF_QUIESCE_NON_SELECTED:-0}
+IPERF_QUIESCE_ACTION=${MMTC_IPERF_QUIESCE_ACTION:-pause}
 
 OVERLAY_GENERATOR="${REPO_ROOT}/ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/scripts/generate_mmtc_overlay.sh"
 CN_DB_GENERATOR="${REPO_ROOT}/ci-scripts/generate_mmtc_cn_db_overlay.sh"
@@ -52,6 +61,8 @@ UE_PDU_ACCEPT_COUNT=0
 UE_TUN_COUNT=0
 UE_FORWARD_PING_OK_COUNT=0
 UE_REVERSE_PING_OK_COUNT=0
+UE_IPERF_OK_COUNT=0
+UE_IPERF_RUN_COUNT=0
 RECOVERY_RESTARTED_UES=0
 
 mkdir -p "${LOG_DIR}"
@@ -64,6 +75,7 @@ declare -a PING_TARGET_SOURCES=()
 declare -a PING_UE_IPV4S=()
 declare -a PING_LOG_FILES=()
 declare -a REVERSE_PING_LOG_FILES=()
+declare -a IPERF_SAMPLE_UES=()
 
 compose_with_images()
 {
@@ -172,6 +184,298 @@ run_parallel_forward_pings()
       UE_FORWARD_PING_OK_COUNT=$((UE_FORWARD_PING_OK_COUNT + 1))
     fi
   done
+}
+
+ue_selected_for_iperf()
+{
+  local ue_idx="$1"
+
+  if [ "${IPERF_SAMPLE_UES_RAW}" = "all" ]; then
+    return 0
+  fi
+
+  for selected_idx in "${IPERF_SAMPLE_UES[@]}"; do
+    if [ "${selected_idx}" = "${ue_idx}" ]; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+start_iperf_server()
+{
+  local server_log="$1"
+
+  set +e
+  {
+    echo "# collected_at=$(date --iso-8601=seconds)"
+    echo "# command: docker exec oai-ext-dn sh -c 'pids=\$(pidof iperf3 2>/dev/null || true); [ -z \"\$pids\" ] || kill \$pids; iperf3 -s -D'"
+    docker exec oai-ext-dn sh -c 'pids=$(pidof iperf3 2>/dev/null || true); [ -z "$pids" ] || kill $pids; iperf3 -s -D'
+  } > "${server_log}" 2>&1
+  local rc=$?
+  set -e
+  return "${rc}"
+}
+
+resolve_iperf_server_ip()
+{
+  if [ -n "${IPERF_SERVER_IP}" ]; then
+    printf '%s\n' "${IPERF_SERVER_IP}"
+    return 0
+  fi
+
+  docker exec oai-ext-dn sh -c "ip -4 -o addr show dev eth0 | sed -E 's/.*inet ([0-9.]+)\\/.*/\\1/' | head -n 1"
+}
+
+iperf_udp_sender_completed()
+{
+  local iperf_log="$1"
+
+  grep -Eq 'sender$| sender' "${iperf_log}" && \
+    ! grep -Eqi 'unable to connect|connection refused|no route|network is unreachable|name or service' "${iperf_log}"
+}
+
+iperf_rate_to_mbit()
+{
+  local rate="$1"
+
+  awk -v rate="${rate}" '
+    BEGIN {
+      value = rate
+      unit = rate
+      gsub(/[^0-9.].*/, "", value)
+      gsub(/^[0-9.]+/, "", unit)
+      unit = toupper(unit)
+      if (value == "") {
+        print "0"
+        exit
+      }
+      if (unit ~ /^G/) {
+        printf "%.6f\n", value * 1000
+      } else if (unit ~ /^K/) {
+        printf "%.6f\n", value / 1000
+      } else {
+        printf "%.6f\n", value
+      }
+    }'
+}
+
+iperf_tcp_receiver_mbit()
+{
+  local iperf_log="$1"
+
+  awk '
+    / receiver$/ {
+      for (i = 1; i <= NF; i++) {
+        if ($i ~ /bits\/sec$/ && i > 1) {
+          value = $(i - 1)
+          unit = $i
+          if (unit ~ /^Kbits/) {
+            mbps = value / 1000
+          } else if (unit ~ /^Mbits/) {
+            mbps = value
+          } else if (unit ~ /^Gbits/) {
+            mbps = value * 1000
+          } else {
+            mbps = 0
+          }
+        }
+      }
+    }
+    END {
+      if (mbps == "") {
+        exit 1
+      }
+      printf "%.6f\n", mbps
+    }' "${iperf_log}"
+}
+
+iperf_tcp_receiver_meets_target()
+{
+  local iperf_log="$1"
+  local min_mbit="$2"
+  local measured_mbit
+
+  measured_mbit=$(iperf_tcp_receiver_mbit "${iperf_log}" || true)
+  if [ -z "${measured_mbit}" ]; then
+    return 1
+  fi
+
+  awk -v measured="${measured_mbit}" -v minimum="${min_mbit}" 'BEGIN { exit !(measured >= minimum) }'
+}
+
+quiesce_non_iperf_ues()
+{
+  local -n paused_ref=$1
+
+  if [ "${IPERF_QUIESCE_NON_SELECTED}" != "1" ]; then
+    return 0
+  fi
+
+  echo "[INFO] Quiescing non-selected UE containers before iperf3 using action=${IPERF_QUIESCE_ACTION}"
+  for idx in "${!PING_CONTAINER_NAMES[@]}"; do
+    local ue_idx="${PING_UE_INDICES[$idx]}"
+    local container_name="${PING_CONTAINER_NAMES[$idx]}"
+
+    if ue_selected_for_iperf "${ue_idx}"; then
+      continue
+    fi
+
+    if [ "${IPERF_QUIESCE_ACTION}" = "stop" ]; then
+      if docker stop -t 2 "${container_name}" >/dev/null 2>&1; then
+        paused_ref+=("${container_name}")
+      else
+        echo "[WARN] Failed to stop ${container_name} before iperf3"
+        FAILURES=$((FAILURES + 1))
+      fi
+    elif docker pause "${container_name}" >/dev/null 2>&1; then
+      paused_ref+=("${container_name}")
+    else
+      echo "[WARN] Failed to pause ${container_name} before iperf3"
+      FAILURES=$((FAILURES + 1))
+    fi
+  done
+  echo "[INFO] Quiesced ${#paused_ref[@]} non-selected UE container(s) before iperf3"
+}
+
+resume_quiesced_ues()
+{
+  local -n paused_ref=$1
+
+  if [ "${#paused_ref[@]}" -eq 0 ]; then
+    return 0
+  fi
+
+  if [ "${IPERF_QUIESCE_ACTION}" = "stop" ]; then
+    echo "[INFO] Leaving ${#paused_ref[@]} stopped non-selected UE container(s) down after iperf3"
+    return 0
+  fi
+
+  echo "[INFO] Unpausing ${#paused_ref[@]} non-selected UE container(s) after iperf3"
+  for container_name in "${paused_ref[@]}"; do
+    if ! docker unpause "${container_name}" >/dev/null 2>&1; then
+      echo "[WARN] Failed to unpause ${container_name} after iperf3"
+      FAILURES=$((FAILURES + 1))
+    fi
+  done
+}
+
+run_iperf_for_selected_ues()
+{
+  local server_log="${LOG_DIR}/mmtc_smoke_${TIMESTAMP}_iperf_server.log"
+  local selected_count=0
+  local iperf_server_ip=""
+  local iperf_tcp_min_mbit="${IPERF_TCP_MIN_MBIT}"
+  local -a paused_ues=()
+
+  if [ "${IPERF_ENABLE}" != "1" ]; then
+    echo "[INFO] UL iperf3 validation disabled (MMTC_IPERF_ENABLE=${IPERF_ENABLE})"
+    return 0
+  fi
+
+  echo "[INFO] Starting ext-dn iperf3 server for UL-only RedCap throughput validation"
+  if ! start_iperf_server "${server_log}"; then
+    echo "[WARN] Failed to start iperf3 server on oai-ext-dn; log=${server_log}"
+    FAILURES=$((FAILURES + 1))
+    return 0
+  fi
+  iperf_server_ip=$(resolve_iperf_server_ip || true)
+  if [ -z "${iperf_server_ip}" ]; then
+    echo "[WARN] Failed to resolve oai-ext-dn IPv4 address for iperf3"
+    FAILURES=$((FAILURES + 1))
+    return 0
+  fi
+  echo "[INFO] UL iperf3 server IP: ${iperf_server_ip}"
+
+  if [ "${IPERF_UDP}" != "1" ] && [ -z "${iperf_tcp_min_mbit}" ]; then
+    iperf_tcp_min_mbit=$(iperf_rate_to_mbit "${IPERF_RATE}")
+  fi
+
+  quiesce_non_iperf_ues paused_ues
+
+  for idx in "${!PING_CONTAINER_NAMES[@]}"; do
+    local ue_idx="${PING_UE_INDICES[$idx]}"
+    local container_name="${PING_CONTAINER_NAMES[$idx]}"
+    local target_ip="${iperf_server_ip}"
+    local ue_ipv4="${PING_UE_IPV4S[$idx]}"
+    local iperf_log="${LOG_DIR}/mmtc_smoke_${TIMESTAMP}_ue${ue_idx}_iperf3_ul.log"
+    local -a iperf_args=()
+
+    if ! ue_selected_for_iperf "${ue_idx}"; then
+      continue
+    fi
+    if [ -z "${ue_ipv4}" ]; then
+      echo "[WARN] Skip iperf3 for ${container_name}: missing UE TUN IPv4"
+      FAILURES=$((FAILURES + 1))
+      continue
+    fi
+
+    selected_count=$((selected_count + 1))
+    UE_IPERF_RUN_COUNT=$((UE_IPERF_RUN_COUNT + 1))
+
+    if ! start_iperf_server "${server_log}"; then
+      echo "[WARN] Failed to restart iperf3 server before UE${ue_idx}; log=${server_log}"
+      FAILURES=$((FAILURES + 1))
+      continue
+    fi
+
+    iperf_args=(iperf3 -c "${target_ip}" -t "${IPERF_DURATION}" -B "${ue_ipv4}")
+    if [ "${IPERF_UDP}" = "1" ]; then
+      iperf_args+=(-u -b "${IPERF_RATE}")
+    else
+      iperf_args+=(-b "${IPERF_RATE}")
+    fi
+
+    echo "[INFO] UL iperf3 ${container_name} -> ${target_ip} (UE IPv4=${ue_ipv4}, udp=${IPERF_UDP}, rate=${IPERF_RATE}, duration=${IPERF_DURATION}s, tcp_min_mbit=${iperf_tcp_min_mbit:-n/a})"
+    set +e
+    {
+      echo "# collected_at=$(date --iso-8601=seconds)"
+      echo "# direction=UL"
+      echo "# ue=${ue_idx}"
+      echo "# container=${container_name}"
+      echo "# target=${target_ip}"
+      echo "# ue_ipv4=${ue_ipv4}"
+      echo "# command: docker exec ${container_name} ${iperf_args[*]}"
+      docker exec "${container_name}" "${iperf_args[@]}"
+    } > "${iperf_log}" 2>&1
+    local iperf_rc=$?
+    set -e
+
+    if [ "${iperf_rc}" -ne 0 ]; then
+      if [ "${IPERF_UDP}" = "1" ] && iperf_udp_sender_completed "${iperf_log}"; then
+        echo "[WARN] ${container_name} UL iperf3 sender completed, but server report was unavailable; accepting sender-side UL measurement; log=${iperf_log}"
+        UE_IPERF_OK_COUNT=$((UE_IPERF_OK_COUNT + 1))
+      else
+        echo "[WARN] ${container_name} UL iperf3 failed; log=${iperf_log}"
+        FAILURES=$((FAILURES + 1))
+      fi
+    elif [ "${IPERF_UDP}" != "1" ]; then
+      local measured_mbit
+      measured_mbit=$(iperf_tcp_receiver_mbit "${iperf_log}" || true)
+      if [ -z "${measured_mbit}" ]; then
+        echo "[WARN] ${container_name} UL TCP iperf3 did not expose receiver throughput; log=${iperf_log}"
+        FAILURES=$((FAILURES + 1))
+      elif iperf_tcp_receiver_meets_target "${iperf_log}" "${iperf_tcp_min_mbit}"; then
+        echo "[INFO] ${container_name} UL TCP iperf3 receiver=${measured_mbit} Mbit/s target>=${iperf_tcp_min_mbit} Mbit/s"
+        UE_IPERF_OK_COUNT=$((UE_IPERF_OK_COUNT + 1))
+      else
+        echo "[WARN] ${container_name} UL TCP iperf3 below target: receiver=${measured_mbit} Mbit/s target>=${iperf_tcp_min_mbit} Mbit/s; log=${iperf_log}"
+        FAILURES=$((FAILURES + 1))
+      fi
+    else
+      UE_IPERF_OK_COUNT=$((UE_IPERF_OK_COUNT + 1))
+    fi
+  done
+
+  if [ "${selected_count}" -eq 0 ]; then
+    echo "[WARN] No selected UE matched MMTC_IPERF_SAMPLE_UES='${IPERF_SAMPLE_UES_RAW}'"
+    FAILURES=$((FAILURES + 1))
+  fi
+
+  resume_quiesced_ues paused_ues
+
+  return 0
 }
 
 capture_container_snapshot()
@@ -356,6 +660,7 @@ EOF
 }
 
 mapfile -t SAMPLE_UES < <(printf '%s\n' "${SAMPLE_UES_RAW}" | tr ', ' '\n' | sed '/^$/d')
+mapfile -t IPERF_SAMPLE_UES < <(printf '%s\n' "${IPERF_SAMPLE_UES_RAW}" | tr ', ' '\n' | sed '/^$/d')
 
 if [ "${#SAMPLE_UES[@]}" -eq 0 ]; then
   echo "No sample UEs specified via MMTC_SAMPLE_UES" >&2
@@ -369,8 +674,27 @@ for ue_idx in "${SAMPLE_UES[@]}"; do
   fi
 done
 
+if [ "${IPERF_SAMPLE_UES_RAW}" != "all" ]; then
+  for ue_idx in "${IPERF_SAMPLE_UES[@]}"; do
+    if ! [[ "${ue_idx}" =~ ^[0-9]+$ ]]; then
+      echo "Invalid UE index in MMTC_IPERF_SAMPLE_UES: ${ue_idx}" >&2
+      exit 1
+    fi
+  done
+fi
+
 if [ "${FORWARD_PING_MODE}" != "serial" ] && [ "${FORWARD_PING_MODE}" != "parallel" ]; then
   echo "Invalid MMTC_FORWARD_PING_MODE: ${FORWARD_PING_MODE}" >&2
+  exit 1
+fi
+
+if [ "${IPERF_ENABLE}" != "0" ] && [ "${IPERF_ENABLE}" != "1" ]; then
+  echo "Invalid MMTC_IPERF_ENABLE: ${IPERF_ENABLE}" >&2
+  exit 1
+fi
+
+if [ "${IPERF_UDP}" != "0" ] && [ "${IPERF_UDP}" != "1" ]; then
+  echo "Invalid MMTC_IPERF_UDP: ${IPERF_UDP}" >&2
   exit 1
 fi
 
@@ -401,6 +725,7 @@ echo "[INFO] gNB warmup          : ${GNB_WARMUP}s"
 echo "[INFO] UE start gap        : ${UE_START_GAP}s"
 echo "[INFO] forward ping mode   : ${FORWARD_PING_MODE}"
 echo "[INFO] reverse ping        : ${RUN_REVERSE_PING}"
+echo "[INFO] UL iperf3           : enable=${IPERF_ENABLE} sample=${IPERF_SAMPLE_UES_RAW} udp=${IPERF_UDP} rate=${IPERF_RATE} duration=${IPERF_DURATION}s quiesce=${IPERF_QUIESCE_NON_SELECTED}/${IPERF_QUIESCE_ACTION}"
 echo "[INFO] image selection     : REGISTRY='${IMAGE_REGISTRY}' TAG='${IMAGE_TAG}' GNB='${GNB_IMAGE_NAME}' NRUE='${NRUE_IMAGE_NAME}'"
 echo "[INFO] recovery config     : restart_on_gnb_restart=${AUTO_RECOVER_AFTER_GNB_RESTART} recover_missing_ues=${AUTO_RECOVER_MISSING_UES} recover_after_precheck_restart=${RECOVER_ON_PRECHECK_GNB_RESTART} settle=${RECOVERY_SETTLE}s gap=${RECOVERY_UE_GAP}s precheck_gentle_settle=${PRECHECK_RECOVERY_SETTLE}s precheck_gentle_gap=${PRECHECK_RECOVERY_UE_GAP}s fail_on_gnb_restart=${FAIL_ON_GNB_RESTART}"
 echo "[INFO] adaptive burst      : on_zero_gap=${ADAPTIVE_BURST_ON_ZERO_GAP} threshold=${UE_START_BURST_THRESHOLD} burst_size=${UE_START_BURST_SIZE} pause=${UE_START_BURST_PAUSE}s"
@@ -653,7 +978,9 @@ if [ "${FORWARD_PING_MODE}" = "parallel" ] && [ "${#PING_CONTAINER_NAMES[@]}" -g
   capture_shared_user_plane_snapshot "post_parallel_ping"
 fi
 
-echo "[SUMMARY] sample=${#SAMPLE_UES[@]} running=${UE_RUNNING_COUNT} attach=${UE_ATTACH_COUNT} pdu=${UE_PDU_ACCEPT_COUNT} tun=${UE_TUN_COUNT} forward_ping_ok=${UE_FORWARD_PING_OK_COUNT} reverse_ping_ok=${UE_REVERSE_PING_OK_COUNT} gnb_restart=${GNB_RESTART_COUNT} failures=${FAILURES} mode=${FORWARD_PING_MODE}"
+run_iperf_for_selected_ues
+
+echo "[SUMMARY] sample=${#SAMPLE_UES[@]} running=${UE_RUNNING_COUNT} attach=${UE_ATTACH_COUNT} pdu=${UE_PDU_ACCEPT_COUNT} tun=${UE_TUN_COUNT} forward_ping_ok=${UE_FORWARD_PING_OK_COUNT} reverse_ping_ok=${UE_REVERSE_PING_OK_COUNT} iperf_ul_ok=${UE_IPERF_OK_COUNT} iperf_ul_run=${UE_IPERF_RUN_COUNT} gnb_restart=${GNB_RESTART_COUNT} failures=${FAILURES} mode=${FORWARD_PING_MODE}"
 echo "[INFO] Smoke validation completed"
 echo "[INFO] Logs stored under ${LOG_DIR}"
 

@@ -38,14 +38,29 @@ EOF
 # Keep base UE1..UE${BASE_FIXED_UE_COUNT} aligned with mMTC runtime knobs.
 # These services already exist in docker-compose.yml; here we only override env.
 for ((idx=1; idx<=BASE_FIXED_UE_COUNT; idx++)); do
+  imsi=$(printf '001010%09d' "$idx")
   cat >> "$OUTPUT_FILE" <<EOF
   oai-nr-ue${idx}:
     environment:
+      MMTC_UE_INDEX: "${idx}"
+      MMTC_IMSI: "${imsi}"
+      MMTC_REDCAP_ENABLE: \${MMTC_REDCAP_ENABLE:-1}
+      MMTC_REDCAP_NUM_RX: \${MMTC_REDCAP_NUM_RX:-1}
+      MMTC_REDCAP_HALF_DUPLEX: \${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
+      MMTC_BAND: \${MMTC_BAND:-78}
+      MMTC_RF_FREQ: \${MMTC_RF_FREQ:-3630360000}
+      MMTC_NUMEROLOGY: \${MMTC_NUMEROLOGY:-1}
+      MMTC_N_RB_DL: \${MMTC_N_RB_DL:-106}
+      MMTC_SSB_START: \${MMTC_SSB_START:-144}
       MMTC_CGCFG_NOFREE: \${MMTC_CGCFG_NOFREE:-0}
       MMTC_CGCFG_DEFER_FREE_SLOTS: \${MMTC_CGCFG_DEFER_FREE_SLOTS:-0}
       MMTC_PUCCH_COMMON_FALLBACK_BWP0: \${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
       MMTC_SEGV_BACKTRACE: \${MMTC_SEGV_BACKTRACE:-0}
       MMTC_PDCP_TRACE: \${MMTC_PDCP_TRACE:-0}
+    volumes:
+      - ../../conf_files/nrue_recap/nrue${idx}.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
+      - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
 
 EOF
 done

@@ -1,0 +1,4 @@
+services:
+  mysql:
+    volumes:
+      - /home/tonywang/OAI/Red_cap_openairinterface5g/test_log/runtime_configs/oai_db_mmtc_50.sql:/docker-entrypoint-initdb.d/zz_oai_db_mmtc.sql:ro

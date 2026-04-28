@@ -174,7 +174,7 @@ services:
         devices:
              - /dev/net/tun:/dev/net/tun
         volumes:
-            - ${NRUE_CONFIG_1:-../../conf_files/nrue/nrue1.uicc.yaml}:/opt/oai-nr-ue/etc/nr-ue.yaml
+            - ${NRUE_CONFIG_1:-../../conf_files/nrue_recap/nrue1.uicc.yaml}:/opt/oai-nr-ue/etc/nr-ue.yaml
         healthcheck:
             test: /bin/bash -c "pgrep nr-uesoftmodem"
             start_period: 10s
@@ -198,7 +198,6 @@ services:
             USE_ADDITIONAL_OPTIONS: > 
                                     -E --rfsim -r 106 --numerology 1 
                                     --uicc0.imsi 001010000000002
-                                    --uecap_file /tmp/redcap_force_yaml_fallback/uecap-redcap.xml
                                     -C 3630360000 
                                     --ssb 144
                                     --rfsimulator.serveraddr 192.168.70.140 
