@@ -50,6 +50,8 @@ static void test_regression_registration_accept(void)
       .config_nssai[1].sst = 0x02,
       .config_nssai[2].sst = 0x03,
       .num_configured_slices = 3,
+      .t3512 = malloc_or_fail(sizeof(*orig.t3512)),
+      .t3324 = malloc_or_fail(sizeof(*orig.t3324)),
   };
 
   orig.guti->guti.typeofidentity = FGS_MOBILE_IDENTITY_5G_GUTI;
@@ -65,13 +67,19 @@ static void test_regression_registration_accept(void)
   orig.guti->guti.tmsi = 0xb0207806;
   orig.guti->guti.spare = 0b1111;
   orig.guti->guti.oddeven = 0;
+  orig.t3512->unit = ONE_MINUTE;
+  orig.t3512->value = 1;
+  orig.t3324->unit = TWO_SECONDS;
+  orig.t3324->value = 30;
 
   // Encoded Registration Accept message from OAI CN5G
   uint8_t cn5g_msg[] = {0x01, 0x01, // Registration Result
                         0x77, 0x00, 0x0B, 0xF2, 0x00, 0xF1, 0x10, // 5G-GUTI
                         0x02, 0x00, 0x41, 0xB0, 0x20, 0x78, 0x06, // 5G-GUTI
                         0x15, 0x06, 0x01, 0x01, 0x01, 0x02, 0x01, 0x03, // Allowed N-NSSAI
-                        0x31, 0x06, 0x01, 0x01, 0x01, 0x02, 0x01, 0x03}; // Configured N-NSSAI
+                        0x31, 0x06, 0x01, 0x01, 0x01, 0x02, 0x01, 0x03, // Configured N-NSSAI
+                        0x5E, 0x01, 0x21, // T3512 value: 1 minute
+                        0x6A, 0x01, 0x1E}; // T3324 value: 60 seconds
 
   // Decode NAS Registration Accept
   int encoded_length;

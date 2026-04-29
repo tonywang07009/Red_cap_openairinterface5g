@@ -9,6 +9,7 @@ Core RAN code is split by layer: `openair1/` for PHY, `openair2/` for MAC/RLC/PD
 ## File Query Workflow
 
 - When querying files, symbols, call relationships, or repository structure in this repo, use the `symdex` MCP tools first. Only fall back to raw filesystem or shell-based search if `symdex` does not cover the needed lookup.
+- For file contents, project documents, generated headers, logs, and local spec artifacts, use the filesystem MCP tools whenever possible before falling back to shell commands.
 
 ## Build, Test, and Development Commands
 
@@ -56,6 +57,7 @@ Target `develop`. Keep branch history linear and rebase instead of merging. Each
   - `specs/3gpp/38.101-1.pdf` (UE RF transmission and reception for FR1)
   - `specs/3gpp/38.321.pdf` (MAC protocol, including Random Access and DRX)
 - When answering questions, prefer these local specs first.
+- All RedCap, mMTC, PHY, MAC, RRC, and NAS changes must be checked against the relevant local 3GPP specifications before implementation, and any uncertain clause or interpretation must be marked as `Needs Verification`.
 - When I write `@spec-38.331`, interpret it as “look at specs/3gpp/38.331.pdf and cite the relevant clause if possible”.
 - For detailed RedCap RRC behavior, see `/Red_cap_openairinterface5g/spec/redcap_3gpp/spec.md`.
 

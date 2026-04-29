@@ -299,6 +299,8 @@ static NR_BWP_UplinkCommon_t *clone_redcap_uplink_bwp(const NR_ServingCellConfig
   bwp->genericParameters.locationAndBandwidth = redcap_config->initial_ul_bwp.location_and_bw;
   bwp->genericParameters.subcarrierSpacing = redcap_config->initial_ul_bwp.scs;
   bwp->rach_ConfigCommon = clone_rach_configcommon(scc->uplinkConfigCommon->initialUplinkBWP->rach_ConfigCommon);
+  if (bwp->rach_ConfigCommon && bwp->rach_ConfigCommon->present == NR_SetupRelease_RACH_ConfigCommon_PR_setup)
+    nr_redcap_configure_rach_feature_combination_preambles(bwp->rach_ConfigCommon->choice.setup);
   bwp->pusch_ConfigCommon = clone_pusch_configcommon(scc->uplinkConfigCommon->initialUplinkBWP->pusch_ConfigCommon);
   bwp->pucch_ConfigCommon = clone_pucch_configcommon(scc->uplinkConfigCommon->initialUplinkBWP->pucch_ConfigCommon);
 

@@ -40,6 +40,8 @@
 #include "fgmm_lib.h"
 
 #define IEI_5G_GUTI 0x77
+#define IEI_T3512_VALUE 0x5E
+#define IEI_T3324_VALUE 0x6A
 #define FGS_REGISTRATION_RESULT_LEN 2
 #define REGISTRATION_ACCEPT_MIN_LEN FGS_REGISTRATION_RESULT_LEN // (5GS registration result) 2 octets
 
@@ -175,6 +177,18 @@ size_t decode_registration_accept(registration_accept_msg *registration_accept, 
         UPDATE_BYTE_ARRAY(ba, dec);
         break;
 
+      case IEI_T3512_VALUE:
+        registration_accept->t3512 = calloc_or_fail(1, sizeof(*registration_accept->t3512));
+        dec = decode_gprs_timer_ie(registration_accept->t3512, &ba);
+        UPDATE_BYTE_ARRAY(ba, dec);
+        break;
+
+      case IEI_T3324_VALUE:
+        registration_accept->t3324 = calloc_or_fail(1, sizeof(*registration_accept->t3324));
+        dec = decode_gprs_timer_ie(registration_accept->t3324, &ba);
+        UPDATE_BYTE_ARRAY(ba, dec);
+        break;
+
       default:
         dec = ba.buf[0] + 1; // content length + 1 byte (Length IE)
         UPDATE_BYTE_ARRAY(ba, dec);
@@ -279,6 +293,16 @@ bool eq_fgmm_registration_accept(const registration_accept_msg *a, const registr
     }
   }
 
+  // PSM timers (optional)
+  if ((a->t3512 && !b->t3512) || (!a->t3512 && b->t3512))
+    return false;
+  if (a->t3512 && b->t3512 && !eq_gprs_timer(a->t3512, b->t3512))
+    return false;
+  if ((a->t3324 && !b->t3324) || (!a->t3324 && b->t3324))
+    return false;
+  if (a->t3324 && b->t3324 && !eq_gprs_timer(a->t3324, b->t3324))
+    return false;
+
   return true;
 }
 
@@ -294,6 +318,8 @@ static void free_nssai(nr_nas_msg_snssai_t *msg)
 void free_fgmm_registration_accept(registration_accept_msg *msg)
 {
   free(msg->guti);
+  free(msg->t3512);
+  free(msg->t3324);
   for (int i = 0; i < NAS_MAX_NUMBER_SLICES; i++) {
     free_nssai(&msg->nas_allowed_nssai[i]);
     free_nssai(&msg->config_nssai[i]);

@@ -25,7 +25,9 @@
 
 extern "C" {
 #include "NR_ControlResourceSet.h"
+#include "NR_FeatureCombinationPreambles-r17.h"
 #include "NR_PDCCH-ConfigCommon.h"
+#include "NR_RACH-ConfigCommon.h"
 #include "NR_SearchSpace.h"
 #include "openair2/LAYER2/NR_MAC_gNB/nr_mac_redcap_bwp.h"
 }
@@ -166,6 +168,66 @@ TEST(nr_redcap_bwp, case_b_conversion_requires_common_searchspace_list)
 
   ASSERT_DEATH({ nr_redcap_apply_case_b_common_coreset(&pdcch_cc, common_coreset); }, "requires commonSearchSpaceList");
   free(common_coreset);
+}
+
+TEST(nr_redcap_bwp, rach_feature_partition_adds_redcap_tail_preambles)
+{
+  NR_RACH_ConfigCommon_t rach = {};
+
+  nr_redcap_configure_rach_feature_combination_preambles(&rach);
+
+  ASSERT_NE(rach.ext2, nullptr);
+  ASSERT_NE(rach.ext2->featureCombinationPreamblesList_r17, nullptr);
+  ASSERT_EQ(1, rach.ext2->featureCombinationPreamblesList_r17->list.count);
+  const NR_FeatureCombinationPreambles_r17_t *partition = rach.ext2->featureCombinationPreamblesList_r17->list.array[0];
+  ASSERT_NE(partition, nullptr);
+  ASSERT_NE(partition->featureCombination_r17.redCap_r17, nullptr);
+  EXPECT_EQ(NR_FeatureCombination_r17__redCap_r17_true, *partition->featureCombination_r17.redCap_r17);
+  EXPECT_EQ(60, partition->startPreambleForThisPartition_r17);
+  EXPECT_EQ(4, partition->numberOfPreamblesPerSSB_ForThisPartition_r17);
+
+  free(partition->featureCombination_r17.redCap_r17);
+  free(const_cast<NR_FeatureCombinationPreambles_r17_t *>(partition));
+  free(rach.ext2->featureCombinationPreamblesList_r17->list.array);
+  free(rach.ext2->featureCombinationPreamblesList_r17);
+  free(rach.ext2);
+}
+
+TEST(nr_redcap_bwp, rach_feature_partition_honors_total_preambles)
+{
+  NR_RACH_ConfigCommon_t rach = {};
+  long total_preambles = 16;
+  rach.totalNumberOfRA_Preambles = &total_preambles;
+
+  nr_redcap_configure_rach_feature_combination_preambles(&rach);
+
+  ASSERT_EQ(1, rach.ext2->featureCombinationPreamblesList_r17->list.count);
+  const NR_FeatureCombinationPreambles_r17_t *partition = rach.ext2->featureCombinationPreamblesList_r17->list.array[0];
+  EXPECT_EQ(12, partition->startPreambleForThisPartition_r17);
+  EXPECT_EQ(4, partition->numberOfPreamblesPerSSB_ForThisPartition_r17);
+
+  free(partition->featureCombination_r17.redCap_r17);
+  free(const_cast<NR_FeatureCombinationPreambles_r17_t *>(partition));
+  free(rach.ext2->featureCombinationPreamblesList_r17->list.array);
+  free(rach.ext2->featureCombinationPreamblesList_r17);
+  free(rach.ext2);
+}
+
+TEST(nr_redcap_bwp, rach_feature_partition_is_idempotent)
+{
+  NR_RACH_ConfigCommon_t rach = {};
+
+  nr_redcap_configure_rach_feature_combination_preambles(&rach);
+  nr_redcap_configure_rach_feature_combination_preambles(&rach);
+
+  EXPECT_EQ(1, rach.ext2->featureCombinationPreamblesList_r17->list.count);
+
+  NR_FeatureCombinationPreambles_r17_t *partition = rach.ext2->featureCombinationPreamblesList_r17->list.array[0];
+  free(partition->featureCombination_r17.redCap_r17);
+  free(partition);
+  free(rach.ext2->featureCombinationPreamblesList_r17->list.array);
+  free(rach.ext2->featureCombinationPreamblesList_r17);
+  free(rach.ext2);
 }
 
 int main(int argc, char **argv)

@@ -36,14 +36,20 @@
 /* MAC */
 #include "NR_MAC_COMMON/nr_mac.h"
 #include "LAYER2/NR_MAC_UE/mac_proto.h"
+#include "NR_FeatureCombinationPreambles-r17.h"
 #include <executables/softmodem-common.h>
 #include "openair2/LAYER2/nr_rlc/nr_rlc_oai_api.h"
 #include "openair3/UICC/usim_interface.h"
 
-static bool use_redcap_msg3_ccch_lcid(void)
+static bool is_redcap_ue_configured(void)
 {
   nr_redcap_cfg_t redcap_cfg = {0};
   return load_nr_redcap_config(NULL, &redcap_cfg) && redcap_cfg.support_of_redcap_r17;
+}
+
+static bool use_redcap_msg3_ccch_lcid(void)
+{
+  return is_redcap_ue_configured();
 }
 
 int16_t get_prach_tx_power(NR_UE_MAC_INST_t *mac)
@@ -197,6 +203,23 @@ static void select_preamble_group(NR_UE_MAC_INST_t *mac)
   // else if Msg3 is being retransmitted, we keep what used in first transmission of Msg3
 }
 
+static const NR_FeatureCombinationPreambles_r17_t *get_redcap_feature_preamble_partition(
+    const NR_RACH_ConfigCommon_t *rach_ConfigCommon)
+{
+  if (rach_ConfigCommon == NULL || rach_ConfigCommon->ext2 == NULL
+      || rach_ConfigCommon->ext2->featureCombinationPreamblesList_r17 == NULL)
+    return NULL;
+
+  const struct NR_RACH_ConfigCommon__ext2__featureCombinationPreamblesList_r17 *list =
+      rach_ConfigCommon->ext2->featureCombinationPreamblesList_r17;
+  for (int i = 0; i < list->list.count; i++) {
+    const NR_FeatureCombinationPreambles_r17_t *partition = list->list.array[i];
+    if (partition != NULL && partition->featureCombination_r17.redCap_r17 != NULL)
+      return partition;
+  }
+  return NULL;
+}
+
 ssb_ro_preambles_t get_ssb_ro_preambles_4step(struct NR_RACH_ConfigCommon__ssb_perRACH_OccasionAndCB_PreamblesPerSSB *config)
 {
   ssb_ro_preambles_t ret = {0};
@@ -299,6 +322,8 @@ static void config_preamble_index(NR_UE_MAC_INST_t *mac)
   int nb_of_preambles = 64;
   bool groupBconfigured = false;
   int preamb_ga = 0;
+  bool feature_partition_selected = false;
+  int feature_partition_start = 0;
   if (ra->ra_type == RA_4_STEP) {
     ra->ssb_ro_config = mac->ssb_ro_preambles;
     if (nr_rach_ConfigCommon->totalNumberOfRA_Preambles)
@@ -310,6 +335,29 @@ static void config_preamble_index(NR_UE_MAC_INST_t *mac)
     if (nr_rach_ConfigCommon->groupBconfigured) {
       groupBconfigured = true;
       preamb_ga = nr_rach_ConfigCommon->groupBconfigured->numberOfRA_PreamblesGroupA;
+    }
+    const NR_FeatureCombinationPreambles_r17_t *redcap_partition =
+        is_redcap_ue_configured() ? get_redcap_feature_preamble_partition(nr_rach_ConfigCommon) : NULL;
+    if (redcap_partition != NULL) {
+      AssertFatal(redcap_partition->startPreambleForThisPartition_r17 >= 0
+                      && redcap_partition->numberOfPreamblesPerSSB_ForThisPartition_r17 > 0
+                      && redcap_partition->startPreambleForThisPartition_r17
+                                 + redcap_partition->numberOfPreamblesPerSSB_ForThisPartition_r17
+                             <= nb_of_preambles,
+                  "Invalid RedCap RACH feature preamble partition start=%ld count=%ld total=%d\n",
+                  redcap_partition->startPreambleForThisPartition_r17,
+                  redcap_partition->numberOfPreamblesPerSSB_ForThisPartition_r17,
+                  nb_of_preambles);
+      groupBconfigured = false;
+      preamb_ga = 0;
+      feature_partition_selected = true;
+      feature_partition_start = redcap_partition->startPreambleForThisPartition_r17;
+      nb_of_preambles = redcap_partition->numberOfPreamblesPerSSB_ForThisPartition_r17;
+      LOG_I(NR_MAC,
+            "[RedCap RA][UE Msg1] using redCap-r17 preamble partition start=%ld count=%d\n",
+            redcap_partition->startPreambleForThisPartition_r17,
+            nb_of_preambles);
+      ra->RA_GroupA = true;
     }
   } else {
     NR_RACH_ConfigCommonTwoStepRA_r16_t *twostep = &mac->current_UL_BWP->msgA_ConfigCommon_r16->rach_ConfigCommonTwoStepRA_r16;
@@ -332,6 +380,8 @@ static void config_preamble_index(NR_UE_MAC_INST_t *mac)
   }
 
   int groupOffset = 0;
+  if (feature_partition_selected)
+    groupOffset = feature_partition_start;
   if (groupBconfigured) {
     AssertFatal(preamb_ga < nb_of_preambles, "Nb of preambles for groupA not compatible with total number of preambles\n");
     if (!ra->RA_GroupA) { // groupB

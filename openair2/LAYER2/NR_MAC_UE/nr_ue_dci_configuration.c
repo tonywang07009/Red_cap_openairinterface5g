@@ -324,6 +324,31 @@ static void config_dci_pdu(NR_UE_MAC_INST_t *mac,
     return;
   }
 
+  if (rnti_type == TYPE_RA_RNTI_) {
+    LOG_I(NR_MAC,
+          "[RedCap RA][UE DCI cfg] rnti %04x ss_id %ld coreset_id %d ss_type %d bwp_start %d bwp_size %d "
+          "current_bwp_start %d current_bwp_size %d rb_offset %d fdr %02x%02x%02x%02x%02x%02x candidates %d "
+          "dci_bits %d start_symbols 0x%x\n",
+          rel15->rnti,
+          ss->searchSpaceId,
+          coreset_id,
+          ss->searchSpaceType->present,
+          rel15->BWPStart,
+          rel15->BWPSize,
+          current_DL_BWP->BWPStart,
+          current_DL_BWP->BWPSize,
+          rel15->coreset.rb_offset,
+          rel15->coreset.frequency_domain_resource[0],
+          rel15->coreset.frequency_domain_resource[1],
+          rel15->coreset.frequency_domain_resource[2],
+          rel15->coreset.frequency_domain_resource[3],
+          rel15->coreset.frequency_domain_resource[4],
+          rel15->coreset.frequency_domain_resource[5],
+          rel15->number_of_candidates,
+          rel15->dci_length_options[0],
+          rel15->coreset.StartSymbolBitmap);
+  }
+
   #ifdef DEBUG_DCI
     for (int i = 0; i < rel15->num_dci_options; i++) {
       LOG_T(NR_MAC_DCI,

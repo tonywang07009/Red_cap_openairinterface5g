@@ -24,11 +24,14 @@
 #include "assertions.h"
 #include "common/utils/utils.h"
 #include "NR_ControlResourceSet.h"
+#include "NR_FeatureCombinationPreambles-r17.h"
 #include "NR_PDCCH-ConfigCommon.h"
+#include "NR_RACH-ConfigCommon.h"
 #include "NR_SearchSpace.h"
 
 #define NR_REDCAP_SCS_KHZ15_VALUE 0
 #define NR_REDCAP_SCS_KHZ30_VALUE 1
+#define NR_REDCAP_RACH_FEATURE_PARTITION_PREAMBLES_PER_SSB 4
 
 /**
  * @brief Compute ASN.1 locationAndBandwidth for a RedCap initial BWP.
@@ -164,4 +167,49 @@ void nr_redcap_apply_case_b_common_coreset(NR_PDCCH_ConfigCommon_t *pdcch_cc, NR
 
   pdcch_cc->commonControlResourceSet = common_coreset;
   nr_redcap_rebind_common_searchspaces_to_coreset(pdcch_cc, common_coreset->controlResourceSetId);
+}
+
+static bool nr_redcap_rach_feature_partition_exists(const NR_RACH_ConfigCommon_t *rach_config)
+{
+  if (rach_config == NULL || rach_config->ext2 == NULL || rach_config->ext2->featureCombinationPreamblesList_r17 == NULL)
+    return false;
+
+  const struct NR_RACH_ConfigCommon__ext2__featureCombinationPreamblesList_r17 *list =
+      rach_config->ext2->featureCombinationPreamblesList_r17;
+  for (int i = 0; i < list->list.count; i++) {
+    const NR_FeatureCombinationPreambles_r17_t *partition = list->list.array[i];
+    if (partition != NULL && partition->featureCombination_r17.redCap_r17 != NULL)
+      return true;
+  }
+  return false;
+}
+
+void nr_redcap_configure_rach_feature_combination_preambles(NR_RACH_ConfigCommon_t *rach_config)
+{
+  AssertFatal(rach_config != NULL, "RedCap RACH feature preamble partition requires a valid RACH config\n");
+
+  if (nr_redcap_rach_feature_partition_exists(rach_config))
+    return;
+
+  const long total_preambles = rach_config->totalNumberOfRA_Preambles != NULL ? *rach_config->totalNumberOfRA_Preambles : 64;
+  AssertFatal(total_preambles >= NR_REDCAP_RACH_FEATURE_PARTITION_PREAMBLES_PER_SSB,
+              "RedCap RACH feature preamble partition requires at least %d RA preambles, got %ld\n",
+              NR_REDCAP_RACH_FEATURE_PARTITION_PREAMBLES_PER_SSB,
+              total_preambles);
+
+  if (rach_config->ext2 == NULL)
+    rach_config->ext2 = calloc_or_fail(1, sizeof(*rach_config->ext2));
+  if (rach_config->ext2->featureCombinationPreamblesList_r17 == NULL)
+    rach_config->ext2->featureCombinationPreamblesList_r17 =
+        calloc_or_fail(1, sizeof(*rach_config->ext2->featureCombinationPreamblesList_r17));
+
+  NR_FeatureCombinationPreambles_r17_t *partition = calloc_or_fail(1, sizeof(*partition));
+  partition->featureCombination_r17.redCap_r17 = calloc_or_fail(1, sizeof(*partition->featureCombination_r17.redCap_r17));
+  *partition->featureCombination_r17.redCap_r17 = NR_FeatureCombination_r17__redCap_r17_true;
+  partition->numberOfPreamblesPerSSB_ForThisPartition_r17 = NR_REDCAP_RACH_FEATURE_PARTITION_PREAMBLES_PER_SSB;
+  partition->startPreambleForThisPartition_r17 =
+      total_preambles - partition->numberOfPreamblesPerSSB_ForThisPartition_r17;
+
+  AssertFatal(ASN_SEQUENCE_ADD(&rach_config->ext2->featureCombinationPreamblesList_r17->list, partition) == 0,
+              "Could not add RedCap feature preamble partition to RACH config\n");
 }

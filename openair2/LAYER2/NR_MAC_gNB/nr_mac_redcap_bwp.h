@@ -27,6 +27,7 @@
 
 typedef struct NR_PDCCH_ConfigCommon NR_PDCCH_ConfigCommon_t;
 typedef struct NR_ControlResourceSet NR_ControlResourceSet_t;
+typedef struct NR_RACH_ConfigCommon NR_RACH_ConfigCommon_t;
 
 typedef struct nr_redcap_bwp_config {
   bool configured;
@@ -118,5 +119,16 @@ void nr_redcap_validate_coreset0_dl_bwp(nr_redcap_coreset0_mode_t mode,
  * @param[in] common_coreset Replacement common CORESET for Case B.
  */
 void nr_redcap_apply_case_b_common_coreset(NR_PDCCH_ConfigCommon_t *pdcch_cc, NR_ControlResourceSet_t *common_coreset);
+
+/**
+ * @brief Add the Rel-17 RedCap feature-associated RA preamble partition to a RACH common config.
+ *
+ * TS 38.331 exposes this through [RACH-ConfigCommon.ext2.featureCombinationPreamblesList-r17].
+ * The partition marks a small tail range of contention-based preambles with [FeatureCombination-r17.redCap-r17],
+ * enabling Msg1-stage RedCap identification before Msg2 scheduling.
+ *
+ * @param[in,out] rach_config RACH common configuration to update.
+ */
+void nr_redcap_configure_rach_feature_combination_preambles(NR_RACH_ConfigCommon_t *rach_config);
 
 #endif

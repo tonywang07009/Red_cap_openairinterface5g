@@ -1813,6 +1813,8 @@ static void process_guti(Guti5GSMobileIdentity_t *guti, nr_ue_nas_t *nas)
   *nas->guti = *guti;
 }
 
+static int process_gprs_timer(gprs_timer_t *timer);
+
 static void handle_registration_accept(nr_ue_nas_t *nas, const uint8_t *pdu_buffer, uint32_t msg_length)
 {
   registration_accept_msg msg = {0};
@@ -1848,6 +1850,7 @@ static void handle_registration_accept(nr_ue_nas_t *nas, const uint8_t *pdu_buff
         : msg.result == FGS_REGISTRATION_RESULT_NON_3GPP ? "non-3PP"
                                                          : "3GPP and non-3GPP");
   LOG_I(NAS, "SMS %s in 5GS Registration Result\n", msg.sms_allowed ? "allowed" : "not allowed");
+  nr_nas_psm_update_timers(nas, process_gprs_timer(msg.t3324), process_gprs_timer(msg.t3512));
   LOG_I(NAS,
         "NAS PSM timers: T3324=%d sec T3512=%d sec configured=%d low_power_ready=%d\n",
         nas->t3324,

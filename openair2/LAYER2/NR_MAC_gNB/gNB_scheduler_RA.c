@@ -1389,6 +1389,33 @@ static void prepare_dl_pdus(gNB_MAC_INST *nr_mac,
                      0, // parameter not needed for DCI 1_0
                      nr_mac->cset0_bwp_size);
 
+  if (rnti_type == TYPE_RA_RNTI_) {
+    LOG_I(NR_MAC,
+          "[RedCap RA][gNB Msg2 DCI] rnti %04x ss_id %ld coreset_id %d bwp_start %d bwp_size %d "
+          "pdcch_bwp_start %d pdcch_bwp_size %d pdsch_rb_start %d pdsch_rb_size %d "
+          "fdr %02x%02x%02x%02x%02x%02x cce %d agg %d dci_bits %d start_symbol %d duration %d\n",
+          dci_pdu->RNTI,
+          sched_ctrl->search_space->searchSpaceId,
+          coresetid,
+          sched_pdsch->bwp_info.bwpStart,
+          sched_pdsch->bwp_info.bwpSize,
+          pdcch_pdu_rel15->BWPStart,
+          pdcch_pdu_rel15->BWPSize,
+          sched_pdsch->rbStart,
+          sched_pdsch->rbSize,
+          pdcch_pdu_rel15->FreqDomainResource[0],
+          pdcch_pdu_rel15->FreqDomainResource[1],
+          pdcch_pdu_rel15->FreqDomainResource[2],
+          pdcch_pdu_rel15->FreqDomainResource[3],
+          pdcch_pdu_rel15->FreqDomainResource[4],
+          pdcch_pdu_rel15->FreqDomainResource[5],
+          dci_pdu->CceIndex,
+          dci_pdu->AggregationLevel,
+          dci_pdu->PayloadSizeBits,
+          pdcch_pdu_rel15->StartSymbolIndex,
+          pdcch_pdu_rel15->DurationSymbols);
+  }
+
   LOG_D(NR_MAC, "BWPSize: %i\n", pdcch_pdu_rel15->BWPSize);
   LOG_D(NR_MAC, "BWPStart: %i\n", pdcch_pdu_rel15->BWPStart);
   LOG_D(NR_MAC, "SubcarrierSpacing: %i\n", pdcch_pdu_rel15->SubcarrierSpacing);
