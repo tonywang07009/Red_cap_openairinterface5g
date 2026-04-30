@@ -880,7 +880,11 @@ dci_pdu_rel15_t prepare_dci_dl_payload(const gNB_MAC_INST *gNB_mac,
   if (!UE)
     riv_bwp = gNB_mac->cset0_bwp_size;
   else if (dl_BWP->dci_format == NR_DL_DCI_FORMAT_1_0 && ss_type == NR_SearchSpace__searchSpaceType_PR_common) {
-    if (gNB_mac->cset0_bwp_size > 0)
+    const NR_ControlResourceSet_t *coreset = UE->UE_sched_ctrl.coreset;
+    if (rnti_type == TYPE_RA_RNTI_ && UE->ra != NULL && UE->ra->is_redcap_msg1 && coreset != NULL
+        && coreset->controlResourceSetId != 0)
+      riv_bwp = pdsch_pdu->BWPSize;
+    else if (gNB_mac->cset0_bwp_size > 0)
       riv_bwp = gNB_mac->cset0_bwp_size;
     else
       riv_bwp = UE->sc_info.initial_dl_BWPSize;

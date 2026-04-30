@@ -256,6 +256,8 @@ typedef struct {
   uint8_t preamble_slot;
   /// Received preamble_index
   uint8_t preamble_index;
+  /// Msg1 preamble belongs to a RedCap feature-associated RA partition
+  bool is_redcap_msg1;
   /// Timing offset indicated by PHY
   int16_t timing_offset;
   /// Subframe where Msg2 is to be sent

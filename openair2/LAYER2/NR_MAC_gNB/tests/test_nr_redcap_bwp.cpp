@@ -230,6 +230,47 @@ TEST(nr_redcap_bwp, rach_feature_partition_is_idempotent)
   free(rach.ext2);
 }
 
+TEST(nr_redcap_bwp, msg1_redcap_detection_matches_feature_partition)
+{
+  NR_RACH_ConfigCommon_t rach = {};
+  nr_redcap_configure_rach_feature_combination_preambles(&rach);
+
+  EXPECT_FALSE(nr_redcap_is_msg1_preamble(&rach, 59, 64));
+  EXPECT_TRUE(nr_redcap_is_msg1_preamble(&rach, 60, 64));
+  EXPECT_TRUE(nr_redcap_is_msg1_preamble(&rach, 63, 64));
+  EXPECT_FALSE(nr_redcap_is_msg1_preamble(&rach, 64, 64));
+
+  NR_FeatureCombinationPreambles_r17_t *partition = rach.ext2->featureCombinationPreamblesList_r17->list.array[0];
+  free(partition->featureCombination_r17.redCap_r17);
+  free(partition);
+  free(rach.ext2->featureCombinationPreamblesList_r17->list.array);
+  free(rach.ext2->featureCombinationPreamblesList_r17);
+  free(rach.ext2);
+}
+
+TEST(nr_redcap_bwp, msg1_redcap_detection_handles_per_ssb_ranges)
+{
+  NR_RACH_ConfigCommon_t rach = {};
+  long total_preambles = 16;
+  rach.totalNumberOfRA_Preambles = &total_preambles;
+  nr_redcap_configure_rach_feature_combination_preambles(&rach);
+
+  EXPECT_FALSE(nr_redcap_is_msg1_preamble(&rach, 11, 16));
+  EXPECT_TRUE(nr_redcap_is_msg1_preamble(&rach, 12, 16));
+  EXPECT_TRUE(nr_redcap_is_msg1_preamble(&rach, 15, 16));
+  EXPECT_FALSE(nr_redcap_is_msg1_preamble(&rach, 16, 16));
+  EXPECT_TRUE(nr_redcap_is_msg1_preamble(&rach, 28, 16));
+  EXPECT_TRUE(nr_redcap_is_msg1_preamble(&rach, 31, 16));
+  EXPECT_FALSE(nr_redcap_is_msg1_preamble(&rach, 32, 16));
+
+  NR_FeatureCombinationPreambles_r17_t *partition = rach.ext2->featureCombinationPreamblesList_r17->list.array[0];
+  free(partition->featureCombination_r17.redCap_r17);
+  free(partition);
+  free(rach.ext2->featureCombinationPreamblesList_r17->list.array);
+  free(rach.ext2->featureCombinationPreamblesList_r17);
+  free(rach.ext2);
+}
+
 int main(int argc, char **argv)
 {
   testing::InitGoogleTest(&argc, argv);

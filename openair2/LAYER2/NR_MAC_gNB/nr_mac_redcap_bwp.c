@@ -31,6 +31,7 @@
 
 #define NR_REDCAP_SCS_KHZ15_VALUE 0
 #define NR_REDCAP_SCS_KHZ30_VALUE 1
+#define NR_REDCAP_MAX_RA_PREAMBLES_PER_SSB 64
 #define NR_REDCAP_RACH_FEATURE_PARTITION_PREAMBLES_PER_SSB 4
 
 /**
@@ -179,6 +180,34 @@ static bool nr_redcap_rach_feature_partition_exists(const NR_RACH_ConfigCommon_t
   for (int i = 0; i < list->list.count; i++) {
     const NR_FeatureCombinationPreambles_r17_t *partition = list->list.array[i];
     if (partition != NULL && partition->featureCombination_r17.redCap_r17 != NULL)
+      return true;
+  }
+  return false;
+}
+
+bool nr_redcap_is_msg1_preamble(const NR_RACH_ConfigCommon_t *rach_config, uint16_t preamble_index, int cb_preambles_per_ssb)
+{
+  if (rach_config == NULL || rach_config->ext2 == NULL || rach_config->ext2->featureCombinationPreamblesList_r17 == NULL)
+    return false;
+
+  const int preambles_per_ssb = cb_preambles_per_ssb > 0 ? cb_preambles_per_ssb : NR_REDCAP_MAX_RA_PREAMBLES_PER_SSB;
+  const int preamble_in_ssb = preamble_index % preambles_per_ssb;
+  const struct NR_RACH_ConfigCommon__ext2__featureCombinationPreamblesList_r17 *list =
+      rach_config->ext2->featureCombinationPreamblesList_r17;
+
+  for (int i = 0; i < list->list.count; i++) {
+    const NR_FeatureCombinationPreambles_r17_t *partition = list->list.array[i];
+    if (partition == NULL || partition->featureCombination_r17.redCap_r17 == NULL)
+      continue;
+
+    const long start = partition->startPreambleForThisPartition_r17;
+    const long count = partition->numberOfPreamblesPerSSB_ForThisPartition_r17;
+    AssertFatal(start >= 0 && count > 0 && start + count <= preambles_per_ssb,
+                "Invalid RedCap Msg1 preamble partition start=%ld count=%ld preambles_per_ssb=%d\n",
+                start,
+                count,
+                preambles_per_ssb);
+    if (preamble_in_ssb >= start && preamble_in_ssb < start + count)
       return true;
   }
   return false;

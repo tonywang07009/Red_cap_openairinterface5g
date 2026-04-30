@@ -50,6 +50,129 @@ static void nr_fill_rar(uint8_t Mod_idP, NR_UE_info_t *UE, uint8_t *dlsch_buffer
 
 static const float ssb_per_rach_occasion[8] = {0.125, 0.25, 0.5, 1, 2, 4, 8};
 
+/**
+ * @brief Find a common search space by its searchSpaceId.
+ *
+ * @param[in] list Common search space list from PDCCH-ConfigCommon.
+ * @param[in] search_space_id RA search space identifier to select.
+ *
+ * @return Matching common search space.
+ */
+static NR_SearchSpace_t *find_common_search_space_by_id(const struct NR_PDCCH_ConfigCommon__commonSearchSpaceList *list,
+                                                        NR_SearchSpaceId_t search_space_id)
+{
+  AssertFatal(list != NULL, "RedCap Msg2 requires a commonSearchSpaceList\n");
+  for (int i = 0; i < list->list.count; i++) {
+    NR_SearchSpace_t *ss = list->list.array[i];
+    if (ss != NULL && ss->searchSpaceId == search_space_id) {
+      AssertFatal(ss->controlResourceSetId != NULL, "searchSpaceId %ld has a NULL controlResourceSetId\n", ss->searchSpaceId);
+      return ss;
+    }
+  }
+  AssertFatal(false, "Could not find common search space id %ld for RedCap Msg2\n", search_space_id);
+}
+
+/**
+ * @brief Apply the RedCap Case B RA BWP and CORESET view before Msg2 scheduling.
+ *
+ * This helper is gated by the Msg1 RedCap preamble marker so baseline RA keeps
+ * the legacy initial BWP and CORESET#0 path.
+ *
+ * @param[in,out] nr_mac gNB MAC instance.
+ * @param[in] scc Serving cell common configuration.
+ * @param[in,out] UE Temporary RA UE context.
+ *
+ * @retval true RedCap Case B Msg2 path was selected.
+ * @retval false Baseline Msg2 path should be used.
+ */
+static bool configure_redcap_msg2_bwp(gNB_MAC_INST *nr_mac, NR_ServingCellConfigCommon_t *scc, NR_UE_info_t *UE)
+{
+  NR_RA_t *ra = UE->ra;
+  if (ra == NULL || !ra->is_redcap_msg1)
+    return false;
+  if (nr_mac->radio_config.redcap == NULL
+      || nr_mac->radio_config.redcap->coreset0_mode != NR_REDCAP_CORESET0_MODE_CASE_B)
+    return false;
+
+  NR_BWP_DownlinkCommon_t *redcap_dl_bwp = scc->downlinkConfigCommon->ext1
+                                               ? scc->downlinkConfigCommon->ext1->initialDownlinkBWP_RedCap_r17
+                                               : NULL;
+  AssertFatal(redcap_dl_bwp != NULL, "RedCap Msg2 requested but initialDownlinkBWP-RedCap-r17 is not configured\n");
+  AssertFatal(redcap_dl_bwp->pdcch_ConfigCommon != NULL
+                  && redcap_dl_bwp->pdcch_ConfigCommon->present == NR_SetupRelease_PDCCH_ConfigCommon_PR_setup,
+              "RedCap Msg2 requires pdcch-ConfigCommon in initialDownlinkBWP-RedCap-r17\n");
+
+  NR_PDCCH_ConfigCommon_t *pdcch_cc = redcap_dl_bwp->pdcch_ConfigCommon->choice.setup;
+  AssertFatal(pdcch_cc->ra_SearchSpace != NULL, "RedCap Msg2 requires ra-SearchSpace in initialDownlinkBWP-RedCap-r17\n");
+  AssertFatal(pdcch_cc->commonControlResourceSet != NULL,
+              "RedCap CORESET#0 Case B Msg2 requires commonControlResourceSet in initialDownlinkBWP-RedCap-r17\n");
+
+  NR_UE_sched_ctrl_t *sched_ctrl = &UE->UE_sched_ctrl;
+  sched_ctrl->search_space = find_common_search_space_by_id(pdcch_cc->commonSearchSpaceList, *pdcch_cc->ra_SearchSpace);
+  sched_ctrl->coreset = pdcch_cc->commonControlResourceSet;
+
+  NR_UE_DL_BWP_t *dl_bwp = &UE->current_DL_BWP;
+  dl_bwp->BWPSize = NRRIV2BW(redcap_dl_bwp->genericParameters.locationAndBandwidth, MAX_BWP_SIZE);
+  dl_bwp->BWPStart = NRRIV2PRBOFFSET(redcap_dl_bwp->genericParameters.locationAndBandwidth, MAX_BWP_SIZE);
+  dl_bwp->scs = redcap_dl_bwp->genericParameters.subcarrierSpacing;
+  dl_bwp->cyclicprefix = redcap_dl_bwp->genericParameters.cyclicPrefix;
+  dl_bwp->tdaList_Common = redcap_dl_bwp->pdsch_ConfigCommon->choice.setup->pdsch_TimeDomainAllocationList;
+  dl_bwp->dci_format = NR_DL_DCI_FORMAT_1_0;
+  UE->sc_info.initial_dl_BWPSize = dl_bwp->BWPSize;
+  UE->sc_info.initial_dl_BWPStart = dl_bwp->BWPStart;
+
+  NR_BWP_UplinkCommon_t *redcap_ul_bwp = scc->ext2 && scc->ext2->uplinkConfigCommon_v1700
+                                             ? scc->ext2->uplinkConfigCommon_v1700->initialUplinkBWP_RedCap_r17
+                                             : NULL;
+  if (redcap_ul_bwp != NULL) {
+    NR_UE_UL_BWP_t *ul_bwp = &UE->current_UL_BWP;
+    ul_bwp->BWPSize = NRRIV2BW(redcap_ul_bwp->genericParameters.locationAndBandwidth, MAX_BWP_SIZE);
+    ul_bwp->BWPStart = NRRIV2PRBOFFSET(redcap_ul_bwp->genericParameters.locationAndBandwidth, MAX_BWP_SIZE);
+    ul_bwp->scs = redcap_ul_bwp->genericParameters.subcarrierSpacing;
+    ul_bwp->cyclicprefix = redcap_ul_bwp->genericParameters.cyclicPrefix;
+    ul_bwp->rach_ConfigCommon = redcap_ul_bwp->rach_ConfigCommon ? redcap_ul_bwp->rach_ConfigCommon->choice.setup : NULL;
+    ul_bwp->msgA_ConfigCommon_r16 =
+        redcap_ul_bwp->ext1 && redcap_ul_bwp->ext1->msgA_ConfigCommon_r16
+            ? redcap_ul_bwp->ext1->msgA_ConfigCommon_r16->choice.setup
+            : NULL;
+    ul_bwp->tdaList_Common = redcap_ul_bwp->pusch_ConfigCommon->choice.setup->pusch_TimeDomainAllocationList;
+    ul_bwp->pucch_ConfigCommon = redcap_ul_bwp->pucch_ConfigCommon ? redcap_ul_bwp->pucch_ConfigCommon->choice.setup : NULL;
+    ul_bwp->dci_format = NR_UL_DCI_FORMAT_0_0;
+    UE->sc_info.initial_ul_BWPSize = ul_bwp->BWPSize;
+    UE->sc_info.initial_ul_BWPStart = ul_bwp->BWPStart;
+  }
+
+  NR_Type0_PDCCH_CSS_config_t *type0_PDCCH_CSS_config = &nr_mac->type0_PDCCH_CSS_config[0];
+  sched_ctrl->sched_pdcch = set_pdcch_structure(nr_mac,
+                                                sched_ctrl->search_space,
+                                                sched_ctrl->coreset,
+                                                scc,
+                                                &redcap_dl_bwp->genericParameters,
+                                                type0_PDCCH_CSS_config);
+  LOG_I(NR_MAC,
+        "[RedCap RA][gNB Msg2 gate] using RedCap Case B RA path: ss_id %ld coreset_id %ld dl_bwp_start %u "
+        "dl_bwp_size %u ul_bwp_start %u ul_bwp_size %u\n",
+        sched_ctrl->search_space->searchSpaceId,
+        sched_ctrl->coreset->controlResourceSetId,
+        UE->current_DL_BWP.BWPStart,
+        UE->current_DL_BWP.BWPSize,
+        UE->current_UL_BWP.BWPStart,
+        UE->current_UL_BWP.BWPSize);
+  return true;
+}
+
+/** @brief Return the RedCap initial UL BWP RACH config when advertised in SIB1. */
+static NR_RACH_ConfigCommon_t *get_redcap_msg1_rach_config(const NR_ServingCellConfigCommon_t *scc)
+{
+  NR_BWP_UplinkCommon_t *redcap_ul_bwp = scc->ext2 && scc->ext2->uplinkConfigCommon_v1700
+                                             ? scc->ext2->uplinkConfigCommon_v1700->initialUplinkBWP_RedCap_r17
+                                             : NULL;
+  if (redcap_ul_bwp == NULL || redcap_ul_bwp->rach_ConfigCommon == NULL
+      || redcap_ul_bwp->rach_ConfigCommon->present != NR_SetupRelease_RACH_ConfigCommon_PR_setup)
+    return NULL;
+  return redcap_ul_bwp->rach_ConfigCommon->choice.setup;
+}
+
 static int16_t ssb_index_from_prach(module_id_t module_idP,
                                     frame_t frameP,
                                     slot_t slotP,
@@ -742,6 +865,12 @@ void nr_initiate_ra_proc(module_id_t module_idP,
   // 3GPP TS 38.321 Section 5.1.3(a) says t_id for RA-RNTI depends on mu as specified in clause 5.3.2 in TS 38.211
   // so mu = 0 for prach format < 4.
   NR_RACH_ConfigCommon_t *rach_ConfigCommon = scc->uplinkConfigCommon->initialUplinkBWP->rach_ConfigCommon->choice.setup;
+  NR_RACH_ConfigCommon_t *redcap_rach_ConfigCommon = get_redcap_msg1_rach_config(scc);
+  ra->is_redcap_msg1 = nr_redcap_is_msg1_preamble(redcap_rach_ConfigCommon ? redcap_rach_ConfigCommon : rach_ConfigCommon,
+                                                  preamble_index,
+                                                  cc->cb_preambles_per_ssb);
+  if (ra->is_redcap_msg1)
+    LOG_I(NR_MAC, "[RedCap RA][gNB Msg1] detected RedCap preamble index %u\n", preamble_index);
   NR_MsgA_ConfigCommon_r16_t *msgacc = NULL;
   if (scc->uplinkConfigCommon->initialUplinkBWP->ext1 && scc->uplinkConfigCommon->initialUplinkBWP->ext1->msgA_ConfigCommon_r16)
     msgacc = scc->uplinkConfigCommon->initialUplinkBWP->ext1->msgA_ConfigCommon_r16->choice.setup;
@@ -1377,6 +1506,9 @@ static void prepare_dl_pdus(gNB_MAC_INST *nr_mac,
         pdcch_pdu_rel15->DurationSymbols,
         pdsch_pdu_rel15->BWPSize);
 
+  const bool redcap_ra_common_nonzero_coreset =
+      rnti_type == TYPE_RA_RNTI_ && UE->ra != NULL && UE->ra->is_redcap_msg1 && coresetid != 0;
+  const uint16_t msg2_cset0_bwp_size = redcap_ra_common_nonzero_coreset ? 0 : nr_mac->cset0_bwp_size;
   fill_dci_pdu_rel15(&UE->sc_info,
                      dl_bwp,
                      &UE->current_UL_BWP,
@@ -1387,7 +1519,7 @@ static void prepare_dl_pdus(gNB_MAC_INST *nr_mac,
                      sched_ctrl->search_space,
                      coreset,
                      0, // parameter not needed for DCI 1_0
-                     nr_mac->cset0_bwp_size);
+                     msg2_cset0_bwp_size);
 
   if (rnti_type == TYPE_RA_RNTI_) {
     LOG_I(NR_MAC,
@@ -1449,9 +1581,10 @@ static void nr_generate_Msg2(module_id_t module_idP,
   }
 
   NR_COMMON_channels_t *cc = &nr_mac->common_channels[CC_id];
-  NR_UE_DL_BWP_t *dl_bwp = &UE->current_DL_BWP;
   NR_ServingCellConfigCommon_t *scc = cc->ServingCellConfigCommon;
   NR_RA_t *ra = UE->ra;
+  const bool redcap_msg2_case_b = configure_redcap_msg2_bwp(nr_mac, scc, UE);
+  NR_UE_DL_BWP_t *dl_bwp = &UE->current_DL_BWP;
   long rrc_ra_ResponseWindow =
       scc->uplinkConfigCommon->initialUplinkBWP->rach_ConfigCommon->choice.setup->rach_ConfigGeneric.ra_ResponseWindow;
   const int n_slots_frame = nr_mac->frame_structure.numb_slots_frame;
@@ -1504,6 +1637,11 @@ static void nr_generate_Msg2(module_id_t module_idP,
   NR_ControlResourceSet_t *coreset = sched_ctrl->coreset;
   AssertFatal(coreset, "Coreset cannot be null for RA-Msg2\n");
   const int coresetid = coreset->controlResourceSetId;
+  if (redcap_msg2_case_b && coresetid != 0) {
+    const int additional_offset = (dl_bwp->BWPStart + 5) / 6 * 6 - dl_bwp->BWPStart;
+    bwp_info.bwpStart = dl_bwp->BWPStart + sched_ctrl->sched_pdcch.rb_start + additional_offset;
+    bwp_info.bwpSize = dl_bwp->BWPSize;
+  }
   // Calculate number of symbols
   int time_domain_assignment = get_dl_tda(nr_mac, slotP);
 

@@ -44,22 +44,22 @@ Enable tests with `cmake --preset tests` or `-DENABLE_TESTS=ON`. Most unit tests
 
 ## Commit & Pull Request Guidelines
 
-Target `develop`. Keep branch history linear and rebase instead of merging. Each commit should be a small logical change, compile on its own, and explain why the change is correct. Merge requests go to Eurecom GitLab, require the proper CI label (`~documentation`, `~BUILD-ONLY`, `~4G-LTE`, `~5G-NR`), and should include the scope, validation performed, and any config or test impact.
+Reference only unless the user explicitly asks for commit or MR preparation. Target `develop`. Keep branch history linear and rebase instead of merging. Each commit should be a small logical change, compile on its own, and explain why the change is correct. Merge requests go to Eurecom GitLab, require the proper CI label (`~documentation`, `~BUILD-ONLY`, `~4G-LTE`, `~5G-NR`), and should include the scope, validation performed, and any config or test impact.
 
 ---
 
 ## 3GPP Specs Available Locally
 
-- All 5G NR specs are stored under `/Red_cap_openairinterface5g/spec/redcap_3gpp` (relative to the OAI repo root).
+- All RedCap project spec notes and local 3GPP references are stored under `spec/redcap_3gpp/` relative to the OAI repo root.
 - Key docs for this project:
-  - `specs/3gpp/38.306.pdf` (UE Radio Access Capabilities for RedCap/eRedCap)
-  - `specs/3gpp/38.331.pdf` (RRC protocol, including SIB1 and RedCap configurations)
-  - `specs/3gpp/38.101-1.pdf` (UE RF transmission and reception for FR1)
-  - `specs/3gpp/38.321.pdf` (MAC protocol, including Random Access and DRX)
+  - `spec/redcap_3gpp/spec.md` (active RedCap behavior notes)
+  - `spec/redcap_3gpp/redcap5g_spec.md` (RedCap project summary)
+  - `spec/redcap_3gpp/Redcap/` (RedCap-related local reference material)
+  - `spec/redcap_3gpp/DRX/`, `spec/redcap_3gpp/eDRX/`, `spec/redcap_3gpp/PSM/`, `spec/redcap_3gpp/WUS/`, `spec/redcap_3gpp/RRM/`
 - When answering questions, prefer these local specs first.
-- All RedCap, mMTC, PHY, MAC, RRC, and NAS changes must be checked against the relevant local 3GPP specifications before implementation, and any uncertain clause or interpretation must be marked as `Needs Verification`.
-- When I write `@spec-38.331`, interpret it as “look at specs/3gpp/38.331.pdf and cite the relevant clause if possible”.
-- For detailed RedCap RRC behavior, see `/Red_cap_openairinterface5g/spec/redcap_3gpp/spec.md`.
+- All RedCap, mMTC, PHY, MAC, RRC, and NAS changes must be checked against the relevant local 3GPP notes or reference artifacts before implementation, and any uncertain clause or interpretation must be marked as `Needs Verification`.
+- When I write `@spec-38.331`, interpret it as “look under `spec/redcap_3gpp/` for the local TS 38.331 reference or project note and cite the relevant clause if possible”.
+- For detailed RedCap RRC behavior, see `spec/redcap_3gpp/spec.md`.
 
 ---
 
@@ -86,8 +86,38 @@ Target `develop`. Keep branch history linear and rebase instead of merging. Each
 
 ---
 
+## O-RAN Scope Definition
+
+- Current priority is RedCap and mMTC behavior inside OAI: UE/gNB flow, 3GPP alignment, RFsim runtime validation, and repeatable logs.
+- Do not implement xApp/rApp/dApp SDKs until the RedCap UE/gNB behavior has passed the planned 3GPP-aligned validation flow.
+- Near-RT RIC / xApp scope before that point is limited to existing FlexRIC runtime checks:
+  - verify whether FlexRIC containers start,
+  - verify E2 disabled/enabled mode behavior,
+  - inspect existing KPM/RC monitor logs when the scenario already uses them.
+- Non-RT RIC / rApp work is design/documentation only until explicitly promoted by the user.
+- dApp work is out of implementation scope unless the user defines a concrete interface, runtime target, and validation criterion.
+- E2SM implementation expectations are not implicit. Treat KPM v3, RC, MAC/RLC/PDCP monitor/control, rApp, and dApp SDK work as separate future tasks that require an explicit task plan.
+
+---
+
+## RFsim RedCap Runtime Source of Truth
+
+- For simulator runtime validation, use `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/` as the primary scenario directory.
+- Treat `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.yml` and its directly mounted config files as the runtime source of truth.
+- For UE2 RedCap validation, start from the compose service `oai-nr-ue2` and its mounted config, currently `../../conf_files/nrue_recap/nrue2.uicc.yaml`.
+- When a runtime fix requires config edits, modify the YAML/config files that are actually referenced by this compose path. Do not modify unrelated simulator XML/YAML files just because they contain similar names.
+- XML scenarios or unused files that can affect future work must not be removed immediately. First report:
+  - file path,
+  - why it appears unused,
+  - what references were checked,
+  - expected impact of removal.
+  Remove only after the user explicitly confirms.
+
+---
+
 ## Gantt Chart Output
 
+- This section applies only when the user asks for a Gantt chart or project visualization.
 - When I ask for a project Gantt chart, prefer:
   - Markdown Mermaid syntax if the goal is documentation, or
   - a single self-contained HTML file with embedded CSS/JS (no build tools) if I explicitly ask for a “front-end Gantt page”.
@@ -117,13 +147,14 @@ Target `develop`. Keep branch history linear and rebase instead of merging. Each
 
 ## Mandatory Rebuild After C/C++ Changes
 
-- After every C or C++ source/header modification, immediately rebuild the affected OAI target before moving to the next task.
+- After each atomic C or C++ source/header patch group, rebuild the affected OAI target before moving to the next task.
 - For UE-side changes, run at least:
   - `cmake --build --preset default --target nr-uesoftmodem`
 - For gNB-side changes, run at least:
   - `cmake --build --preset default --target nr-softmodem`
 - For shared or cross-layer changes, build every affected side and the closest unit-test target.
-- At the end of each small sub-task, run the corresponding unit test target and `ctest -R <test-name> --output-on-failure`.
+- At the end of each implementation sub-task, run the closest corresponding unit test target and `ctest -R <test-name> --output-on-failure` when such a test exists.
+- If there is no meaningful unit test for the touched path, state `[unit test N/A]` and use the nearest build or RFsim runtime validation instead.
 - Clearly separate these statuses in reports:
   - [source build PASS/FAIL]
   - [unit test PASS/FAIL]
@@ -134,6 +165,7 @@ Target `develop`. Keep branch history linear and rebase instead of merging. Each
 
 ## RedCap PHY Work Order
 
+- This section applies only when modifying PHY-side code under `openair1/` or PHY-related radio/config behavior.
 - When modifying PHY for RedCap, always follow this order:
   1) Locate the relevant existing implementation in `openair1/` and related configs.  
   2) Cross-check the intended change against `spec/redcap_3gpp/spec.md` and TS 38.306 / 38.101-1.  
@@ -149,13 +181,13 @@ Target `develop`. Keep branch history linear and rebase instead of merging. Each
 
 ### Purpose
 
-At the end of every completed sub-task, the agent must record a structured progress
+At the end of every completed implementation sub-task, milestone validation, or runtime validation, the agent must record a structured progress
 snapshot in Markdown and persist it to `test_logs/work_daily/`.
 This log serves as the single source of truth for session continuity.
 
 ---
 
-### Write Rules (Triggered After Every Completed Sub-task)
+### Write Rules (Triggered After Completed Implementation / Validation Work)
 
 1. Check whether `test_logs/work_daily/` exists.
    - If it does NOT exist, create it before writing any log:
@@ -164,10 +196,8 @@ This log serves as the single source of truth for session continuity.
      ```
 
 2. Write a new Markdown file named with an ISO-8601 timestamp:
-test_logs/work_daily/YYYY-MM-DD_HH-MM-SS_<task-slug>.md
-
-text
-Example: `test_logs/work_daily/2026-04-09_20-30-00_mac-redcap-drx.md`
+   - `test_logs/work_daily/YYYY-MM-DD_HH-MM-SS_<task-slug>.md`
+   - Example: `test_logs/work_daily/2026-04-09_20-30-00_mac-redcap-drx.md`
 
 3. Each log file must follow this structure:
 ```markdown
@@ -209,7 +239,7 @@ Example: `test_logs/work_daily/2026-04-09_20-30-00_mac-redcap-drx.md`
 ### Read Rules (Triggered at the Start of Every New Session)
 
 1. At the very beginning of each new chat window, before taking any action:
-- Check if `test_log/work_daily/` exists.
+- Check if `test_logs/work_daily/` exists.
 - If it exists, list all `.md` files sorted by filename (descending).
 - Read the **most recent** log file in full.
 
@@ -219,8 +249,6 @@ Example: `test_logs/work_daily/2026-04-09_20-30-00_mac-redcap-drx.md`
 ◉ 當前里程碑：<milestone>
 ◉ 待處理事項：<next step from log>
 ◉ 已知問題：<blockers if any>
-
-text
 
 3. Then ask: "是否從上次進度繼續？" before proceeding with any new work.
 

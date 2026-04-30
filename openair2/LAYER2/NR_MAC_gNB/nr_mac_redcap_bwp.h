@@ -23,6 +23,7 @@
 #define __LAYER2_NR_MAC_GNB_NR_MAC_REDCAP_BWP_H__
 
 #include <stdbool.h>
+#include <stdint.h>
 #include "nr_mac_redcap.h"
 
 typedef struct NR_PDCCH_ConfigCommon NR_PDCCH_ConfigCommon_t;
@@ -119,6 +120,24 @@ void nr_redcap_validate_coreset0_dl_bwp(nr_redcap_coreset0_mode_t mode,
  * @param[in] common_coreset Replacement common CORESET for Case B.
  */
 void nr_redcap_apply_case_b_common_coreset(NR_PDCCH_ConfigCommon_t *pdcch_cc, NR_ControlResourceSet_t *common_coreset);
+
+/**
+ * @brief Check whether a received Msg1 preamble belongs to the RedCap feature partition.
+ *
+ * TS 38.331 exposes RedCap feature-associated RA preambles through
+ * [RACH-ConfigCommon.ext2.featureCombinationPreamblesList-r17]. The returned
+ * value is used as the gNB-side Msg1 early indication for RedCap RA handling.
+ *
+ * @param[in] rach_config RACH common configuration carrying feature partitions.
+ * @param[in] preamble_index Received Msg1 preamble index.
+ * @param[in] cb_preambles_per_ssb Contention-based preambles associated with each SSB.
+ *
+ * @retval true The preamble falls in a RedCap feature-associated partition.
+ * @retval false No RedCap partition is configured or the preamble is outside it.
+ */
+bool nr_redcap_is_msg1_preamble(const NR_RACH_ConfigCommon_t *rach_config,
+                                uint16_t preamble_index,
+                                int cb_preambles_per_ssb);
 
 /**
  * @brief Add the Rel-17 RedCap feature-associated RA preamble partition to a RACH common config.
