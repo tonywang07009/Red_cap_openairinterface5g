@@ -190,8 +190,10 @@ bool nr_redcap_is_msg1_preamble(const NR_RACH_ConfigCommon_t *rach_config, uint1
   if (rach_config == NULL || rach_config->ext2 == NULL || rach_config->ext2->featureCombinationPreamblesList_r17 == NULL)
     return false;
 
-  const int preambles_per_ssb = cb_preambles_per_ssb > 0 ? cb_preambles_per_ssb : NR_REDCAP_MAX_RA_PREAMBLES_PER_SSB;
-  const int preamble_in_ssb = preamble_index % preambles_per_ssb;
+  (void)cb_preambles_per_ssb;
+  const long total_preambles =
+      rach_config->totalNumberOfRA_Preambles != NULL ? *rach_config->totalNumberOfRA_Preambles : NR_REDCAP_MAX_RA_PREAMBLES_PER_SSB;
+  const int preamble_in_partition_domain = preamble_index % total_preambles;
   const struct NR_RACH_ConfigCommon__ext2__featureCombinationPreamblesList_r17 *list =
       rach_config->ext2->featureCombinationPreamblesList_r17;
 
@@ -202,12 +204,12 @@ bool nr_redcap_is_msg1_preamble(const NR_RACH_ConfigCommon_t *rach_config, uint1
 
     const long start = partition->startPreambleForThisPartition_r17;
     const long count = partition->numberOfPreamblesPerSSB_ForThisPartition_r17;
-    AssertFatal(start >= 0 && count > 0 && start + count <= preambles_per_ssb,
-                "Invalid RedCap Msg1 preamble partition start=%ld count=%ld preambles_per_ssb=%d\n",
+    AssertFatal(start >= 0 && count > 0 && start + count <= total_preambles,
+                "Invalid RedCap Msg1 preamble partition start=%ld count=%ld total_preambles=%ld\n",
                 start,
                 count,
-                preambles_per_ssb);
-    if (preamble_in_ssb >= start && preamble_in_ssb < start + count)
+                total_preambles);
+    if (preamble_in_partition_domain >= start && preamble_in_partition_domain < start + count)
       return true;
   }
   return false;

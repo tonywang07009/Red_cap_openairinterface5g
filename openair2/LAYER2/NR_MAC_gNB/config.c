@@ -41,6 +41,7 @@
 #include "GNB_APP/gnb_config.h"
 #include "NR_MIB.h"
 #include "NR_MAC_gNB/nr_mac_gNB.h"
+#include "NR_MAC_gNB/nr_radio_config.h"
 #include "NR_BCCH-BCH-Message.h"
 #include "NR_ServingCellConfigCommon.h"
 #include "NR_MIB.h"
@@ -875,6 +876,7 @@ void nr_mac_config_scc(gNB_MAC_INST *nrmac, NR_ServingCellConfigCommon_t *scc, c
 
   LOG_D(NR_MAC, "Configuring common parameters from NR ServingCellConfig\n");
 
+  nr_redcap_configure_runtime_scc(scc, config);
   config_common(nrmac, config, scc);
   fill_beam_index_list(scc, config, nrmac);
 

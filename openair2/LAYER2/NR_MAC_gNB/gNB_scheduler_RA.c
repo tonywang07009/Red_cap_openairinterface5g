@@ -866,6 +866,10 @@ void nr_initiate_ra_proc(module_id_t module_idP,
   // so mu = 0 for prach format < 4.
   NR_RACH_ConfigCommon_t *rach_ConfigCommon = scc->uplinkConfigCommon->initialUplinkBWP->rach_ConfigCommon->choice.setup;
   NR_RACH_ConfigCommon_t *redcap_rach_ConfigCommon = get_redcap_msg1_rach_config(scc);
+  if (redcap_rach_ConfigCommon == NULL && nr_mac->radio_config.redcap != NULL && nr_mac->radio_config.redcap->initial_ul_bwp.configured) {
+    nr_redcap_configure_rach_feature_combination_preambles(rach_ConfigCommon);
+    redcap_rach_ConfigCommon = rach_ConfigCommon;
+  }
   ra->is_redcap_msg1 = nr_redcap_is_msg1_preamble(redcap_rach_ConfigCommon ? redcap_rach_ConfigCommon : rach_ConfigCommon,
                                                   preamble_index,
                                                   cc->cb_preambles_per_ssb);

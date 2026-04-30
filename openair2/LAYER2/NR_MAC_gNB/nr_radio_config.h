@@ -80,6 +80,7 @@ NR_BCCH_DL_SCH_Message_t *get_SIB1_NR(const NR_ServingCellConfigCommon_t *scc,
                                       uint64_t cellID,
                                       int tac,
                                       const nr_mac_config_t *mac_config);
+void nr_redcap_configure_runtime_scc(NR_ServingCellConfigCommon_t *scc, const nr_mac_config_t *mac_config);
 void update_SIB1_NR_SI(NR_BCCH_DL_SCH_Message_t *sib1, int num_sibs, int sibs[num_sibs]);
 int encode_sysinfo_ie(NR_SystemInformation_IEs_t *sysInfo, uint8_t *buf, int len);
 void free_SIB1_NR(NR_BCCH_DL_SCH_Message_t *sib1);

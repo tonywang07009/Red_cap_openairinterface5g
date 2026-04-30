@@ -2892,6 +2892,29 @@ static void fill_redcap_sib1(NR_SIB1_v1700_IEs_t *sib1_v1700, const nr_redcap_co
   *sib1_v1700->intraFreqReselectionRedCap_r17 = redcap_config->intraFreqReselectionRedCap_r17;
 }
 
+void nr_redcap_configure_runtime_scc(NR_ServingCellConfigCommon_t *scc, const nr_mac_config_t *mac_config)
+{
+  if (scc == NULL || mac_config == NULL || mac_config->redcap == NULL)
+    return;
+
+  const nr_redcap_config_t *redcap_config = mac_config->redcap;
+  if (redcap_config->initial_dl_bwp.configured) {
+    if (scc->downlinkConfigCommon->ext1 == NULL)
+      scc->downlinkConfigCommon->ext1 = calloc_or_fail(1, sizeof(*scc->downlinkConfigCommon->ext1));
+    if (scc->downlinkConfigCommon->ext1->initialDownlinkBWP_RedCap_r17 == NULL)
+      scc->downlinkConfigCommon->ext1->initialDownlinkBWP_RedCap_r17 = clone_redcap_downlink_bwp(scc, redcap_config);
+  }
+
+  if (redcap_config->initial_ul_bwp.configured) {
+    if (scc->ext2 == NULL)
+      scc->ext2 = calloc_or_fail(1, sizeof(*scc->ext2));
+    if (scc->ext2->uplinkConfigCommon_v1700 == NULL)
+      scc->ext2->uplinkConfigCommon_v1700 = calloc_or_fail(1, sizeof(*scc->ext2->uplinkConfigCommon_v1700));
+    if (scc->ext2->uplinkConfigCommon_v1700->initialUplinkBWP_RedCap_r17 == NULL)
+      scc->ext2->uplinkConfigCommon_v1700->initialUplinkBWP_RedCap_r17 = clone_redcap_uplink_bwp(scc, redcap_config);
+  }
+}
+
 NR_BCCH_DL_SCH_Message_t *get_SIB1_NR(const NR_ServingCellConfigCommon_t *scc,
                                       const plmn_id_t *plmn,
                                       uint64_t cellID,

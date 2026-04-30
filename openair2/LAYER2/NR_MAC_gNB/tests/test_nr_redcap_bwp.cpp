@@ -238,6 +238,8 @@ TEST(nr_redcap_bwp, msg1_redcap_detection_matches_feature_partition)
   EXPECT_FALSE(nr_redcap_is_msg1_preamble(&rach, 59, 64));
   EXPECT_TRUE(nr_redcap_is_msg1_preamble(&rach, 60, 64));
   EXPECT_TRUE(nr_redcap_is_msg1_preamble(&rach, 63, 64));
+  EXPECT_TRUE(nr_redcap_is_msg1_preamble(&rach, 60, 14));
+  EXPECT_TRUE(nr_redcap_is_msg1_preamble(&rach, 63, 14));
   EXPECT_FALSE(nr_redcap_is_msg1_preamble(&rach, 64, 64));
 
   NR_FeatureCombinationPreambles_r17_t *partition = rach.ext2->featureCombinationPreamblesList_r17->list.array[0];
