@@ -45,12 +45,13 @@ IPERF_SERVER_IP=${MMTC_IPERF_SERVER_IP:-}
 IPERF_TCP_MIN_MBIT=${MMTC_IPERF_TCP_MIN_MBIT:-}
 IPERF_QUIESCE_NON_SELECTED=${MMTC_IPERF_QUIESCE_NON_SELECTED:-0}
 IPERF_QUIESCE_ACTION=${MMTC_IPERF_QUIESCE_ACTION:-pause}
+USE_EXISTING_CN_DB=${MMTC_USE_EXISTING_CN_DB:-1}
 
 OVERLAY_GENERATOR="${REPO_ROOT}/ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/scripts/generate_mmtc_overlay.sh"
 CN_DB_GENERATOR="${REPO_ROOT}/ci-scripts/generate_mmtc_cn_db_overlay.sh"
 BASE_COMPOSE="${REPO_ROOT}/ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.yml"
 OVERLAY_COMPOSE="${REPO_ROOT}/ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.mmtc.yml"
-CN_COMPOSE="${REPO_ROOT}/doc/tutorial_resources/oai-cn5g/docker-compose.yaml"
+CN_COMPOSE=${MMTC_CN_COMPOSE:-/home/tonywang/OAI/oai-cn5g/docker-compose.yaml}
 LOG_DIR="${REPO_ROOT}/test_log/compiler_logs"
 RUNTIME_CONFIG_DIR="${REPO_ROOT}/test_log/runtime_configs"
 FAILURES=0
@@ -698,11 +699,25 @@ if [ "${IPERF_UDP}" != "0" ] && [ "${IPERF_UDP}" != "1" ]; then
   exit 1
 fi
 
+if [ "${USE_EXISTING_CN_DB}" != "0" ] && [ "${USE_EXISTING_CN_DB}" != "1" ]; then
+  echo "Invalid MMTC_USE_EXISTING_CN_DB: ${USE_EXISTING_CN_DB}" >&2
+  exit 1
+fi
+
+if [ ! -f "${CN_COMPOSE}" ]; then
+  echo "CN compose file not found: ${CN_COMPOSE}" >&2
+  exit 1
+fi
+
 "${OVERLAY_GENERATOR}" "${TOTAL_UES}" "${OVERLAY_COMPOSE}"
 
 CN_DB_SQL="${RUNTIME_CONFIG_DIR}/oai_db_mmtc_${TOTAL_UES}.sql"
 CN_DB_COMPOSE_OVERLAY="${RUNTIME_CONFIG_DIR}/oai-cn5g_mmtc_${TOTAL_UES}.override.yml"
-"${CN_DB_GENERATOR}" "${TOTAL_UES}" "${CN_DB_SQL}" "${CN_DB_COMPOSE_OVERLAY}"
+CN_COMPOSE_ARGS=(-f "${CN_COMPOSE}")
+if [ "${USE_EXISTING_CN_DB}" = "0" ]; then
+  "${CN_DB_GENERATOR}" "${TOTAL_UES}" "${CN_DB_SQL}" "${CN_DB_COMPOSE_OVERLAY}"
+  CN_COMPOSE_ARGS+=(-f "${CN_DB_COMPOSE_OVERLAY}")
+fi
 
 SERVICE_LIST=(nearRT-RIC oai-gnb)
 if [ "${START_XAPP}" = "1" ]; then
@@ -720,7 +735,12 @@ else
   echo "[INFO] ext-dn IP           : auto-derive from UE TUN subnet; legacy fallback ${LEGACY_EXT_DN_IP}"
 fi
 echo "[INFO] Service list        : ${SERVICE_LIST[*]}"
-echo "[INFO] CN DB overlay       : ${CN_DB_SQL}"
+echo "[INFO] CN compose          : ${CN_COMPOSE}"
+if [ "${USE_EXISTING_CN_DB}" = "1" ]; then
+  echo "[INFO] CN DB mode          : existing compose database, no generated mMTC subscriber overlay"
+else
+  echo "[INFO] CN DB overlay       : ${CN_DB_SQL}"
+fi
 echo "[INFO] gNB warmup          : ${GNB_WARMUP}s"
 echo "[INFO] UE start gap        : ${UE_START_GAP}s"
 echo "[INFO] forward ping mode   : ${FORWARD_PING_MODE}"
@@ -737,10 +757,10 @@ fi
 
 if [ "${RESET_CN}" = "1" ]; then
   compose_with_images -f "${BASE_COMPOSE}" -f "${OVERLAY_COMPOSE}" down --remove-orphans >/dev/null 2>&1 || true
-  compose_with_images -f "${CN_COMPOSE}" -f "${CN_DB_COMPOSE_OVERLAY}" rm -sfv >/dev/null 2>&1 || true
+  compose_with_images "${CN_COMPOSE_ARGS[@]}" rm -sfv >/dev/null 2>&1 || true
 fi
 
-compose_with_images -f "${CN_COMPOSE}" -f "${CN_DB_COMPOSE_OVERLAY}" up -d
+compose_with_images "${CN_COMPOSE_ARGS[@]}" up -d
 compose_with_images -f "${BASE_COMPOSE}" -f "${OVERLAY_COMPOSE}" up -d nearRT-RIC oai-gnb
 
 if [ "${START_XAPP}" = "1" ]; then

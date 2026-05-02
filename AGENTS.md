@@ -69,20 +69,47 @@ Reference only unless the user explicitly asks for commit or MR preparation. Tar
   - `agent_doc/Project_management/`
 - Active execution project path:
   - `agent_doc/Project_management/projects/redcap_mmtc_priority_execution_v1/project_plan.md`
-- Baseline milestone definition file:
+- Active milestone directory:
+  - `agent_doc/Project_management/projects/redcap_mmtc_priority_execution_v1/milestones/`
+- Active validation directory:
+  - `agent_doc/Project_management/projects/redcap_mmtc_priority_execution_v1/validation/`
+- Baseline archive file:
   - `agent_doc/Project_management/Simluation_v2.md`
 - For the RedCap mMTC work:
   - The primary execution plan is `agent_doc/Project_management/projects/redcap_mmtc_priority_execution_v1/project_plan.md`.
-  - `Simluation_v2.md` remains the baseline milestone/spec definition.
+  - `Simluation_v2.md` remains a baseline archive and should not be used as the daily execution contract.
+  - Each milestone execution contract lives in one file under:
+    - `agent_doc/Project_management/projects/redcap_mmtc_priority_execution_v1/milestones/`
+  - Shared validation definitions live under:
+    - `agent_doc/Project_management/projects/redcap_mmtc_priority_execution_v1/validation/`
+  - For token-efficient work, read only:
+    1) `project_plan.md`,
+    2) the target milestone file,
+    3) the relevant validation file,
+    4) the latest `test_logs/work_daily/*.md` entry.
   - Before making any changes to PHY, MAC, or RRC, you must:
-    1) read the relevant sections of `project_plan.md` and `Simluation_v2.md`, and  
-    2) summarize in a few bullet points which milestone and sub-tasks you are working on.
+    1) read `project_plan.md`,
+    2) read the specific milestone file under `milestones/`,
+    3) read the relevant validation file under `validation/`, and
+    4) summarize in a few bullet points which milestone, task ID, and validation IDs you are working on.
 - For Gantt charts and progress visualization:
-  - Treat `project_plan.md` as the primary source of truth, with `Simluation_v2.md` as the baseline reference.
-  - When I ask for a Gantt chart, derive all tasks and milestones from those Markdown files instead of inventing new items.
+  - Treat `project_plan.md` as the primary source of truth.
+  - Use the milestone files under `milestones/` for task detail.
+  - Use `Simluation_v2.md` only as historical baseline context.
+  - When I ask for a Gantt chart, derive all tasks and milestones from these Markdown files instead of inventing new items.
 - When planning or modifying PHY code for RedCap:
-  - explicitly reference the corresponding milestones/sub-tasks in `project_plan.md` and `Simluation_v2.md`, and  
+  - explicitly reference the corresponding milestone file and task ID from `project_plan.md`, and
   - cross-check against `spec/redcap_3gpp/spec.md` and TS 38.306 / 38.101-1 before proposing code changes.
+
+### RedCap Project Document Model
+
+- `project_plan.md` is an index, not a long implementation plan.
+- One milestone equals one Markdown file under `milestones/`.
+- Test definitions are centralized in `validation/test_matrix.md`.
+- RFsim log-marker expectations are centralized in `validation/runtime_checklist.md`.
+- 3GPP clause traceability is centralized in `validation/spec_traceability_matrix.md`.
+- New project tasks should update the smallest relevant milestone file instead of expanding `Simluation_v2.md`.
+- Do not mark a milestone complete unless its milestone file and validation matrix agree on the required evidence.
 
 ---
 

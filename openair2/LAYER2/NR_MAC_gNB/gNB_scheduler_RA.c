@@ -50,6 +50,16 @@ static void nr_fill_rar(uint8_t Mod_idP, NR_UE_info_t *UE, uint8_t *dlsch_buffer
 
 static const float ssb_per_rach_occasion[8] = {0.125, 0.25, 0.5, 1, 2, 4, 8};
 
+static int count_vrb_occupied_prbs(const uint16_t *vrb_map, int bwp_start, int bwp_size, uint16_t symbol_mask)
+{
+  int occupied = 0;
+  for (int rb = 0; rb < bwp_size; rb++) {
+    if (vrb_map[bwp_start + rb] & symbol_mask)
+      occupied++;
+  }
+  return occupied;
+}
+
 /**
  * @brief Find a common search space by its searchSpaceId.
  *
@@ -1593,12 +1603,31 @@ static void nr_generate_Msg2(module_id_t module_idP,
       scc->uplinkConfigCommon->initialUplinkBWP->rach_ConfigCommon->choice.setup->rach_ConfigGeneric.ra_ResponseWindow;
   const int n_slots_frame = nr_mac->frame_structure.numb_slots_frame;
   if (!msg2_in_response_window(ra->preamble_frame, ra->preamble_slot, n_slots_frame, rrc_ra_ResponseWindow, frameP, slotP)) {
+    const int window_slots = get_response_window(rrc_ra_ResponseWindow);
+    const int abs_rach = n_slots_frame * ra->preamble_frame + ra->preamble_slot;
+    const int abs_now = n_slots_frame * frameP + slotP;
+    const int diff = (n_slots_frame * 1024 + abs_now - abs_rach) % (n_slots_frame * 1024);
     LOG_E(NR_MAC,
-          "sfn: %d.%d UE RA-RNTI %04x TC-RNTI %04x: exceeded RA window, cannot schedule Msg2\n",
+          "[RedCap RA][gNB Msg2 window fail] sfn %d.%d RA-RNTI %04x TC-RNTI %04x preamble %u "
+          "redcap %d state %s(%d) preamble_sfn %d.%d diff %d window %d raw_window %ld dl_bwp %u/%u "
+          "ul_bwp %u/%u\n",
           frameP,
           slotP,
           ra->RA_rnti,
-          UE->rnti);
+          UE->rnti,
+          ra->preamble_index,
+          ra->is_redcap_msg1,
+          nrra_text[ra->ra_state],
+          ra->ra_state,
+          ra->preamble_frame,
+          ra->preamble_slot,
+          diff,
+          window_slots,
+          rrc_ra_ResponseWindow,
+          UE->current_DL_BWP.BWPStart,
+          UE->current_DL_BWP.BWPSize,
+          UE->current_UL_BWP.BWPStart,
+          UE->current_UL_BWP.BWPSize);
     nr_release_ra_UE(nr_mac, UE->rnti);
     return;
   }
@@ -1671,7 +1700,42 @@ static void nr_generate_Msg2(module_id_t module_idP,
   }
 
   if (rbStart > (bwp_info.bwpSize - rbSize)) {
-    LOG_W(NR_MAC, "Cannot find free vrb_map for RA RNTI %04x!\n", ra->RA_rnti);
+    const uint16_t symbol_mask = SL_to_bitmap(tda_info.startSymbolIndex, tda_info.nrOfSymbols);
+    const int occupied_prbs = count_vrb_occupied_prbs(vrb_map, bwp_info.bwpStart, bwp_info.bwpSize, symbol_mask);
+    LOG_W(NR_MAC,
+          "[RedCap RA][gNB Msg2 vrb_map fail] sfn %d.%d RA-RNTI %04x TC-RNTI %04x preamble %u "
+          "redcap %d case_b %d state %s(%d) ss_id %ld coreset_id %d beam %d new_beam %d "
+          "bwp_start %d bwp_size %d rb_start_candidate %d rb_size %d occupied_prbs %d symbol_mask 0x%04x "
+          "tda %d start_symbol %d n_symbols %d msg3_sfn %d.%d msg3_tda %d msg3_bwp_start %d msg3_rb_start %d "
+          "msg3_rb_size %d\n",
+          frameP,
+          slotP,
+          ra->RA_rnti,
+          UE->rnti,
+          ra->preamble_index,
+          ra->is_redcap_msg1,
+          redcap_msg2_case_b,
+          nrra_text[ra->ra_state],
+          ra->ra_state,
+          ss->searchSpaceId,
+          coresetid,
+          beam.idx,
+          beam.new_beam,
+          bwp_info.bwpStart,
+          bwp_info.bwpSize,
+          rbStart,
+          rbSize,
+          occupied_prbs,
+          symbol_mask,
+          time_domain_assignment,
+          tda_info.startSymbolIndex,
+          tda_info.nrOfSymbols,
+          ra->Msg3_frame,
+          ra->Msg3_slot,
+          ra->Msg3_tda_id,
+          ra->msg3_bwp_start,
+          ra->msg3_first_rb,
+          ra->msg3_nb_rb);
     reset_beam_status(&nr_mac->beam_info, ra->Msg3_frame, ra->Msg3_slot, UE->UE_beam_index, n_slots_frame, ra->Msg3_beam.new_beam);
     reset_beam_status(&nr_mac->beam_info, frameP, slotP, UE->UE_beam_index, n_slots_frame, beam.new_beam);
     return;
@@ -1975,7 +2039,40 @@ static void nr_generate_Msg4_MsgB(module_id_t module_idP,
     }
 
     if (rbStart > (bwp_info.bwpSize - rbSize)) {
-      LOG_E(NR_MAC, "Cannot find free vrb_map for RNTI %04x!\n", UE->rnti);
+      const uint16_t symbol_mask = SL_to_bitmap(msg4_tda.startSymbolIndex, msg4_tda.nrOfSymbols);
+      const int occupied_prbs = count_vrb_occupied_prbs(vrb_map, bwp_info.bwpStart, bwp_info.bwpSize, symbol_mask);
+      LOG_E(NR_MAC,
+            "[RedCap RA][gNB %s vrb_map fail] sfn %d.%d RA-RNTI %04x TC-RNTI %04x preamble %u "
+            "redcap %d state %s(%d) ss_id %ld coreset_id %ld beam %d new_beam %d "
+            "bwp_start %d bwp_size %d rb_start_candidate %d rb_size %d occupied_prbs %d symbol_mask 0x%04x "
+            "tda %d start_symbol %d n_symbols %d mcs %u tb_size %u pdu_length %u harq_pid %d round %d\n",
+            ra_type_str,
+            frameP,
+            slotP,
+            ra->RA_rnti,
+            UE->rnti,
+            ra->preamble_index,
+            ra->is_redcap_msg1,
+            nrra_text[ra->ra_state],
+            ra->ra_state,
+            ss->searchSpaceId,
+            coreset->controlResourceSetId,
+            beam.idx,
+            beam.new_beam,
+            bwp_info.bwpStart,
+            bwp_info.bwpSize,
+            rbStart,
+            rbSize,
+            occupied_prbs,
+            symbol_mask,
+            time_domain_assignment,
+            msg4_tda.startSymbolIndex,
+            msg4_tda.nrOfSymbols,
+            mcsIndex,
+            tb_size,
+            pdu_length,
+            current_harq_pid,
+            current_harq_pid >= 0 ? sched_ctrl->harq_processes[current_harq_pid].round : 0);
       reset_beam_status(&nr_mac->beam_info, frameP, slotP, UE->UE_beam_index, n_slots_frame, beam.new_beam);
       return;
     }

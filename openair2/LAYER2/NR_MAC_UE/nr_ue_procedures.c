@@ -156,6 +156,11 @@ static void set_harq_status(NR_UE_MAC_INST_t *mac,
                             frame_t frame,
                             int slot);
 
+static bool use_current_bwp_for_ra_common_coreset(const NR_UE_MAC_INST_t *mac,
+                                                  int rnti_type,
+                                                  int ss_type,
+                                                  int coreset_type);
+
 int get_pucch0_mcs(const int O_ACK, const int O_SR, const int ack_payload, const int sr_payload)
 {
   int mcs = 0;
@@ -203,6 +208,7 @@ static nr_dci_format_t nr_extract_dci_info(NR_UE_MAC_INST_t *mac,
                                            const uint8_t dci_size,
                                            const uint16_t rnti,
                                            const int ss_type,
+                                           const int coreset_type,
                                            const uint8_t *dci_pdu,
                                            const int slot);
 
@@ -760,7 +766,16 @@ static int nr_ue_process_dci_dl_10(NR_UE_MAC_INST_t *mac,
   dlsch_pdu->pduBitmap = 0;
   NR_UE_DL_BWP_t *current_DL_BWP = mac->current_DL_BWP;
   NR_PDSCH_Config_t *pdsch_config = (current_DL_BWP && !mac->get_sib1) ? current_DL_BWP->pdsch_Config : NULL;
-  if (dci_ind->ss_type == NR_SearchSpace__searchSpaceType_PR_common) {
+  nr_rnti_type_t rnti_type = get_rnti_type(mac, dci_ind->rnti);
+  if (use_current_bwp_for_ra_common_coreset(mac, rnti_type, dci_ind->ss_type, dci_ind->coreset_type)) {
+    dlsch_pdu->BWPSize = current_DL_BWP->BWPSize;
+    dlsch_pdu->BWPStart = current_DL_BWP->BWPStart;
+    LOG_I(NR_MAC,
+          "[RedCap RA][UE Msg2 PDSCH] rnti %04x using current DL BWP start %d size %d for nonzero common CORESET\n",
+          dci_ind->rnti,
+          dlsch_pdu->BWPStart,
+          dlsch_pdu->BWPSize);
+  } else if (dci_ind->ss_type == NR_SearchSpace__searchSpaceType_PR_common) {
     dlsch_pdu->BWPSize =
         mac->type0_PDCCH_CSS_config.num_rbs ? mac->type0_PDCCH_CSS_config.num_rbs : mac->sc_info.initial_dl_BWPSize;
     dlsch_pdu->BWPStart = dci_ind->cset_start;
@@ -768,8 +783,6 @@ static int nr_ue_process_dci_dl_10(NR_UE_MAC_INST_t *mac,
     dlsch_pdu->BWPSize = current_DL_BWP->BWPSize;
     dlsch_pdu->BWPStart = current_DL_BWP->BWPStart;
   }
-
-  nr_rnti_type_t rnti_type = get_rnti_type(mac, dci_ind->rnti);
 
   int mux_pattern = 1;
   if (rnti_type == TYPE_SI_RNTI_) {
@@ -1496,8 +1509,14 @@ nr_dci_format_t nr_ue_process_dci_indication_pdu(NR_UE_MAC_INST_t *mac, frame_t 
         dci->n_CCE,
         dci->payloadSize,
         *(unsigned long long *)dci->payloadBits);
-  const nr_dci_format_t format =
-      nr_extract_dci_info(mac, dci->dci_format, dci->payloadSize, dci->rnti, dci->ss_type, dci->payloadBits, slot);
+  const nr_dci_format_t format = nr_extract_dci_info(mac,
+                                                     dci->dci_format,
+                                                     dci->payloadSize,
+                                                     dci->rnti,
+                                                     dci->ss_type,
+                                                     dci->coreset_type,
+                                                     dci->payloadBits,
+                                                     slot);
   if (format == NR_DCI_NONE)
     return NR_DCI_NONE;
   int ret = nr_ue_process_dci(mac, frame, slot, mac->def_dci_pdu_rel15[slot] + format, dci, format);
@@ -3616,12 +3635,28 @@ static void extract_01_c_rnti(dci_pdu_rel15_t *dci_pdu_rel15, const uint8_t *dci
   */
 }
 
-static int get_nrb_for_dci(NR_UE_MAC_INST_t *mac, nr_dci_format_t dci_format, int ss_type)
+static bool use_current_bwp_for_ra_common_coreset(const NR_UE_MAC_INST_t *mac,
+                                                  const int rnti_type,
+                                                  const int ss_type,
+                                                  const int coreset_type)
+{
+  return rnti_type == TYPE_RA_RNTI_ && ss_type == NR_SearchSpace__searchSpaceType_PR_common
+         && coreset_type == NFAPI_NR_CSET_CONFIG_PDCCH_CONFIG
+         && mac->current_DL_BWP != NULL;
+}
+
+static int get_nrb_for_dci(NR_UE_MAC_INST_t *mac,
+                           nr_dci_format_t dci_format,
+                           int ss_type,
+                           int rnti_type,
+                           int coreset_type)
 {
   NR_UE_DL_BWP_t *current_DL_BWP = mac->current_DL_BWP;
   NR_UE_UL_BWP_t *current_UL_BWP = mac->current_UL_BWP;
   int N_RB;
-  if(current_DL_BWP)
+  if (use_current_bwp_for_ra_common_coreset(mac, rnti_type, ss_type, coreset_type)) {
+    N_RB = current_DL_BWP->BWPSize;
+  } else if (current_DL_BWP) {
     N_RB = get_rb_bwp_dci(dci_format,
                           ss_type,
                           mac->type0_PDCCH_CSS_config.num_rbs,
@@ -3629,8 +3664,9 @@ static int get_nrb_for_dci(NR_UE_MAC_INST_t *mac, nr_dci_format_t dci_format, in
                           current_DL_BWP->BWPSize,
                           mac->sc_info.initial_dl_BWPSize,
                           mac->sc_info.initial_dl_BWPSize);
-  else
+  } else {
     N_RB = mac->type0_PDCCH_CSS_config.num_rbs;
+  }
 
   if (N_RB == 0)
     LOG_E(NR_MAC_DCI, "DCI configuration error! N_RB = 0\n");
@@ -3643,7 +3679,8 @@ static nr_dci_format_t nr_extract_dci_00_10(NR_UE_MAC_INST_t *mac,
                                             const int rnti_type,
                                             const uint8_t *dci_pdu,
                                             const int slot,
-                                            const int ss_type)
+                                            const int ss_type,
+                                            const int coreset_type)
 {
   nr_dci_format_t format = NR_DCI_NONE;
   dci_pdu_rel15_t *dci_pdu_rel15 = NULL;
@@ -3654,7 +3691,7 @@ static nr_dci_format_t nr_extract_dci_00_10(NR_UE_MAC_INST_t *mac,
     case TYPE_RA_RNTI_ :
       format = NR_DL_DCI_FORMAT_1_0;
       dci_pdu_rel15 = &mac->def_dci_pdu_rel15[slot][format];
-      n_RB = get_nrb_for_dci(mac, format, ss_type);
+      n_RB = get_nrb_for_dci(mac, format, ss_type, rnti_type, coreset_type);
       if (n_RB == 0)
         return NR_DCI_NONE;
       extract_10_ra_rnti(dci_pdu_rel15, dci_pdu, pos, n_RB);
@@ -3665,7 +3702,7 @@ static nr_dci_format_t nr_extract_dci_00_10(NR_UE_MAC_INST_t *mac,
     case TYPE_SI_RNTI_ :
       format = NR_DL_DCI_FORMAT_1_0;
       dci_pdu_rel15 = &mac->def_dci_pdu_rel15[slot][format];
-      n_RB = get_nrb_for_dci(mac, format, ss_type);
+      n_RB = get_nrb_for_dci(mac, format, ss_type, rnti_type, coreset_type);
       if (n_RB == 0)
         return NR_DCI_NONE;
       uint8_t sys_info = extract_10_si_rnti(dci_pdu_rel15, dci_pdu, pos, n_RB);
@@ -3679,7 +3716,7 @@ static nr_dci_format_t nr_extract_dci_00_10(NR_UE_MAC_INST_t *mac,
       if (format_indicator == 1) {
         format = NR_DL_DCI_FORMAT_1_0;
         dci_pdu_rel15 = &mac->def_dci_pdu_rel15[slot][format];
-        int n_RB = get_nrb_for_dci(mac, format, ss_type);
+        int n_RB = get_nrb_for_dci(mac, format, ss_type, rnti_type, coreset_type);
         if (n_RB == 0)
           return NR_DCI_NONE;
         bool pdcch_order = extract_10_c_rnti(mac, dci_pdu_rel15, dci_pdu, pos, n_RB);
@@ -3700,7 +3737,7 @@ static nr_dci_format_t nr_extract_dci_00_10(NR_UE_MAC_INST_t *mac,
       if (format_indicator == 1) {
         format = NR_DL_DCI_FORMAT_1_0;
         dci_pdu_rel15 = &mac->def_dci_pdu_rel15[slot][format];
-        n_RB = get_nrb_for_dci(mac, format, ss_type);
+        n_RB = get_nrb_for_dci(mac, format, ss_type, rnti_type, coreset_type);
         if (n_RB == 0)
           return NR_DCI_NONE;
         extract_10_tc_rnti(dci_pdu_rel15, dci_pdu, pos, n_RB);
@@ -3723,6 +3760,7 @@ static nr_dci_format_t nr_extract_dci_info(NR_UE_MAC_INST_t *mac,
                                            const uint8_t dci_size,
                                            const uint16_t rnti,
                                            const int ss_type,
+                                           const int coreset_type,
                                            const uint8_t *dci_pdu,
                                            const int slot)
 {
@@ -3733,7 +3771,7 @@ static nr_dci_format_t nr_extract_dci_info(NR_UE_MAC_INST_t *mac,
   nr_dci_format_t format = NR_DCI_NONE;
   switch(dci_format) {
     case  NFAPI_NR_FORMAT_0_0_AND_1_0 :
-      format = nr_extract_dci_00_10(mac, pos, rnti_type, dci_pdu, slot, ss_type);
+      format = nr_extract_dci_00_10(mac, pos, rnti_type, dci_pdu, slot, ss_type, coreset_type);
       break;
     case  NFAPI_NR_FORMAT_0_1_AND_1_1 :
       if (rnti_type == TYPE_C_RNTI_) {
@@ -3750,7 +3788,7 @@ static nr_dci_format_t nr_extract_dci_info(NR_UE_MAC_INST_t *mac,
           format = NR_UL_DCI_FORMAT_0_1;
           dci_pdu_rel15_t *def_dci_pdu_rel15 = &mac->def_dci_pdu_rel15[slot][format];
           def_dci_pdu_rel15->format_indicator = format_indicator;
-          int n_RB = get_nrb_for_dci(mac, format, ss_type);
+          int n_RB = get_nrb_for_dci(mac, format, ss_type, rnti_type, coreset_type);
           if (n_RB == 0)
             return NR_DCI_NONE;
           extract_01_c_rnti(def_dci_pdu_rel15, dci_pdu, pos, n_RB);
