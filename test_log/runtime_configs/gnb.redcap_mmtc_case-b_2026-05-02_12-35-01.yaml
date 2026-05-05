@@ -82,6 +82,10 @@ gNBs:
         preambleReceivedTargetPower: -96
         #preamblTransMax (0...10) = (3,4,5,6,7,8,10,20,50,100,200)
         preambleTransMax: 6
+        #ra_ResponseWindow
+        #0..7 = sl1,sl2,sl4,sl8,sl10,sl20,sl40,sl80
+        # Keep sl20: OAI gNB scheduler requires the RA window to stay within 10 ms.
+        ra_ResponseWindow: 5
         #powerRampingStep
         # 0=dB0,1=dB2,2=dB4,3=dB6
         powerRampingStep: 1

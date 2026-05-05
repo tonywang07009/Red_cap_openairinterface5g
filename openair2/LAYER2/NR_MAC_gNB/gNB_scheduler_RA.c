@@ -60,6 +60,45 @@ static int count_vrb_occupied_prbs(const uint16_t *vrb_map, int bwp_start, int b
   return occupied;
 }
 
+typedef struct {
+  int rb_size;
+  uint8_t mcs;
+  int R;
+  int Qm;
+  uint32_t tb_size;
+} ra_pdsch_allocation_t;
+
+static bool find_compact_ra_pdsch_allocation(uint16_t pdu_length,
+                                             uint8_t mcs_table_idx,
+                                             int bwp_size,
+                                             int nr_of_symbols,
+                                             int nb_dmrs_prb,
+                                             uint8_t tb_scaling,
+                                             uint8_t preferred_max_mcs,
+                                             ra_pdsch_allocation_t *alloc)
+{
+  AssertFatal(alloc != NULL, "RA PDSCH allocation output cannot be NULL\n");
+  memset(alloc, 0, sizeof(*alloc));
+
+  for (int rb_size = 1; rb_size <= bwp_size; rb_size++) {
+    for (uint8_t mcs = 0; mcs <= preferred_max_mcs; mcs++) {
+      const int R = nr_get_code_rate_dl(mcs, mcs_table_idx);
+      const int Qm = nr_get_Qm_dl(mcs, mcs_table_idx);
+      const uint32_t tb_size = nr_compute_tbs(Qm, R, rb_size, nr_of_symbols, nb_dmrs_prb, 0, tb_scaling, 1) >> 3;
+      if (tb_size >= pdu_length) {
+        alloc->rb_size = rb_size;
+        alloc->mcs = mcs;
+        alloc->R = R;
+        alloc->Qm = Qm;
+        alloc->tb_size = tb_size;
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
 /**
  * @brief Find a common search space by its searchSpaceId.
  *
@@ -2009,21 +2048,58 @@ static void nr_generate_Msg4_MsgB(module_id_t module_idP,
       // BI MAC subheader (1 Oct) + SuccessRAR MAC subheader (1 Oct) + SuccessRAR (11 Oct)
     }
 
-    // increase PRBs until we get to BWPSize or TBS is bigger than MAC PDU size
-    do {
-      if(rbSize < bwp_info.bwpSize)
-        rbSize++;
-      else
-        mcsIndex++;
-      LOG_D(NR_MAC,"Calling nr_compute_tbs with N_PRB_DMRS %d, N_DMRS_SLOT %d\n",dmrs_info.N_PRB_DMRS,dmrs_info.N_DMRS_SLOT);
-      tb_size = nr_compute_tbs(nr_get_Qm_dl(mcsIndex, mcsTableIdx),
-                               nr_get_code_rate_dl(mcsIndex, mcsTableIdx),
-                               rbSize,
-                               msg4_tda.nrOfSymbols,
-                               dmrs_info.N_PRB_DMRS * dmrs_info.N_DMRS_SLOT,
-                               0,
-                               tb_scaling,1) >> 3;
-    } while (tb_size < pdu_length && mcsIndex<=28);
+    bool redcap_compact_allocated = false;
+    if (ra->is_redcap_msg1) {
+      ra_pdsch_allocation_t compact_alloc;
+      const bool compact_ret = find_compact_ra_pdsch_allocation(pdu_length,
+                                                                mcsTableIdx,
+                                                                bwp_info.bwpSize,
+                                                                msg4_tda.nrOfSymbols,
+                                                                dmrs_info.N_PRB_DMRS * dmrs_info.N_DMRS_SLOT,
+                                                                tb_scaling,
+                                                                4,
+                                                                &compact_alloc);
+      if (compact_ret) {
+        rbSize = compact_alloc.rb_size;
+        mcsIndex = compact_alloc.mcs;
+        tb_size = compact_alloc.tb_size;
+        redcap_compact_allocated = true;
+        LOG_I(NR_MAC,
+              "[RedCap RA][gNB %s compact alloc] pdu_length %u rb_size %d mcs %u tb_size %u bwp_size %d harq_pid %d\n",
+              ra_type_str,
+              pdu_length,
+              rbSize,
+              mcsIndex,
+              tb_size,
+              bwp_info.bwpSize,
+              current_harq_pid);
+      } else {
+        LOG_W(NR_MAC,
+              "[RedCap RA][gNB %s compact fallback] pdu_length %u max_mcs 4 bwp_size %d harq_pid %d\n",
+              ra_type_str,
+              pdu_length,
+              bwp_info.bwpSize,
+              current_harq_pid);
+      }
+    }
+
+    if (!redcap_compact_allocated) {
+      // increase PRBs until we get to BWPSize or TBS is bigger than MAC PDU size
+      do {
+        if(rbSize < bwp_info.bwpSize)
+          rbSize++;
+        else
+          mcsIndex++;
+        LOG_D(NR_MAC,"Calling nr_compute_tbs with N_PRB_DMRS %d, N_DMRS_SLOT %d\n",dmrs_info.N_PRB_DMRS,dmrs_info.N_DMRS_SLOT);
+        tb_size = nr_compute_tbs(nr_get_Qm_dl(mcsIndex, mcsTableIdx),
+                                 nr_get_code_rate_dl(mcsIndex, mcsTableIdx),
+                                 rbSize,
+                                 msg4_tda.nrOfSymbols,
+                                 dmrs_info.N_PRB_DMRS * dmrs_info.N_DMRS_SLOT,
+                                 0,
+                                 tb_scaling,1) >> 3;
+      } while (tb_size < pdu_length && mcsIndex<=28);
+    }
 
     AssertFatal(tb_size >= pdu_length, "Cannot allocate %s\n", ra_type_str);
 
