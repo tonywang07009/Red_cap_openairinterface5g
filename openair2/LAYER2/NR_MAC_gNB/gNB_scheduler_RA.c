@@ -60,6 +60,22 @@ static int count_vrb_occupied_prbs(const uint16_t *vrb_map, int bwp_start, int b
   return occupied;
 }
 
+static int find_free_ra_pdsch_rb_start(const uint16_t *vrb_map, int bwp_start, int bwp_size, int rb_size, uint16_t symbol_mask)
+{
+  int rb_start = 0;
+  int i = 0;
+  while ((i < rb_size) && (rb_start + rb_size <= bwp_size)) {
+    if (vrb_map[bwp_start + rb_start + i] & symbol_mask) {
+      rb_start += i + 1;
+      i = 0;
+    } else {
+      i++;
+    }
+  }
+
+  return rb_start <= bwp_size - rb_size ? rb_start : -1;
+}
+
 typedef struct {
   int rb_size;
   uint8_t mcs;
@@ -84,6 +100,40 @@ static bool find_compact_ra_pdsch_allocation(uint16_t pdu_length,
     for (uint8_t mcs = 0; mcs <= preferred_max_mcs; mcs++) {
       const int R = nr_get_code_rate_dl(mcs, mcs_table_idx);
       const int Qm = nr_get_Qm_dl(mcs, mcs_table_idx);
+      const uint32_t tb_size = nr_compute_tbs(Qm, R, rb_size, nr_of_symbols, nb_dmrs_prb, 0, tb_scaling, 1) >> 3;
+      if (tb_size >= pdu_length) {
+        alloc->rb_size = rb_size;
+        alloc->mcs = mcs;
+        alloc->R = R;
+        alloc->Qm = Qm;
+        alloc->tb_size = tb_size;
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+static bool find_bounded_ra_pdsch_allocation(uint16_t pdu_length,
+                                             uint8_t mcs_table_idx,
+                                             int bwp_size,
+                                             int max_rb_size,
+                                             int nr_of_symbols,
+                                             int nb_dmrs_prb,
+                                             uint8_t tb_scaling,
+                                             uint8_t preferred_max_mcs,
+                                             ra_pdsch_allocation_t *alloc)
+{
+  AssertFatal(alloc != NULL, "RA PDSCH allocation output cannot be NULL\n");
+  AssertFatal(max_rb_size > 0, "RA PDSCH allocation max RB size must be positive\n");
+  memset(alloc, 0, sizeof(*alloc));
+
+  const int bounded_rb_size = max_rb_size < bwp_size ? max_rb_size : bwp_size;
+  for (uint8_t mcs = 0; mcs <= preferred_max_mcs; mcs++) {
+    const int R = nr_get_code_rate_dl(mcs, mcs_table_idx);
+    const int Qm = nr_get_Qm_dl(mcs, mcs_table_idx);
+    for (int rb_size = 1; rb_size <= bounded_rb_size; rb_size++) {
       const uint32_t tb_size = nr_compute_tbs(Qm, R, rb_size, nr_of_symbols, nb_dmrs_prb, 0, tb_scaling, 1) >> 3;
       if (tb_size >= pdu_length) {
         alloc->rb_size = rb_size;
@@ -2048,6 +2098,8 @@ static void nr_generate_Msg4_MsgB(module_id_t module_idP,
       // BI MAC subheader (1 Oct) + SuccessRAR MAC subheader (1 Oct) + SuccessRAR (11 Oct)
     }
 
+    uint16_t *vrb_map = cc[CC_id].vrb_map[beam.idx];
+    const uint16_t msg4_symbol_mask = SL_to_bitmap(msg4_tda.startSymbolIndex, msg4_tda.nrOfSymbols);
     bool redcap_compact_allocated = false;
     if (ra->is_redcap_msg1) {
       ra_pdsch_allocation_t compact_alloc;
@@ -2060,20 +2112,80 @@ static void nr_generate_Msg4_MsgB(module_id_t module_idP,
                                                                 4,
                                                                 &compact_alloc);
       if (compact_ret) {
+        const int compact_rb_start =
+            find_free_ra_pdsch_rb_start(vrb_map, bwp_info.bwpStart, bwp_info.bwpSize, compact_alloc.rb_size, msg4_symbol_mask);
+        if (compact_rb_start >= 0) {
+          rbStart = compact_rb_start;
+          rbSize = compact_alloc.rb_size;
+          mcsIndex = compact_alloc.mcs;
+          tb_size = compact_alloc.tb_size;
+          redcap_compact_allocated = true;
+          LOG_I(NR_MAC,
+                "[RedCap RA][gNB %s compact alloc] pdu_length %u rb_start %d rb_size %d mcs %u tb_size %u bwp_size %d harq_pid %d\n",
+                ra_type_str,
+                pdu_length,
+                rbStart,
+                rbSize,
+                mcsIndex,
+                tb_size,
+                bwp_info.bwpSize,
+                current_harq_pid);
+        }
+      }
+
+      if (!redcap_compact_allocated) {
+        ra_pdsch_allocation_t bounded_alloc;
+        const int pair_pack_rb_cap = bwp_info.bwpSize / 2;
+        const bool bounded_ret = pair_pack_rb_cap > 0 && find_bounded_ra_pdsch_allocation(pdu_length,
+                                                                                          mcsTableIdx,
+                                                                                          bwp_info.bwpSize,
+                                                                                          pair_pack_rb_cap,
+                                                                                          msg4_tda.nrOfSymbols,
+                                                                                          dmrs_info.N_PRB_DMRS * dmrs_info.N_DMRS_SLOT,
+                                                                                          tb_scaling,
+                                                                                          6,
+                                                                                          &bounded_alloc);
+        const int pair_pack_rb_start =
+            bounded_ret
+                ? find_free_ra_pdsch_rb_start(vrb_map, bwp_info.bwpStart, bwp_info.bwpSize, bounded_alloc.rb_size, msg4_symbol_mask)
+                : -1;
+        if (pair_pack_rb_start >= 0) {
+          rbStart = pair_pack_rb_start;
+          rbSize = bounded_alloc.rb_size;
+          mcsIndex = bounded_alloc.mcs;
+          tb_size = bounded_alloc.tb_size;
+          redcap_compact_allocated = true;
+          LOG_I(NR_MAC,
+                "[RedCap RA][gNB %s pair-pack alloc] pdu_length %u rb_start %d rb_size %d mcs %u tb_size %u "
+                "bwp_size %d rb_cap %d harq_pid %d\n",
+                ra_type_str,
+                pdu_length,
+                rbStart,
+                rbSize,
+                mcsIndex,
+                tb_size,
+                bwp_info.bwpSize,
+                pair_pack_rb_cap,
+                current_harq_pid);
+        }
+      }
+
+      if (!redcap_compact_allocated && compact_ret) {
         rbSize = compact_alloc.rb_size;
         mcsIndex = compact_alloc.mcs;
         tb_size = compact_alloc.tb_size;
         redcap_compact_allocated = true;
         LOG_I(NR_MAC,
-              "[RedCap RA][gNB %s compact alloc] pdu_length %u rb_size %d mcs %u tb_size %u bwp_size %d harq_pid %d\n",
+              "[RedCap RA][gNB %s compact alloc] pdu_length %u rb_start %d rb_size %d mcs %u tb_size %u bwp_size %d harq_pid %d\n",
               ra_type_str,
               pdu_length,
+              rbStart,
               rbSize,
               mcsIndex,
               tb_size,
               bwp_info.bwpSize,
               current_harq_pid);
-      } else {
+      } else if (!redcap_compact_allocated) {
         LOG_W(NR_MAC,
               "[RedCap RA][gNB %s compact fallback] pdu_length %u max_mcs 4 bwp_size %d harq_pid %d\n",
               ra_type_str,
@@ -2104,9 +2216,8 @@ static void nr_generate_Msg4_MsgB(module_id_t module_idP,
     AssertFatal(tb_size >= pdu_length, "Cannot allocate %s\n", ra_type_str);
 
     int i = 0;
-    uint16_t *vrb_map = cc[CC_id].vrb_map[beam.idx];
     while ((i < rbSize) && (rbStart + rbSize <= bwp_info.bwpSize)) {
-      if (vrb_map[bwp_info.bwpStart + rbStart + i]&SL_to_bitmap(msg4_tda.startSymbolIndex, msg4_tda.nrOfSymbols)) {
+      if (vrb_map[bwp_info.bwpStart + rbStart + i] & msg4_symbol_mask) {
         rbStart += i+1;
         i = 0;
       } else {
@@ -2115,8 +2226,7 @@ static void nr_generate_Msg4_MsgB(module_id_t module_idP,
     }
 
     if (rbStart > (bwp_info.bwpSize - rbSize)) {
-      const uint16_t symbol_mask = SL_to_bitmap(msg4_tda.startSymbolIndex, msg4_tda.nrOfSymbols);
-      const int occupied_prbs = count_vrb_occupied_prbs(vrb_map, bwp_info.bwpStart, bwp_info.bwpSize, symbol_mask);
+      const int occupied_prbs = count_vrb_occupied_prbs(vrb_map, bwp_info.bwpStart, bwp_info.bwpSize, msg4_symbol_mask);
       LOG_E(NR_MAC,
             "[RedCap RA][gNB %s vrb_map fail] sfn %d.%d RA-RNTI %04x TC-RNTI %04x preamble %u "
             "redcap %d state %s(%d) ss_id %ld coreset_id %ld beam %d new_beam %d "
@@ -2140,7 +2250,7 @@ static void nr_generate_Msg4_MsgB(module_id_t module_idP,
             rbStart,
             rbSize,
             occupied_prbs,
-            symbol_mask,
+            msg4_symbol_mask,
             time_domain_assignment,
             msg4_tda.startSymbolIndex,
             msg4_tda.nrOfSymbols,
@@ -2514,20 +2624,24 @@ void nr_schedule_RA(module_id_t module_idP,
         }
       }
 
-      switch (ra->ra_state) {
-        case nrRA_Msg2:
-          nr_generate_Msg2(module_idP, CC_id, frameP, slotP, UE, DL_req, TX_req);
-          break;
-        case nrRA_Msg3_retransmission:
-          nr_generate_Msg3_retransmission(module_idP, CC_id, frameP, slotP, UE, ul_dci_req);
-          break;
-        case nrRA_Msg4:
-        case nrRA_MsgB:
-          nr_generate_Msg4_MsgB(module_idP, CC_id, frameP, slotP, UE, DL_req, TX_req);
-          break;
-        default:
-          break;
-      }
+    }
+
+    UE_iterator(mac->UE_info.access_ue_list, UE) {
+      NR_RA_t *ra = UE->ra;
+      if (ra->ra_state == nrRA_Msg2)
+        nr_generate_Msg2(module_idP, CC_id, frameP, slotP, UE, DL_req, TX_req);
+    }
+
+    UE_iterator(mac->UE_info.access_ue_list, UE) {
+      NR_RA_t *ra = UE->ra;
+      if (ra->ra_state == nrRA_Msg3_retransmission)
+        nr_generate_Msg3_retransmission(module_idP, CC_id, frameP, slotP, UE, ul_dci_req);
+    }
+
+    UE_iterator(mac->UE_info.access_ue_list, UE) {
+      NR_RA_t *ra = UE->ra;
+      if (ra->ra_state == nrRA_Msg4 || ra->ra_state == nrRA_MsgB)
+        nr_generate_Msg4_MsgB(module_idP, CC_id, frameP, slotP, UE, DL_req, TX_req);
     }
   }
   stop_meas(&mac->schedule_ra);
