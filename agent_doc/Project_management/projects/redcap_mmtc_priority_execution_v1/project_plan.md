@@ -3,7 +3,7 @@
 ## Project Metadata
 - Project Path: `agent_doc/Project_management/projects/redcap_mmtc_priority_execution_v1/project_plan.md`
 - Created Date: 2026-04-25
-- Updated Date: 2026-05-02
+- Updated Date: 2026-05-07
 - Baseline Archive: `agent_doc/Project_management/Simluation_v2.md`
 - Milestone Directory: `agent_doc/Project_management/projects/redcap_mmtc_priority_execution_v1/milestones/`
 - Validation Directory: `agent_doc/Project_management/projects/redcap_mmtc_priority_execution_v1/validation/`
@@ -31,10 +31,10 @@
 |---|---|---|---|
 | M1 | `milestones/M1_phy_constraints.md` | RedCap PHY limits, antenna limits, HD-FDD guard | [x] |
 | M2 | `milestones/M2_rrc_sib1_redcap.md` | RedCap SIB1 encode/decode and barring gates | [x] |
-| M3 | `milestones/M3_bwp_coreset_ra.md` | RedCap initial BWP, CORESET#0 Case A/B, RA Msg2 path | [~] |
+| M3 | `milestones/M3_bwp_coreset_ra.md` | RedCap initial BWP, CORESET#0 Case A/B, RA Msg2 path | [x] |
 | M4 | `milestones/M4_sdt_inactive.md` | SDT and RRC_INACTIVE FSM wiring | [x] |
-| M4-B | `milestones/M4B_drx_edrx_psm.md` | Connected DRX, eDRX, PSM low-power behavior | [ ] |
-| M5 | `milestones/M5_mmtc_runtime_scaling.md` | Compose-based mMTC runtime, 30/32/64 UE scaling | [!] |
+| M4-B | `milestones/M4B_drx_edrx_psm.md` | Connected DRX, eDRX, PSM low-power behavior | [x] |
+| M5 | `milestones/M5_mmtc_runtime_scaling.md` | Compose-based mMTC runtime, 30/32/64 UE scaling | [~] |
 | M6 | `milestones/M6_docs_automation.md` | Automation, tutorial, reference, evidence packaging | [~] |
 | M7 | `milestones/M7_repo_hygiene.md` | Clean code, unused script/doc inventory, approved removals | [ ] |
 
@@ -71,10 +71,10 @@
 | M6AB-T1 | M6 | Tutorial/reference manuals finalization | `milestones/M6_docs_automation.md` | 5 | 4 | 2 | 7 | M1/M2/M3/M4/M5 evidence ready | [ ] |
 | M4-T1 | M4 | SDT FSM scheduler wiring and transition logging | `milestones/M4_sdt_inactive.md` | 5 | 3 | 3 | 5 | M2, M3 | [x] |
 | M1-T3 | M1 | HD-FDD Tx/Rx gap guard hardening | `milestones/M1_phy_constraints.md` | 4 | 3 | 3 | 4 | None | [x] |
-| M3-T2 | M3 | CORESET#0 Case A/B host runtime evidence completion | `milestones/M3_bwp_coreset_ra.md` | 2 | 3 | 4 | 1 | M2-T1, M1-T3 | [~] |
-| M5-T1 | M5 | fixed-UE UE2 user-plane blocker RCA | `milestones/M5_mmtc_runtime_scaling.md` | 2 | 2 | 5 | -1 | M3-T2 | [~] |
-| M5-T2 | M5 | scalable mMTC staged validation | `milestones/M5_mmtc_runtime_scaling.md` | 2 | 2 | 5 | -1 | M5-T1 | [!] |
-| M4B-T1 | M4-B | DRX/eDRX/PSM end-to-end implementation closure | `milestones/M4B_drx_edrx_psm.md` | 3 | 1 | 5 | -1 | M2-T1, M4-T1, M5-T1 | [ ] |
+| M3-T2 | M3 | CORESET#0 Case A/B host runtime evidence completion | `milestones/M3_bwp_coreset_ra.md` | 2 | 3 | 4 | 1 | M2-T1, M1-T3 | [x] |
+| M5-T1 | M5 | fixed-UE UE2 user-plane blocker RCA | `milestones/M5_mmtc_runtime_scaling.md` | 2 | 2 | 5 | -1 | M3-T2 | [x] |
+| M5-T2 | M5 | scalable mMTC staged validation | `milestones/M5_mmtc_runtime_scaling.md` | 2 | 2 | 5 | -1 | M5-T1 | [~] |
+| M4B-T1 | M4-B | DRX/eDRX/PSM end-to-end implementation closure | `milestones/M4B_drx_edrx_psm.md` | 3 | 1 | 5 | -1 | M2-T1, M4-T1, M5-T1 | [x] |
 | M7-T1 | M7 | Inventory unused Bash and Markdown files | `milestones/M7_repo_hygiene.md` | 5 | 3 | 2 | 6 | None | [ ] |
 | M7-T2 | M7 | Remove confirmed-unused files after explicit approval | `milestones/M7_repo_hygiene.md` | 4 | 3 | 3 | 4 | M7-T1, user approval | [ ] |
 | M7-T3 | M7 | Clean stale references after approved removals | `milestones/M7_repo_hygiene.md` | 4 | 2 | 3 | 3 | M7-T2 | [ ] |
@@ -83,14 +83,15 @@
 - Current batch: [Batch B: Host Docker required]
 - Current milestone: `M5_mmtc_runtime_scaling.md`
 - Current validation focus:
-  - `RT-M5-030`: 30 UE staged mMTC validation
-  - `RT-M5-CASEB-030`: 30 UE staged Case B A/B validation
-- Current blocker:
-  - Case A staged runtime reached `26/30`.
-  - Case B staged runtime reached `27/30`.
-  - Case B confirms `coreset_id=1` / `BWP51` Msg2 scheduling under mMTC load.
-  - Instrumented Case B still reached only `27/30`.
-  - Remaining blocker is RA/Msg4 scheduler load: Msg2 missed allocation leads to `diff=21 > window=20`, and Msg4 uses a wide PDSCH allocation under full-symbol PRB pressure.
+  - `RT-M5-032`: validate 32 UE staged mMTC stability after Case B 30 UE pass.
+  - `RT-M5-CASEB-030`: keep Case B comparison for RA/Msg4 and PUCCH fallback counters.
+- Recently closed:
+  - `M3-T2`: Case A and Case B RFsim runtime evidence passed and artifacts were preserved under `test_log/runtime_artifacts/`.
+  - `M4B-T1`: DRX/eDRX/PSM support boundary is documented as [DRX unit/flow-level], [eDRX runtime log-level], and [PSM runtime log-level].
+- Current M5 blocker:
+  - Case B staged runtime now reached `30/30` attach/PDU/tunnel/forward ping with gNB restart count `0`.
+  - Case A staged runtime previously reached `26/30`; normal 30 UE Case A remains a separate comparison if needed.
+  - 32 UE and higher thresholds remain unclassified.
 
 ## Daily Log Follow Rules
 - Every new `test_logs/work_daily/*.md` entry for this project must include:
@@ -103,8 +104,7 @@
   - `px-v1-<task-id-lowercase>-<short-action>`
 
 ## Next Action
-- Implement the next scheduler fix in a separate atomic task:
-  1. Keep the instrumentation markers in `openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_RA.c`.
-  2. Review Msg4 PDSCH allocation policy under RedCap mMTC load, especially `rbSize`, MCS escalation, and slot reuse.
-  3. Review whether Msg2 should skip congested DL slots earlier or use a smaller allocation before the RA response window reaches `diff=21`.
-  4. Rebuild `nr-softmodem`, rebuild the local OAI image, and rerun `RT-M5-CASEB-030`.
+- Return to `M5-T1` / `M5-T2` staged scaling:
+  1. Run `RT-M5-032` with the same Case B pacing and no iperf.
+  2. Compare 32 UE counters against the 30 UE pass baseline.
+  3. Proceed to 48/56/60/64 threshold classification only after 32 UE is stable.

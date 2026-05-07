@@ -53,6 +53,24 @@
 - `RT-M5-CASEB-030`: 30 UE staged mMTC Case B A/B validation.
 
 ## Current Evidence
+- 2026-05-07 Case B 30 UE rerun:
+  - Log: `test_log/compiler_logs/mmtc_smoke_30ue_caseb_rerun_2026-05-07_13-29-43_escalated.log`.
+  - gNB log: `test_log/compiler_logs/mmtc_smoke_2026-05-07_13-29-43_gnb.log`.
+  - Result: `30/30` running / attach / PDU / tunnel / forward ping.
+  - gNB restart count: `0`.
+  - UE PUCCH BWP0 common fallback env: `MMTC_PUCCH_COMMON_FALLBACK_BWP0=1`.
+  - `[RedCap RA][gNB Msg2 gate]`: `153`.
+  - `[RedCap RA][gNB Msg2 DCI]`: `30`.
+  - Msg2 CCE allocation for RedCap RA DCI: `30 x cce=0 agg=4`.
+  - `[RedCap RA][gNB Msg2 window fail]`: `6`.
+  - `[RedCap RA][gNB Msg2 vrb_map fail]`: `0`.
+  - `[RedCap RA][gNB Msg4 vrb_map fail]`: `0`.
+  - `RA Contention Resolution timer expired`: `0`.
+  - `Received Ack of Msg4` / `CBRA procedure succeeded`: `30`.
+  - UE `RAR reception failed`: `6` transient retries, with final attach/PDU/tunnel/ping all PASS.
+  - UE `pucch_ResourceCommon is NULL`: `0`.
+  - `Received a RAR-Msg2 but LDPC decode failed`: `0`.
+  - Ping logs: `30/30` show `0% packet loss`.
 - Latest staged 30 UE result:
   - `26/30` attach/PDU/tunnel/ping.
   - Failed UEs: `UE11`, `UE20`, `UE26`, `UE29`.
@@ -94,7 +112,7 @@
 
 ## Completion Criteria
 - [RFsim UE/gNB/CN runtime PASS]
-- [30 UE staged PASS]
+- [30 UE staged PASS] Case B 30 UE passed on 2026-05-07.
 - [32 UE staged PASS]
 - [64 UE staged target evaluated]
 - [failure counters summarized]

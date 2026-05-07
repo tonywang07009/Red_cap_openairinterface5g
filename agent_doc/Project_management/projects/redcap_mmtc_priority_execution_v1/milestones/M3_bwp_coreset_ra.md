@@ -46,10 +46,18 @@
 - `RT-M3-CASEB`: Case B RFsim attach and RAR validation.
 - `RT-M3-UE2-RAR`: UE2 RedCap RAR decode without LDPC failure.
 
+## Closure Evidence
+- [RT-M3-CASEA PASS] `test_log/report/redcap_runtime_host_summary_case-a_disabled_2026-05-07_13-15-07.md`
+- [RT-M3-CASEA artifacts] `test_log/runtime_artifacts/m3_casea_2026-05-07_13-15-07/`
+- [RT-M3-CASEB PASS] `test_log/report/redcap_runtime_host_summary_case-b_disabled_2026-05-07_13-10-12.md`
+- [RT-M3-CASEB artifacts] `test_log/runtime_artifacts/m3_caseb_2026-05-07_13-10-12/`
+- [Unit baseline PASS] `test_log/compiler_logs/ctest_m1_m2_m3_m4b_units_2026-05-07_12-27-17_after-m1-align.log`
+- [Note] No new C/C++ patch was made during this closure step; existing local Docker images were used for runtime validation.
+
 ## Completion Criteria
-- [source build PASS]
-- [unit test PASS]
-- [container image rebuilt after C/C++ changes]
+- [source build PASS] Unit baseline already built before runtime closure.
+- [unit test PASS] M1/M2/M3/M4B unit set: 8/8 passed.
+- [container image rebuilt after C/C++ changes] N/A for this closure step; no C/C++ changes were made.
 - [Case A RFsim runtime PASS]
 - [Case B RFsim runtime PASS]
 - [gNB and UE logs preserved]

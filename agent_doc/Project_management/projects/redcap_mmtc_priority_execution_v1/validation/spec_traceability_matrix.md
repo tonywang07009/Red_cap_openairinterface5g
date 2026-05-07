@@ -26,9 +26,9 @@
 | Random Access | M3/M5 | Msg1, Msg2/RAR, Msg3, Msg4 | TS 38.321 Section 5.1 | [Partially Verified] |
 | RAR reception | M3/M5 | UE receives RAR and decodes Msg2 | TS 38.321 Section 5.1.4 | [Needs Verification] |
 | Contention resolution | M5 | Msg4 ACK and RA contention timer | TS 38.321 Section 5.1.5 | [Needs Verification] |
-| Connected DRX | M4-B | Connected DRX timer handling | TS 38.321 Section 5.7 | [Needs Verification] |
-| eDRX | M4-B | Idle/inactive eDRX advertisement and UE gating | TS 38.331 exact clause pending | [Needs Verification] |
-| PSM | M4-B | NAS timer hooks for low-power behavior | TS 24.501 exact clause pending | [Needs Verification] |
+| Connected DRX | M4-B | Connected DRX timer handling and UE active-time gating | TS 38.321 Section 5.7; TS 38.331 Section 6.3.2 | [Partially Verified] |
+| eDRX | M4-B | Idle/inactive eDRX advertisement and UE gating | TS 38.331 Section 6.3.2; TS 38.304 exact paging clause pending | [Partially Verified] |
+| PSM | M4-B | NAS T3324/T3512 timer hooks for low-power behavior | TS 24.501 Section 8.2.7.1.1; TS 24.501 Section 5.5.1 | [Partially Verified] |
 | FlexRIC xApp checks | M5/M6 | Existing KPM/RC runtime monitor only | O-RAN, non-3GPP | [Out of 3GPP Scope] |
 
 ## Reporting Rule

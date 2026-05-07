@@ -201,13 +201,21 @@ TEST(nr_frame_params, redcap_gnb_validation_accepts_fr1_limits)
   nr_validate_redcap_gnb_frame_parms(&fp);
 }
 
-TEST(nr_frame_params, redcap_gnb_validation_rejects_dl_bandwidth_over_20mhz)
+TEST(nr_frame_params, redcap_gnb_validation_allows_common_grid_over_20mhz)
 {
   NR_DL_FRAME_PARMS fp = make_redcap_fp(NR_MU_1);
   fp.nb_antennas_tx = 2;
   fp.N_RB_DL = 52;
 
-  ASSERT_DEATH({ nr_validate_redcap_gnb_frame_parms(&fp); }, "exceeds 20 MHz limit");
+  nr_validate_redcap_gnb_frame_parms(&fp);
+}
+
+TEST(nr_frame_params, redcap_ue_validation_rejects_dl_bandwidth_over_20mhz)
+{
+  NR_DL_FRAME_PARMS fp = make_redcap_fp(NR_MU_1);
+  fp.N_RB_DL = 52;
+
+  ASSERT_DEATH({ nr_validate_redcap_ue_frame_parms(&fp); }, "exceeds 20 MHz limit");
 }
 
 TEST(nr_frame_params, redcap_ue_validation_rejects_extra_rx_branch)

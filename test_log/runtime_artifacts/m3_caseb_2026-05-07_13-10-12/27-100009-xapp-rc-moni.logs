@@ -1,0 +1,167 @@
+[UTIL]: Setting the config -c file to /usr/local/etc/flexric/flexric.conf
+[UTIL]: Setting path -p for the shared libraries to /usr/local/lib/flexric/
+[xAapp]: Initializing ... 
+[xApp]: nearRT-RIC IP Address = 192.168.70.180, PORT = 36422
+[E2 AGENT]: Opening plugin from path = /usr/local/lib/flexric/libtc_sm.so 
+[E2 AGENT]: Opening plugin from path = /usr/local/lib/flexric/libmac_sm.so 
+[E2 AGENT]: Opening plugin from path = /usr/local/lib/flexric/libpdcp_sm.so 
+[E2 AGENT]: Opening plugin from path = /usr/local/lib/flexric/librlc_sm.so 
+[E2 AGENT]: Opening plugin from path = /usr/local/lib/flexric/librc_sm.so 
+[E2 AGENT]: Opening plugin from path = /usr/local/lib/flexric/libkpm_sm.so 
+[E2 AGENT]: Opening plugin from path = /usr/local/lib/flexric/libgtp_sm.so 
+[E2 AGENT]: Opening plugin from path = /usr/local/lib/flexric/libslice_sm.so 
+[NEAR-RIC]: Loading SM ID = 146 with def = TC_STATS_V0 
+[NEAR-RIC]: Loading SM ID = 142 with def = MAC_STATS_V0 
+[NEAR-RIC]: Loading SM ID = 144 with def = PDCP_STATS_V0 
+[NEAR-RIC]: Loading SM ID = 143 with def = RLC_STATS_V0 
+[NEAR-RIC]: Loading SM ID = 3 with def = ORAN-E2SM-RC 
+[NEAR-RIC]: Loading SM ID = 2 with def = ORAN-E2SM-KPM 
+[NEAR-RIC]: Loading SM ID = 148 with def = GTP_STATS_V0 
+[NEAR-RIC]: Loading SM ID = 145 with def = SLICE_STATS_V0 
+[xApp]: DB filename = /tmp/xapp_db_1778130652250195 
+ [xApp]: E42 SETUP-REQUEST tx
+[xApp]: E42 SETUP-RESPONSE rx 
+[xApp]: xApp ID = 7 
+[xApp]: The nearRT-RIC has no registered nodes. Resending the E42 SETUP-REQUEST in 5s.
+[xApp]: E42 SETUP-REQUEST tx
+[xApp]: E42 SETUP-RESPONSE rx 
+[xApp]: xApp ID = 8 
+[xApp]: The nearRT-RIC has no registered nodes. Resending the E42 SETUP-REQUEST in 5s.
+[xApp]: E42 SETUP-REQUEST tx
+[xApp]: E42 SETUP-RESPONSE rx 
+[xApp]: xApp ID = 9 
+[xApp]: The nearRT-RIC has no registered nodes. Resending the E42 SETUP-REQUEST in 5s.
+[xApp]: E42 SETUP-REQUEST tx
+[xApp]: E42 SETUP-RESPONSE rx 
+[xApp]: xApp ID = 10 
+[xApp]: The nearRT-RIC has no registered nodes. Resending the E42 SETUP-REQUEST in 5s.
+[xApp]: E42 SETUP-REQUEST tx
+[xApp]: E42 SETUP-RESPONSE rx 
+[xApp]: xApp ID = 11 
+[xApp]: The nearRT-RIC has no registered nodes. Resending the E42 SETUP-REQUEST in 5s.
+[xApp]: E42 SETUP-REQUEST tx
+[xApp]: E42 SETUP-RESPONSE rx 
+[xApp]: xApp ID = 12 
+[xApp]: The nearRT-RIC has no registered nodes. Resending the E42 SETUP-REQUEST in 5s.
+[xApp]: E42 SETUP-REQUEST tx
+[xApp]: E42 SETUP-RESPONSE rx 
+[xApp]: xApp ID = 13 
+[xApp]: The nearRT-RIC has no registered nodes. Resending the E42 SETUP-REQUEST in 5s.
+[xApp]: E42 SETUP-REQUEST tx
+[xApp]: E42 SETUP-RESPONSE rx 
+[xApp]: xApp ID = 14 
+[xApp]: The nearRT-RIC has no registered nodes. Resending the E42 SETUP-REQUEST in 5s.
+[xApp]: E42 SETUP-REQUEST tx
+[xApp]: E42 SETUP-RESPONSE rx 
+[xApp]: xApp ID = 15 
+[xApp]: The nearRT-RIC has no registered nodes. Resending the E42 SETUP-REQUEST in 5s.
+[xApp]: E42 SETUP-REQUEST tx
+[xApp]: E42 SETUP-RESPONSE rx 
+[xApp]: xApp ID = 16 
+[xApp]: The nearRT-RIC has no registered nodes. Resending the E42 SETUP-REQUEST in 5s.
+[xApp]: E42 SETUP-REQUEST tx
+[xApp]: E42 SETUP-RESPONSE rx 
+[xApp]: xApp ID = 17 
+[xApp]: The nearRT-RIC has no registered nodes. Resending the E42 SETUP-REQUEST in 5s.
+[xApp]: E42 SETUP-REQUEST tx
+[xApp]: E42 SETUP-RESPONSE rx 
+[xApp]: xApp ID = 18 
+[xApp]: The nearRT-RIC has no registered nodes. Resending the E42 SETUP-REQUEST in 5s.
+[xApp]: E42 SETUP-REQUEST tx
+[xApp]: E42 SETUP-RESPONSE rx 
+[xApp]: xApp ID = 19 
+[xApp]: The nearRT-RIC has no registered nodes. Resending the E42 SETUP-REQUEST in 5s.
+[xApp]: E42 SETUP-REQUEST tx
+[xApp]: E42 SETUP-RESPONSE rx 
+[xApp]: xApp ID = 20 
+[xApp]: The nearRT-RIC has no registered nodes. Resending the E42 SETUP-REQUEST in 5s.
+[xApp]: E42 SETUP-REQUEST tx
+[xApp]: E42 SETUP-RESPONSE rx 
+[xApp]: xApp ID = 21 
+[xApp]: The nearRT-RIC has no registered nodes. Resending the E42 SETUP-REQUEST in 5s.
+[xApp]: E42 SETUP-REQUEST tx
+[xApp]: E42 SETUP-RESPONSE rx 
+[xApp]: xApp ID = 22 
+[xApp]: The nearRT-RIC has no registered nodes. Resending the E42 SETUP-REQUEST in 5s.
+[xApp]: E42 SETUP-REQUEST tx
+[xApp]: E42 SETUP-RESPONSE rx 
+[xApp]: xApp ID = 23 
+[xApp]: The nearRT-RIC has no registered nodes. Resending the E42 SETUP-REQUEST in 5s.
+[xApp]: E42 SETUP-REQUEST tx
+[xApp]: E42 SETUP-RESPONSE rx 
+[xApp]: xApp ID = 24 
+[xApp]: The nearRT-RIC has no registered nodes. Resending the E42 SETUP-REQUEST in 5s.
+[xApp]: E42 SETUP-REQUEST tx
+[xApp]: E42 SETUP-RESPONSE rx 
+[xApp]: xApp ID = 25 
+[xApp]: The nearRT-RIC has no registered nodes. Resending the E42 SETUP-REQUEST in 5s.
+[xApp]: E42 SETUP-REQUEST tx
+[xApp]: E42 SETUP-RESPONSE rx 
+[xApp]: xApp ID = 26 
+[xApp]: The nearRT-RIC has no registered nodes. Resending the E42 SETUP-REQUEST in 5s.
+[xApp]: E42 SETUP-REQUEST tx
+[xApp]: E42 SETUP-RESPONSE rx 
+[xApp]: xApp ID = 27 
+[xApp]: The nearRT-RIC has no registered nodes. Resending the E42 SETUP-REQUEST in 5s.
+[xApp]: E42 SETUP-REQUEST tx
+[xApp]: E42 SETUP-RESPONSE rx 
+[xApp]: xApp ID = 28 
+[xApp]: The nearRT-RIC has no registered nodes. Resending the E42 SETUP-REQUEST in 5s.
+[xApp]: E42 SETUP-REQUEST tx
+[xApp]: E42 SETUP-RESPONSE rx 
+[xApp]: xApp ID = 29 
+[xApp]: The nearRT-RIC has no registered nodes. Resending the E42 SETUP-REQUEST in 5s.
+[xApp]: E42 SETUP-REQUEST tx
+[xApp]: E42 SETUP-RESPONSE rx 
+[xApp]: xApp ID = 30 
+[xApp]: The nearRT-RIC has no registered nodes. Resending the E42 SETUP-REQUEST in 5s.
+[xApp]: E42 SETUP-REQUEST tx
+[xApp]: E42 SETUP-RESPONSE rx 
+[xApp]: xApp ID = 31 
+[xApp]: The nearRT-RIC has no registered nodes. Resending the E42 SETUP-REQUEST in 5s.
+[xApp]: E42 SETUP-REQUEST tx
+[xApp]: E42 SETUP-RESPONSE rx 
+[xApp]: xApp ID = 32 
+[xApp]: The nearRT-RIC has no registered nodes. Resending the E42 SETUP-REQUEST in 5s.
+[xApp]: E42 SETUP-REQUEST tx
+[xApp]: E42 SETUP-RESPONSE rx 
+[xApp]: xApp ID = 33 
+[xApp]: The nearRT-RIC has no registered nodes. Resending the E42 SETUP-REQUEST in 5s.
+[xApp]: E42 SETUP-REQUEST tx
+[xApp]: E42 SETUP-RESPONSE rx 
+[xApp]: xApp ID = 34 
+[xApp]: The nearRT-RIC has no registered nodes. Resending the E42 SETUP-REQUEST in 5s.
+[xApp]: E42 SETUP-REQUEST tx
+[xApp]: E42 SETUP-RESPONSE rx 
+[xApp]: xApp ID = 35 
+[xApp]: The nearRT-RIC has no registered nodes. Resending the E42 SETUP-REQUEST in 5s.
+[xApp]: E42 SETUP-REQUEST tx
+[xApp]: E42 SETUP-RESPONSE rx 
+[xApp]: xApp ID = 36 
+[xApp]: The nearRT-RIC has no registered nodes. Resending the E42 SETUP-REQUEST in 5s.
+[xApp]: E42 SETUP-REQUEST tx
+[xApp]: E42 SETUP-RESPONSE rx 
+[xApp]: xApp ID = 37 
+[xApp]: The nearRT-RIC has no registered nodes. Resending the E42 SETUP-REQUEST in 5s.
+[xApp]: E42 SETUP-REQUEST tx
+[xApp]: E42 SETUP-RESPONSE rx 
+[xApp]: xApp ID = 38 
+[xApp]: The nearRT-RIC has no registered nodes. Resending the E42 SETUP-REQUEST in 5s.
+[xApp]: E42 SETUP-REQUEST tx
+[xApp]: E42 SETUP-RESPONSE rx 
+[xApp]: xApp ID = 39 
+[xApp]: The nearRT-RIC has no registered nodes. Resending the E42 SETUP-REQUEST in 5s.
+[xApp]: E42 SETUP-REQUEST tx
+[xApp]: E42 SETUP-RESPONSE rx 
+[xApp]: xApp ID = 40 
+[xApp]: The nearRT-RIC has no registered nodes. Resending the E42 SETUP-REQUEST in 5s.
+
+[xApp]:Abruptly ending with signal number = 15
+[xApp]: E42 SETUP-REQUEST tx
+[xApp]: E42 SETUP-RESPONSE rx 
+[xApp]: xApp ID = 41 
+[xApp]: The nearRT-RIC has no registered nodes. Resending the E42 SETUP-REQUEST in 5s.
+[xApp]: E42 SETUP-REQUEST tx
+[xApp]: E42 SETUP-RESPONSE rx 
+[xApp]: xApp ID = 42 
+[xApp]: The nearRT-RIC has no registered nodes. Resending the E42 SETUP-REQUEST in 5s.

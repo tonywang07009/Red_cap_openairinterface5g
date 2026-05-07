@@ -42,8 +42,27 @@
 - `RT-M4B-001`: Connected DRX runtime smoke.
 - `RT-M4B-002`: eDRX/PSM compile-level plus log-level validation until CN support is defined.
 
+## Boundary Classification
+- [Connected DRX]：[unit/flow-level] PASS.
+  - UE MAC parses and stores RRC `DRX-Config`.
+  - UE scheduler calls `nr_ue_drx_is_active()` before normal PDCCH/DCI monitoring.
+  - Current RFsim source-of-truth compose path does not provide a DRX-enabled runtime config, so [RT-M4B-001] is [NA] rather than PASS.
+- [eDRX]：[runtime log-level] PASS.
+  - UE logs `SIB1 eDRX allowed: idle=0 inactive=0` in current Case A/B RFsim evidence.
+  - Idle/inactive paging extension behavior remains outside current runtime claim.
+- [PSM]：[runtime log-level] PASS.
+  - UE NAS logs `NAS PSM timers: T3324=-1 sec T3512=1320 sec configured=1 low_power_ready=0`.
+  - CN-driven sleep/quiesce behavior is not claimed.
+
+## Closure Evidence
+- [M4-B focused CTest PASS] `test_log/compiler_logs/ctest_m4b_lowpower_boundary_2026-05-07_13-24-38_lsanoff.log`
+- [M4-B focused CTest false-fail note] `test_log/compiler_logs/ctest_m4b_lowpower_boundary_2026-05-07_13-24-30.log` failed only because LeakSanitizer cannot run under ptrace in this environment.
+- [Case A runtime log-level evidence] `test_log/runtime_artifacts/m3_casea_2026-05-07_13-15-07/`
+- [Case B runtime log-level evidence] `test_log/runtime_artifacts/m3_caseb_2026-05-07_13-10-12/`
+- [Learning report] `test_log/report/m4b_lowpower_boundary_report_2026-05-07_13-25-44.md`
+
 ## Completion Criteria
-- [source build PASS]
-- [unit test PASS]
+- [source build PASS] No new C/C++ source patch in this boundary closure; previous M4B UE build evidence remains in `test_log/build_logs/`.
+- [unit test PASS] Focused M4B CTest: 4/4 passed with `LSAN_OPTIONS=detect_leaks=0`.
 - [runtime or compile-level boundary stated]
 - [spec traceability updated]
