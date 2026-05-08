@@ -49,10 +49,125 @@
 - `RT-M5-002`: fixed UE1/UE2 RedCap RFsim attach and ping.
 - `RT-M5-030`: 30 UE staged mMTC attach, PDU session, tunnel, and forward ping.
 - `RT-M5-032`: 32 UE staged mMTC validation.
+- `RT-M5-048`: 48 UE staged mMTC validation.
+- `RT-M5-056`: 56 UE staged mMTC validation.
+- `RT-M5-060`: 60 UE staged mMTC validation.
 - `RT-M5-064`: 64 UE staged mMTC validation.
 - `RT-M5-CASEB-030`: 30 UE staged mMTC Case B A/B validation.
 
 ## Current Evidence
+- 2026-05-08 Case B 56 UE static CN discovery rerun:
+  - Log: `test_log/compiler_logs/mmtc_smoke_56ue_caseb_static_cn_2026-05-08_12-03-21_escalated.log`.
+  - gNB log: `test_log/compiler_logs/mmtc_smoke_2026-05-08_12-03-22_gnb.log`.
+  - Preserved artifact directory: `test_log/runtime_artifacts/m5_rt_m5_056_caseb_static_cn_2026-05-08_12-03-22/`.
+  - Result: `56/56` running, `56/56` attach, `56/56` PDU, `56/56` tunnel, `56/56` forward ping.
+  - Runtime status: [RFsim UE/gNB/CN runtime PASS].
+  - gNB restart count: `0`.
+  - Ping logs with `0% packet loss`: `56/56`.
+  - Ping RTT aggregate from 56 logs: min-min `54.676 ms`, avg-of-avg `864.775 ms`, max-max `2000.904 ms`.
+  - CN mitigation:
+    - External config: `/home/tonywang/OAI/oai-cn5g/conf/config.yaml`.
+    - Backup: `test_log/runtime_configs/oai-cn5g_config_pre_static_2026-05-08_12-05-00.yaml`.
+    - `register_nf.general=no`.
+    - `amf.support_features_options.enable_smf_selection=no`.
+    - Static SMF UPF endpoint includes `host: oai-upf` and `port: 8805`.
+  - CN blocker counters after mitigation:
+    - `Request Authentication Vectors failure`: `0`.
+    - `Registration Reject`: `0`.
+    - `SMF Selection, no SMF candidate`: `0`.
+    - `NFDiscovery, SMF Info: Addr ,`: `0`.
+    - NRF response / HTTP code / NF registration pressure markers: `0`.
+  - UE54/UE55/UE56 now have `oaitun_ue1`:
+    - `UE54`: `10.0.0.55/24`.
+    - `UE55`: `10.0.0.56/24`.
+    - `UE56`: `10.0.0.57/24`.
+  - UE PUCCH BWP0 common fallback env: `MMTC_PUCCH_COMMON_FALLBACK_BWP0=1`.
+  - `[RedCap RA][gNB Msg2 gate]`: `770`.
+  - `[RedCap RA][gNB Msg2 DCI]`: `56`.
+  - Msg2 CCE allocation for RedCap RA DCI: `56 x cce=0 agg=4`.
+  - `[RedCap RA][gNB Msg2 window fail]`: `55`.
+  - `[RedCap RA][gNB Msg2 vrb_map fail]`: `0`.
+  - `[RedCap RA][gNB Msg4 vrb_map fail]`: `0`.
+  - `RA Contention Resolution timer expired`: `0`.
+  - `Received Ack of Msg4` / `CBRA procedure succeeded`: `56`.
+  - UE `RAR reception failed`: `55` transient retries across `UE19`, `UE21`, `UE22`, `UE29`, `UE30`, `UE31`, `UE33`, `UE34`, `UE35`, `UE36`, `UE38`, `UE41`, `UE42`, `UE43`, `UE50`, `UE53`, `UE54`, `UE55`, and `UE56`.
+  - UE `pucch_ResourceCommon is NULL`: `0`.
+  - UE `fallback=0` / `fallback=1`: `0` / `0`.
+  - `Received a RAR-Msg2 but LDPC decode failed`: `0`.
+  - Msg4 compact allocation: `106 x rb=25 mcs=4 bwp=48`; compact fallback `54`.
+  - Interpretation:
+    - The original 56 UE terminal failure was CN discovery/auth/SMF-selection pressure, and the static CN discovery boundary closes that blocker for 56 UE.
+    - RAN RA/Msg4 still completes for all UEs, but Msg2 window / UE RAR retry pressure is higher than the 48 UE pass and must remain a primary `RT-M5-060` / `RT-M5-064` risk counter.
+- 2026-05-08 Case B 56 UE threshold classification:
+  - Log: `test_log/compiler_logs/mmtc_smoke_56ue_caseb_2026-05-08_11-20-59_escalated.log`.
+  - gNB log: `test_log/compiler_logs/mmtc_smoke_2026-05-08_11-20-59_gnb.log`.
+  - Preserved artifact directory: `test_log/runtime_artifacts/m5_rt_m5_056_caseb_2026-05-08_11-20-59/`.
+  - Result: `56/56` running, `54/56` attach, `53/56` PDU, `53/56` tunnel, `53/56` forward ping.
+  - Runtime status: [RFsim UE/gNB/CN runtime FAIL], threshold classified.
+  - gNB restart count: `0`.
+  - Ping logs with `0% packet loss`: `53/53` available ping logs.
+  - Ping RTT aggregate from 53 logs: min-min `72.837 ms`, avg-of-avg `787.689 ms`, max-avg `1520.558 ms`, max-max `2039.815 ms`.
+  - UE PUCCH BWP0 common fallback env: `MMTC_PUCCH_COMMON_FALLBACK_BWP0=1`.
+  - `[RedCap RA][gNB Msg2 gate]`: `440`.
+  - `[RedCap RA][gNB Msg2 DCI]`: `56`.
+  - Msg2 CCE allocation for RedCap RA DCI: `56 x cce=0 agg=4`.
+  - `[RedCap RA][gNB Msg2 window fail]`: `25`.
+  - `[RedCap RA][gNB Msg2 vrb_map fail]`: `0`.
+  - `[RedCap RA][gNB Msg4 vrb_map fail]`: `0`.
+  - `RA Contention Resolution timer expired`: `0`.
+  - `Received Ack of Msg4` / `CBRA procedure succeeded`: `56`.
+  - UE `RAR reception failed`: `25` transient retries across `UE14`, `UE16`, `UE24`, `UE38`, `UE44`, `UE46`, `UE48`, and `UE56`.
+  - UE `pucch_ResourceCommon is NULL`: `0`.
+  - `Received a RAR-Msg2 but LDPC decode failed`: `0`.
+  - Msg4 compact allocation: `105 x rb=25 mcs=4 bwp=48`; compact fallback `53`.
+  - Failure localization:
+    - `UE54` and `UE55` reached `NR_RRCSetup` / `RRCSetupComplete`, then received `FGS_REGISTRATION_REJECT`; AMF logged `Request Authentication Vectors failure`.
+    - `UE56` had five transient `RAR reception failed` retries, then reached `Registration Accept` and sent `PduSessionEstablishRequest`; AMF registered the UE but logged `SMF Selection, no SMF candidate is available`.
+    - `UE54`, `UE55`, and `UE56` had empty `oaitun_ue1` tunnel logs.
+  - Interpretation:
+    - RAN RA/Msg4 path remained stable at 56 UE under Case B pacing.
+    - The 56 UE boundary is classified as CN/NAS/PDU late-stage pressure, not Msg2 CCE exhaustion, Msg2/Msg4 `vrb_map`, contention timer, LDPC, or UE PUCCH common fallback failure.
+- 2026-05-08 Case B 48 UE validation:
+  - Log: `test_log/compiler_logs/mmtc_smoke_48ue_caseb_2026-05-08_10-22-06_escalated.log`.
+  - gNB log: `test_log/compiler_logs/mmtc_smoke_2026-05-08_10-22-06_gnb.log`.
+  - Preserved artifact directory: `test_log/runtime_artifacts/m5_rt_m5_048_caseb_2026-05-08_10-22-06/`.
+  - Result: `48/48` running / attach / PDU / tunnel / forward ping.
+  - gNB restart count: `0`.
+  - Ping logs with `0% packet loss`: `48/48`.
+  - Ping RTT aggregate from 48 logs: min-min `49.409 ms`, avg-of-avg `517.122 ms`, max-avg `843.124 ms`, max-max `1989.919 ms`.
+  - UE PUCCH BWP0 common fallback env: `MMTC_PUCCH_COMMON_FALLBACK_BWP0=1`.
+  - `[RedCap RA][gNB Msg2 gate]`: `393`.
+  - `[RedCap RA][gNB Msg2 DCI]`: `48`.
+  - Msg2 CCE allocation for RedCap RA DCI: `48 x cce=0 agg=4`.
+  - `[RedCap RA][gNB Msg2 window fail]`: `23`.
+  - `[RedCap RA][gNB Msg2 vrb_map fail]`: `0`.
+  - `[RedCap RA][gNB Msg4 vrb_map fail]`: `0`.
+  - `RA Contention Resolution timer expired`: `0`.
+  - `Received Ack of Msg4` / `CBRA procedure succeeded`: `48`.
+  - UE `RAR reception failed`: `23` transient retries across `UE18`, `UE24`, `UE33`, `UE36`, `UE38`, `UE45`, and `UE47`, with final attach/PDU/tunnel/ping all PASS.
+  - UE `pucch_ResourceCommon is NULL`: `0`.
+  - `Received a RAR-Msg2 but LDPC decode failed`: `0`.
+  - Msg4 compact allocation: `87 x rb=25 mcs=4 bwp=48`; compact fallback `45`.
+- 2026-05-08 Case B 32 UE validation:
+  - Log: `test_log/compiler_logs/mmtc_smoke_32ue_caseb_2026-05-08_10-05-58_escalated.log`.
+  - gNB log: `test_log/compiler_logs/mmtc_smoke_2026-05-08_10-05-58_gnb.log`.
+  - Preserved artifact directory: `test_log/runtime_artifacts/m5_rt_m5_032_caseb_2026-05-08_10-05-58/`.
+  - Result: `32/32` running / attach / PDU / tunnel / forward ping.
+  - gNB restart count: `0`.
+  - Ping logs with `0% packet loss`: `32/32`.
+  - UE PUCCH BWP0 common fallback env: `MMTC_PUCCH_COMMON_FALLBACK_BWP0=1`.
+  - `[RedCap RA][gNB Msg2 gate]`: `104`.
+  - `[RedCap RA][gNB Msg2 DCI]`: `32`.
+  - Msg2 CCE allocation for RedCap RA DCI: `32 x cce=0 agg=4`.
+  - `[RedCap RA][gNB Msg2 window fail]`: `1`.
+  - `[RedCap RA][gNB Msg2 vrb_map fail]`: `0`.
+  - `[RedCap RA][gNB Msg4 vrb_map fail]`: `0`.
+  - `RA Contention Resolution timer expired`: `0`.
+  - `Received Ack of Msg4` / `CBRA procedure succeeded`: `32`.
+  - UE `RAR reception failed`: `1` transient retry on `UE31`, with final attach/PDU/tunnel/ping all PASS.
+  - UE `pucch_ResourceCommon is NULL`: `0`.
+  - `Received a RAR-Msg2 but LDPC decode failed`: `0`.
+  - Msg4 compact allocation: `59 x rb=25 mcs=4 bwp=48`; compact fallback `30`.
 - 2026-05-07 Case B 30 UE rerun:
   - Log: `test_log/compiler_logs/mmtc_smoke_30ue_caseb_rerun_2026-05-07_13-29-43_escalated.log`.
   - gNB log: `test_log/compiler_logs/mmtc_smoke_2026-05-07_13-29-43_gnb.log`.
@@ -113,7 +228,9 @@
 ## Completion Criteria
 - [RFsim UE/gNB/CN runtime PASS]
 - [30 UE staged PASS] Case B 30 UE passed on 2026-05-07.
-- [32 UE staged PASS]
+- [32 UE staged PASS] Case B 32 UE passed on 2026-05-08.
+- [48 UE staged PASS] Case B 48 UE passed on 2026-05-08.
+- [56 UE staged PASS after CN pressure mitigation] Case B 56 UE passed on 2026-05-08 with residual RA retry pressure tracked separately.
 - [64 UE staged target evaluated]
 - [failure counters summarized]
 - [logs preserved under `test_log/compiler_logs/`]

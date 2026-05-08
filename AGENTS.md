@@ -9,6 +9,7 @@ Core RAN code is split by layer: `openair1/` for PHY, `openair2/` for MAC/RLC/PD
 ## File Query Workflow
 
 - When querying files, symbols, call relationships, or repository structure in this repo, use the `symdex` MCP tools first. Only fall back to raw filesystem or shell-based search if `symdex` does not cover the needed lookup.
+
 - For file contents, project documents, generated headers, logs, and local spec artifacts, use the filesystem MCP tools whenever possible before falling back to shell commands.
 
 ## Build, Test, and Development Commands
@@ -16,20 +17,24 @@ Core RAN code is split by layer: `openair1/` for PHY, `openair2/` for MAC/RLC/PD
 Prefer the preset-based CMake flow for local work:
 
 ```bash
+
 cmake --preset default
 cmake --build --preset default
 cmake --preset tests
 cmake --build --preset tests
 cd cmake_targets/ran_build/build_test && ctest --output-on-failure
+
 ```
 
 Use `cmake_targets/build_oai` when you need the repository’s standard wrapper or dependency install flow:
 
 ```bash
+
 cd cmake_targets
 ./build_oai -I --install-optional-packages -w USRP
 ./build_oai --ninja --gNB --nrUE
 ./build_oai --phy_simulators
+
 ```
 
 Artifacts are written below `cmake_targets/ran_build/build*`.
@@ -52,12 +57,18 @@ Reference only unless the user explicitly asks for commit or MR preparation. Tar
 
 - All RedCap project spec notes and local 3GPP references are stored under `spec/redcap_3gpp/` relative to the OAI repo root.
 - Key docs for this project:
+
   - `spec/redcap_3gpp/spec.md` (active RedCap behavior notes)
   - `spec/redcap_3gpp/redcap5g_spec.md` (RedCap project summary)
   - `spec/redcap_3gpp/Redcap/` (RedCap-related local reference material)
   - `spec/redcap_3gpp/DRX/`, `spec/redcap_3gpp/eDRX/`, `spec/redcap_3gpp/PSM/`, `spec/redcap_3gpp/WUS/`, `spec/redcap_3gpp/RRM/`
+
 - When answering questions, prefer these local specs first.
-- All RedCap, mMTC, PHY, MAC, RRC, and NAS changes must be checked against the relevant local 3GPP notes or reference artifacts before implementation, and any uncertain clause or interpretation must be marked as `Needs Verification`.
+- All RedCap, mMTC, PHY, MAC, RRC, and NAS changes must be checked 
+
+against the relevant local 3GPP notes or reference artifacts before implementation, and any uncertain clause or interpretation must be marked 
+as `Needs Verification`.
+
 - When I write `@spec-38.331`, interpret it as “look under `spec/redcap_3gpp/` for the local TS 38.331 reference or project note and cite the relevant clause if possible”.
 - For detailed RedCap RRC behavior, see `spec/redcap_3gpp/spec.md`.
 

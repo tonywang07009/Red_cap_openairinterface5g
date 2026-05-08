@@ -54,7 +54,10 @@
 | RT-M5-002 | M5 | fixed UE1/UE2 | RFsim compose logs | Attach, PDU session, tunnel, forward ping | [x] |
 | RT-M5-030 | M5 | 30 UE staged | `redcap_mmtc_smoke_validation.sh` | 30/30 attach/PDU/tunnel/ping | [!] |
 | RT-M5-CASEB-030 | M5 | 30 UE staged Case B | generated Case B gNB config + mMTC script | Compare Case A vs Case B failure counters | [x] |
-| RT-M5-032 | M5 | 32 UE staged | mMTC logs | 32/32 attach/PDU/tunnel/ping | [ ] |
+| RT-M5-032 | M5 | 32 UE staged | `mmtc_smoke_32ue_caseb_2026-05-08_10-05-58_escalated.log` | 32/32 attach/PDU/tunnel/ping | [x] |
+| RT-M5-048 | M5 | 48 UE staged | `mmtc_smoke_48ue_caseb_2026-05-08_10-22-06_escalated.log` | 48/48 attach/PDU/tunnel/ping; higher transient Msg2 window pressure classified | [x] |
+| RT-M5-056 | M5 | 56 UE staged | `mmtc_smoke_56ue_caseb_static_cn_2026-05-08_12-03-21_escalated.log` | 56/56 attach/PDU/tunnel/ping after static CN discovery mitigation; CN auth/SMF blocker absent; RA retry pressure logged | [x] |
+| RT-M5-060 | M5 | 60 UE staged | mMTC logs | threshold classified with attach/PDU/tunnel/ping and RA counters | [ ] |
 | RT-M5-064 | M5 | 64 UE staged | mMTC logs | result classified, blockers logged | [ ] |
 
 ## Reporting Rule

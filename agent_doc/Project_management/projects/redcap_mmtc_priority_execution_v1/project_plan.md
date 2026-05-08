@@ -3,7 +3,7 @@
 ## Project Metadata
 - Project Path: `agent_doc/Project_management/projects/redcap_mmtc_priority_execution_v1/project_plan.md`
 - Created Date: 2026-04-25
-- Updated Date: 2026-05-07
+- Updated Date: 2026-05-08
 - Baseline Archive: `agent_doc/Project_management/Simluation_v2.md`
 - Milestone Directory: `agent_doc/Project_management/projects/redcap_mmtc_priority_execution_v1/milestones/`
 - Validation Directory: `agent_doc/Project_management/projects/redcap_mmtc_priority_execution_v1/validation/`
@@ -83,15 +83,23 @@
 - Current batch: [Batch B: Host Docker required]
 - Current milestone: `M5_mmtc_runtime_scaling.md`
 - Current validation focus:
-  - `RT-M5-032`: validate 32 UE staged mMTC stability after Case B 30 UE pass.
+  - `RT-M5-032`: passed 32 UE staged mMTC stability after Case B 30 UE pass.
+  - `RT-M5-048`: passed 48 UE staged mMTC stability with higher transient Msg2 window pressure.
+  - `RT-M5-056`: first run classified [CN/NAS/PDU late-stage failure]; static CN discovery mitigation rerun passed 56/56 attach/PDU/tunnel/forward ping.
+  - `RT-M5-060`: next scheduled upper-bound check, with RA retry pressure tracked separately from CN discovery/auth pressure.
   - `RT-M5-CASEB-030`: keep Case B comparison for RA/Msg4 and PUCCH fallback counters.
 - Recently closed:
   - `M3-T2`: Case A and Case B RFsim runtime evidence passed and artifacts were preserved under `test_log/runtime_artifacts/`.
   - `M4B-T1`: DRX/eDRX/PSM support boundary is documented as [DRX unit/flow-level], [eDRX runtime log-level], and [PSM runtime log-level].
-- Current M5 blocker:
-  - Case B staged runtime now reached `30/30` attach/PDU/tunnel/forward ping with gNB restart count `0`.
+- Current M5 status:
+  - Case B staged runtime now reached `56/56` attach/PDU/tunnel/forward ping after static CN discovery mitigation.
+  - CN pressure mitigation changed `/home/tonywang/OAI/oai-cn5g/conf/config.yaml`: `register_nf.general=no`, `amf.support_features_options.enable_smf_selection=no`, and static SMF UPF `port=8805`.
+  - Pre-mitigation 56 UE failed UEs were CN/NAS/PDU-side: `UE54` and `UE55` received Registration Reject after AMF `Request Authentication Vectors failure`; `UE56` registered but hit AMF `SMF Selection, no SMF candidate is available`.
+  - Post-mitigation 56 UE cleared those blockers: `Request Authentication Vectors failure=0`, `Registration Reject=0`, `SMF Selection, no SMF candidate=0`, NRF response/HTTP registration errors `0`.
+  - 56 UE RAN success counters: Msg2 DCI `56`, Msg2/Msg4 `vrb_map` fail `0`, contention timer expired `0`, Msg4 ACK / CBRA success `56`, gNB restart count `0`.
+  - 56 UE RA retry pressure remains visible: Msg2 window fail `55`, UE `RAR reception failed=55`, with all affected UEs finally reaching RRCSetup/PDU/tunnel/ping.
   - Case A staged runtime previously reached `26/30`; normal 30 UE Case A remains a separate comparison if needed.
-  - 32 UE and higher thresholds remain unclassified.
+  - 60/64 UE upper-bound thresholds remain unclassified.
 
 ## Daily Log Follow Rules
 - Every new `test_logs/work_daily/*.md` entry for this project must include:
@@ -104,7 +112,7 @@
   - `px-v1-<task-id-lowercase>-<short-action>`
 
 ## Next Action
-- Return to `M5-T1` / `M5-T2` staged scaling:
-  1. Run `RT-M5-032` with the same Case B pacing and no iperf.
-  2. Compare 32 UE counters against the 30 UE pass baseline.
-  3. Proceed to 48/56/60/64 threshold classification only after 32 UE is stable.
+- Continue `M5-T2` staged scaling:
+  1. Use the 30/32/48 UE Case B PASS runs as the stable baseline.
+  2. Treat `RT-M5-056` static CN rerun as PASS for CN pressure mitigation: `56/56` attach/PDU/tunnel/ping.
+  3. Proceed to `RT-M5-060`, keeping Msg2 window / UE RAR retry counts as the primary RAN pressure indicator.
