@@ -138,12 +138,31 @@
 | Msg4 contention path succeeds: Msg4 `vrb_map fail=0`, contention timer expired `0`, Msg4 ACK / CBRA success `56`, compact allocation `106 x rb=25 mcs=4 bwp=48` | TS 38.321 Section 5.1.5 [Needs Verification] |
 | UE PUCCH common fallback blocker is absent in this run: `pucch_ResourceCommon is NULL=0`, `fallback=0/1=0/0`, env `MMTC_PUCCH_COMMON_FALLBACK_BWP0=1` | TS 38.331 Section 6.3.2; TS 38.213 PUCCH exact clause [Needs Verification] |
 
+## M5 Case B 64 UE Static CN Evidence - 2026-05-08
+| 流程 | 要驗證的對應規範的 clause |
+|---|---|
+| [RT-M5-064] classifies upper-bound failure as gNB runtime restart / SIGKILL: `sample=64`, `running=4`, `attach=59`, `pdu=59`, `tun=0`, `forward_ping_ok=0`, `gnb_restart=1`；evidence: `test_log/compiler_logs/mmtc_smoke_64ue_caseb_static_cn_2026-05-08_16-55-20_escalated.log`, `test_log/runtime_artifacts/m5_rt_m5_064_caseb_static_cn_2026-05-08_16-55-20/` | Implementation stability gate; TS 38.321 Section 5.1 for pre-restart RA flow [Needs Verification] |
+| CN pressure boundary remains clean under static discovery: auth-vector failure `0`, Registration Reject `0`, empty SMF candidate `0`, NRF / HTTP registration pressure markers `0` | TS 29.510 NRF/NF discovery exact clause [Needs Verification]; TS 24.501 registration / PDU session exact clauses [Needs Verification] |
+| gNB restart evidence: `[tini] Main child exited with signal 'Killed'`; Docker state after restart reports `OOMKilled=false`, `ExitCode=0`; kernel dmesg access denied so host OOM cause is [Needs Verification] | Implementation stability gate; no direct 3GPP clause |
+| UE state after restart: `UE1..UE60` exited, `UE61..UE64` still running without `oaitun_ue1`; `UE60..UE64` missing Registration Accept / PDU Accept | TS 24.501 registration / PDU session exact clauses [Needs Verification] |
+| Msg2 Case B path before restart remains active: `[gNB Msg2 gate]=768`, `[gNB Msg2 DCI]=64`, RedCap RA DCI CCE allocation `64 x cce=0 agg=4` | TS 38.321 Section 5.1.4; TS 38.213 Section 13 [Needs Verification] |
+| Msg2 retry pressure remains elevated but not a vrb_map/LDPC failure: window fail `53`, UE RAR reception failed `53`, Msg2 `vrb_map fail=0`, LDPC decode fail `0` | TS 38.321 Section 5.1.4 [Needs Verification] |
+| Msg4 contention is incomplete due to runtime kill boundary: Msg4 `vrb_map fail=0`, contention timer expired `0`, Msg4 ACK / CBRA success `63/64`, compact allocation `119 x rb=25 mcs=4 bwp=48` | TS 38.321 Section 5.1.5 [Needs Verification] |
+| UE PUCCH common fallback blocker is absent: `pucch_ResourceCommon is NULL=0`, `fallback=0/1=0/0`, env `MMTC_PUCCH_COMMON_FALLBACK_BWP0=1` | TS 38.331 Section 6.3.2; TS 38.213 PUCCH exact clause [Needs Verification] |
+
 ## M6 Documentation / Evidence Packaging Checklist
 | 流程 | 要驗證的對應規範的 clause |
 |---|---|
 | Learning reports cite only clauses present in local spec notes or traceability matrix | All referenced 3GPP rows in validation/spec_traceability_matrix.md |
 | Uncertain clause references remain marked `[Needs Verification]` | Accuracy protocol; no direct 3GPP clause |
 | Runtime evidence links point to preserved logs under `test_log/` or `test_logs/` | Project validation rule; no direct 3GPP clause |
+
+## M6 Closure Evidence - 2026-05-08
+| 流程 | 要驗證的對應規範的 clause |
+|---|---|
+| [M6] evidence package summary generated at `test_log/report/m6_evidence_package_summary_2026-05-08_17-32-49.md` and covers M1/M2/M3/M4/M4-B/M5 closure | All referenced rows in `validation/spec_traceability_matrix.md`; uncertain clauses remain [Needs Verification] |
+| M5 accepted target recorded as [56 UE Case B static CN PASS], while [64 UE] is documented as upper-bound runtime restart classification | TS 38.321 Section 5.1 / 5.1.4 / 5.1.5; TS 38.331 Section 6.3.2 [Needs Verification] |
+| Report/link smoke checks pass for required evidence files and project docs | Project validation rule; no direct 3GPP clause |
 
 ## M7 Repository Hygiene Checklist
 | 流程 | 要驗證的對應規範的 clause |
@@ -152,3 +171,10 @@
 | Verify active references with `rg` before removing files | Repository hygiene gate; no direct 3GPP clause |
 | Remove files only after explicit user approval | Repository hygiene gate; no direct 3GPP clause |
 | Run `git diff --check` after cleanup | Repository hygiene gate; no direct 3GPP clause |
+
+## M7 Inventory Closure Evidence - 2026-05-08
+| 流程 | 要驗證的對應規範的 clause |
+|---|---|
+| [M7-T1] inventory-only report generated at `test_log/report/m7_repo_hygiene_inventory_2026-05-08_17-32-49.md`; Markdown `460`, shell scripts `90`, reports `90`, work daily logs `175` | Repository hygiene gate; no direct 3GPP clause |
+| No files deleted; `Simluation_v2.md`, `docker-compose.mmtc.yml`, `test_log/report/`, `test_logs/work_daily/`, and runtime artifacts are preserved because active references or evidence rules exist | Repository hygiene gate; no direct 3GPP clause |
+| [M7-T2]/[M7-T3] removal/update tasks are [NA] in this closure because deletion requires explicit user approval | Repository hygiene gate; no direct 3GPP clause |

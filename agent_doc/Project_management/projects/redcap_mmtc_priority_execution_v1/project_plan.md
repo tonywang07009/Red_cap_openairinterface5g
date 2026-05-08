@@ -34,9 +34,9 @@
 | M3 | `milestones/M3_bwp_coreset_ra.md` | RedCap initial BWP, CORESET#0 Case A/B, RA Msg2 path | [x] |
 | M4 | `milestones/M4_sdt_inactive.md` | SDT and RRC_INACTIVE FSM wiring | [x] |
 | M4-B | `milestones/M4B_drx_edrx_psm.md` | Connected DRX, eDRX, PSM low-power behavior | [x] |
-| M5 | `milestones/M5_mmtc_runtime_scaling.md` | Compose-based mMTC runtime, 30/32/64 UE scaling | [~] |
-| M6 | `milestones/M6_docs_automation.md` | Automation, tutorial, reference, evidence packaging | [~] |
-| M7 | `milestones/M7_repo_hygiene.md` | Clean code, unused script/doc inventory, approved removals | [ ] |
+| M5 | `milestones/M5_mmtc_runtime_scaling.md` | Compose-based mMTC runtime, 30/32/64 UE scaling | [x] |
+| M6 | `milestones/M6_docs_automation.md` | Automation, tutorial, reference, evidence packaging | [x] |
+| M7 | `milestones/M7_repo_hygiene.md` | Clean code, unused script/doc inventory, approved removals | [x] |
 
 ## Validation Index
 | File | Purpose |
@@ -68,25 +68,26 @@
 |---|---|---|---|---:|---:|---:|---:|---|---|
 | M6C-T1 | M6 | Automation scripts baseline | `milestones/M6_docs_automation.md` | 5 | 5 | 2 | 8 | None | [x] |
 | M2-T1 | M2 | RedCap SIB1 encode/decode + 1Rx barring gate completion | `milestones/M2_rrc_sib1_redcap.md` | 5 | 4 | 2 | 7 | M1 baseline constraints | [x] |
-| M6AB-T1 | M6 | Tutorial/reference manuals finalization | `milestones/M6_docs_automation.md` | 5 | 4 | 2 | 7 | M1/M2/M3/M4/M5 evidence ready | [ ] |
+| M6AB-T1 | M6 | Tutorial/reference manuals finalization | `milestones/M6_docs_automation.md` | 5 | 4 | 2 | 7 | M1/M2/M3/M4/M5 evidence ready | [x] |
 | M4-T1 | M4 | SDT FSM scheduler wiring and transition logging | `milestones/M4_sdt_inactive.md` | 5 | 3 | 3 | 5 | M2, M3 | [x] |
 | M1-T3 | M1 | HD-FDD Tx/Rx gap guard hardening | `milestones/M1_phy_constraints.md` | 4 | 3 | 3 | 4 | None | [x] |
 | M3-T2 | M3 | CORESET#0 Case A/B host runtime evidence completion | `milestones/M3_bwp_coreset_ra.md` | 2 | 3 | 4 | 1 | M2-T1, M1-T3 | [x] |
 | M5-T1 | M5 | fixed-UE UE2 user-plane blocker RCA | `milestones/M5_mmtc_runtime_scaling.md` | 2 | 2 | 5 | -1 | M3-T2 | [x] |
-| M5-T2 | M5 | scalable mMTC staged validation | `milestones/M5_mmtc_runtime_scaling.md` | 2 | 2 | 5 | -1 | M5-T1 | [~] |
+| M5-T2 | M5 | scalable mMTC staged validation | `milestones/M5_mmtc_runtime_scaling.md` | 2 | 2 | 5 | -1 | M5-T1 | [x] |
 | M4B-T1 | M4-B | DRX/eDRX/PSM end-to-end implementation closure | `milestones/M4B_drx_edrx_psm.md` | 3 | 1 | 5 | -1 | M2-T1, M4-T1, M5-T1 | [x] |
-| M7-T1 | M7 | Inventory unused Bash and Markdown files | `milestones/M7_repo_hygiene.md` | 5 | 3 | 2 | 6 | None | [ ] |
-| M7-T2 | M7 | Remove confirmed-unused files after explicit approval | `milestones/M7_repo_hygiene.md` | 4 | 3 | 3 | 4 | M7-T1, user approval | [ ] |
-| M7-T3 | M7 | Clean stale references after approved removals | `milestones/M7_repo_hygiene.md` | 4 | 2 | 3 | 3 | M7-T2 | [ ] |
+| M7-T1 | M7 | Inventory unused Bash and Markdown files | `milestones/M7_repo_hygiene.md` | 5 | 3 | 2 | 6 | None | [x] |
+| M7-T2 | M7 | Remove confirmed-unused files after explicit approval | `milestones/M7_repo_hygiene.md` | 4 | 3 | 3 | 4 | M7-T1, user approval | [NA] |
+| M7-T3 | M7 | Clean stale references after approved removals | `milestones/M7_repo_hygiene.md` | 4 | 2 | 3 | 3 | M7-T2 | [NA] |
 
 ## Active Focus
-- Current batch: [Batch B: Host Docker required]
-- Current milestone: `M5_mmtc_runtime_scaling.md`
+- Current batch: [Closure / evidence packaging]
+- Current milestone: [M5/M6/M7 closure complete]
 - Current validation focus:
   - `RT-M5-032`: passed 32 UE staged mMTC stability after Case B 30 UE pass.
   - `RT-M5-048`: passed 48 UE staged mMTC stability with higher transient Msg2 window pressure.
   - `RT-M5-056`: first run classified [CN/NAS/PDU late-stage failure]; static CN discovery mitigation rerun passed 56/56 attach/PDU/tunnel/forward ping.
-  - `RT-M5-060`: next scheduled upper-bound check, with RA retry pressure tracked separately from CN discovery/auth pressure.
+  - `RT-M5-064`: user-promoted upper-bound check classified 64 UE as [gNB runtime restart / SIGKILL threshold].
+  - `RT-M5-060`: [NA] after user accepted 56 UE as sufficient simulation capacity.
   - `RT-M5-CASEB-030`: keep Case B comparison for RA/Msg4 and PUCCH fallback counters.
 - Recently closed:
   - `M3-T2`: Case A and Case B RFsim runtime evidence passed and artifacts were preserved under `test_log/runtime_artifacts/`.
@@ -98,8 +99,19 @@
   - Post-mitigation 56 UE cleared those blockers: `Request Authentication Vectors failure=0`, `Registration Reject=0`, `SMF Selection, no SMF candidate=0`, NRF response/HTTP registration errors `0`.
   - 56 UE RAN success counters: Msg2 DCI `56`, Msg2/Msg4 `vrb_map` fail `0`, contention timer expired `0`, Msg4 ACK / CBRA success `56`, gNB restart count `0`.
   - 56 UE RA retry pressure remains visible: Msg2 window fail `55`, UE `RAR reception failed=55`, with all affected UEs finally reaching RRCSetup/PDU/tunnel/ping.
+  - 64 UE static CN run reached `59/64` Registration Accept and PDU Session Establishment Accept before gNB restart, but final validation reported `4/64` running, `0/64` tunnel, `0/64` forward ping because the gNB container restarted before validation.
+  - 64 UE restart evidence: gNB `restart_count=1`; gNB log contains `[tini] Main child exited with signal 'Killed'`; Docker state reports `OOMKilled=false`, `ExitCode=0`, container restarted and is healthy after restart.
+  - 64 UE CN blockers remained absent: auth-vector failure, Registration Reject, empty SMF candidate, and NRF/HTTP registration pressure markers were all `0`.
+  - 64 UE RAN pre-restart counters: Msg2 DCI `64`, Msg2 window fail `53`, Msg2/Msg4 `vrb_map` fail `0`, contention timer expired `0`, Msg4 ACK / CBRA success `63`.
   - Case A staged runtime previously reached `26/30`; normal 30 UE Case A remains a separate comparison if needed.
-  - 60/64 UE upper-bound thresholds remain unclassified.
+  - 60 UE upper-bound threshold remains unclassified.
+- M5 closure decision:
+  - User accepted the 56 UE Case B static CN run as sufficient for simulation scope.
+  - Therefore M5 closes on `56/56` attach/PDU/tunnel/forward ping plus documented 64 UE upper-bound failure classification.
+- M6 closure decision:
+  - Evidence package summary, report existence check, and spec traceability review completed.
+- M7 closure decision:
+  - Inventory-only repo hygiene completed; no files were deleted because removals require explicit user approval.
 
 ## Daily Log Follow Rules
 - Every new `test_logs/work_daily/*.md` entry for this project must include:
@@ -112,7 +124,7 @@
   - `px-v1-<task-id-lowercase>-<short-action>`
 
 ## Next Action
-- Continue `M5-T2` staged scaling:
-  1. Use the 30/32/48 UE Case B PASS runs as the stable baseline.
-  2. Treat `RT-M5-056` static CN rerun as PASS for CN pressure mitigation: `56/56` attach/PDU/tunnel/ping.
-  3. Proceed to `RT-M5-060`, keeping Msg2 window / UE RAR retry counts as the primary RAN pressure indicator.
+- No remaining required milestone work in the current RedCap mMTC priority execution v1 scope.
+- Optional follow-up only:
+  1. Rerun 64 UE with host resource telemetry if the user later wants upper-bound tuning beyond the accepted 56 UE capacity.
+  2. Promote explicit removal candidates from the M7 inventory only after user approval.

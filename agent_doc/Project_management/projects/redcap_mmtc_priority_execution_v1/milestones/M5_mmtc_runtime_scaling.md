@@ -56,6 +56,46 @@
 - `RT-M5-CASEB-030`: 30 UE staged mMTC Case B A/B validation.
 
 ## Current Evidence
+- 2026-05-08 Case B 64 UE static CN upper-bound classification:
+  - Log: `test_log/compiler_logs/mmtc_smoke_64ue_caseb_static_cn_2026-05-08_16-55-20_escalated.log`.
+  - gNB log: `test_log/compiler_logs/mmtc_smoke_2026-05-08_16-55-20_gnb.log`.
+  - Preserved artifact directory: `test_log/runtime_artifacts/m5_rt_m5_064_caseb_static_cn_2026-05-08_16-55-20/`.
+  - Result: `64/64` sampled, `4/64` running at final validation, `59/64` attach, `59/64` PDU, `0/64` tunnel, `0/64` forward ping.
+  - Runtime status: [RFsim UE/gNB/CN runtime FAIL], upper-bound threshold classified.
+  - Terminal blocker:
+    - gNB restart count: `1`.
+    - Main gNB child signal: `[INFO  tini (1)] Main child exited with signal (with signal 'Killed')`.
+    - Docker state after restart: `Status=running`, `OOMKilled=false`, `ExitCode=0`, health `healthy`.
+    - Kernel `dmesg` was inaccessible in this environment (`Operation not permitted`), so host OOM killer confirmation remains [Needs Verification].
+  - UE state after gNB restart:
+    - `UE1..UE60`: container status `exited`, exit code `1`.
+    - `UE61..UE64`: container status `running`, but no `oaitun_ue1`.
+    - Missing Registration Accept / PDU Accept: `UE60`, `UE61`, `UE62`, `UE63`, `UE64`.
+    - `UE1..UE59`: Registration Accept and PDU Session Establishment Accept were observed before the restart impact.
+  - CN blocker counters after static CN mitigation:
+    - `Request Authentication Vectors failure`: `0`.
+    - `Registration Reject`: `0`.
+    - `SMF Selection, no SMF candidate`: `0`.
+    - `NFDiscovery, SMF Info: Addr ,`: `0`.
+    - NRF response / HTTP code / NF registration pressure markers: `0`.
+  - UE PUCCH BWP0 common fallback env: `MMTC_PUCCH_COMMON_FALLBACK_BWP0=1`.
+  - `[RedCap RA][gNB Msg2 gate]`: `768`.
+  - `[RedCap RA][gNB Msg2 DCI]`: `64`.
+  - Msg2 CCE allocation for RedCap RA DCI: `64 x cce=0 agg=4`.
+  - `[RedCap RA][gNB Msg2 window fail]`: `53`.
+  - `[RedCap RA][gNB Msg2 vrb_map fail]`: `0`.
+  - `[RedCap RA][gNB Msg4 vrb_map fail]`: `0`.
+  - `RA Contention Resolution timer expired`: `0`.
+  - `Received Ack of Msg4` / `CBRA procedure succeeded`: `63`.
+  - UE `RAR reception failed`: `53` transient retries across `UE15`, `UE28`, `UE29`, `UE30`, `UE32`, `UE39`, `UE40`, `UE42`, `UE43`, `UE45`, `UE47`, `UE51`, `UE52`, `UE53`, `UE54`, `UE58`, and `UE60`.
+  - UE `pucch_ResourceCommon is NULL`: `0`.
+  - UE `fallback=0` / `fallback=1`: `0` / `0`.
+  - `Received a RAR-Msg2 but LDPC decode failed`: `0`.
+  - Msg4 compact allocation: `119 x rb=25 mcs=4 bwp=48`; compact fallback `59`.
+  - Interpretation:
+    - Static CN discovery mitigation held at 64 UE; no auth-vector, Registration Reject, empty SMF candidate, or NRF pressure marker was observed.
+    - The 64 UE run is classified as a gNB runtime restart / SIGKILL threshold. Because the gNB restarted before validation, `tun=0` and ping `0/64` are consequences of runtime disruption, not proof that all 64 UEs failed NAS/PDU setup.
+    - Pre-restart RAN counters still show elevated Msg2 window / RAR retry pressure and one missing Msg4 ACK/CBRA success before the gNB child was killed.
 - 2026-05-08 Case B 56 UE static CN discovery rerun:
   - Log: `test_log/compiler_logs/mmtc_smoke_56ue_caseb_static_cn_2026-05-08_12-03-21_escalated.log`.
   - gNB log: `test_log/compiler_logs/mmtc_smoke_2026-05-08_12-03-22_gnb.log`.
@@ -231,7 +271,19 @@
 - [32 UE staged PASS] Case B 32 UE passed on 2026-05-08.
 - [48 UE staged PASS] Case B 48 UE passed on 2026-05-08.
 - [56 UE staged PASS after CN pressure mitigation] Case B 56 UE passed on 2026-05-08 with residual RA retry pressure tracked separately.
-- [64 UE staged target evaluated]
+- [64 UE staged target evaluated] Case B 64 UE classified as gNB runtime restart / SIGKILL threshold on 2026-05-08.
 - [failure counters summarized]
 - [logs preserved under `test_log/compiler_logs/`]
 - [daily work log written]
+
+## Closure Decision
+- Status: [COMPLETED]
+- Closure date: 2026-05-08.
+- Accepted simulation capacity: `56` RedCap UEs.
+- Closure basis:
+  - User accepted 56 UE as sufficient for the current simulation objective.
+  - Case B static CN rerun achieved `56/56` running / attach / PDU / tunnel / forward ping.
+  - 64 UE was evaluated as an upper-bound failure and classified as [gNB runtime restart / SIGKILL threshold], not as CN auth/SMF discovery failure.
+- Deferred optional work:
+  - `RT-M5-060` is no longer required for this accepted scope.
+  - Future 64 UE work should start with host resource telemetry or gNB restart recovery, not scheduler code changes.
