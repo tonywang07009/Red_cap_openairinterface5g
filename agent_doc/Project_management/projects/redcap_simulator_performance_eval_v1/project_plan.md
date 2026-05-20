@@ -39,6 +39,7 @@
 - One milestone equals one Markdown execution contract under `milestones/`.
 - Literature extraction lives in `literature/paper_index.md` and follow-up paper notes.
 - Metric definitions and validation criteria live under `validation/`.
+- Experiment success criteria live in `validation/success_criteria.md`.
 - Raw experiment output should go under `analysis/data/`.
 - Generated plots should go under `analysis/plots/`.
 - Plot scripts should go under `analysis/scripts/`.
@@ -50,7 +51,7 @@
 | P0 | `milestones/P0_agent_project_scaffold.md` | AGENTS.md rules, project paths, folder model | [x] |
 | P1 | `milestones/P1_literature_metric_baseline.md` | Extract metrics and baseline assumptions from RedCap papers | [x] |
 | P2 | `milestones/P2_taguchi_experiment_design.md` | Build factor/level matrix using Taguchi DOE | [x] |
-| P3 | `milestones/P3_runtime_metric_capture.md` | Define and run RFsim throughput/latency/scale metric capture | [ ] |
+| P3 | `milestones/P3_runtime_metric_capture.md` | Define and run RFsim throughput/latency/scale metric capture | [~] |
 | P4 | `milestones/P4_matplotlib_analysis.md` | Generate throughput/latency/jitter plots from simulator data | [ ] |
 | P5 | `milestones/P5_platform_validity_report.md` | Decide whether platform is credible for RedCap performance simulation | [ ] |
 | P6 | `milestones/P6_repo_audit_inventory.md` | Inventory unused files/logs/manuals without deleting anything | [ ] |
@@ -64,8 +65,9 @@
 | P1-T2 | P1 | Select comparable paper graphs/tables for OAI replication | P1-T1 | paper-to-simulator metric map | [x] |
 | P2-T1 | P2 | Define Taguchi factors and levels | P1 | `validation/taguchi_doe_matrix.md` | [x] |
 | P2-T2 | P2 | Choose orthogonal array and run order | P2-T1 | `analysis/data/p2_taguchi_l9_run_matrix.csv` | [x] |
-| P3-T1 | P3 | Define RFsim runtime capture workflow | P2 | runtime checklist | [ ] |
-| P3-T2 | P3 | Run baseline throughput and latency validation | P3-T1 | logs + CSV | [ ] |
+| P3-T1 | P3 | Define RFsim runtime capture workflow | P2 | runtime checklist; `validation/success_criteria.md`; `analysis/scripts/p3_capture_workflow.py` | [x] |
+| P3-T2 | P3 | Run baseline throughput and latency validation | P3-T1 | logs + CSV | [x] |
+| P3-T3 | P3 | Run DOE-L9 metric capture | P3-T2 | `analysis/data/p3_runtime_metrics.csv`; failure-to-improvement records | [~] |
 | P4-T1 | P4 | Build matplotlib plotting scripts | P3 | PNG/PDF plots | [ ] |
 | P5-T1 | P5 | Compare simulator results with paper evidence | P4 | validity report | [ ] |
 | P6-T1 | P6 | Repo folder inventory and unused-candidate list | P0 | audit inventory | [ ] |
@@ -82,4 +84,4 @@
 - Do not start repo-wide deletion or cleanup. P6 is inventory-only unless the user explicitly approves removals.
 
 ## Next Action
-- Start P3 by converting `validation/taguchi_doe_matrix.md` and `analysis/data/p2_taguchi_l9_run_matrix.csv` into a repeatable RFsim metric-capture workflow.
+- Continue P3 by running DOE-L9 rows from `DOE-L9-06` to `DOE-L9-09` when Docker execution is available again.

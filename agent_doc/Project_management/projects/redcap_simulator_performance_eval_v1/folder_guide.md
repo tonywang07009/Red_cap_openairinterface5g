@@ -16,6 +16,7 @@
 | Plot outputs | `analysis/plots/` | PNG/PDF figures |
 | P2 DOE matrix | `validation/taguchi_doe_matrix.md` | Human-readable Taguchi design |
 | P2 run matrix CSV | `analysis/data/p2_taguchi_l9_run_matrix.csv` | P3 execution input |
+| Success criteria | `validation/success_criteria.md` | Pass/fail and failure-to-improvement rules |
 
 ## Recommended Navigation
 - For [planning]: read `project_plan.md` then one milestone.
