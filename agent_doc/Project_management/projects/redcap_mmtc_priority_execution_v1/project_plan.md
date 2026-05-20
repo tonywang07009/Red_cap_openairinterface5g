@@ -44,6 +44,7 @@
 | `validation/test_matrix.md` | Unit, flow, and runtime test IDs shared by all milestones |
 | `validation/runtime_checklist.md` | RFsim Docker validation checklist and log markers |
 | `validation/spec_traceability_matrix.md` | 3GPP clause mapping and verification status |
+| `redcap_parameter_implementation_validation_tutorial.md` | Traditional Chinese RedCap parameter / implementation logic / spec validation tutorial |
 
 ## Execution Batches
 - [Batch A: Immediate / local-first]

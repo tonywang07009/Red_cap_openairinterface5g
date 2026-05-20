@@ -1,0 +1,11 @@
+run_id,array_row,factor_A_ue_scale_level,factor_B_rate_level,factor_C_sample_depth_level,factor_D_dummy,total_ues,sample_ues,iperf_sample_ues,iperf_rate,iperf_duration_s,iperf_udp,forward_ping_mode,run_reverse_ping,notes
+DOE-BASE-001,baseline,baseline,baseline,baseline,NA,1,"1",all,85M,30,1,parallel,0,"single UE calibration baseline outside L9"
+DOE-L9-01,1,1,1,1,D1,16,"1",all,10M,30,1,parallel,0,"L9 row 1"
+DOE-L9-02,2,1,2,2,D2,16,"1 6 11 16",all,50M,30,1,parallel,0,"L9 row 2"
+DOE-L9-03,3,1,3,3,D3,16,"1 3 5 7 9 11 13 16",all,85M,30,1,parallel,0,"L9 row 3"
+DOE-L9-04,4,2,1,2,D3,32,"1 11 22 32",all,10M,30,1,parallel,0,"L9 row 4"
+DOE-L9-05,5,2,2,3,D1,32,"1 5 9 13 17 21 25 32",all,50M,30,1,parallel,0,"L9 row 5"
+DOE-L9-06,6,2,3,1,D2,32,"1",all,85M,30,1,parallel,0,"L9 row 6"
+DOE-L9-07,7,3,1,3,D2,56,"1 8 16 24 32 40 48 56",all,10M,30,1,parallel,0,"L9 row 7"
+DOE-L9-08,8,3,2,1,D3,56,"1",all,50M,30,1,parallel,0,"L9 row 8"
+DOE-L9-09,9,3,3,2,D1,56,"1 19 38 56",all,85M,30,1,parallel,0,"L9 row 9"

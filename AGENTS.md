@@ -1,4 +1,4 @@
-You are Codex, based on GPT-5.4. You are running as a coding agent in the Codex CLI on a user's computer.
+You are Codex, based on GPT-5.5. You are running as a coding agent in the Codex CLI on a user's computer.
 
 # Repository Guidelines
 
@@ -55,245 +55,55 @@ Reference only unless the user explicitly asks for commit or MR preparation. Tar
 
 ## 3GPP Specs Available Locally
 
-- All RedCap project spec notes and local 3GPP references are stored under `spec/redcap_3gpp/` relative to the OAI repo root.
-- Key docs for this project:
-
-  - `spec/redcap_3gpp/spec.md` (active RedCap behavior notes)
-  - `spec/redcap_3gpp/redcap5g_spec.md` (RedCap project summary)
-  - `spec/redcap_3gpp/Redcap/` (RedCap-related local reference material)
-  - `spec/redcap_3gpp/DRX/`, `spec/redcap_3gpp/eDRX/`, `spec/redcap_3gpp/PSM/`, `spec/redcap_3gpp/WUS/`, `spec/redcap_3gpp/RRM/`
-
-- When answering questions, prefer these local specs first.
-- All RedCap, mMTC, PHY, MAC, RRC, and NAS changes must be checked 
-
-against the relevant local 3GPP notes or reference artifacts before implementation, and any uncertain clause or interpretation must be marked 
-as `Needs Verification`.
-
-- When I write `@spec-38.331`, interpret it as “look under `spec/redcap_3gpp/` for the local TS 38.331 reference or project note and cite the relevant clause if possible”.
-- For detailed RedCap RRC behavior, see `spec/redcap_3gpp/spec.md`.
+- Local RedCap and 3GPP project references live under `spec/redcap_3gpp/`.
+- Primary RedCap behavior notes:
+  - `spec/redcap_3gpp/spec.md`
+  - `spec/redcap_3gpp/redcap5g_spec.md`
+- For RedCap, mMTC, PHY, MAC, RRC, or NAS changes, check the relevant local spec notes before implementation.
+- Mark uncertain clause interpretation as `[Needs Verification]`.
+- `@spec-38.331` means: look under `spec/redcap_3gpp/` for the local TS 38.331 reference or project note.
 
 ---
 
-## Project Docs & Task Plans
+## Project Router
 
-- All high-level project plans, milestones, and task breakdowns for this repo live under:
+- Project management root:
   - `agent_doc/Project_management/`
-- Active execution project path:
-  - `agent_doc/Project_management/projects/redcap_mmtc_priority_execution_v1/project_plan.md`
-- Active milestone directory:
-  - `agent_doc/Project_management/projects/redcap_mmtc_priority_execution_v1/milestones/`
-- Active validation directory:
-  - `agent_doc/Project_management/projects/redcap_mmtc_priority_execution_v1/validation/`
-- Baseline archive file:
-  - `agent_doc/Project_management/Simluation_v2.md`
-- For the RedCap mMTC work:
-  - The primary execution plan is `agent_doc/Project_management/projects/redcap_mmtc_priority_execution_v1/project_plan.md`.
-  - `Simluation_v2.md` remains a baseline archive and should not be used as the daily execution contract.
-  - Each milestone execution contract lives in one file under:
-    - `agent_doc/Project_management/projects/redcap_mmtc_priority_execution_v1/milestones/`
-  - Shared validation definitions live under:
-    - `agent_doc/Project_management/projects/redcap_mmtc_priority_execution_v1/validation/`
-  - For token-efficient work, read only:
-    1) `project_plan.md`,
-    2) the target milestone file,
-    3) the relevant validation file,
-    4) the latest `test_logs/work_daily/*.md` entry.
-  - Before making any changes to PHY, MAC, or RRC, you must:
-    1) read `project_plan.md`,
-    2) read the specific milestone file under `milestones/`,
-    3) read the relevant validation file under `validation/`, and
-    4) summarize in a few bullet points which milestone, task ID, and validation IDs you are working on.
-- For Gantt charts and progress visualization:
-  - Treat `project_plan.md` as the primary source of truth.
-  - Use the milestone files under `milestones/` for task detail.
-  - Use `Simluation_v2.md` only as historical baseline context.
-  - When I ask for a Gantt chart, derive all tasks and milestones from these Markdown files instead of inventing new items.
-- When planning or modifying PHY code for RedCap:
-  - explicitly reference the corresponding milestone file and task ID from `project_plan.md`, and
-  - cross-check against `spec/redcap_3gpp/spec.md` and TS 38.306 / 38.101-1 before proposing code changes.
+- Common logging rules:
+  - `agent_doc/Project_management/logging_rules.md`
 
-### RedCap Project Document Model
+## Active Project Entries
 
-- `project_plan.md` is an index, not a long implementation plan.
-- One milestone equals one Markdown file under `milestones/`.
-- Test definitions are centralized in `validation/test_matrix.md`.
-- RFsim log-marker expectations are centralized in `validation/runtime_checklist.md`.
-- 3GPP clause traceability is centralized in `validation/spec_traceability_matrix.md`.
-- New project tasks should update the smallest relevant milestone file instead of expanding `Simluation_v2.md`.
-- Do not mark a milestone complete unless its milestone file and validation matrix agree on the required evidence.
+| Project | Plan | Project Rules |
+|---|---|---|
+| RedCap mMTC execution | `agent_doc/Project_management/projects/redcap_mmtc_priority_execution_v1/project_plan.md` | `agent_doc/Project_management/projects/redcap_mmtc_priority_execution_v1/agent_rules.md` |
+| RedCap simulator performance evaluation | `agent_doc/Project_management/projects/redcap_simulator_performance_eval_v1/project_plan.md` | `agent_doc/Project_management/projects/redcap_simulator_performance_eval_v1/agent_rules.md` |
 
----
+## Context Loading Rule
 
-## O-RAN Scope Definition
+- For project work, keep the context pack small:
+  1. root `AGENTS.md`
+  2. active `project_plan.md`
+  3. active project `agent_rules.md`
+  4. target milestone file
+  5. relevant validation file
+  6. latest `test_logs/work_daily/*.md`
+- Do not read unrelated milestones, historical reports, PDFs, logs, or generated artifacts unless the active task needs them.
+- Do not add milestone details, validation matrices, paper extraction details, repo audit checklists, or visualization rules back into root `AGENTS.md`.
 
-- Current priority is RedCap and mMTC behavior inside OAI: UE/gNB flow, 3GPP alignment, RFsim runtime validation, and repeatable logs.
-- Do not implement xApp/rApp/dApp SDKs until the RedCap UE/gNB behavior has passed the planned 3GPP-aligned validation flow.
-- Near-RT RIC / xApp scope before that point is limited to existing FlexRIC runtime checks:
-  - verify whether FlexRIC containers start,
-  - verify E2 disabled/enabled mode behavior,
-  - inspect existing KPM/RC monitor logs when the scenario already uses them.
-- Non-RT RIC / rApp work is design/documentation only until explicitly promoted by the user.
-- dApp work is out of implementation scope unless the user defines a concrete interface, runtime target, and validation criterion.
-- E2SM implementation expectations are not implicit. Treat KPM v3, RC, MAC/RLC/PDCP monitor/control, rApp, and dApp SDK work as separate future tasks that require an explicit task plan.
+## Build And Test Logs
 
----
+- CTest logs go under `test_log/compiler_logs/`.
+- Build logs go under `test_log/build_logs/`.
+- Prefer timestamped log files when running builds or tests.
+- When analyzing test failures, open the most recent relevant log and summarize failures in Traditional Chinese.
 
-## RFsim RedCap Runtime Source of Truth
+## Cleanup Rule
 
-- For simulator runtime validation, use `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/` as the primary scenario directory.
-- Treat `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.yml` and its directly mounted config files as the runtime source of truth.
-- For UE2 RedCap validation, start from the compose service `oai-nr-ue2` and its mounted config, currently `../../conf_files/nrue_recap/nrue2.uicc.yaml`.
-- When a runtime fix requires config edits, modify the YAML/config files that are actually referenced by this compose path. Do not modify unrelated simulator XML/YAML files just because they contain similar names.
-- XML scenarios or unused files that can affect future work must not be removed immediately. First report:
-  - file path,
-  - why it appears unused,
-  - what references were checked,
-  - expected impact of removal.
-  Remove only after the user explicitly confirms.
-
----
-
-## Gantt Chart Output
-
-- This section applies only when the user asks for a Gantt chart or project visualization.
-- When I ask for a project Gantt chart, prefer:
-  - Markdown Mermaid syntax if the goal is documentation, or
-  - a single self-contained HTML file with embedded CSS/JS (no build tools) if I explicitly ask for a “front-end Gantt page”.
-- The source of truth for tasks and dependencies is the Markdown files under `./agent_doc/Project_management/` in the repo root.
-- When generating a Gantt chart:
-  - Parse milestones and tasks from the files in `./agent_doc/Project_management/`.
-  - Use weeks as the default time unit.
-  - Do not invent new tasks. If something is unclear:
-    - ask the user which project we are focusing on now, and  
-    - ask the user to refine or update the corresponding file under `./agent_doc/Project_management/`, then use that file as the task list.
-
----
-
-## Build & Test Logs
-
-- All CTest and build logs for this project should be stored under:
-  - `test_log/compiler_logs/` for CTest output,
-  - `test_log/build_logs/` for build output (if used later).
-- When running tests or builds from within this repository, prefer commands that:
-  - redirect output into a timestamped `.log` file under `test_log/compiler_logs/` or `test_log/build_logs/`,
-  - for example:
-    - `ctest --output-on-failure | tee test_log/compiler_logs/ctest_$(date +%F_%H-%M-%S).log`
-- When analyzing test failures, you should:
-  - use the filesystem MCP to list `test_log/compiler_logs/`,
-  - open the most recent log file,
-  - summarize failing tests and key error messages in Traditional Chinese.
-
-## Mandatory Rebuild After C/C++ Changes
-
-- After each atomic C or C++ source/header patch group, rebuild the affected OAI target before moving to the next task.
-- For UE-side changes, run at least:
-  - `cmake --build --preset default --target nr-uesoftmodem`
-- For gNB-side changes, run at least:
-  - `cmake --build --preset default --target nr-softmodem`
-- For shared or cross-layer changes, build every affected side and the closest unit-test target.
-- At the end of each implementation sub-task, run the closest corresponding unit test target and `ctest -R <test-name> --output-on-failure` when such a test exists.
-- If there is no meaningful unit test for the touched path, state `[unit test N/A]` and use the nearest build or RFsim runtime validation instead.
-- Clearly separate these statuses in reports:
-  - [source build PASS/FAIL]
-  - [unit test PASS/FAIL]
-  - [container image rebuilt or not]
-  - [RFsim UE/gNB/CN runtime PASS/FAIL]
-
----
-
-## RedCap PHY Work Order
-
-- This section applies only when modifying PHY-side code under `openair1/` or PHY-related radio/config behavior.
-- When modifying PHY for RedCap, always follow this order:
-  1) Locate the relevant existing implementation in `openair1/` and related configs.  
-  2) Cross-check the intended change against `spec/redcap_3gpp/spec.md` and TS 38.306 / 38.101-1.  
-  3) Propose the change in prose first (in Traditional Chinese), including:
-     - target files and functions,
-     - expected behavior,
-     - how it impacts mMTC / RedCap constraints (20 MHz, 1Rx, half-duplex).
-  4) Only then edit code in small patches (one function or one parameter group at a time), and plan tests.
-
-
-
-## The Chat Content Store
-
-### Purpose
-
-At the end of every completed implementation sub-task, milestone validation, or runtime validation, the agent must record a structured progress
-snapshot in Markdown and persist it to `test_logs/work_daily/`.
-This log serves as the single source of truth for session continuity.
-
----
-
-### Write Rules (Triggered After Completed Implementation / Validation Work)
-
-1. Check whether `test_logs/work_daily/` exists.
-   - If it does NOT exist, create it before writing any log:
-     ```bash
-     mkdir -p test_logs/work_daily
-     ```
-
-2. Write a new Markdown file named with an ISO-8601 timestamp:
-   - `test_logs/work_daily/YYYY-MM-DD_HH-MM-SS_<task-slug>.md`
-   - Example: `test_logs/work_daily/2026-04-09_20-30-00_mac-redcap-drx.md`
-
-3. Each log file must follow this structure:
-```markdown
-
-
-# Work Daily Log
-## Session Metadata
-- Date: YYYY-MM-DD HH:MM
-- Agent Session ID: <auto or N/A>
-- Task Slug: <short identifier>
-- Project Path: agent_doc/Project_management/projects/redcap_mmtc_priority_execution_v1/project_plan.md
-
-## Milestone & Sub-task Reference
-- Milestone: <milestone name from project_plan.md / Simluation_v2.md>
-- Sub-task: <sub-task name>
-- Status: [COMPLETED / IN-PROGRESS / BLOCKED]
-
-## What Was Done
-- [Bullet list of code changes, files modified, and functions touched]
-
-## 3GPP Spec Clauses Referenced
-- TS XX.XXX Section X.X.X — brief note on relevance
-
-## Test Results
-| Test Item | Pass / Fail | Coverage | Notes |
-|-----------|-------------|----------|-------|
-| ...       | ...         | ...      | ...   |
-
-
-## Known Issues / Blockers
-- [List any unresolved issues or questions for the next session]
-
-## Next Step
-- [The immediate next sub-task to be tackled]
-```
-
----
-
-### Read Rules (Triggered at the Start of Every New Session)
-
-1. At the very beginning of each new chat window, before taking any action:
-- Check if `test_logs/work_daily/` exists.
-- If it exists, list all `.md` files sorted by filename (descending).
-- Read the **most recent** log file in full.
-
-2. After reading, output a session resume summary in Traditional Chinese:
-▶ 上次進度摘要
-◉ 最後完成子任務：<task-slug>
-◉ 當前里程碑：<milestone>
-◉ 待處理事項：<next step from log>
-◉ 已知問題：<blockers if any>
-
-3. Then ask: "是否從上次進度繼續？" before proceeding with any new work.
-
----
-
-### Additional Constraints
-- Never overwrite an existing log file; always create a new timestamped file.
-- If `agent_doc/Project_management/projects/redcap_mmtc_priority_execution_v1/project_plan.md` is updated, append a note to the current daily log
-indicating which milestone or sub-task was revised.
-- Log files are append-only records; do NOT delete them without explicit user confirmation.
+- Do not delete, move, or rewrite files unless the user explicitly asks for that exact cleanup or approves a specific cleanup batch.
+- For unused-file audits, produce an inventory first:
+  - path
+  - reason
+  - references checked
+  - expected impact
+  - recommendation

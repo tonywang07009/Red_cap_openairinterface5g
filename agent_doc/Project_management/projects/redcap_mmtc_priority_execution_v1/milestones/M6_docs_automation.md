@@ -47,6 +47,10 @@
   - Required evidence report paths resolved.
   - Required milestone and validation document paths resolved.
   - No shell scripts were modified for M6.
+- 2026-05-08 RedCap parameter / implementation / validation tutorial:
+  - Document: `agent_doc/Project_management/projects/redcap_mmtc_priority_execution_v1/redcap_parameter_implementation_validation_tutorial.md`.
+  - Coverage: RedCap parameters, key implementation functions, 3GPP clause checklist, 56 UE Case B simulation guide, and educational exercises.
+  - Clause policy: uncertain exact mappings remain marked `[Needs Verification]`.
 
 ## Completion Criteria
 - [documentation build/check PASS if applicable]
