@@ -60,6 +60,7 @@ if grep -q '^nrue_recap:' "$RUNTIME_CONFIGFILE"; then
   [[ -n "${MMTC_REDCAP_ENABLE:-}" ]] && update_yaml_scalar "support_of_redcap_r17" "$MMTC_REDCAP_ENABLE"
   [[ -n "${MMTC_REDCAP_NUM_RX:-}" ]] && update_yaml_scalar "number_of_rx_redcap_r17" "$MMTC_REDCAP_NUM_RX"
   [[ -n "${MMTC_REDCAP_HALF_DUPLEX:-}" ]] && update_yaml_scalar "half_duplex_fdd_type_a_redcap_r17" "$MMTC_REDCAP_HALF_DUPLEX"
+  [[ -n "${MMTC_PUSCH_256QAM:-}" ]] && update_yaml_scalar "pusch_256qam" "$MMTC_PUSCH_256QAM"
 fi
 
 [[ -n "${MMTC_BAND:-}" ]] && update_yaml_scalar "band" "$MMTC_BAND"

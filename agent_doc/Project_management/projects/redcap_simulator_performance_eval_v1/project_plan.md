@@ -3,7 +3,7 @@
 ## Project Metadata
 - Project Path: `agent_doc/Project_management/projects/redcap_simulator_performance_eval_v1/project_plan.md`
 - Created Date: 2026-05-20
-- Updated Date: 2026-05-20
+- Updated Date: 2026-05-21
 - Objective: design and validate whether this OAI RFsim-based platform can be used for RedCap performance simulation.
 - Agent Rules Path: `agent_doc/Project_management/projects/redcap_simulator_performance_eval_v1/agent_rules.md`
 - Primary Simulator Path: `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/`
@@ -51,10 +51,10 @@
 | P0 | `milestones/P0_agent_project_scaffold.md` | AGENTS.md rules, project paths, folder model | [x] |
 | P1 | `milestones/P1_literature_metric_baseline.md` | Extract metrics and baseline assumptions from RedCap papers | [x] |
 | P2 | `milestones/P2_taguchi_experiment_design.md` | Build factor/level matrix using Taguchi DOE | [x] |
-| P3 | `milestones/P3_runtime_metric_capture.md` | Define and run RFsim throughput/latency/scale metric capture | [~] |
-| P4 | `milestones/P4_matplotlib_analysis.md` | Generate throughput/latency/jitter plots from simulator data | [ ] |
-| P5 | `milestones/P5_platform_validity_report.md` | Decide whether platform is credible for RedCap performance simulation | [ ] |
-| P6 | `milestones/P6_repo_audit_inventory.md` | Inventory unused files/logs/manuals without deleting anything | [ ] |
+| P3 | `milestones/P3_runtime_metric_capture.md` | Define and run RFsim throughput/latency/scale metric capture | [x] |
+| P4 | `milestones/P4_matplotlib_analysis.md` | Generate throughput/latency/jitter plots from simulator data | [x] |
+| P5 | `milestones/P5_platform_validity_report.md` | Decide whether platform is credible for RedCap performance simulation | [x] |
+| P6 | `milestones/P6_repo_audit_inventory.md` | Inventory unused files/logs/manuals without deleting anything | [x] |
 
 ## Priority Backlog
 | Task ID | Milestone | Task Name | Prerequisite Tasks | Evidence Output | Status |
@@ -67,10 +67,10 @@
 | P2-T2 | P2 | Choose orthogonal array and run order | P2-T1 | `analysis/data/p2_taguchi_l9_run_matrix.csv` | [x] |
 | P3-T1 | P3 | Define RFsim runtime capture workflow | P2 | runtime checklist; `validation/success_criteria.md`; `analysis/scripts/p3_capture_workflow.py` | [x] |
 | P3-T2 | P3 | Run baseline throughput and latency validation | P3-T1 | logs + CSV | [x] |
-| P3-T3 | P3 | Run DOE-L9 metric capture | P3-T2 | `analysis/data/p3_runtime_metrics.csv`; failure-to-improvement records | [~] |
-| P4-T1 | P4 | Build matplotlib plotting scripts | P3 | PNG/PDF plots | [ ] |
-| P5-T1 | P5 | Compare simulator results with paper evidence | P4 | validity report | [ ] |
-| P6-T1 | P6 | Repo folder inventory and unused-candidate list | P0 | audit inventory | [ ] |
+| P3-T3 | P3 | Run DOE-L9 metric capture | P3-T2 | `analysis/data/p3_runtime_metrics.csv`; failure-to-improvement records | [x] |
+| P4-T1 | P4 | Build matplotlib plotting scripts | P3 | PNG/PDF plots | [x] |
+| P5-T1 | P5 | Compare simulator results with paper evidence | P4 | validity report | [x] |
+| P6-T1 | P6 | Repo folder inventory and unused-candidate list | P0 | audit inventory | [x] |
 
 ## 3GPP Traceability Seeds
 - TS 38.306 Section 4 — RedCap UE capability constraints [Needs Verification].
@@ -84,4 +84,4 @@
 - Do not start repo-wide deletion or cleanup. P6 is inventory-only unless the user explicitly approves removals.
 
 ## Next Action
-- Continue P3 by running DOE-L9 rows from `DOE-L9-06` to `DOE-L9-09` when Docker execution is available again.
+- Review remaining high-risk archive candidates in `validation/repo_audit_inventory.md` before cleaning logs, build trees, or historical manuals.

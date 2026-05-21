@@ -20,6 +20,10 @@ NR_UE_NR_Capability_t *nr_rrc_build_redcap_ue_capability(const nr_redcap_cfg_t *
 
   asn1cSequenceAdd(cap->rf_Parameters.supportedBandListNR.list, NR_BandNR_t, band);
   band->bandNR = cfg->band;
+  if (cfg->pusch_256qam) {
+    band->pusch_256QAM = calloc_or_fail(1, sizeof(*band->pusch_256QAM));
+    *band->pusch_256QAM = NR_BandNR__pusch_256QAM_supported;
+  }
 
   if (cfg->pdcp_drb_long_sn_redcap_r17) {
     asn1cCalloc(cap->pdcp_Parameters.ext2, ext2);

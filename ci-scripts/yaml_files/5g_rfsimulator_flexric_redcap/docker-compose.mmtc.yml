@@ -15,6 +15,7 @@ services:
       MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
       MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
       MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
       MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
       MMTC_BAND: ${MMTC_BAND:-78}
       MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
@@ -37,6 +38,7 @@ services:
       MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
       MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
       MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
       MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
       MMTC_BAND: ${MMTC_BAND:-78}
       MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
@@ -59,6 +61,7 @@ services:
       MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
       MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
       MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
       MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
       MMTC_BAND: ${MMTC_BAND:-78}
       MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
@@ -81,6 +84,7 @@ services:
       MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
       MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
       MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
       MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
       MMTC_BAND: ${MMTC_BAND:-78}
       MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
@@ -103,6 +107,7 @@ services:
       MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
       MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
       MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
       MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
       MMTC_BAND: ${MMTC_BAND:-78}
       MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
@@ -125,6 +130,7 @@ services:
       MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
       MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
       MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
       MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
       MMTC_BAND: ${MMTC_BAND:-78}
       MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
@@ -147,6 +153,7 @@ services:
       MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
       MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
       MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
       MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
       MMTC_BAND: ${MMTC_BAND:-78}
       MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
@@ -169,6 +176,7 @@ services:
       MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
       MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
       MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
       MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
       MMTC_BAND: ${MMTC_BAND:-78}
       MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
@@ -191,6 +199,7 @@ services:
       MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
       MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
       MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
       MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
       MMTC_BAND: ${MMTC_BAND:-78}
       MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
@@ -213,6 +222,7 @@ services:
       MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
       MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
       MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
       MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
       MMTC_BAND: ${MMTC_BAND:-78}
       MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
@@ -235,6 +245,7 @@ services:
       MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
       MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
       MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
       MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
       MMTC_BAND: ${MMTC_BAND:-78}
       MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
@@ -257,6 +268,7 @@ services:
       MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
       MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
       MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
       MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
       MMTC_BAND: ${MMTC_BAND:-78}
       MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
@@ -279,6 +291,7 @@ services:
       MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
       MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
       MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
       MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
       MMTC_BAND: ${MMTC_BAND:-78}
       MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
@@ -301,6 +314,7 @@ services:
       MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
       MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
       MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
       MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
       MMTC_BAND: ${MMTC_BAND:-78}
       MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
@@ -323,6 +337,7 @@ services:
       MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
       MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
       MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
       MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
       MMTC_BAND: ${MMTC_BAND:-78}
       MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
@@ -345,6 +360,7 @@ services:
       MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
       MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
       MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
       MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
       MMTC_BAND: ${MMTC_BAND:-78}
       MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
@@ -367,6 +383,7 @@ services:
       MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
       MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
       MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
       MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
       MMTC_BAND: ${MMTC_BAND:-78}
       MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
@@ -389,6 +406,7 @@ services:
       MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
       MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
       MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
       MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
       MMTC_BAND: ${MMTC_BAND:-78}
       MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
@@ -411,6 +429,7 @@ services:
       MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
       MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
       MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
       MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
       MMTC_BAND: ${MMTC_BAND:-78}
       MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
@@ -433,6 +452,7 @@ services:
       MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
       MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
       MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
       MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
       MMTC_BAND: ${MMTC_BAND:-78}
       MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
@@ -455,6 +475,7 @@ services:
       MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
       MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
       MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
       MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
       MMTC_BAND: ${MMTC_BAND:-78}
       MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
@@ -477,6 +498,7 @@ services:
       MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
       MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
       MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
       MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
       MMTC_BAND: ${MMTC_BAND:-78}
       MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
@@ -499,6 +521,7 @@ services:
       MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
       MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
       MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
       MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
       MMTC_BAND: ${MMTC_BAND:-78}
       MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
@@ -521,6 +544,7 @@ services:
       MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
       MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
       MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
       MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
       MMTC_BAND: ${MMTC_BAND:-78}
       MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
@@ -543,6 +567,7 @@ services:
       MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
       MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
       MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
       MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
       MMTC_BAND: ${MMTC_BAND:-78}
       MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
@@ -565,6 +590,7 @@ services:
       MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
       MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
       MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
       MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
       MMTC_BAND: ${MMTC_BAND:-78}
       MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
@@ -587,6 +613,7 @@ services:
       MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
       MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
       MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
       MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
       MMTC_BAND: ${MMTC_BAND:-78}
       MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
@@ -609,6 +636,7 @@ services:
       MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
       MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
       MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
       MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
       MMTC_BAND: ${MMTC_BAND:-78}
       MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
@@ -639,6 +667,7 @@ services:
       MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
       MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
       MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
       MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
       MMTC_BAND: ${MMTC_BAND:-78}
       MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
@@ -667,162 +696,6 @@ services:
       - /dev/net/tun:/dev/net/tun
     volumes:
       - ../../conf_files/nrue_recap/nrue29.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
-      - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
-    healthcheck:
-      test: /bin/bash -c "pgrep nr-uesoftmodem"
-      start_period: 10s
-      start_interval: 500ms
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  oai-nr-ue30:
-    image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
-    container_name: rfsim5g-oai-nr-ue30_redcap
-    cap_drop:
-      - ALL
-    cap_add:
-      - NET_ADMIN
-      - NET_RAW
-      - SYS_NICE
-    environment:
-      MMTC_UE_INDEX: "30"
-      MMTC_IMSI: "001010000000030"
-      MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
-      MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
-      MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
-      MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
-      MMTC_BAND: ${MMTC_BAND:-78}
-      MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
-      MMTC_NUMEROLOGY: ${MMTC_NUMEROLOGY:-1}
-      MMTC_N_RB_DL: ${MMTC_N_RB_DL:-106}
-      MMTC_SSB_START: ${MMTC_SSB_START:-144}
-      MMTC_CGCFG_NOFREE: ${MMTC_CGCFG_NOFREE:-0}
-      MMTC_CGCFG_DEFER_FREE_SLOTS: ${MMTC_CGCFG_DEFER_FREE_SLOTS:-0}
-      MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
-      MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
-      MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
-      USE_ADDITIONAL_OPTIONS: >
-        -E --rfsim -r 106 --numerology 1
-        --uicc0.imsi 001010000000030
-        -C ${MMTC_RF_FREQ:-3630360000}
-        --ssb ${MMTC_SSB_START:-144}
-        --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
-        --log_config.global_log_options level,nocolor,time
-        --telnetsrv --telnetsrv.listenaddr 192.168.71.179 --telnetsrv.listenport 8120
-    depends_on:
-      - oai-gnb
-    networks:
-      public_net:
-        ipv4_address: 192.168.71.179
-    devices:
-      - /dev/net/tun:/dev/net/tun
-    volumes:
-      - ../../conf_files/nrue_recap/nrue30.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
-      - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
-    healthcheck:
-      test: /bin/bash -c "pgrep nr-uesoftmodem"
-      start_period: 10s
-      start_interval: 500ms
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  oai-nr-ue31:
-    image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
-    container_name: rfsim5g-oai-nr-ue31_redcap
-    cap_drop:
-      - ALL
-    cap_add:
-      - NET_ADMIN
-      - NET_RAW
-      - SYS_NICE
-    environment:
-      MMTC_UE_INDEX: "31"
-      MMTC_IMSI: "001010000000031"
-      MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
-      MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
-      MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
-      MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
-      MMTC_BAND: ${MMTC_BAND:-78}
-      MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
-      MMTC_NUMEROLOGY: ${MMTC_NUMEROLOGY:-1}
-      MMTC_N_RB_DL: ${MMTC_N_RB_DL:-106}
-      MMTC_SSB_START: ${MMTC_SSB_START:-144}
-      MMTC_CGCFG_NOFREE: ${MMTC_CGCFG_NOFREE:-0}
-      MMTC_CGCFG_DEFER_FREE_SLOTS: ${MMTC_CGCFG_DEFER_FREE_SLOTS:-0}
-      MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
-      MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
-      MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
-      USE_ADDITIONAL_OPTIONS: >
-        -E --rfsim -r 106 --numerology 1
-        --uicc0.imsi 001010000000031
-        -C ${MMTC_RF_FREQ:-3630360000}
-        --ssb ${MMTC_SSB_START:-144}
-        --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
-        --log_config.global_log_options level,nocolor,time
-        --telnetsrv --telnetsrv.listenaddr 192.168.71.180 --telnetsrv.listenport 8121
-    depends_on:
-      - oai-gnb
-    networks:
-      public_net:
-        ipv4_address: 192.168.71.180
-    devices:
-      - /dev/net/tun:/dev/net/tun
-    volumes:
-      - ../../conf_files/nrue_recap/nrue31.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
-      - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
-    healthcheck:
-      test: /bin/bash -c "pgrep nr-uesoftmodem"
-      start_period: 10s
-      start_interval: 500ms
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  oai-nr-ue32:
-    image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
-    container_name: rfsim5g-oai-nr-ue32_redcap
-    cap_drop:
-      - ALL
-    cap_add:
-      - NET_ADMIN
-      - NET_RAW
-      - SYS_NICE
-    environment:
-      MMTC_UE_INDEX: "32"
-      MMTC_IMSI: "001010000000032"
-      MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
-      MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
-      MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
-      MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
-      MMTC_BAND: ${MMTC_BAND:-78}
-      MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
-      MMTC_NUMEROLOGY: ${MMTC_NUMEROLOGY:-1}
-      MMTC_N_RB_DL: ${MMTC_N_RB_DL:-106}
-      MMTC_SSB_START: ${MMTC_SSB_START:-144}
-      MMTC_CGCFG_NOFREE: ${MMTC_CGCFG_NOFREE:-0}
-      MMTC_CGCFG_DEFER_FREE_SLOTS: ${MMTC_CGCFG_DEFER_FREE_SLOTS:-0}
-      MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
-      MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
-      MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
-      USE_ADDITIONAL_OPTIONS: >
-        -E --rfsim -r 106 --numerology 1
-        --uicc0.imsi 001010000000032
-        -C ${MMTC_RF_FREQ:-3630360000}
-        --ssb ${MMTC_SSB_START:-144}
-        --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
-        --log_config.global_log_options level,nocolor,time
-        --telnetsrv --telnetsrv.listenaddr 192.168.71.181 --telnetsrv.listenport 8122
-    depends_on:
-      - oai-gnb
-    networks:
-      public_net:
-        ipv4_address: 192.168.71.181
-    devices:
-      - /dev/net/tun:/dev/net/tun
-    volumes:
-      - ../../conf_files/nrue_recap/nrue32.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
       - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
     healthcheck:
       test: /bin/bash -c "pgrep nr-uesoftmodem"

@@ -76,6 +76,7 @@ typedef struct {
   int rlc_am_drb_long_sn_redcap_r17;
   int number_of_rx_redcap_r17;
   int half_duplex_fdd_type_a_redcap_r17;
+  int pusch_256qam;
   
 } nr_redcap_cfg_t;
 

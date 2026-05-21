@@ -3,7 +3,7 @@
 ## Source Path
 - Formal path: `evaluation_paper/`
 - Deprecated/unused user-mentioned alias: `paper_refer/`
-- Empty observed path: `paper_test/`
+- Removed empty legacy path after P6 cleanup: `paper_test/`
 
 ## Inventory
 | ID | File | Initial Role | Extraction Status |

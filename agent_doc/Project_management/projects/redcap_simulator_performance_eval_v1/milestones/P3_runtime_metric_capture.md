@@ -3,10 +3,10 @@
 ## Milestone Metadata
 - Milestone: P3
 - Task IDs: P3-T1, P3-T2, P3-T3
-- Status: [IN PROGRESS]
+- Status: [COMPLETED]
 - P3-T1 Status: [COMPLETED]
 - P3-T2 Status: [COMPLETED]
-- P3-T3 Status: [IN PROGRESS]
+- P3-T3 Status: [COMPLETED]
 
 ## Purpose
 - Convert the DOE run matrix into repeatable RFsim runs and CSV metrics.
@@ -116,7 +116,7 @@ python3 agent_doc/Project_management/projects/redcap_simulator_performance_eval_
   - `test_log/compiler_logs/mmtc_smoke_2026-05-20_22-32-25_ue1_ping.log`
 
 ## P3-T3 Next Execution
-- Resume with `DOE-L9-06`.
+- P3-T3 is complete.
 - After each row:
   - inspect status in `analysis/data/p3_runtime_metrics.csv`,
   - keep failure rows instead of deleting them,
@@ -130,14 +130,19 @@ python3 agent_doc/Project_management/projects/redcap_simulator_performance_eval_
 | DOE-L9-03 | [PASS] | 29 | `1 3 5 7 9 11 13 16` | 85M | 30.063 | 85.000 | 0.305 | 0.000 | 30.448 | 0 | throughput gap observed |
 | DOE-L9-04 | [PASS] | 32 | `1 11 22 32` | 10M | 9.980 | 10.000 | 1.861 | 0.000 | 12.893 | 0 | 4 sampled UEs |
 | DOE-L9-05 | [PASS] | 32 | `1 5 9 13 17 21 25 32` | 50M | 30.275 | 50.000 | 0.431 | 0.000 | 31.500 | 0 | throughput gap observed |
+| DOE-L9-06 | [PASS] | 32 | `1` | 85M | 84.900 | 85.000 | 0.228 | 0.000 | 3.663 | 0 | high-rate single sampled UE |
+| DOE-L9-07 | [PASS] | 56 | `1 8 16 24 32 40 48 56` | 10M | 9.979 | 10.000 | 1.630 | 0.000 | 30.457 | 0 | 8 sampled UEs |
+| DOE-L9-08 | [PASS] | 56 | `1` | 50M | 49.900 | 50.000 | 0.241 | 0.000 | 3.928 | 0 | mid-rate single sampled UE |
+| DOE-L9-09 | [PASS] | 56 | `1 19 38 56` | 85M | 69.075 | 85.000 | 0.129 | 0.000 | 14.134 | 0 | throughput gap observed |
 
-## P3-T3 Current Stop Reason
-- Attempted next row: `DOE-L9-06`.
-- Status: [NOT EXECUTED]
-- Reason:
-  - Docker escalation was rejected by the execution environment because the current elevated-command usage limit was reached.
-- Interpretation:
-  - This is not a RFsim runtime [FAIL].
-  - This is not recorded as a DOE row in `p3_runtime_metrics.csv` because the P3 runner did not start.
-- Resume condition:
-  - Continue from `DOE-L9-06` when Docker execution is available again.
+## Final P3 Dataset Decision
+- Dataset class: [Strong Dataset]
+- Basis:
+  - `DOE-BASE-001` passed.
+  - `DOE-L9-01..09` all passed.
+  - All 10 rows have receiver-side throughput parsed.
+  - All 10 rows have `gnb_restart_count = 0`.
+  - No failed rows need to be dropped before P4 plotting.
+- Limitation for P4/P5:
+  - `DOE-L9-03`, `DOE-L9-05`, and `DOE-L9-09` show sender/receiver throughput gaps.
+  - These are not hard failures, but they must be interpreted as RFsim runtime behavior before claiming paper-level performance equivalence.
