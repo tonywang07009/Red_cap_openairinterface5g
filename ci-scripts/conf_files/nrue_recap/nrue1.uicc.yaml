@@ -17,6 +17,7 @@ nrue_recap:
   number_of_rx_redcap_r17: 1
   half_duplex_fdd_type_a_redcap_r17: 1
   pusch_256qam: 0
+  pdsch_256qam: 0
 
 
 

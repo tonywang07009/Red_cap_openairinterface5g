@@ -24,6 +24,12 @@ NR_UE_NR_Capability_t *nr_rrc_build_redcap_ue_capability(const nr_redcap_cfg_t *
     band->pusch_256QAM = calloc_or_fail(1, sizeof(*band->pusch_256QAM));
     *band->pusch_256QAM = NR_BandNR__pusch_256QAM_supported;
   }
+  if (cfg->pdsch_256qam) {
+    cap->phy_Parameters.phy_ParametersFR1 = calloc_or_fail(1, sizeof(*cap->phy_Parameters.phy_ParametersFR1));
+    cap->phy_Parameters.phy_ParametersFR1->pdsch_256QAM_FR1 =
+        calloc_or_fail(1, sizeof(*cap->phy_Parameters.phy_ParametersFR1->pdsch_256QAM_FR1));
+    *cap->phy_Parameters.phy_ParametersFR1->pdsch_256QAM_FR1 = NR_Phy_ParametersFR1__pdsch_256QAM_FR1_supported;
+  }
 
   if (cfg->pdcp_drb_long_sn_redcap_r17) {
     asn1cCalloc(cap->pdcp_Parameters.ext2, ext2);

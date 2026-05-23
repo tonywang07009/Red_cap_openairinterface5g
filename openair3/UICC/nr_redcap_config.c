@@ -32,6 +32,7 @@
       {"number_of_rx_redcap_r17",     "UE-side RedCap Rx branch count used for SIB1 barring checks\n", 0, .iptr=&cfg->number_of_rx_redcap_r17, .defintval=1, TYPE_INT, 0 }, \
       {"half_duplex_fdd_type_a_redcap_r17", "UE-side half-duplex FDD Type A support used for SIB1 barring checks\n", 0, .iptr=&cfg->half_duplex_fdd_type_a_redcap_r17, .defintval=0, TYPE_INT, 0 }, \
       {"pusch_256qam",                "Advertise UE PUSCH 256QAM support in supportedBandListNR\n", 0, .iptr=&cfg->pusch_256qam, .defintval=0, TYPE_INT, 0 }, \
+      {"pdsch_256qam",                "Advertise UE PDSCH 256QAM support for FR1\n", 0, .iptr=&cfg->pdsch_256qam, .defintval=0, TYPE_INT, 0 }, \
   };
 
 bool load_nr_redcap_config(const char *sectionName, nr_redcap_cfg_t *cfg)
@@ -55,7 +56,7 @@ bool load_nr_redcap_config(const char *sectionName, nr_redcap_cfg_t *cfg)
   }
 
   LOG_I(SIM,
-        "nrue_recap RedCap config: band=n%d RedCap=%d 16DRB=%d PDCP_longSN=%d RLC_AM_longSN=%d Rx=%d halfDuplexFDD-TypeA=%d PUSCH256QAM=%d\n",
+        "nrue_recap RedCap config: band=n%d RedCap=%d 16DRB=%d PDCP_longSN=%d RLC_AM_longSN=%d Rx=%d halfDuplexFDD-TypeA=%d PUSCH256QAM=%d PDSCH256QAM=%d\n",
         cfg->band,
         cfg->support_of_redcap_r17,
         cfg->support_of_16drb_redcap_r17,
@@ -63,6 +64,7 @@ bool load_nr_redcap_config(const char *sectionName, nr_redcap_cfg_t *cfg)
         cfg->rlc_am_drb_long_sn_redcap_r17,
         cfg->number_of_rx_redcap_r17,
         cfg->half_duplex_fdd_type_a_redcap_r17,
-        cfg->pusch_256qam);
+        cfg->pusch_256qam,
+        cfg->pdsch_256qam);
   return true;
 }
