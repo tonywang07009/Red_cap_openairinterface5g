@@ -2868,21 +2868,34 @@ static BIT_STRING_t bit_string_clone(const BIT_STRING_t *orig)
  * @param[in] redcap_config Parsed gNB RedCap configuration.
  */
 static void fill_redcap_sib1(NR_SIB1_v1700_IEs_t *sib1_v1700, const nr_redcap_config_t *redcap_config)
+// this way the redcap_config is input information 
 {
   AssertFatal(sib1_v1700 != NULL, "fill_redcap_sib1(): sib1_v1700 must not be NULL\n");
+  // The safe check, if the pointer is NULL, the all function will not execute.
+  // This tool is used trace the real code error point.
   AssertFatal(redcap_config != NULL, "fill_redcap_sib1(): redcap_config must not be NULL\n");
 
   sib1_v1700->redCap_ConfigCommon_r17 = calloc_or_fail(1, sizeof(*sib1_v1700->redCap_ConfigCommon_r17));
   sib1_v1700->redCap_ConfigCommon_r17->cellBarredRedCap_r17 =
       calloc_or_fail(1, sizeof(*sib1_v1700->redCap_ConfigCommon_r17->cellBarredRedCap_r17));
 
-  if (redcap_config->has_halfDuplexRedCapAllowed_r17 && redcap_config->halfDuplexRedCapAllowed_r17) {
+
+  // HD-FDD config logic
+  if (redcap_config->has_halfDuplexRedCapAllowed_r17 && redcap_config->halfDuplexRedCapAllowed_r17) 
+  {
     sib1_v1700->redCap_ConfigCommon_r17->halfDuplexRedCapAllowed_r17 =
         calloc_or_fail(1, sizeof(*sib1_v1700->redCap_ConfigCommon_r17->halfDuplexRedCapAllowed_r17));
+        // allwas allocate memory , if the allocate fail , shout down the program.
+        // calloc can specify the initial value, here is 1.
     *sib1_v1700->redCap_ConfigCommon_r17->halfDuplexRedCapAllowed_r17 =
         NR_RedCap_ConfigCommonSIB_r17__halfDuplexRedCapAllowed_r17_true;
+        // The NR_RedCap_ConfigCommonSIB_r17 -> sturct name
+        // halfDuplexRedCapAllowed_r17 -> field name
+        // true is allow -> enum , that's why used the get value symbol.
   }
 
+
+  // setting of call barred for 1Rx and 2Rx RedCap UEs
   struct NR_RedCap_ConfigCommonSIB_r17__cellBarredRedCap_r17 *cell_barred =
       sib1_v1700->redCap_ConfigCommon_r17->cellBarredRedCap_r17;
   cell_barred->cellBarredRedCap1Rx_r17 = redcap_config->cellBarredRedCap1Rx_r17;

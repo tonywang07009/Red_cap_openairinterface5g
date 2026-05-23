@@ -68,12 +68,16 @@ Rate unit rule:
 
 Runtime menu shortcut:
 - Run `ci-scripts/redcap_runtime_menu.sh`.
+- Alias wrapper is also available:
+  - `ci-scripts/mmtc.menu.bash`
 - Choose `8) Enable PAPER-07 256QAM profile` to set:
   - `PUSCH256QAM=1`
   - `PDSCH256QAM=1`
   - `iperf rate=35M`
   - `DL iperf rate=141M`
   - `duration=60s`
+- Choose `13) Select 106PRB carrier profile` for the original 106PRB carrier.
+- Choose `14) Select 51PRB full-carrier profile` for PAPER-07 51PRB carrier semantics.
 - Choose `7) Configure 256QAM capability` for manual UL/DL capability switching.
 - Choose `3) Run UDP uplink iperf with current rate` after enabling the profile.
 - Choose `9) Enable PAPER-07 DL 64QAM profile` for DL 64QAM-level testing:
@@ -332,9 +336,209 @@ no output
 | DL 256QAM evidence | DLSCH `MCS (1)` |
 | Plot generation | PNG and PDF generated |
 
-## 15. Known Limitations
+## 15. Full-Carrier 51PRB Correction Procedure
+This section records the corrected logic for matching the PAPER-07 `51 PRB / 20 MHz / 30 kHz SCS` meaning.
+
+### 15.1 Why The First 51PRB Attempt Failed
+Do not treat these two configurations as equivalent:
+
+| Configuration | Meaning | PAPER-07 Equivalence |
+|---|---|---|
+| `dl/ul_carrierBandwidth=106`, `bwpSize=51` | 51PRB BWP inside a 106PRB serving carrier | partial |
+| `dl/ul_carrierBandwidth=51`, `bwpSize=51` | full serving carrier is 51PRB | closer to PAPER-07 |
+
+The failed full-carrier attempt happened because:
+- gNB was changed toward `51PRB`.
+- UE still used 106PRB RF assumptions in the final compose path.
+- UE logs showed `bandwidth: 106` or incompatible `-C` / `--ssb` values.
+- Result: UE sync or container health failed before iperf was valid.
+
+### 15.2 Correct Full-Carrier 51PRB Parameters
+Use a separate YAML file and do not rewrite the 106PRB baseline:
+
+```text
+ci-scripts/conf_files/gnb.sa.band78.fr1.51PRB.usrpb210.redcap.yaml
+```
+
+The 51PRB full-carrier YAML must include:
+
+```yaml
+bwpSize: 51
+dl_absoluteFrequencyPointA: 640564
+dl_carrierBandwidth: 51
+initialDLBWPcontrolResourceSetZero: 12
+ul_carrierBandwidth: 51
+initialDLBWPControlResourceSetZero_r17: 12
+```
+
+The UE side must be aligned with the gNB command-line hint printed by OAI:
+
+```text
+-r 51
+-C 3617640000
+--ssb 238
+```
+
+### 15.3 Why These Parameters Move Together
+- `dl_carrierBandwidth` / `ul_carrierBandwidth` define the full serving carrier PRB count.
+- `bwpSize` defines the BWP size used by the gNB configuration.
+- `dl_absoluteFrequencyPointA` changes the PointA relationship to the SSB for a 51PRB carrier.
+- `initialDLBWPcontrolResourceSetZero=12` aligns CORESET#0 with the 51PRB layout used by the existing OAI 51PRB examples.
+- UE `-r`, `-C`, and `--ssb` must match the gNB-generated RF/SSB assumptions; otherwise UE may search the wrong raster or bandwidth.
+
+### 15.4 Menu-Based Switching
+Use the wrapper or the original menu:
+
+```bash
+ci-scripts/mmtc.menu.bash
+```
+
+or:
+
+```bash
+ci-scripts/redcap_runtime_menu.sh
+```
+
+For the original 106PRB carrier:
+
+```text
+13) Select 106PRB carrier profile
+```
+
+This sets:
+
+```text
+gNB YAML: ci-scripts/conf_files/gnb.sa.band78.fr1.106PRB.usrpb210.redcap.yaml
+UE -r: 106
+UE -C: 3630360000
+UE --ssb: 144
+```
+
+For PAPER-07 full-carrier 51PRB:
+
+```text
+14) Select 51PRB full-carrier profile
+```
+
+This sets:
+
+```text
+gNB YAML: ci-scripts/conf_files/gnb.sa.band78.fr1.51PRB.usrpb210.redcap.yaml
+UE -r: 51
+UE -C: 3617640000
+UE --ssb: 238
+```
+
+Then enable PAPER-07 throughput settings:
+
+```text
+8) Enable PAPER-07 256QAM profile
+```
+
+Run UL:
+
+```text
+3) Run UDP uplink iperf with current rate
+```
+
+Run DL:
+
+```text
+11) Run UDP downlink iperf with current DL rate
+```
+
+### 15.5 Direct Command For Full-Carrier 51PRB UL
+When bypassing the menu, use:
+
+```bash
+GNB_REDCAP_CONFIG=/home/tonywang/OAI/Red_cap_openairinterface5g/ci-scripts/conf_files/gnb.sa.band78.fr1.51PRB.usrpb210.redcap.yaml \
+MMTC_N_RB_DL=51 \
+MMTC_RF_FREQ=3617640000 \
+MMTC_SSB_START=238 \
+MMTC_TOTAL_UES=29 \
+MMTC_SAMPLE_UES=1 \
+MMTC_IPERF_SAMPLE_UES=1 \
+MMTC_IPERF_ENABLE=1 \
+MMTC_IPERF_UDP=1 \
+MMTC_IPERF_RATE=35M \
+MMTC_IPERF_DURATION=60 \
+MMTC_FORWARD_PING_MODE=parallel \
+MMTC_RUN_REVERSE_PING=0 \
+MMTC_PING_COUNT=10 \
+MMTC_GNB_WARMUP=5 \
+MMTC_SLEEP_AFTER_UP=25 \
+MMTC_UE_START_GAP=0 \
+MMTC_PUCCH_COMMON_FALLBACK_BWP0=1 \
+MMTC_PUSCH_256QAM=1 \
+MMTC_PDSCH_256QAM=1 \
+ci-scripts/redcap_mmtc_smoke_validation.sh
+```
+
+Expected smoke summary:
+
+```text
+attach=1 pdu=1 tun=1 forward_ping_ok=1 iperf_ul_ok=1 gnb_restart=0 failures=0
+```
+
+### 15.6 Direct Command For Full-Carrier 51PRB DL
+After UL has attached UE1 and created `oaitun_ue1`, run:
+
+```bash
+docker exec oai-ext-dn sh -c 'pids=$(pidof iperf3 2>/dev/null || true); [ -z "$pids" ] || kill $pids; iperf3 -s -D'
+docker exec rfsim5g-oai-nr-ue1_redcap iperf3 -c 192.168.72.135 -B 10.0.0.2 -t 60 -u -b 141M -R
+```
+
+### 15.7 Evidence To Capture
+Confirm gNB YAML inside the running container:
+
+```bash
+docker exec rfsim5g-oai-gnb_redcap sh -c "grep -nE 'bwpSize|dl_absoluteFrequencyPointA|dl_carrierBandwidth|ul_carrierBandwidth|initialDLBWPcontrolResourceSetZero' /opt/oai-gnb/etc/gnb.yaml"
+```
+
+Expected:
+
+```text
+bwpSize: 51
+dl_absoluteFrequencyPointA: 640564
+dl_carrierBandwidth: 51
+initialDLBWPcontrolResourceSetZero: 12
+ul_carrierBandwidth: 51
+```
+
+Confirm UE runtime options:
+
+```bash
+docker inspect rfsim5g-oai-nr-ue1_redcap --format '{{range .Config.Env}}{{println .}}{{end}}' | rg 'MMTC_N_RB_DL|MMTC_RF_FREQ|MMTC_SSB_START|USE_ADDITIONAL_OPTIONS'
+```
+
+Expected:
+
+```text
+MMTC_N_RB_DL=51
+MMTC_RF_FREQ=3617640000
+MMTC_SSB_START=238
+USE_ADDITIONAL_OPTIONS=... -r 51 ... -C 3617640000 --ssb 238 ...
+```
+
+### 15.8 Full-Carrier 51PRB Reference Result
+Successful run on 2026-05-23:
+
+| Direction | Offered Rate | Receiver Throughput | Jitter | Loss | Status |
+|---|---:|---:|---:|---:|---|
+| UL | 35 Mbps | 35.0 Mbps | 0.380 ms | 0/181282 (0%) | PASS |
+| DL | 141 Mbps | 141 Mbps | 0.025 ms | 410/731293 (0.056%) | PASS |
+
+Artifacts:
+
+```text
+agent_doc/Project_management/projects/redcap_simulator_performance_eval_v1/analysis/paper07_tdd_reproduction_full51prb_2026-05-23_report.md
+agent_doc/Project_management/projects/redcap_simulator_performance_eval_v1/analysis/data/paper07_tdd_reproduction_full51prb_2026-05-23.csv
+agent_doc/Project_management/projects/redcap_simulator_performance_eval_v1/analysis/data/paper07_tdd_reproduction_full51prb_2026-05-23_process_log.md
+```
+
+## 16. Known Limitations
 - This procedure validates the TDD portion only.
 - The paper also lists FDD 20MHz 256QAM targets: UL `120 Mbps`, DL `226 Mbps`.
 - RFsim does not reproduce paper base-station power, UE power, distance, or field-channel conditions exactly.
-- The current runtime uses `N_RB_DL=106`, while the paper row is a 20MHz target-rate row.
+- The original baseline runtime uses `N_RB_DL=106`; the corrected full-carrier 51PRB profile uses `N_RB_DL=51`, `-C 3617640000`, and `--ssb 238`.
 - This is a target-rate and scheduler-evidence reproduction, not a one-to-one RF channel reproduction.

@@ -60,6 +60,14 @@ for ((idx=1; idx<=BASE_FIXED_UE_COUNT; idx++)); do
       MMTC_PUCCH_COMMON_FALLBACK_BWP0: \${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
       MMTC_SEGV_BACKTRACE: \${MMTC_SEGV_BACKTRACE:-0}
       MMTC_PDCP_TRACE: \${MMTC_PDCP_TRACE:-0}
+      USE_ADDITIONAL_OPTIONS: >
+        -E --rfsim -r \${MMTC_N_RB_DL:-106} --numerology \${MMTC_NUMEROLOGY:-1}
+        --uicc0.imsi ${imsi}
+        -C \${MMTC_RF_FREQ:-3630360000}
+        --ssb \${MMTC_SSB_START:-144}
+        --rfsimulator.serveraddr \${MMTC_GNB_ADDR:-192.168.70.140}
+        --log_config.global_log_options level,nocolor,time
+        --telnetsrv --telnetsrv.listenaddr 192.168.71.$((149 + idx)) --telnetsrv.listenport $((8090 + idx))
     volumes:
       - ../../conf_files/nrue_recap/nrue${idx}.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
       - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
@@ -102,7 +110,7 @@ for ((idx=START_UE_INDEX; idx<=TOTAL_UES; idx++)); do
       MMTC_SEGV_BACKTRACE: \${MMTC_SEGV_BACKTRACE:-0}
       MMTC_PDCP_TRACE: \${MMTC_PDCP_TRACE:-0}
       USE_ADDITIONAL_OPTIONS: >
-        -E --rfsim -r 106 --numerology 1
+        -E --rfsim -r \${MMTC_N_RB_DL:-106} --numerology \${MMTC_NUMEROLOGY:-1}
         --uicc0.imsi ${imsi}
         -C \${MMTC_RF_FREQ:-3630360000}
         --ssb \${MMTC_SSB_START:-144}

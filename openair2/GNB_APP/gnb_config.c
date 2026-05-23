@@ -1369,6 +1369,7 @@ static nr_redcap_config_t *get_redcap_config(int gnb_idx, const NR_ServingCellCo
     return NULL;
   }
   // Check for default/non-existing values in configuration file
+  // This way is check the redcap file is beging , The callBarred didn't set
   if (*RedCap_Params[GNB_REDCAP_CELL_BARRED_REDCAP1_RX_R17_IDX].i8ptr == -1
       || *RedCap_Params[GNB_REDCAP_CELL_BARRED_REDCAP2_RX_R17_IDX].i8ptr == -1) {
     LOG_I(GNB_APP, "No RedCap configuration found\n");

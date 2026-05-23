@@ -6,6 +6,8 @@ SCRIPT_DIR=$(dirname "$(realpath "$0")")
 REPO_ROOT=$(realpath "${SCRIPT_DIR}/..")
 
 DEFAULT_GNB_CONFIG="${REPO_ROOT}/test_log/runtime_configs/gnb.redcap_mmtc_case-b_2026-05-02_12-35-01.yaml"
+GNB_CONFIG_106PRB="${REPO_ROOT}/ci-scripts/conf_files/gnb.sa.band78.fr1.106PRB.usrpb210.redcap.yaml"
+GNB_CONFIG_51PRB="${REPO_ROOT}/ci-scripts/conf_files/gnb.sa.band78.fr1.51PRB.usrpb210.redcap.yaml"
 DEFAULT_CN_COMPOSE="/home/tonywang/OAI/oai-cn5g/docker-compose.yaml"
 BASE_COMPOSE="${REPO_ROOT}/ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.yml"
 OVERLAY_COMPOSE="${REPO_ROOT}/ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.mmtc.yml"
@@ -42,6 +44,9 @@ normalize_bool()
 }
 
 GNB_CONFIG="${GNB_REDCAP_CONFIG:-${DEFAULT_GNB_CONFIG}}"
+N_RB_DL="${MMTC_N_RB_DL:-106}"
+RF_FREQ="${MMTC_RF_FREQ:-3630360000}"
+SSB_START="${MMTC_SSB_START:-144}"
 CN_COMPOSE="${MMTC_CN_COMPOSE:-${DEFAULT_CN_COMPOSE}}"
 TOTAL_UES="${MMTC_TOTAL_UES:-29}"
 SAMPLE_UES="${MMTC_SAMPLE_UES:-1}"
@@ -54,6 +59,21 @@ DL_IPERF_DURATION="${MMTC_DL_IPERF_DURATION:-60}"
 PUSCH_256QAM="$(normalize_bool "${MMTC_PUSCH_256QAM:-0}")"
 PDSCH_256QAM="$(normalize_bool "${MMTC_PDSCH_256QAM:-0}")"
 
+infer_prb_profile()
+{
+  case "${GNB_CONFIG}" in
+    *51PRB*)
+      printf '51PRB full-carrier\n'
+      ;;
+    *106PRB*)
+      printf '106PRB carrier\n'
+      ;;
+    *)
+      printf 'custom\n'
+      ;;
+  esac
+}
+
 print_header()
 {
   cat <<EOF
@@ -61,6 +81,10 @@ print_header()
 RedCap RFsim Runtime Menu
 Repo           : ${REPO_ROOT}
 gNB config     : ${GNB_CONFIG}
+PRB profile    : $(infer_prb_profile)
+UE -r PRB      : ${N_RB_DL}
+UE RF freq     : ${RF_FREQ}
+UE SSB start   : ${SSB_START}
 CN compose     : ${CN_COMPOSE}
 Total UEs      : ${TOTAL_UES}
 Sample UEs     : ${SAMPLE_UES}
@@ -106,6 +130,7 @@ compose_mount_check()
   check_inputs
   echo "[INFO] Checking final docker compose gNB mount"
   GNB_REDCAP_CONFIG="${GNB_CONFIG}" docker compose \
+    --env-file /dev/null \
     -f "${BASE_COMPOSE}" \
     -f "${OVERLAY_COMPOSE}" \
     config | sed -n '/oai-gnb:/,/oai-nr-ue1:/p' | rg -n 'source:|target:|gnb.yaml' || true
@@ -113,6 +138,9 @@ compose_mount_check()
   echo "[Expected]"
   echo "source: ${GNB_CONFIG}"
   echo "target: /opt/oai-gnb/etc/gnb.yaml"
+  echo "MMTC_N_RB_DL: ${N_RB_DL}"
+  echo "MMTC_RF_FREQ: ${RF_FREQ}"
+  echo "MMTC_SSB_START: ${SSB_START}"
 }
 
 run_smoke()
@@ -131,6 +159,9 @@ run_smoke()
   echo "[INFO] Running RedCap smoke validation: iperf=${iperf_enable}, rate=${normalized_rate}, duration=${duration}s, PUSCH256QAM=${PUSCH_256QAM}, PDSCH256QAM=${PDSCH_256QAM}"
   env \
     GNB_REDCAP_CONFIG="${GNB_CONFIG}" \
+    MMTC_N_RB_DL="${N_RB_DL}" \
+    MMTC_RF_FREQ="${RF_FREQ}" \
+    MMTC_SSB_START="${SSB_START}" \
     MMTC_TOTAL_UES="${TOTAL_UES}" \
     MMTC_SAMPLE_UES="${SAMPLE_UES}" \
     MMTC_IPERF_SAMPLE_UES="${IPERF_SAMPLE_UES}" \
@@ -175,6 +206,15 @@ configure_values()
 
   read -r -p "gNB config [${GNB_CONFIG}]: " value
   GNB_CONFIG="${value:-${GNB_CONFIG}}"
+
+  read -r -p "UE -r PRB [${N_RB_DL}]: " value
+  N_RB_DL="${value:-${N_RB_DL}}"
+
+  read -r -p "UE RF frequency Hz [${RF_FREQ}]: " value
+  RF_FREQ="${value:-${RF_FREQ}}"
+
+  read -r -p "UE SSB start [${SSB_START}]: " value
+  SSB_START="${value:-${SSB_START}}"
 
   read -r -p "CN compose [${CN_COMPOSE}]: " value
   CN_COMPOSE="${value:-${CN_COMPOSE}}"
@@ -226,6 +266,24 @@ enable_paper07_256qam_profile()
 
   echo "[INFO] Enabled PAPER-07 256QAM profile: PUSCH256QAM=1, PDSCH256QAM=1, UL rate=35M, DL rate=141M, duration=60s"
   echo "[INFO] Run option 2 or 3 to restart/apply UE capability before running DL iperf"
+}
+
+select_106prb_profile()
+{
+  GNB_CONFIG="${GNB_CONFIG_106PRB}"
+  N_RB_DL=106
+  RF_FREQ=3630360000
+  SSB_START=144
+  echo "[INFO] Selected 106PRB profile: gNB=${GNB_CONFIG}, UE -r=${N_RB_DL}, RF=${RF_FREQ}, ssb=${SSB_START}"
+}
+
+select_51prb_profile()
+{
+  GNB_CONFIG="${GNB_CONFIG_51PRB}"
+  N_RB_DL=51
+  RF_FREQ=3617640000
+  SSB_START=238
+  echo "[INFO] Selected full-carrier 51PRB profile: gNB=${GNB_CONFIG}, UE -r=${N_RB_DL}, RF=${RF_FREQ}, ssb=${SSB_START}"
 }
 
 enable_paper07_dl_64qam_profile()
@@ -346,6 +404,8 @@ Select action:
  10) Enable PAPER-07 DL 256QAM profile
  11) Run UDP downlink iperf with current DL rate
  12) Run UDP downlink iperf with custom DL rate
+ 13) Select 106PRB carrier profile
+ 14) Select 51PRB full-carrier profile
   q) Quit
 
 EOF
@@ -363,6 +423,8 @@ EOF
       10) enable_paper07_dl_256qam_profile; pause_for_enter ;;
       11) run_dl_iperf "${DL_IPERF_RATE}" "${DL_IPERF_DURATION}"; pause_for_enter ;;
       12) custom_dl_iperf_run; pause_for_enter ;;
+      13) select_106prb_profile; pause_for_enter ;;
+      14) select_51prb_profile; pause_for_enter ;;
       q|Q) exit 0 ;;
       *) echo "[WARN] Unknown choice: ${choice}"; pause_for_enter ;;
     esac
