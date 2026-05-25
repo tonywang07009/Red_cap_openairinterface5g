@@ -1,7 +1,7 @@
 # PAPER-07 TDD Full-Carrier 51PRB Process Log
 
 ## Scope
-- Paper: `evaluation_paper/RedCap_Performance_Analysis_and_Deployment_Strategy_Research.pdf`
+- Paper: `redcap_doc/evaluation_papers/RedCap_Performance_Analysis_and_Deployment_Strategy_Research.pdf`
 - Target: TDD 20 MHz / 51 PRB / 30 kHz SCS style reproduction.
 - Purpose: make `dl_carrierBandwidth` and `ul_carrierBandwidth` equal 51, then rerun PAPER-07 UL/DL.
 

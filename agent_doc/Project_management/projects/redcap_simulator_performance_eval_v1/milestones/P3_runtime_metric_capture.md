@@ -1,5 +1,9 @@
 # P3 Runtime Metric Capture
 
+## 2026-05-25 Evidence Cleanup Note
+- Current retained Paper 07 raw evidence was promoted to `redcap_library/library_runtime_probe/`.
+- New runtime captures should still write timestamped raw logs under `test_log/compiler_logs/` before promotion.
+
 ## Milestone Metadata
 - Milestone: P3
 - Task IDs: P3-T1, P3-T2, P3-T3

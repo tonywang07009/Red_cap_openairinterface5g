@@ -27,7 +27,7 @@
 | UT-M4B-001 | M4-B | Unit | `ctest -R test_nr_ue_drx` | DRX config accepted without not-implemented path | [x] |
 | UT-M4B-002 | M4-B | Unit | `ctest -R test_nr_rrc_lowpower` | eDRX fields round-trip | [x] |
 | UT-M4B-003 | M4-B | Unit | `ctest -R test_nr_nas_lowpower` | Timer state tracked and logged | [x] |
-| UT-M6-001 | M6 | Unit | `m6_evidence_package_summary_2026-05-08_17-32-49.md` + evidence existence smoke check | Existing reports/log references resolve without missing required files | [x] |
+| UT-M6-001 | M6 | Unit | `redcap_library/library_reports_summary/m6_evidence_package_summary.md` + evidence existence smoke check | Existing reports/log references resolve without missing required files | [x] |
 | UT-M6-002 | M6 | Unit | Project doc evidence path check | Project doc evidence paths resolve | [x] |
 | UT-M7-001 | M7 | Hygiene | `git diff --check` | No whitespace errors after cleanup | [x] |
 | UT-M7-002 | M7 | Hygiene | `bash -n <modified scripts>` | No shell scripts modified in inventory-only closure | [NA] |
@@ -61,7 +61,7 @@
 | RT-M5-064 | M5 | 64 UE staged | `mmtc_smoke_64ue_caseb_static_cn_2026-05-08_16-55-20_escalated.log` | classified as gNB runtime restart / SIGKILL threshold; CN blockers absent; pre-restart RA counters logged | [!] |
 
 ## Reporting Rule
-- Every completed validation must write or update a daily log under `test_logs/work_daily/`.
+- Every completed validation must write or update a daily log under `test_log/work_daily/`.
 - Report these statuses separately:
   - [source build PASS/FAIL]
   - [unit test PASS/FAIL/NA]

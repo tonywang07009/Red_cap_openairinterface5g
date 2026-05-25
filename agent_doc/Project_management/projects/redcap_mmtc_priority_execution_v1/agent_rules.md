@@ -11,7 +11,7 @@
   1. `project_plan.md`
   2. target milestone file
   3. relevant validation file
-  4. latest `test_logs/work_daily/*.md`
+  4. latest `test_log/work_daily/*.md`
 
 ## Document Model
 - `project_plan.md` is the active index and status source.
@@ -57,7 +57,7 @@
 - Applies to `openair1/` or PHY-related radio/config behavior.
 - Required order:
   1. Locate existing implementation in `openair1/` and related configs.
-  2. Cross-check against `spec/redcap_3gpp/spec.md` and TS 38.306 / TS 38.101-1.
+  2. Cross-check against `redcap_doc/specs/redcap_3gpp/spec.md` and TS 38.306 / TS 38.101-1.
   3. Propose the change in Traditional Chinese before editing.
   4. Patch one function or one parameter group at a time.
   5. Plan the closest build/test.

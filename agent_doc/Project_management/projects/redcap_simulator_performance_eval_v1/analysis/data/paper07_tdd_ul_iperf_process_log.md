@@ -7,7 +7,7 @@
 - UE tunnel IP: `10.0.0.2`
 - Server: `oai-ext-dn`
 - Server IP: `192.168.72.135`
-- Primary raw source: `test_log/compiler_logs/mmtc_smoke_2026-05-21_18-04-58_ue1_iperf3_ul.log`
+- Primary raw source: `redcap_library/library_runtime_probe/paper07_tdd_ul_iperf_256qam_final.log`
 
 ## Run Summary
 | Run ID | Timestamp | Offered Rate | PUSCH 256QAM Enabled | Sender Mbps | Receiver Mbps | Jitter ms | Lost / Total | UDP Loss % | Active gNB ULSCH Evidence | Raw Interval Status |

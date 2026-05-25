@@ -3,7 +3,7 @@
 ## 1. Report Scope
 - [Report Name]: PAPER-07 RedCap UL peak-rate reproduction and true 256QAM verification.
 - [Paper ID]: PAPER-07.
-- [Paper File]: `evaluation_paper/Research_on_5G_RedCap_Standard_and_Key_Technologies.pdf`.
+- [Paper File]: `redcap_doc/evaluation_papers/paper_07Research_on_5G_RedCap_Standard_and_Key_Technologies.pdf`.
 - [Paper Evidence]: PDF page 4, Table IV, RedCap uplink peak-rate test.
 - [Simulator]: OAI NR RFsim-based RedCap scenario.
 - [Objective]: verify whether the simulator can reproduce PAPER-07 uplink peak-rate behavior and distinguish [64QAM] from [256QAM] by MAC-layer evidence.
@@ -203,9 +203,9 @@ UE 6cd3: ulsch_rounds 27059/0/0/0, ulsch_errors 0, ulsch_DTX 0, BLER 0.00000 MCS
 
 ### Step 9: Collect Traffic Metrics
 - Read iperf3 UL log from:
-  - `test_log/compiler_logs/mmtc_smoke_2026-05-21_18-04-58_ue1_iperf3_ul.log`.
+  - `redcap_library/library_runtime_probe/paper07_tdd_ul_iperf_256qam_final.log`.
 - Read ping log from:
-  - `test_log/compiler_logs/mmtc_smoke_2026-05-21_18-04-58_ue1_ping.log`.
+  - `redcap_library/library_runtime_probe/paper07_tdd_ping_256qam_final.log`.
 - Store parsed results in:
   - `analysis/data/paper07_true_256qam_retest.csv`.
 - Generate plot:

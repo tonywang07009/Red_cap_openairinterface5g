@@ -3,7 +3,7 @@
 ## Scope
 - Milestone: P1
 - Task IDs: P1-T1, P1-T2
-- Paper source: `evaluation_paper/`
+- Paper source: `redcap_doc/evaluation_papers/`
 - DOE source: `agent_doc/exp_skill/taguchi Method.pdf`
 - Extraction method: targeted `pdftotext` page and keyword extraction.
 

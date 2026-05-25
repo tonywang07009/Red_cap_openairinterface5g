@@ -4,7 +4,7 @@
 - [Completed]
 - Scope: [TDD DL] only.
 - FDD: [Deferred] for later project-management planning.
-- Paper source: `evaluation_paper/paper_07Research_on_5G_RedCap_Standard_and_Key_Technologies.pdf`.
+- Paper source: `redcap_doc/evaluation_papers/paper_07Research_on_5G_RedCap_Standard_and_Key_Technologies.pdf`.
 - Paper target used: TDD downlink 105/140 Mbps-level capability from Table I and downlink peak-rate result section [Needs Verification: local PDF OCR mixes Table IV/Table V ordering].
 
 ## Purpose

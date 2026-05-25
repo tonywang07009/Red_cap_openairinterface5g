@@ -1,5 +1,10 @@
 # M4B DRX eDRX PSM
 
+## 2026-05-25 Evidence Cleanup Note
+- Raw `test_log` evidence referenced below was summarized and cleaned after user approval.
+- Current retained evidence should be read from `redcap_library/library_reports_summary/m4b_lowpower_boundary_report.md` and related `m4b_*.md` reports.
+- Historical `test_log/...` paths below describe original run provenance only.
+
 ## Scope
 - Connected DRX behavior.
 - Idle and inactive eDRX support.

@@ -1,7 +1,7 @@
 # PAPER-07 TDD Reproduction Process Log - 2026-05-23
 
 ## Source Paper
-- Paper: `evaluation_paper/RedCap_Performance_Analysis_and_Deployment_Strategy_Research.pdf`
+- Paper: `redcap_doc/evaluation_papers/RedCap_Performance_Analysis_and_Deployment_Strategy_Research.pdf`
 - PDF metadata title: `RedCap Performance Analysis and Deployment Strategy Research`
 - Extracted paper target: TDD 20MHz 256QAM, 1T2R, UL `34 Mbps`, DL `140 Mbps`.
 - FDD paper target exists but was not run in this experiment: 20MHz 256QAM, UL `120 Mbps`, DL `226 Mbps`.
@@ -60,7 +60,7 @@ docker exec rfsim5g-oai-nr-ue1_redcap iperf3 -c 192.168.72.135 -t 60 -B 10.0.0.2
 
 Raw log:
 ```text
-test_log/compiler_logs/mmtc_smoke_2026-05-23_12-07-00_ue1_iperf3_ul.log
+redcap_library/library_runtime_probe/paper07_tdd_ul_iperf_106prb_final.log
 ```
 
 Final output:

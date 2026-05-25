@@ -2,7 +2,7 @@
 
 ## Scope
 - [Status]: Completed.
-- [Paper]: `evaluation_paper/RedCap_Performance_Analysis_and_Deployment_Strategy_Research.pdf`.
+- [Paper]: `redcap_doc/evaluation_papers/RedCap_Performance_Analysis_and_Deployment_Strategy_Research.pdf`.
 - [Paper Evidence]: PDF page 3 describes RedCap simulation parameters; PDF page 4 table lists RedCap peak rates by duplex/BWP.
 - [Reproduction Scope]: TDD only.
 - [Deferred Scope]: FDD UL/DL, because the current RFsim scenario is TDD n78.
@@ -59,9 +59,9 @@ rtt min/avg/max/mdev = 2.763/3.904/4.492/0.505 ms
 - Process log: `agent_doc/Project_management/projects/redcap_simulator_performance_eval_v1/analysis/data/paper07_tdd_reproduction_2026-05-23_process_log.md`
 - Plot PNG: `agent_doc/Project_management/projects/redcap_simulator_performance_eval_v1/analysis/plots/paper07_tdd_reproduction_2026-05-23.png`
 - Plot PDF: `agent_doc/Project_management/projects/redcap_simulator_performance_eval_v1/analysis/plots/paper07_tdd_reproduction_2026-05-23.pdf`
-- UL raw log: `test_log/compiler_logs/mmtc_smoke_2026-05-23_12-07-00_ue1_iperf3_ul.log`
-- UE log: `test_log/compiler_logs/mmtc_smoke_2026-05-23_12-07-00_ue1_docker.log`
-- Ping log: `test_log/compiler_logs/mmtc_smoke_2026-05-23_12-07-00_ue1_ping.log`
+- UL raw log: `redcap_library/library_runtime_probe/paper07_tdd_ul_iperf_106prb_final.log`
+- UE log: `redcap_library/library_runtime_probe/paper07_tdd_ue_docker_106prb_final.log`
+- Ping log: `redcap_library/library_runtime_probe/paper07_tdd_ping_106prb_final.log`
 
 ## Limitations
 - This is a TDD RFsim reproduction, not a field-channel reproduction.

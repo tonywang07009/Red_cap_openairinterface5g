@@ -29,8 +29,8 @@
 | [M4] SDT/RRC_INACTIVE | RedCap SDT FSM 與 transition log | [x] | `UT-M4-001`, `UT-M4-002` |
 | [M4-B] DRX/eDRX/PSM | Connected DRX、eDRX、NAS PSM boundary | [x] | `UT-M4B-001/002/003`, `FV-M4B-BOUNDARY` |
 | [M5] mMTC scaling | 30/32/48/56 UE Case B runtime scaling | [x] | `RT-M5-032`, `RT-M5-048`, `RT-M5-056` |
-| [M6] Docs/evidence | 報告、traceability、learning reports | [x] | `test_log/report/m6_evidence_package_summary_2026-05-08_17-32-49.md` |
-| [M7] Repo hygiene | inventory-only，未刪檔 | [x] | `test_log/report/m7_repo_hygiene_inventory_2026-05-08_17-32-49.md` |
+| [M6] Docs/evidence | 報告、traceability、learning reports | [x] | `redcap_library/library_reports_summary/m6_evidence_package_summary.md` |
+| [M7] Repo hygiene | approved cleanup，`test_log` 高價值證據已轉入 `redcap_library` | [x] | `redcap_library/library_reports_summary/redcap_test_log_curated_summary.md` |
 
 ## RedCap 參數總表
 ### gNB RedCap YAML 參數
@@ -67,7 +67,7 @@
 ### mMTC Runtime 環境變數
 | 變數 | Accepted 56 UE 建議值 | 作用 | 驗證重點 |
 |---|---|---|---|
-| `GNB_REDCAP_CONFIG` | `test_log/runtime_configs/gnb.redcap_mmtc_case-b_2026-05-02_12-35-01.yaml` | 指定 Case B gNB runtime config | 確認 `coreset0_redcap_mode_r17: 1` |
+| `GNB_REDCAP_CONFIG` | `redcap_library/library_gnb_config/gnb_redcap_mmtc_case_b_final.yaml` | 指定 Case B gNB runtime config | 確認 `coreset0_redcap_mode_r17: 1` |
 | `MMTC_TOTAL_UES` | `64` | overlay 產生 UE1..UE64 | 可 sample 56，不必只產生 56 |
 | `MMTC_SAMPLE_UES` | `1..56` | 指定要驗證的 UE 清單 | accepted run 是 56 個 sample 全 pass |
 | `MMTC_CN_COMPOSE` | `/home/tonywang/OAI/oai-cn5g/docker-compose.yaml` | 指定外部 CN compose | CN/UPF 必須已修正 interface 與 static discovery |
@@ -168,7 +168,7 @@
 | 5 | Msg4 優先用 compact allocation，必要時用 pair-pack allocation | `find_compact_ra_pdsch_allocation()`, `find_bounded_ra_pdsch_allocation()` | log `compact alloc`, `pair-pack alloc` |
 | 6 | UE Msg4 ACK 需要 initial PUCCH resource | `nr_ue_configure_pucch()` | 若缺 resource，看 `MMTC_PUCCH_COMMON_FALLBACK_BWP0` |
 | 7 | 56 UE pre-fix failure 曾落在 CN/NAS/PDU late stage | AMF/SMF/UPF logs | `Registration Reject`, `SMF Selection, no SMF candidate` |
-| 8 | static CN discovery mitigation 後，56 UE 成為 accepted pass | `test_log/report/m5_rt_m5_056_caseb_static_cn_pass_report_2026-05-08_12-18-10.md` | `56/56` attach/PDU/tun/ping |
+| 8 | static CN discovery mitigation 後，56 UE 成為 accepted pass | `redcap_library/library_reports_summary/m5_caseb_56ue_static_cn_pass_report.md` | `56/56` attach/PDU/tun/ping |
 
 [Modification Point] → [M5 Msg4 compact / pair-pack allocation]  
 [Reason] → 30+ UE 同時進入 RA 時，Msg4 若仍吃滿 48 PRB，會把 RedCap BWP 資源塞滿，造成 `vrb_map` 與 contention failure。  
@@ -203,7 +203,7 @@
 cd /home/tonywang/OAI/Red_cap_openairinterface5g
 
 sudo env \
-  GNB_REDCAP_CONFIG=/home/tonywang/OAI/Red_cap_openairinterface5g/test_log/runtime_configs/gnb.redcap_mmtc_case-b_2026-05-02_12-35-01.yaml \
+  GNB_REDCAP_CONFIG=/home/tonywang/OAI/Red_cap_openairinterface5g/redcap_library/library_gnb_config/gnb_redcap_mmtc_case_b_final.yaml \
   MMTC_TOTAL_UES=64 \
   MMTC_SAMPLE_UES="$(seq -s ' ' 1 56)" \
   MMTC_CN_COMPOSE=/home/tonywang/OAI/oai-cn5g/docker-compose.yaml \
@@ -368,7 +368,7 @@ MMTC_SAMPLE_UES="1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 
 - [要讀的檔案]：
   - `ci-scripts/redcap_mmtc_smoke_validation.sh`
   - `agent_doc/Project_management/projects/redcap_mmtc_priority_execution_v1/validation/runtime_checklist.md`
-  - `checklist/redcap_milestone_validation_checklist.md`
+  - `redcap_doc/checklists/redcap_milestone_validation_checklist.md`
 ### 導讀任務
 - [Step 1]：先確認 `MMTC_PUCCH_COMMON_FALLBACK_BWP0=1` 有進入 script info log。
 - [Step 2]：跑 56 UE command，保存 `tee` log。
@@ -385,4 +385,3 @@ MMTC_SAMPLE_UES="1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 
 - [Optional 1]：若未來要挑戰 64 UE，先做 [host resource telemetry]，不要直接改 scheduler。
 - [Optional 2]：若要做 M7 cleanup，必須先列出 deletion candidate、引用掃描、影響評估，再取得明確同意。
 - [Optional 3]：若要啟動 O-RAN xApp/rApp/dApp 實作，應另開 task plan；目前 RedCap mMTC v1 不把 SDK 實作列為完成項。
-

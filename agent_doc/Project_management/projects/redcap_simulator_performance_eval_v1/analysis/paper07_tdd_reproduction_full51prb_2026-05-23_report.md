@@ -55,4 +55,4 @@
 ## Evidence Files
 - CSV: `agent_doc/Project_management/projects/redcap_simulator_performance_eval_v1/analysis/data/paper07_tdd_reproduction_full51prb_2026-05-23.csv`
 - Process log: `agent_doc/Project_management/projects/redcap_simulator_performance_eval_v1/analysis/data/paper07_tdd_reproduction_full51prb_2026-05-23_process_log.md`
-- UL iperf: `test_log/compiler_logs/mmtc_smoke_2026-05-23_16-28-19_ue1_iperf3_ul.log`
+- UL iperf: `redcap_library/library_runtime_probe/paper07_tdd_ul_iperf_51prb_final.log`

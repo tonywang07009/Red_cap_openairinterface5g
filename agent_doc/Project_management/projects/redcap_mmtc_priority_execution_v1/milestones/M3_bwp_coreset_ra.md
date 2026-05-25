@@ -1,5 +1,10 @@
 # M3 BWP CORESET RA
 
+## 2026-05-25 Evidence Cleanup Note
+- Raw `test_log/report`, `test_log/compiler_logs`, and `test_log/runtime_artifacts` evidence referenced below was cleaned after user approval.
+- Current retained evidence should be read from `redcap_library/library_reports_summary/` and `redcap_library/library_gnb_config/`.
+- Historical `test_log/...` paths below describe the original run provenance only.
+
 ## Scope
 - RedCap initial DL/UL BWP.
 - CORESET#0 Case A and Case B behavior.

@@ -26,7 +26,7 @@
   - project reports and local planning folders.
 - Generated or historical artifacts under:
   - `test_log/`
-  - `test_logs/`
+  - legacy `test_logs/` references, if any remain in historical docs.
 - Cross-reference sources:
   - `AGENTS.md`
   - `project_plan.md`
@@ -55,19 +55,23 @@
 - If cleanup touches RFsim scripts or compose-related files, run the closest prepare-only or smoke validation before marking complete.
 
 ## Current Evidence
+- 2026-05-25 approved cleanup batch:
+  - User approved removal of low-value `test_log` work logs and promotion of reusable artifacts into `redcap_library/`.
+  - Curated library root: `redcap_library/`.
+  - Runtime/build/compiler scripts continue to write new generated logs under `test_log/`.
+  - Reusable final configs, reports, CN5G overlays, runtime probe logs, and retained FlexRIC service-model libs are now indexed by `redcap_library/README.md`.
 - 2026-05-08 inventory-only report:
-  - Report: `test_log/report/m7_repo_hygiene_inventory_2026-05-08_17-32-49.md`.
+  - Report: `redcap_library/library_reports_summary/m7_repo_hygiene_inventory_legacy.md`.
   - Markdown inventory count: `460`.
   - Shell script inventory count: `90`.
   - Report inventory count: `90`.
   - Work daily inventory count: `175`.
-- Reference scan highlights:
+- Legacy reference scan highlights:
   - `agent_doc/Project_management/Simluation_v2.md` is referenced as baseline archive and must be preserved.
   - `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.mmtc.yml` is runtime source-of-truth/generated overlay and must be preserved.
-  - `test_log/report/`, `test_logs/work_daily/`, and `test_log/runtime_artifacts/` are active evidence stores and must be preserved.
-- No files were deleted.
-- No shell scripts were modified.
-- Removal tasks are [NA] for this closure because explicit user approval is required before deletion.
+  - `test_log/work_daily/` remains the only temporary work-log store.
+  - Heavy generated `test_log/` artifacts are no longer treated as permanent evidence once promoted into `redcap_library/`.
+- The 2026-05-08 closure was inventory-only; the 2026-05-25 cleanup supersedes that retention decision for the approved target folders.
 
 ## Removal Approval Contract
 - Do not remove files immediately after detection.
@@ -81,9 +85,9 @@
 
 ## Completion Criteria
 - [inventory report completed]
-- [user approval obtained before deletion] [NA for inventory-only closure]
-- [approved removals applied] [NA for inventory-only closure]
-- [stale references updated] [NA for inventory-only closure]
+- [user approval obtained before deletion] [x for 2026-05-25 target batch]
+- [approved removals applied] [x for 2026-05-25 target batch]
+- [stale references updated] [x for promoted final paths]
 - [syntax and documentation checks PASS]
 - [daily work log written]
 

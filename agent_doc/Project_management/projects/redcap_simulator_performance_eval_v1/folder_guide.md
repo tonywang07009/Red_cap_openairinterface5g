@@ -9,7 +9,7 @@
 | Validation rules | `validation/` | Metric dictionary and test matrix |
 | Paper inventory | `literature/paper_index.md` | Compact paper source of truth |
 | P1 metric baseline | `literature/p1_metric_baseline.md` | Paper-to-simulator metric map |
-| Paper PDFs | `../../../../evaluation_paper/` | Formal paper source path |
+| Paper PDFs | `../../../../redcap_doc/evaluation_papers/` | Formal paper source path |
 | Experiment skill notes | `../../../exp_skill/` | Taguchi DOE references and notes |
 | Parsed data | `analysis/data/` | CSV generated from RFsim logs |
 | Plot scripts | `analysis/scripts/` | Python + matplotlib scripts |

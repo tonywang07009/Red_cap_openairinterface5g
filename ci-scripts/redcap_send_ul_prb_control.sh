@@ -9,6 +9,7 @@ TIMESTAMP=$(date +%F_%H-%M-%S)
 FLEXRIC_ROOT=${FLEXRIC_ROOT:-/home/tonywang/OAI/flexric}
 FLEXRIC_BUILD=${FLEXRIC_BUILD:-${FLEXRIC_ROOT}/build-multi}
 FLEXRIC_CONF=${FLEXRIC_CONF:-${REPO_ROOT}/ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/conf/flexric.conf}
+REFERENCE_PLUGIN_DIR=${REPO_ROOT}/redcap_library/library_runtime_probe/flexric_service_models
 PLUGIN_DIR=${REDCAP_CTRL_PLUGIN_DIR:-${REPO_ROOT}/test_log/runtime_libs/flexric}
 BIN_DIR=${REPO_ROOT}/test_log/runtime_bins
 BUILD_LOG=${REPO_ROOT}/test_log/build_logs/redcap_ul_prb_ctrl_xapp_build_${TIMESTAMP}.log
@@ -54,8 +55,12 @@ stage_plugin_libs()
   rm -f "${PLUGIN_DIR}"/lib*_sm.so
   mapfile -t sm_libs < <(find "${FLEXRIC_BUILD}/src/sm" -type f -name 'lib*_sm.so' | sort)
   if [[ ${#sm_libs[@]} -eq 0 ]]; then
-    echo "No FlexRIC service-model libraries found under ${FLEXRIC_BUILD}/src/sm" >&2
-    return 1
+    mapfile -t sm_libs < <(find "${REFERENCE_PLUGIN_DIR}" -maxdepth 1 \( -type f -o -type l \) -name 'lib*_sm.so' | sort)
+    if [[ ${#sm_libs[@]} -eq 0 ]]; then
+      echo "No FlexRIC service-model libraries found under ${FLEXRIC_BUILD}/src/sm or ${REFERENCE_PLUGIN_DIR}" >&2
+      return 1
+    fi
+    echo "Using retained FlexRIC service-model libraries from ${REFERENCE_PLUGIN_DIR}" >&2
   fi
 
   for so_path in "${sm_libs[@]}"; do

@@ -6,14 +6,14 @@
 - Prevent fabricated clause numbers in reports.
 
 ## Local Spec Sources
-- `spec/redcap_3gpp/spec.md`
-- `spec/redcap_3gpp/redcap5g_spec.md`
-- `spec/redcap_3gpp/Redcap/`
-- `spec/redcap_3gpp/DRX/`
-- `spec/redcap_3gpp/eDRX/`
-- `spec/redcap_3gpp/PSM/`
-- `spec/redcap_3gpp/WUS/`
-- `spec/redcap_3gpp/RRM/`
+- `redcap_doc/specs/redcap_3gpp/spec.md`
+- `redcap_doc/specs/redcap_3gpp/redcap5g_spec.md`
+- `redcap_doc/specs/redcap_3gpp/Redcap/`
+- `redcap_doc/specs/redcap_3gpp/DRX/`
+- `redcap_doc/specs/redcap_3gpp/eDRX/`
+- `redcap_doc/specs/redcap_3gpp/PSM/`
+- `redcap_doc/specs/redcap_3gpp/WUS/`
+- `redcap_doc/specs/redcap_3gpp/RRM/`
 
 ## Traceability Table
 | Feature | Milestone | Local Behavior | 3GPP Reference | Verification Status |

@@ -18,7 +18,7 @@
 
 ## Required Paths
 - Project root: `agent_doc/Project_management/projects/redcap_simulator_performance_eval_v1/`
-- Paper source: `evaluation_paper/`
+- Paper source: `redcap_doc/evaluation_papers/`
 - Taguchi skill source: `agent_doc/exp_skill/`
 - Metric validation: `validation/`
 - Paper index: `literature/paper_index.md`
@@ -29,10 +29,10 @@
 ## Acceptance Criteria
 - [x] Project folder exists.
 - [x] AGENTS.md references the new project without replacing the active RedCap implementation project.
-- [x] Paper source is formally set to `evaluation_paper/`.
+- [x] Paper source is formally set to `redcap_doc/evaluation_papers/`.
 - [x] Future PDF reading is constrained to targeted extracts, not bulk reading.
 
 ## Discussion Points
-- [Paper Path]: use `evaluation_paper/` as the formal source.
+- [Paper Path]: use `redcap_doc/evaluation_papers/` as the formal source.
 - [DOE Depth]: use Taguchi L4/L8/L9 first, or start from a simple full-factorial baseline for validation sanity.
 - [Repo Audit Scope]: inventory only in P6; removal requires explicit user approval.

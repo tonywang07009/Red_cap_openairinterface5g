@@ -1,5 +1,9 @@
 # M6 Docs Automation
 
+## 2026-05-25 Evidence Cleanup Note
+- Curated final reports now live under `redcap_library/library_reports_summary/`.
+- `test_log/report/` remains a generated output folder for future runs, not the permanent evidence library.
+
 ## Scope
 - Automation scripts for log parsing, reports, and code indexing.
 - Tutorial and reference documentation after runtime evidence stabilizes.
@@ -15,8 +19,9 @@
 
 ## Target Files
 - `agent_doc/`
-- `test_log/report/`
-- `test_logs/work_daily/`
+- `redcap_library/library_reports_summary/`
+- `test_log/report/` for future generated report output
+- `test_log/work_daily/`
 - Automation scripts under `ci-scripts/` or project-approved helper paths.
 
 ## Implementation Tasks
@@ -37,7 +42,7 @@
 
 ## Current Evidence
 - 2026-05-08 evidence package summary:
-  - Report: `test_log/report/m6_evidence_package_summary_2026-05-08_17-32-49.md`.
+  - Report: `redcap_library/library_reports_summary/m6_evidence_package_summary.md`.
   - Covered milestones: M1, M2, M3, M4, M4-B, M5.
   - M5 accepted runtime target: `56/56` Case B static CN RedCap UE attach/PDU/tunnel/forward ping.
   - M5 upper-bound classification: `64` UE run classified as [gNB runtime restart / SIGKILL threshold].

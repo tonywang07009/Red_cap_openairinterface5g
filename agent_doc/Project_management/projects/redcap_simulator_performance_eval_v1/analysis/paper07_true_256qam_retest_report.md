@@ -2,7 +2,7 @@
 
 ## Status
 - [Completed]
-- Paper: `evaluation_paper/Research_on_5G_RedCap_Standard_and_Key_Technologies.pdf`
+- Paper: `redcap_doc/evaluation_papers/paper_07Research_on_5G_RedCap_Standard_and_Key_Technologies.pdf`
 - Paper evidence: PDF page 4, Table IV, RedCap uplink peak-rate test.
 - Retest purpose: verify that the 35 Mbps UL point is not only a throughput proxy, but actually runs with [PUSCH 256QAM].
 
@@ -44,10 +44,10 @@ UE 6cd3: ulsch_rounds 27059/0/0/0, ulsch_errors 0, ulsch_DTX 0, BLER 0.00000 MCS
 - `ci-scripts/redcap_mmtc_smoke_validation.sh`: passed with `failures=0`, `gnb_restart=0`, `iperf_ul_ok=1`.
 
 ## Logs
-- Build log: `test_log/build_logs/build_nr-uesoftmodem_2026-05-21_17-55-52_redcap-pusch256qam_retry2.log`
-- UE log: `test_log/compiler_logs/mmtc_smoke_2026-05-21_18-04-58_ue1_docker.log`
-- iperf3 UL log: `test_log/compiler_logs/mmtc_smoke_2026-05-21_18-04-58_ue1_iperf3_ul.log`
-- ping log: `test_log/compiler_logs/mmtc_smoke_2026-05-21_18-04-58_ue1_ping.log`
+- Build log: `redcap_library/library_build_evidence/build_nr_uesoftmodem_redcap_pusch256qam_final.log`
+- UE log: `redcap_library/library_runtime_probe/paper07_tdd_ue_docker_256qam_final.log`
+- iperf3 UL log: `redcap_library/library_runtime_probe/paper07_tdd_ul_iperf_256qam_final.log`
+- ping log: `redcap_library/library_runtime_probe/paper07_tdd_ping_256qam_final.log`
 
 ## Outputs
 - CSV: `analysis/data/paper07_true_256qam_retest.csv`

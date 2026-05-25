@@ -1,7 +1,7 @@
 # PAPER-07 TDD Reproduction Step-by-Step Manual
 
 ## 0. Scope
-- [Paper]: `evaluation_paper/RedCap_Performance_Analysis_and_Deployment_Strategy_Research.pdf`
+- [Paper]: `redcap_doc/evaluation_papers/RedCap_Performance_Analysis_and_Deployment_Strategy_Research.pdf`
 - [Experiment]: TDD 20MHz 256QAM peak-rate reproduction.
 - [Paper Target]: UL `34 Mbps`, DL `140 Mbps`.
 - [Simulator]: OAI RFsim RedCap TDD n78 scenario.
@@ -32,7 +32,7 @@ sed -n '1,140p' agent_doc/Project_management/projects/redcap_simulator_performan
 Use `pdftotext` to extract the relevant paper pages:
 
 ```bash
-pdftotext -layout -f 3 -l 4 evaluation_paper/RedCap_Performance_Analysis_and_Deployment_Strategy_Research.pdf -
+pdftotext -layout -f 3 -l 4 redcap_doc/evaluation_papers/RedCap_Performance_Analysis_and_Deployment_Strategy_Research.pdf -
 ```
 
 Expected paper evidence:

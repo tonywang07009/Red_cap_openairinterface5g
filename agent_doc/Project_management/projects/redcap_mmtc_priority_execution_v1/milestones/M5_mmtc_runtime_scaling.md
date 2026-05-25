@@ -1,5 +1,11 @@
 # M5 mMTC Runtime Scaling
 
+## 2026-05-25 Evidence Cleanup Note
+- Raw `test_log` runtime/build/compiler evidence referenced below was summarized and cleaned after user approval.
+- Current retained M5 evidence is under `redcap_library/library_reports_summary/`.
+- Reusable CN5G overlays are under `redcap_library/library_cn5g/`.
+- Historical `test_log/...` paths below describe original run provenance only.
+
 ## Scope
 - Compose-based RFsim mMTC runtime.
 - Fixed-UE and staged multi-UE attach, PDU session, and UL user-plane validation.
@@ -107,7 +113,7 @@
   - Ping RTT aggregate from 56 logs: min-min `54.676 ms`, avg-of-avg `864.775 ms`, max-max `2000.904 ms`.
   - CN mitigation:
     - External config: `/home/tonywang/OAI/oai-cn5g/conf/config.yaml`.
-    - Backup: `test_log/runtime_configs/oai-cn5g_config_pre_static_2026-05-08_12-05-00.yaml`.
+    - Backup: `redcap_library/library_cn5g/oai_cn5g_static_config_backup_final.yaml`.
     - `register_nf.general=no`.
     - `amf.support_features_options.enable_smf_selection=no`.
     - Static SMF UPF endpoint includes `host: oai-upf` and `port: 8805`.
@@ -230,7 +236,7 @@
   - `26/30` attach/PDU/tunnel/ping.
   - Failed UEs: `UE11`, `UE20`, `UE26`, `UE29`.
 - Latest Case B staged 30 UE result:
-  - Runtime config: `test_log/runtime_configs/gnb.redcap_mmtc_case-b_2026-05-02_12-35-01.yaml`.
+  - Runtime config: `redcap_library/library_gnb_config/gnb_redcap_mmtc_case_b_final.yaml`.
   - Log: `test_log/compiler_logs/mmtc_smoke_30ue_caseb_2026-05-02_12-36-39.log`.
   - `27/30` attach/PDU/tunnel/ping.
   - Failed UEs: `UE21`, `UE27`, `UE28`.
@@ -273,7 +279,7 @@
 - [56 UE staged PASS after CN pressure mitigation] Case B 56 UE passed on 2026-05-08 with residual RA retry pressure tracked separately.
 - [64 UE staged target evaluated] Case B 64 UE classified as gNB runtime restart / SIGKILL threshold on 2026-05-08.
 - [failure counters summarized]
-- [logs preserved under `test_log/compiler_logs/`]
+- [raw logs summarized into `redcap_library/library_reports_summary/`; generated future logs still use `test_log/compiler_logs/`]
 - [daily work log written]
 
 ## Closure Decision

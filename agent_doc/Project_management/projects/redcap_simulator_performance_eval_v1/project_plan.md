@@ -7,12 +7,12 @@
 - Objective: design and validate whether this OAI RFsim-based platform can be used for RedCap performance simulation.
 - Agent Rules Path: `agent_doc/Project_management/projects/redcap_simulator_performance_eval_v1/agent_rules.md`
 - Primary Simulator Path: `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/`
-- Paper Reference Path: `evaluation_paper/`
+- Paper Reference Path: `redcap_doc/evaluation_papers/`
 - Experiment Skill Path: `agent_doc/exp_skill/`
 - Validation Directory: `agent_doc/Project_management/projects/redcap_simulator_performance_eval_v1/validation/`
 - Literature Directory: `agent_doc/Project_management/projects/redcap_simulator_performance_eval_v1/literature/`
 - Analysis Directory: `agent_doc/Project_management/projects/redcap_simulator_performance_eval_v1/analysis/`
-- Daily Log Path: `test_logs/work_daily/`
+- Daily Log Path: `test_log/work_daily/`
 
 ## Project Goal
 - [Validation Question]: Can this OAI RFsim platform produce RedCap performance behavior that is directionally comparable to the selected RedCap reference papers?
@@ -28,7 +28,7 @@
   3. one target milestone file under `milestones/`
   4. one target validation file under `validation/`
   5. `literature/paper_index.md` only when paper evidence is needed
-  6. latest `test_logs/work_daily/*.md`
+  6. latest `test_log/work_daily/*.md`
 - Do not bulk-read all PDFs.
 - Extract only targeted pages/sections from a paper when a metric, graph, or assumption is needed.
 - Mark paper-derived claims as [Paper Evidence] and spec-derived claims as [3GPP Evidence].
@@ -79,7 +79,7 @@
 - TS 38.214 Section 6.1 — PUSCH-related scheduling/throughput relevance [Needs Verification].
 
 ## Current Decisions
-- Use `evaluation_paper/` as the formal paper source for this project.
+- Use `redcap_doc/evaluation_papers/` as the formal paper source for this project.
 - Use `agent_doc/exp_skill/` for Taguchi DOE notes and PDF references.
 - Do not start repo-wide deletion or cleanup. P6 is inventory-only unless the user explicitly approves removals.
 

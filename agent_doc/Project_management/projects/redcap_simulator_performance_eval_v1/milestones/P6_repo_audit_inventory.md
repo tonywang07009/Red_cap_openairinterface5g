@@ -1,5 +1,9 @@
 # P6 Repo Audit Inventory
 
+## 2026-05-25 Evidence Cleanup Note
+- The approved cleanup batch promoted reusable evidence into `redcap_library/` and cleaned the selected heavy `test_log` folders.
+- Use `redcap_library/README.md` as the current evidence index.
+
 ## Milestone Metadata
 - Milestone: P6
 - Task IDs: P6-T1
@@ -32,7 +36,7 @@
 
 ## Evidence Output
 - Audit inventory: `agent_doc/Project_management/projects/redcap_simulator_performance_eval_v1/validation/repo_audit_inventory.md`
-- Cleanup batch 1 log: `test_logs/work_daily/2026-05-21_13-18-58_p6-cleanup-batch1.md`
+- Cleanup batch 1 log: `test_log/work_daily/2026-05-21_13-18-58_p6-cleanup-batch1.md`
 
 ## Findings Summary
 - Largest generated artifact areas:

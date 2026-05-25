@@ -7,7 +7,8 @@
 - Baseline Archive: `agent_doc/Project_management/Simluation_v2.md`
 - Milestone Directory: `agent_doc/Project_management/projects/redcap_mmtc_priority_execution_v1/milestones/`
 - Validation Directory: `agent_doc/Project_management/projects/redcap_mmtc_priority_execution_v1/validation/`
-- Daily Log Path: `test_logs/work_daily/`
+- Daily Log Path: `test_log/work_daily/`
+- Curated Evidence Library: `redcap_library/`
 - Objective: Execute RedCap/mMTC work through small, spec-traceable, testable milestone files.
 
 ## Document Model
@@ -91,7 +92,7 @@
   - `RT-M5-060`: [NA] after user accepted 56 UE as sufficient simulation capacity.
   - `RT-M5-CASEB-030`: keep Case B comparison for RA/Msg4 and PUCCH fallback counters.
 - Recently closed:
-  - `M3-T2`: Case A and Case B RFsim runtime evidence passed and artifacts were preserved under `test_log/runtime_artifacts/`.
+  - `M3-T2`: Case A and Case B RFsim runtime evidence passed; retained summaries/configs are now curated under `redcap_library/`.
   - `M4B-T1`: DRX/eDRX/PSM support boundary is documented as [DRX unit/flow-level], [eDRX runtime log-level], and [PSM runtime log-level].
 - Current M5 status:
   - Case B staged runtime now reached `56/56` attach/PDU/tunnel/forward ping after static CN discovery mitigation.
@@ -115,7 +116,7 @@
   - Inventory-only repo hygiene completed; no files were deleted because removals require explicit user approval.
 
 ## Daily Log Follow Rules
-- Every new `test_logs/work_daily/*.md` entry for this project must include:
+- Every new `test_log/work_daily/*.md` entry for this project must include:
   - `Project Path: agent_doc/Project_management/projects/redcap_mmtc_priority_execution_v1/project_plan.md`
   - `Milestone File: milestones/<target>.md`
   - `Validation File: validation/<target>.md`

@@ -1,55 +1,54 @@
 # Project Logging Rules
 
+## Policy
+- `test_log/` is the only temporary log root.
+- `test_log/work_daily/` is a short-lived process-log area, not a permanent evidence library.
+- Permanent reusable evidence belongs in `redcap_library/`.
+- Papers, specs, and checklists belong in `redcap_doc/`.
+
 ## Read Rules
-- At the beginning of a new chat window, before project work:
-  1. Check whether `test_logs/work_daily/` exists.
-  2. If it exists, list `.md` files sorted by filename descending.
-  3. Read the most recent log file in full.
-  4. Output a Traditional Chinese resume summary:
-     - `▶ 上次進度摘要`
-     - `◉ 最後完成子任務：<task-slug>`
-     - `◉ 當前里程碑：<milestone>`
-     - `◉ 待處理事項：<next step from log>`
-     - `◉ 已知問題：<blockers if any>`
-  5. Ask: `是否從上次進度繼續？`
+- At the beginning of a new chat window, read `test_log/work_daily/` only if the user asks to resume from a process log.
+- Prefer active project files and `redcap_library/` summaries over old process logs.
+- Do not scan historical generated logs unless the active task needs raw evidence.
 
 ## Write Rules
-- After completed implementation, validation, planning, or documentation work, create a new Markdown log.
-- Never overwrite an existing log file.
+- Write a process log only when a completed improvement produced a useful result.
+- Do not write a log for pure exploration, repeated failed attempts, path mistakes, or commands that did not change the project state.
+- If a failed experiment reveals a new simulator bug or design limitation, record it as a short debug item in the relevant project validation file instead of writing a full process log.
+- Keep each process log under 100 lines.
 - Use path:
-  - `test_logs/work_daily/YYYY-MM-DD_HH-MM-SS_<task-slug>.md`
-- If `test_logs/work_daily/` does not exist, create it first.
-- If a project plan is updated, append a note to the current daily log indicating which milestone or sub-task was revised.
-- Log files are append-only records; do not delete them without explicit user confirmation.
+  - `test_log/work_daily/YYYY-MM-DD_HH-MM-SS_<task-slug>.md`
 
 ## Required Log Structure
 ```markdown
-# Work Daily Log
-## Session Metadata
-- Date: YYYY-MM-DD HH:MM
-- Agent Session ID: <auto or N/A>
-- Task Slug: <short identifier>
-- Project Path: <project_plan.md path>
+# <Outcome Name>
 
-## Milestone & Sub-task Reference
-- Milestone: <milestone name>
-- Sub-task: <sub-task name>
-- Status: [COMPLETED / IN-PROGRESS / BLOCKED]
+## Conclusion
+- Result:
+- Status: PASS / PARTIAL / BLOCKED
+- Scope:
 
-## What Was Done
-- [Bullet list of changes]
+## Improvement Target
+- Original issue:
+- Improvement direction:
 
-## 3GPP Spec Clauses Referenced
-- TS XX.XXX Section X.X.X — brief note on relevance
+## Changes
+| Type | File / Parameter / Function | Note |
+|---|---|---|
+| Code | `path` / `function()` | ... |
+| Config | `parameter` | ... |
+| Script | `path` | ... |
 
-## Test Results
-| Test Item | Pass / Fail | Coverage | Notes |
-|-----------|-------------|----------|-------|
-| ...       | ...         | ...      | ...   |
+## Validation
+1. ...
+2. ...
+3. ...
 
-## Known Issues / Blockers
-- [List unresolved issues]
+## Key Evidence
+| Metric / Gate | Result | Evidence |
+|---|---:|---|
+| ... | ... | `path` |
 
-## Next Step
-- [Immediate next sub-task]
+## Follow-up
+- ...
 ```

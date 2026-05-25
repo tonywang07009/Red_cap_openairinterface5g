@@ -2894,13 +2894,14 @@ static void fill_redcap_sib1(NR_SIB1_v1700_IEs_t *sib1_v1700, const nr_redcap_co
         // true is allow -> enum , that's why used the get value symbol.
   }
 
-
+  /*redcap */
   // setting of call barred for 1Rx and 2Rx RedCap UEs
   struct NR_RedCap_ConfigCommonSIB_r17__cellBarredRedCap_r17 *cell_barred =
       sib1_v1700->redCap_ConfigCommon_r17->cellBarredRedCap_r17;
   cell_barred->cellBarredRedCap1Rx_r17 = redcap_config->cellBarredRedCap1Rx_r17;
   cell_barred->cellBarredRedCap2Rx_r17 = redcap_config->cellBarredRedCap2Rx_r17;
 
+  // the check is from gnb.config
   sib1_v1700->intraFreqReselectionRedCap_r17 = calloc_or_fail(1, sizeof(*sib1_v1700->intraFreqReselectionRedCap_r17));
   *sib1_v1700->intraFreqReselectionRedCap_r17 = redcap_config->intraFreqReselectionRedCap_r17;
 }
@@ -2937,6 +2938,7 @@ NR_BCCH_DL_SCH_Message_t *get_SIB1_NR(const NR_ServingCellConfigCommon_t *scc,
   AssertFatal(cellID < (1l << 36), "cellID must fit within 36 bits, but is %lu\n", cellID);
 
   NR_BCCH_DL_SCH_Message_t *sib1_message = CALLOC(1,sizeof(NR_BCCH_DL_SCH_Message_t));
+
   AssertFatal(sib1_message != NULL, "out of memory\n");
   sib1_message->message.present = NR_BCCH_DL_SCH_MessageType_PR_c1;
   sib1_message->message.choice.c1 = CALLOC(1,sizeof(struct NR_BCCH_DL_SCH_MessageType__c1));

@@ -1357,12 +1357,13 @@ static void get_redcap_initial_bwp_config(nr_redcap_config_t *rc, int gnb_idx, c
   }
 }
 
+// the redcap config
 static nr_redcap_config_t *get_redcap_config(int gnb_idx, const NR_ServingCellConfigCommon_t *scc)
 {
-  paramdef_t RedCap_Params[] = GNB_REDCAP_PARAMS_DESC;
+  paramdef_t RedCap_Params[] = GNB_REDCAP_PARAMS_DESC; // into the config file
   char aprefix[MAX_OPTNAME_SIZE * 2 + 8];
   snprintf(aprefix, sizeof(aprefix), "%s.[%d].%s", GNB_CONFIG_STRING_GNB_LIST, gnb_idx, GNB_CONFIG_STRING_REDCAP);
-  int ret = config_get(config_get_if(), RedCap_Params, sizeofArray(RedCap_Params), aprefix);
+  int ret = config_get(config_get_if(), RedCap_Params, sizeofArray(RedCap_Params), aprefix); // read the config file 
 
   if (ret <= 0) {
     printf("problem reading section \"%s\"\n", aprefix);
@@ -1375,16 +1376,21 @@ static nr_redcap_config_t *get_redcap_config(int gnb_idx, const NR_ServingCellCo
     LOG_I(GNB_APP, "No RedCap configuration found\n");
     return NULL;
   }
-
+// share memory for the redcap config
   nr_redcap_config_t *rc = calloc_or_fail(1, sizeof(*rc));
+
   rc->cellBarredRedCap1Rx_r17 = *RedCap_Params[GNB_REDCAP_CELL_BARRED_REDCAP1_RX_R17_IDX].i8ptr;
   rc->cellBarredRedCap2Rx_r17 = *RedCap_Params[GNB_REDCAP_CELL_BARRED_REDCAP2_RX_R17_IDX].i8ptr;
   rc->intraFreqReselectionRedCap_r17 = *RedCap_Params[GNB_REDCAP_INTRA_FREQ_RESELECTION_REDCAP_R17_IDX].u8ptr;
+
+  // check if halfDuplexRedCapAllowed_r17 is configured, if not default to false (absent-by-config)
   rc->has_halfDuplexRedCapAllowed_r17 = *RedCap_Params[GNB_REDCAP_HALF_DUPLEX_REDCAP_ALLOWED_R17_IDX].i8ptr >= 0;
   rc->halfDuplexRedCapAllowed_r17 = rc->has_halfDuplexRedCapAllowed_r17
                                         ? *RedCap_Params[GNB_REDCAP_HALF_DUPLEX_REDCAP_ALLOWED_R17_IDX].i8ptr
                                         : 0;
   rc->inactive_allowed = *RedCap_Params[GNB_REDCAP_INACTIVE_ALLOWED_IDX].i8ptr > 0;
+
+  // the inital bwp get the acording info
   get_redcap_initial_bwp_config(rc, gnb_idx, scc);
 
   LOG_I(GNB_APP,
@@ -1394,6 +1400,7 @@ static nr_redcap_config_t *get_redcap_config(int gnb_idx, const NR_ServingCellCo
         rc->intraFreqReselectionRedCap_r17,
         rc->has_halfDuplexRedCapAllowed_r17 ? (rc->halfDuplexRedCapAllowed_r17 ? "present" : "absent-by-config") : "absent",
         rc->inactive_allowed ? "true" : "false");
+        
   return rc;
 }
 

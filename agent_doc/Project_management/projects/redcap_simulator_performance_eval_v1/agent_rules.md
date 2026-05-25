@@ -7,7 +7,7 @@
 - Literature index: `agent_doc/Project_management/projects/redcap_simulator_performance_eval_v1/literature/paper_index.md`
 - Analysis workspace: `agent_doc/Project_management/projects/redcap_simulator_performance_eval_v1/analysis/`
 - Folder guide: `agent_doc/Project_management/projects/redcap_simulator_performance_eval_v1/folder_guide.md`
-- Paper source: `evaluation_paper/`
+- Paper source: `redcap_doc/evaluation_papers/`
 - Experiment skill source: `agent_doc/exp_skill/`
 
 ## Token-Efficient Context Pack
@@ -16,7 +16,7 @@
   2. target milestone file
   3. relevant validation file
   4. `literature/paper_index.md` only when paper evidence is needed
-  5. latest `test_logs/work_daily/*.md`
+  5. latest `test_log/work_daily/*.md`
 
 ## Paper Extraction
 - Do not bulk-read all PDFs.

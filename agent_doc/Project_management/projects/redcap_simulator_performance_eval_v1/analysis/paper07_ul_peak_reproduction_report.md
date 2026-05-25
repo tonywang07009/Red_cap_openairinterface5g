@@ -2,7 +2,7 @@
 
 ## Status
 - [Completed]
-- Paper: `evaluation_paper/Research_on_5G_RedCap_Standard_and_Key_Technologies.pdf`
+- Paper: `redcap_doc/evaluation_papers/paper_07Research_on_5G_RedCap_Standard_and_Key_Technologies.pdf`
 - Paper evidence: PDF page 4, Table IV, RedCap uplink peak-rate test.
 
 ## Execution Note

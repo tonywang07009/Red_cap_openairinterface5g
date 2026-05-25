@@ -55,13 +55,13 @@ Reference only unless the user explicitly asks for commit or MR preparation. Tar
 
 ## 3GPP Specs Available Locally
 
-- Local RedCap and 3GPP project references live under `spec/redcap_3gpp/`.
+- Local RedCap and 3GPP project references live under `redcap_doc/specs/redcap_3gpp/`.
 - Primary RedCap behavior notes:
-  - `spec/redcap_3gpp/spec.md`
-  - `spec/redcap_3gpp/redcap5g_spec.md`
+  - `redcap_doc/specs/redcap_3gpp/spec.md`
+  - `redcap_doc/specs/redcap_3gpp/redcap5g_spec.md`
 - For RedCap, mMTC, PHY, MAC, RRC, or NAS changes, check the relevant local spec notes before implementation.
 - Mark uncertain clause interpretation as `[Needs Verification]`.
-- `@spec-38.331` means: look under `spec/redcap_3gpp/` for the local TS 38.331 reference or project note.
+- `@spec-38.331` means: look under `redcap_doc/specs/redcap_3gpp/` for the local TS 38.331 reference or project note.
 
 ---
 
@@ -71,6 +71,8 @@ Reference only unless the user explicitly asks for commit or MR preparation. Tar
   - `agent_doc/Project_management/`
 - Common logging rules:
   - `agent_doc/Project_management/logging_rules.md`
+- Curated RedCap reusable artifacts:
+  - `redcap_library/`
 
 ## Active Project Entries
 
@@ -87,7 +89,7 @@ Reference only unless the user explicitly asks for commit or MR preparation. Tar
   3. active project `agent_rules.md`
   4. target milestone file
   5. relevant validation file
-  6. latest `test_logs/work_daily/*.md`
+  6. latest `test_log/work_daily/*.md`
 - Do not read unrelated milestones, historical reports, PDFs, logs, or generated artifacts unless the active task needs them.
 - Do not add milestone details, validation matrices, paper extraction details, repo audit checklists, or visualization rules back into root `AGENTS.md`.
 
@@ -97,6 +99,7 @@ Reference only unless the user explicitly asks for commit or MR preparation. Tar
 - Build logs go under `test_log/build_logs/`.
 - Prefer timestamped log files when running builds or tests.
 - When analyzing test failures, open the most recent relevant log and summarize failures in Traditional Chinese.
+- Reusable final configs/reports/evidence promoted from generated logs live under `redcap_library/`; read `redcap_library/README.md` before scanning old `test_log/` artifacts.
 
 ## Cleanup Rule
 

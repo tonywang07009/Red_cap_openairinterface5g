@@ -5,12 +5,13 @@ set -euo pipefail
 SCRIPT_DIR=$(dirname "$(realpath "$0")")
 REPO_ROOT=$(realpath "${SCRIPT_DIR}/..")
 
-DEFAULT_GNB_CONFIG="${REPO_ROOT}/test_log/runtime_configs/gnb.redcap_mmtc_case-b_2026-05-02_12-35-01.yaml"
+DEFAULT_GNB_CONFIG="${REPO_ROOT}/redcap_library/library_gnb_config/gnb_redcap_mmtc_case_b_final.yaml"
 GNB_CONFIG_106PRB="${REPO_ROOT}/ci-scripts/conf_files/gnb.sa.band78.fr1.106PRB.usrpb210.redcap.yaml"
 GNB_CONFIG_51PRB="${REPO_ROOT}/ci-scripts/conf_files/gnb.sa.band78.fr1.51PRB.usrpb210.redcap.yaml"
 DEFAULT_CN_COMPOSE="/home/tonywang/OAI/oai-cn5g/docker-compose.yaml"
 BASE_COMPOSE="${REPO_ROOT}/ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.yml"
 OVERLAY_COMPOSE="${REPO_ROOT}/ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.mmtc.yml"
+OVERLAY_GENERATOR="${REPO_ROOT}/ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/scripts/generate_mmtc_overlay.sh"
 SMOKE_SCRIPT="${REPO_ROOT}/ci-scripts/redcap_mmtc_smoke_validation.sh"
 LOG_DIR="${REPO_ROOT}/test_log/compiler_logs"
 
@@ -122,6 +123,7 @@ check_inputs()
   require_file "${CN_COMPOSE}" "CN compose"
   require_file "${BASE_COMPOSE}" "base compose"
   require_file "${OVERLAY_COMPOSE}" "mMTC overlay compose"
+  require_file "${OVERLAY_GENERATOR}" "mMTC overlay generator"
   require_file "${SMOKE_SCRIPT}" "smoke validation script"
 }
 
@@ -384,6 +386,223 @@ custom_dl_iperf_run()
   run_dl_iperf "${rate}" "${duration}"
 }
 
+probe_compose()
+{
+  local override_file="$1"
+  shift
+
+  env \
+    GNB_REDCAP_CONFIG="${GNB_CONFIG}" \
+    MMTC_N_RB_DL="${N_RB_DL}" \
+    MMTC_RF_FREQ="${RF_FREQ}" \
+    MMTC_SSB_START="${SSB_START}" \
+    MMTC_PUSCH_256QAM="${PUSCH_256QAM}" \
+    MMTC_PDSCH_256QAM="${PDSCH_256QAM}" \
+    MMTC_PUCCH_COMMON_FALLBACK_BWP0=1 \
+    docker compose \
+      --env-file /dev/null \
+      -f "${BASE_COMPOSE}" \
+      -f "${OVERLAY_COMPOSE}" \
+      -f "${override_file}" \
+      "$@"
+}
+
+write_redcap_vs_normal_override()
+{
+  local override_file="$1"
+
+  cat > "${override_file}" <<EOF
+services:
+  oai-nr-ue1:
+    environment:
+      MMTC_EXPERIMENT_ROLE: "normal-probe"
+      MMTC_REDCAP_ENABLE: "0"
+      MMTC_REDCAP_HALF_DUPLEX: "0"
+      MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
+    volumes:
+      - ${REPO_ROOT}/ci-scripts/conf_files/nrue/nrue1.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
+      - ${REPO_ROOT}/ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
+  oai-nr-ue2:
+    environment:
+      MMTC_EXPERIMENT_ROLE: "redcap-probe"
+      MMTC_REDCAP_ENABLE: "1"
+      MMTC_REDCAP_NUM_RX: "1"
+      MMTC_REDCAP_HALF_DUPLEX: "1"
+EOF
+}
+
+container_status_or_dash()
+{
+  local container="$1"
+
+  docker inspect -f '{{.State.Status}}' "${container}" 2>/dev/null || printf -- '-'
+}
+
+ue_tun_ipv4_or_dash()
+{
+  local container="$1"
+
+  docker exec "${container}" sh -c "ip -4 -o addr show 2>/dev/null | awk '\$2 ~ /^oaitun/ { split(\$4, a, \"/\"); print a[1]; exit }'" \
+    2>/dev/null || printf -- '-'
+}
+
+ue_log_has()
+{
+  local container="$1"
+  local pattern="$2"
+  local logs
+
+  logs="$(docker logs "${container}" 2>&1 || true)"
+  rg -q "${pattern}" <<< "${logs}"
+}
+
+ue_log_first_or_dash()
+{
+  local container="$1"
+  local pattern="$2"
+  local logs
+  local line
+
+  logs="$(docker logs "${container}" 2>&1 || true)"
+  line="$(rg -m1 "${pattern}" <<< "${logs}" || true)"
+  if [ -z "${line}" ]; then
+    printf -- '-'
+  else
+    printf '%s' "${line}"
+  fi
+}
+
+print_probe_row()
+{
+  local ue_label="$1"
+  local container="$2"
+  local expected_redcap="$3"
+  local status
+  local tun_ip
+  local config_marker
+  local cap_marker="no"
+  local registration="no"
+  local pdu="no"
+  local verdict="WAIT"
+  local config_matches="0"
+
+  status="$(container_status_or_dash "${container}")"
+  tun_ip="$(ue_tun_ipv4_or_dash "${container}")"
+  [ -n "${tun_ip}" ] || tun_ip="-"
+  config_marker="$(ue_log_first_or_dash "${container}" 'nrue_recap RedCap config:.*RedCap=[01]|support_of_redcap_r17:[[:space:]]*[01]')"
+
+  if [ "${expected_redcap}" = "0" ] && [ "${config_marker}" = "-" ]; then
+    config_marker="no-nrue-recap"
+  fi
+
+  if ue_log_has "${container}" 'supportOfRedCap-r17|Built UE NR capability from nrue_recap YAML'; then
+    cap_marker="yes"
+  fi
+  if [ "${expected_redcap}" = "1" ] && ue_log_has "rfsim5g-oai-gnb_redcap" 'UE with RNTI [0-9a-fA-F]{4} is RedCap'; then
+    cap_marker="yes"
+  fi
+  if ue_log_has "${container}" 'Registration Accept|REGISTRATION ACCEPT|5GMM.*REGISTERED|registration.*accepted'; then
+    registration="yes"
+  fi
+  if ue_log_has "${container}" 'PDU Session Establishment Accept|PDU Session.*accept|oaitun'; then
+    pdu="yes"
+  fi
+  if [ "${tun_ip}" != "-" ]; then
+    registration="yes"
+    pdu="yes"
+  fi
+
+  if [ "${expected_redcap}" = "1" ] \
+    && { [[ "${config_marker}" == *"RedCap=1"* ]] || [[ "${config_marker}" == *"support_of_redcap_r17: 1"* ]]; }; then
+    config_matches="1"
+  elif [ "${expected_redcap}" = "0" ] \
+    && { [[ "${config_marker}" == *"RedCap=0"* ]] \
+      || [[ "${config_marker}" == *"support_of_redcap_r17: 0"* ]] \
+      || [[ "${config_marker}" == *"no-nrue-recap"* ]]; } \
+    && [ "${cap_marker}" = "no" ]; then
+    config_matches="1"
+  fi
+
+  if [ "${status}" = "running" ] && [ "${tun_ip}" != "-" ] && [ "${config_matches}" = "1" ]; then
+    if [ "${expected_redcap}" = "1" ] && [ "${cap_marker}" = "no" ]; then
+      verdict="FLOW"
+    else
+      verdict="PASS"
+    fi
+  fi
+
+  printf '%-8s %-12s %-10s %-16s %-8s %-12s %-5s %-4s %-4s %s\n' \
+    "$(date +%H:%M:%S)" "${ue_label}" "${status}" "${tun_ip}" "RC=${expected_redcap}" \
+    "cap=${cap_marker}" "${registration}" "${pdu}" "${verdict}" "${config_marker}"
+}
+
+run_redcap_vs_nonredcap_probe()
+{
+  local timestamp
+  local override_file
+  local log_file
+  local rounds
+  local interval
+  local gnb_warmup
+
+  check_inputs
+  mkdir -p "${LOG_DIR}"
+
+  timestamp="$(date +%F_%H-%M-%S)"
+  override_file="${LOG_DIR}/redcap_vs_nonredcap_${timestamp}_override.yml"
+  log_file="${LOG_DIR}/redcap_vs_nonredcap_${timestamp}_live.log"
+  rounds="${REDCAP_VS_NORMAL_WATCH_ROUNDS:-18}"
+  interval="${REDCAP_VS_NORMAL_WATCH_INTERVAL:-5}"
+  gnb_warmup="${REDCAP_VS_NORMAL_GNB_WARMUP:-18}"
+
+  write_redcap_vs_normal_override "${override_file}"
+
+  {
+    echo "[INFO] RedCap vs non-RedCap live probe"
+    echo "[INFO] Log file: ${log_file}"
+    echo "[INFO] Override compose: ${override_file}"
+    echo "[INFO] Logic: UE1 normal UE path, UE2 RedCap path; same gNB/CN/RF/PRB profile"
+    echo "[INFO] Profile: gNB=${GNB_CONFIG}, UE -r=${N_RB_DL}, RF=${RF_FREQ}, ssb=${SSB_START}, PUCCH_BWP0=1, PUSCH256=${PUSCH_256QAM}, PDSCH256=${PDSCH_256QAM}"
+    echo
+    echo "[INFO] Generating mMTC overlay for UE1..UE${TOTAL_UES}"
+    "${OVERLAY_GENERATOR}" "${TOTAL_UES}" "${OVERLAY_COMPOSE}"
+
+    echo "[INFO] Starting CN compose"
+    docker compose --env-file /dev/null -f "${CN_COMPOSE}" up -d
+
+    echo "[INFO] Resetting OAI RedCap RFsim compose"
+    probe_compose "${override_file}" down --remove-orphans
+
+    echo "[INFO] Starting nearRT-RIC and gNB"
+    probe_compose "${override_file}" up -d nearRT-RIC oai-gnb
+    sleep "${gnb_warmup}"
+
+    echo "[INFO] Starting UE1 as non-RedCap"
+    probe_compose "${override_file}" up -d oai-nr-ue1
+    sleep "${REDCAP_VS_NORMAL_UE_GAP:-8}"
+
+    echo "[INFO] Starting UE2 as RedCap"
+    probe_compose "${override_file}" up -d oai-nr-ue2
+    echo
+    printf '%-8s %-12s %-10s %-16s %-8s %-12s %-5s %-4s %-4s %s\n' \
+      "time" "ue" "container" "tun_ip" "expect" "capability" "reg" "pdu" "ok" "config_marker"
+
+    for ((round=1; round<=rounds; round++)); do
+      print_probe_row "UE1-Normal" "rfsim5g-oai-nr-ue1_redcap" "0"
+      print_probe_row "UE2-RedCap" "rfsim5g-oai-nr-ue2_redcap" "1"
+      sleep "${interval}"
+    done
+
+    echo
+    echo "[INFO] Decision rule"
+    echo "- UE1 expected: runtime YAML RedCap=0 and UE capability log does not contain supportOfRedCap-r17."
+    echo "- UE2 expected: runtime YAML RedCap=1 and UE capability log contains supportOfRedCap-r17."
+    echo "- ok=FLOW means the expected runtime YAML path and TUN IP are present, but the capability marker was not found."
+    echo "- ok=PASS means the expected runtime path, TUN IP, and capability marker expectation all match."
+    echo "- Both should reach running container state and oaitun IPv4 under the same gNB/CN profile."
+  } 2>&1 | tee "${log_file}"
+}
+
 main_menu()
 {
   local choice
@@ -406,6 +625,7 @@ Select action:
  12) Run UDP downlink iperf with custom DL rate
  13) Select 106PRB carrier profile
  14) Select 51PRB full-carrier profile
+ 15) Run RedCap vs non-RedCap live probe
   q) Quit
 
 EOF
@@ -425,10 +645,16 @@ EOF
       12) custom_dl_iperf_run; pause_for_enter ;;
       13) select_106prb_profile; pause_for_enter ;;
       14) select_51prb_profile; pause_for_enter ;;
+      15) run_redcap_vs_nonredcap_probe; pause_for_enter ;;
       q|Q) exit 0 ;;
       *) echo "[WARN] Unknown choice: ${choice}"; pause_for_enter ;;
     esac
   done
 }
+
+if [ "${1:-}" = "redcap-vs-normal" ]; then
+  run_redcap_vs_nonredcap_probe
+  exit $?
+fi
 
 main_menu "$@"
