@@ -9,7 +9,7 @@
 - [gNB runtime config]: `redcap_library/library_gnb_config/gnb_redcap_mmtc_case_b_final.yaml`.
 - [CN runtime config]: `/home/tonywang/OAI/oai-cn5g/conf/config.yaml`.
 - [Static CN mitigation]: `register_nf.general=no`, `enable_smf_selection=no`, static SMF UPF `host=oai-upf port=8805`.
-- [mMTC script]: `ci-scripts/redcap_mmtc_smoke_validation.sh`.
+- [mMTC script]: `redcap_interface/redcap_mmtc_smoke_validation.sh`.
 - [Docker compose source]: `/home/tonywang/OAI/oai-cn5g/docker-compose.yaml`.
 
 ## 3. Test Results Summary

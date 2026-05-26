@@ -12,6 +12,8 @@
 | `specs/` | Local 3GPP/RedCap reference notes and PDFs |
 | `checklists/` | Human-checkable milestone and validation checklists |
 | `manuals/` | Stable operator and reproduction manuals |
+| `function_reference/` | L1-L3 RedCap function lookup tables |
+| `mineru_markdown/` | MinerU-generated Markdown cache and manifest for papers/spec PDFs |
 
 ## Naming Rule
 - Folder names use lowercase English plural nouns.
@@ -23,3 +25,5 @@
 - For RedCap implementation/spec checks, start with `specs/README.md`.
 - For milestone validation, start with `checklists/README.md`.
 - For reusable operation procedures, start with `manuals/README.md`.
+- For code modification entry points, start with `function_reference/README.md`.
+- For PDF lookup, start with `mineru_markdown/scan_manifest.md`, then open the cached Markdown if available.

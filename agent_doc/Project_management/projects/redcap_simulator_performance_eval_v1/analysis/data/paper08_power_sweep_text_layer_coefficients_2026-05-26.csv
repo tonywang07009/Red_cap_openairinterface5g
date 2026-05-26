@@ -1,0 +1,13 @@
+band,ptx_dbm,ptx_max_dbm,segment,pue_w,pue_mw,tx_seconds_per_period,period_seconds,connected_idle_mw,edrx_mw,average_power_w,average_power_mw,source_note
+n41,-10,23,alpha1_beta1,0.2985,298.5,300,3600,252.6,21.9,0.04495,44.95,PAPER-08 Equation 1 Table II text layer
+n41,0,23,alpha1_beta1,0.3,300.0,300,3600,252.6,21.9,0.045075,45.075,PAPER-08 Equation 1 Table II text layer
+n41,5,23,alpha2_beta2,0.295,295.0,300,3600,252.6,21.9,0.04465833333333333,44.65833333333333,PAPER-08 Equation 1 Table II text layer
+n41,10,23,alpha2_beta2,0.4,400.0,300,3600,252.6,21.9,0.05340833333333333,53.40833333333333,PAPER-08 Equation 1 Table II text layer
+n41,20,23,alpha2_beta2,0.61,610.0,300,3600,252.6,21.9,0.07090833333333333,70.90833333333333,PAPER-08 Equation 1 Table II text layer
+n41,23,23,pmax,0.69,690.0,300,3600,252.6,21.9,0.077575,77.575,PAPER-08 Equation 1 Table II text layer
+n78,-10,23,alpha1_beta1,0.3489,348.9,300,3600,252.6,21.9,0.04915,49.15,PAPER-08 Equation 1 Table II text layer
+n78,0,23,alpha1_beta1,0.35,350.0,300,3600,252.6,21.9,0.04924166666666666,49.24166666666666,PAPER-08 Equation 1 Table II text layer
+n78,5,23,alpha2_beta2,0.47800000000000004,478.00000000000006,300,3600,252.6,21.9,0.05990833333333334,59.90833333333334,PAPER-08 Equation 1 Table II text layer
+n78,10,23,alpha2_beta2,0.496,496.0,300,3600,252.6,21.9,0.06140833333333333,61.40833333333333,PAPER-08 Equation 1 Table II text layer
+n78,20,23,alpha2_beta2,0.532,532.0,300,3600,252.6,21.9,0.06440833333333333,64.40833333333333,PAPER-08 Equation 1 Table II text layer
+n78,23,23,pmax,1.45,1450.0,300,3600,252.6,21.9,0.14090833333333333,140.90833333333333,PAPER-08 Equation 1 Table II text layer

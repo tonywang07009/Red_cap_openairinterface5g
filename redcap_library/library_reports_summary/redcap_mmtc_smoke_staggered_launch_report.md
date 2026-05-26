@@ -5,7 +5,7 @@
 - [Context]：固定驗證路徑要求同時保留 [UE1 = baseline / non-RedCap] 與 [UE2, UE32 = RedCap]，並且全部掛在同一條 [docker compose] runtime path。
 - [Observed Failure]：在 [UE1/UE2/UE32 concurrent startup] 下，[UE1] 會在 [RRCSetup / CellGroupConfig] 之後 [ExitCode 139]；但 [UE2] 與 [UE32] 仍可完成 [attach + PDU session]。
 - [Isolation Result]：[UE1-only] smoke 完整通過，因此失敗點從 [UE1 baseline YAML] 與 [RedCap bearer long-SN suspect] 收斂到 [multi-UE concurrent attach timing / RA pressure]。
-- [Mitigation]：在 [ci-scripts/redcap_mmtc_smoke_validation.sh] 加入 [GNB_WARMUP=5s] 與 [UE_START_GAP=3s]，先起 [nearRT-RIC + gNB]，再逐一拉起 sample UE。
+- [Mitigation]：在 [redcap_interface/redcap_mmtc_smoke_validation.sh] 加入 [GNB_WARMUP=5s] 與 [UE_START_GAP=3s]，先起 [nearRT-RIC + gNB]，再逐一拉起 sample UE。
 - [Outcome]：修補後的 [UE1/UE2/UE32] 全部完成 [Registration Accept]、[PDU Session Establishment Accept]、[`oaitun_ue1`] 建立，以及 [forward/reverse ping] 全綠。
 
 ## 2. Key C Functions / Data Structures Utilized in This Module
@@ -27,7 +27,7 @@
 |-----------|-------------|---------------|-------|
 | [Concurrent smoke before mitigation] `MMTC_SAMPLE_UES=1,2,32` | Fail | N/A | [UE1] 在 [CellGroupConfig] 後 [ExitCode 139]；[UE2/UE32] attach 與 user-plane 成功；gNB log 出現 [vrb_map] / [RA window] 壓力跡象 |
 | [Isolation smoke] `MMTC_SAMPLE_UES=1` | Pass | N/A | [UE1-only] 完成 [attach + bidirectional ping]；排除 [baseline UE1 YAML] 單獨不相容 |
-| [Script syntax check] `bash -n ci-scripts/redcap_mmtc_smoke_validation.sh` | Pass | N/A | staged-launch patch 無 shell syntax error |
+| [Script syntax check] `bash -n redcap_interface/redcap_mmtc_smoke_validation.sh` | Pass | N/A | staged-launch patch 無 shell syntax error |
 | [Staggered smoke after mitigation] `MMTC_SAMPLE_UES=1,2,32` | Pass | N/A | [UE1/UE2/UE32] 全部拿到 [10.0.0.2/10.0.0.3/10.0.0.4]，正反 ping 全綠，且最新 gNB log 未再出現前一輪的 [RA window / forced release] marker |
 
 ## 4. 3GPP Specification Mapping

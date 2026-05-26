@@ -7,7 +7,7 @@
 - This run is a threshold classification, not a source patch validation.
 
 ## Key Runtime Components
-- Script: `ci-scripts/redcap_mmtc_smoke_validation.sh`.
+- Script: `redcap_interface/redcap_mmtc_smoke_validation.sh`.
 - Scenario: `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/`.
 - gNB config: `redcap_library/library_gnb_config/gnb_redcap_mmtc_case_b_final.yaml`.
 - Main log: `test_log/compiler_logs/mmtc_smoke_56ue_caseb_2026-05-08_11-20-59_escalated.log`.

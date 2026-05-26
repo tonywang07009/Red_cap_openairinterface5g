@@ -93,7 +93,7 @@ docker exec rfsim5g-oai-nr-ue1_redcap iperf3 -c 192.168.72.135 -B 10.0.0.2 -t 60
 ## Build And Restart Validation
 - `git diff --check`: passed.
 - `CCACHE_DIR=/tmp/oai-ccache CCACHE_TEMPDIR=/tmp/oai-ccache-tmp cmake --build --preset default --target nr-uesoftmodem`: passed.
-- `ci-scripts/redcap_rebuild_local_oai_images.sh`: passed.
+- `redcap_interface/redcap_rebuild_local_oai_images.sh`: passed.
 - Smoke command used `MMTC_PDSCH_256QAM=1`.
 - Smoke result:
   - `sample=1`

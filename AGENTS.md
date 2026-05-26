@@ -59,6 +59,8 @@ Reference only unless the user explicitly asks for commit or MR preparation. Tar
 - Primary RedCap behavior notes:
   - `redcap_doc/specs/redcap_3gpp/spec.md`
   - `redcap_doc/specs/redcap_3gpp/redcap5g_spec.md`
+- MinerU Markdown cache and scan manifest:
+  - `redcap_doc/mineru_markdown/scan_manifest.md`
 - For RedCap, mMTC, PHY, MAC, RRC, or NAS changes, check the relevant local spec notes before implementation.
 - Mark uncertain clause interpretation as `[Needs Verification]`.
 - `@spec-38.331` means: look under `redcap_doc/specs/redcap_3gpp/` for the local TS 38.331 reference or project note.
@@ -69,10 +71,28 @@ Reference only unless the user explicitly asks for commit or MR preparation. Tar
 
 - Project management root:
   - `agent_doc/Project_management/`
+- RedCap operator interface:
+  - `redcap_interface/`
 - Common logging rules:
   - `agent_doc/Project_management/logging_rules.md`
 - Curated RedCap reusable artifacts:
   - `redcap_library/`
+- Stable RedCap docs:
+  - `redcap_doc/`
+- RedCap PDF Markdown cache:
+  - `redcap_doc/mineru_markdown/scan_manifest.md`
+- RedCap onboarding tutorial:
+  - `redcap_doc/manuals/redcap_project_onboarding_step_by_step.md`
+- RedCap L1-L3 function lookup:
+  - `redcap_doc/function_reference/redcap_l1_l3_function_lookup.md`
+
+## Initial RedCap Project Menu
+
+- At the beginning of a new RedCap project discussion, if the user has not selected a mode, ask which entry they want:
+  1. `進入專案`
+  2. `開啟教學`
+  3. `函式介紹與查詢`
+- If the user directly asks for a concrete task, do the task instead of forcing the menu.
 
 ## Active Project Entries
 

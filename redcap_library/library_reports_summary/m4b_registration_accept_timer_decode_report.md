@@ -19,7 +19,7 @@
 | `cmake --build --preset default --target nr-uesoftmodem` | PASS | UE-side NAS source build | `test_log/build_logs/build_nr-uesoftmodem_2026-04-29_11-00-55_m4b-psm-timer-decode_escalated.log` |
 | `ctest -R nas_lib_test --output-on-failure` | PASS | Registration Accept IE decode regression | `test_log/compiler_logs/ctest_nas_lib_test_2026-04-29_11-15-31_m4b-psm-timer-decode.log` |
 | `ctest -R test_nr_nas_lowpower --output-on-failure` | PASS | PSM helper state behavior | `test_log/compiler_logs/ctest_test_nr_nas_lowpower_2026-04-29_11-16-27_m4b-psm-timer-decode.log` |
-| `ci-scripts/redcap_rebuild_local_oai_images.sh` | PASS | Runtime images include C patch | `test_log/build_logs/rebuild_local_oai_images_2026-04-29_11-17-28_m4b.log` |
+| `redcap_interface/redcap_rebuild_local_oai_images.sh` | PASS | Runtime images include C patch | `test_log/build_logs/rebuild_local_oai_images_2026-04-29_11-17-28_m4b.log` |
 | 2-UE RFsim host validation | PASS | UE attach / PDU / ping / UE2 RedCap UL iperf | `test_log/report/redcap_runtime_host_summary_disabled_2026-04-29_11-28-37.md` |
 
 ## 4. 3GPP Specification Mapping

@@ -15,7 +15,10 @@
 | `redcap_3gpp/PSM/` | PSM references |
 | `redcap_3gpp/WUS/` | Wake-up signal references |
 | `redcap_3gpp/RRM/` | RRM references |
+| `../mineru_markdown/specs/redcap_3gpp/` | MinerU Markdown cache for parsed short spec PDFs |
 
 ## Rule
 - Mark uncertain clause mappings as `[Needs Verification]`.
 - For `@spec-38.331`, search under `redcap_doc/specs/redcap_3gpp/`.
+- For fast PDF lookup, check `redcap_doc/mineru_markdown/scan_manifest.md` first.
+- Specs marked `[PENDING_LARGE_PDF]` in the manifest should be opened from the original PDF until an offline MinerU run is completed.

@@ -6,7 +6,7 @@
 - The validation focus is [Random Access], [Msg2 response window], [Msg4 contention resolution], [PUCCH common fallback], and [gNB no-restart stability].
 
 ## 2. Key Runtime Paths / Data Structures
-- `ci-scripts/redcap_mmtc_smoke_validation.sh`
+- `redcap_interface/redcap_mmtc_smoke_validation.sh`
   - Generates the mMTC compose overlay and validates container state, attach, PDU, TUN, and ping.
 - `redcap_library/library_gnb_config/gnb_redcap_mmtc_case_b_final.yaml`
   - Case B gNB runtime config used for this test.

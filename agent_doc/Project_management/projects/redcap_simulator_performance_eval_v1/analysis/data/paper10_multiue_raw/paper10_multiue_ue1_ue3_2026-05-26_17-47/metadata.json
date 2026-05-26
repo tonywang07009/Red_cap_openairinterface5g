@@ -1,0 +1,28 @@
+{
+  "dl_rate": "141M",
+  "duration_s": 180,
+  "endpoints": [
+    {
+      "container": "rfsim5g-oai-nr-ue1_redcap",
+      "ip": "10.0.0.2",
+      "port": 5201,
+      "ue": 1
+    },
+    {
+      "container": "rfsim5g-oai-nr-ue3_redcap",
+      "ip": "10.0.0.4",
+      "port": 5202,
+      "ue": 3
+    }
+  ],
+  "limitation_note": "RFsim/OAI-CN/OAI-nrUE proxy; paper uses Open5GS, OTA SDR, COTS UEs, and DDDDDDFUUU TDD",
+  "paper_anchor": "PAPER-10 Performance Analysis and Comparison of Full-Fledged 5G Standalone Experimental TDD Testbeds",
+  "protocol": "udp",
+  "run_id": "paper10_multiue_ue1_ue3_2026-05-26_17-47",
+  "server_ip": "192.168.72.135",
+  "ues": [
+    1,
+    3
+  ],
+  "ul_rate": "35M"
+}

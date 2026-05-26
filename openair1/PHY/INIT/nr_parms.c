@@ -31,7 +31,7 @@
 /// Subcarrier spacings in Hz indexed by numerology index
 static const uint32_t nr_subcarrier_spacing[MAX_NUM_SUBCARRIER_SPACING] = {15e3, 30e3, 60e3, 120e3, 240e3};
 static const uint16_t nr_slots_per_subframe[MAX_NUM_SUBCARRIER_SPACING] = {1, 2, 4, 8, 16};
-
+// TR_38_104
 static int nr_redcap_fr1_max_prbs(const uint8_t mu)
 {
   switch (mu) {

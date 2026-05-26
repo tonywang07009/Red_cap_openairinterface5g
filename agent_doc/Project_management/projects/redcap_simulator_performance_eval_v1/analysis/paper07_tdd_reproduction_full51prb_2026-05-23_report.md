@@ -41,9 +41,9 @@
 
 ## Menu Update
 - Main runtime menu:
-  - `ci-scripts/redcap_runtime_menu.sh`
+  - `redcap_interface/redcap_runtime_menu.sh`
 - Wrapper:
-  - `ci-scripts/mmtc.menu.bash`
+  - `redcap_interface/mmtc.menu.bash`
 - New actions:
   - `13) Select 106PRB carrier profile`
   - `14) Select 51PRB full-carrier profile`

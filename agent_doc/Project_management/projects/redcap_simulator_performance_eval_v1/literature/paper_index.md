@@ -2,6 +2,7 @@
 
 ## Source Path
 - Formal path: `redcap_doc/evaluation_papers/`
+- MinerU Markdown cache manifest: `redcap_doc/mineru_markdown/scan_manifest.md`
 - Deprecated/unused user-mentioned alias: `paper_refer/`
 - Removed empty legacy path after P6 cleanup: `paper_test/`
 
@@ -15,6 +16,9 @@
 | PAPER-05 | `redcap_doc/evaluation_papers/How_5G_Can_Support_Worker_Well-Being_The_RedCap_Solution.pdf` | application scenario | [Extracted in `p1_metric_baseline.md`] |
 | PAPER-06 | `redcap_doc/evaluation_papers/RedCap_Performance_Analysis_and_Deployment_Strategy_Research.pdf` | performance/deployment strategy | [Extracted in `p1_metric_baseline.md`] |
 | PAPER-07 | `redcap_doc/evaluation_papers/paper_07Research_on_5G_RedCap_Standard_and_Key_Technologies.pdf` | standard/key technology background | [Extracted in `p1_metric_baseline.md`] |
+| PAPER-08 | `redcap_doc/evaluation_papers/paper_Empirical_Comparison_of_Power_Consumption_and_Data_Rates_for_5G_New_Radio_and_RedCap_Devices.pdf` | power consumption and data rate comparison | [MinerU cache ready; Equation (1) calculator and extended matrix ready] |
+| PAPER-09 | `redcap_doc/evaluation_papers/paper_Filling_a_Gap_Performance_Comparison_ofpaper_RedCap_and_eRedCap_for_Mid-Tier_Applications.pdf` | RedCap/eRedCap mid-tier comparison | [MinerU cache ready; metric extraction pending] |
+| PAPER-10 | `redcap_doc/evaluation_papers/paper_Performance Analysis and Comparison of.pdf` | performance comparison reference | [MinerU cache ready; platform improvement checklist and extended matrix ready] |
 
 ## Extraction Template
 | Paper ID | Page/Figure/Table | Metric | Scenario | X-axis | Y-axis | Simulator Equivalent | Confidence |
@@ -23,5 +27,6 @@
 
 ## Reading Rule
 - Extract only the pages needed for the active metric.
+- Search `redcap_doc/mineru_markdown/scan_manifest.md` before opening a PDF.
 - Prefer figures/tables with explicit axes and units.
 - If a paper result depends on channel models unavailable in RFsim, mark [Not Directly Comparable].

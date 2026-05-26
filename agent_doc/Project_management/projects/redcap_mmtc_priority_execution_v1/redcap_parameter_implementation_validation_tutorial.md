@@ -161,7 +161,7 @@
 ### [M5] mMTC RA / Msg4 / PUCCH / CN Boundary
 | 步驟 | 你要理解的事 | 主要檔案/函數 | 觀察點 |
 |---:|---|---|---|
-| 1 | Case B runtime 用 51 PRB RedCap BWP，UE 分批啟動 | `ci-scripts/redcap_mmtc_smoke_validation.sh` | `MMTC_UE_START_GAP=8` |
+| 1 | Case B runtime 用 51 PRB RedCap BWP，UE 分批啟動 | `redcap_interface/redcap_mmtc_smoke_validation.sh` | `MMTC_UE_START_GAP=8` |
 | 2 | gNB Msg2 必須在 RAR response window 內排出 | `gNB_scheduler_RA.c` `msg2_in_response_window()` | log `[RedCap RA][gNB Msg2 window fail]` |
 | 3 | Msg2 DCI 成功不代表 RAR 無 retry | `gNB_scheduler_RA.c` Msg2 DCI log | compare `Msg2 DCI` vs `RAR reception failed` |
 | 4 | Msg2/Msg4 PDSCH 要在 RedCap BWP PRB 內找到空間 | `find_free_ra_pdsch_rb_start()` | log `Msg2 vrb_map fail`, `Msg4 vrb_map fail` |
@@ -213,7 +213,7 @@ sudo env \
   MMTC_RUN_REVERSE_PING=0 \
   MMTC_IPERF_ENABLE=0 \
   MMTC_PUCCH_COMMON_FALLBACK_BWP0=1 \
-  bash ci-scripts/redcap_mmtc_smoke_validation.sh 2>&1 | tee test_log/compiler_logs/mmtc_smoke_56ue_caseb_static_cn_$(date +%F_%H-%M-%S)_manual.log
+  bash redcap_interface/redcap_mmtc_smoke_validation.sh 2>&1 | tee test_log/compiler_logs/mmtc_smoke_56ue_caseb_static_cn_$(date +%F_%H-%M-%S)_manual.log
 ```
 
 ### 如果 shell 不想用 `seq`
@@ -331,7 +331,7 @@ MMTC_SAMPLE_UES="1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 
 - [Goal]：能理解 Msg4 ACK 為什麼會被 `pucch_ResourceCommon` 影響。
 - [要讀的檔案]：
   - `openair2/LAYER2/NR_MAC_UE/nr_ue_procedures.c`
-  - `ci-scripts/redcap_mmtc_smoke_validation.sh`
+  - `redcap_interface/redcap_mmtc_smoke_validation.sh`
   - `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.mmtc.yml`
 ### 導讀任務
 - [Step 1]：找到 `mmtc_pucch_common_fallback_bwp0_enabled()`，確認它讀 `MMTC_PUCCH_COMMON_FALLBACK_BWP0`。
@@ -366,7 +366,7 @@ MMTC_SAMPLE_UES="1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 
 ### 學習目標
 - [Goal]：能獨立重跑 accepted 56 UE Case B，並寫出 pass/fail 判讀。
 - [要讀的檔案]：
-  - `ci-scripts/redcap_mmtc_smoke_validation.sh`
+  - `redcap_interface/redcap_mmtc_smoke_validation.sh`
   - `agent_doc/Project_management/projects/redcap_mmtc_priority_execution_v1/validation/runtime_checklist.md`
   - `redcap_doc/checklists/redcap_milestone_validation_checklist.md`
 ### 導讀任務

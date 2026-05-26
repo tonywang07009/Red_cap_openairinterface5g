@@ -79,7 +79,7 @@ The menu prints one live row per UE at each interval.
 From the repo root:
 
 ```bash
-ci-scripts/mmtc.menu.bash
+redcap_interface/mmtc.menu.bash
 ```
 
 Then choose:
@@ -91,7 +91,7 @@ Then choose:
 For a short debug run without the interactive menu:
 
 ```bash
-REDCAP_VS_NORMAL_WATCH_ROUNDS=3 REDCAP_VS_NORMAL_WATCH_INTERVAL=3 ci-scripts/mmtc.menu.bash redcap-vs-normal
+REDCAP_VS_NORMAL_WATCH_ROUNDS=3 REDCAP_VS_NORMAL_WATCH_INTERVAL=3 redcap_interface/mmtc.menu.bash redcap-vs-normal
 ```
 
 ## 9. Design Notes
@@ -117,7 +117,7 @@ REDCAP_VS_NORMAL_WATCH_ROUNDS=5 \
 REDCAP_VS_NORMAL_WATCH_INTERVAL=4 \
 REDCAP_VS_NORMAL_GNB_WARMUP=12 \
 REDCAP_VS_NORMAL_UE_GAP=8 \
-ci-scripts/mmtc.menu.bash redcap-vs-normal
+redcap_interface/mmtc.menu.bash redcap-vs-normal
 ```
 
 - Log:
@@ -146,7 +146,7 @@ REDCAP_VS_NORMAL_WATCH_ROUNDS=8 \
 REDCAP_VS_NORMAL_WATCH_INTERVAL=4 \
 REDCAP_VS_NORMAL_GNB_WARMUP=12 \
 REDCAP_VS_NORMAL_UE_GAP=8 \
-ci-scripts/mmtc.menu.bash redcap-vs-normal
+redcap_interface/mmtc.menu.bash redcap-vs-normal
 ```
 
 - Log:

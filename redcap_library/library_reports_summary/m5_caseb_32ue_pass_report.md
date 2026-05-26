@@ -6,7 +6,7 @@
 - This keeps the comparison focused on [Random Access] and [contention resolution] behavior rather than throughput load.
 
 ## 2. Key Runtime Paths / Data Structures
-- `ci-scripts/redcap_mmtc_smoke_validation.sh`
+- `redcap_interface/redcap_mmtc_smoke_validation.sh`
   - Generates the mMTC compose overlay and validates container state, attach, PDU, TUN, and ping.
 - `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.mmtc.yml`
   - Runtime-generated UE service set for UE1..UE50.

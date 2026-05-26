@@ -19,7 +19,7 @@
 
 ## Test Command
 ```bash
-MMTC_TOTAL_UES=29 MMTC_SAMPLE_UES=1 MMTC_IPERF_SAMPLE_UES=1 MMTC_IPERF_ENABLE=1 MMTC_IPERF_UDP=1 MMTC_IPERF_RATE=35M MMTC_IPERF_DURATION=60 MMTC_FORWARD_PING_MODE=parallel MMTC_RUN_REVERSE_PING=0 MMTC_PING_COUNT=10 MMTC_GNB_WARMUP=5 MMTC_SLEEP_AFTER_UP=25 MMTC_UE_START_GAP=0 MMTC_PUCCH_COMMON_FALLBACK_BWP0=1 MMTC_PUSCH_256QAM=1 ci-scripts/redcap_mmtc_smoke_validation.sh
+MMTC_TOTAL_UES=29 MMTC_SAMPLE_UES=1 MMTC_IPERF_SAMPLE_UES=1 MMTC_IPERF_ENABLE=1 MMTC_IPERF_UDP=1 MMTC_IPERF_RATE=35M MMTC_IPERF_DURATION=60 MMTC_FORWARD_PING_MODE=parallel MMTC_RUN_REVERSE_PING=0 MMTC_PING_COUNT=10 MMTC_GNB_WARMUP=5 MMTC_SLEEP_AFTER_UP=25 MMTC_UE_START_GAP=0 MMTC_PUCCH_COMMON_FALLBACK_BWP0=1 MMTC_PUSCH_256QAM=1 redcap_interface/redcap_mmtc_smoke_validation.sh
 ```
 
 ## Runtime Evidence
@@ -40,8 +40,8 @@ UE 6cd3: ulsch_rounds 27059/0/0/0, ulsch_errors 0, ulsch_DTX 0, BLER 0.00000 MCS
 ## Validation
 - `git diff --check`: passed for modified files.
 - `cmake --build --preset default --target nr-uesoftmodem`: passed with `CCACHE_DIR=/tmp/oai-ccache CCACHE_TEMPDIR=/tmp/oai-ccache-tmp`.
-- `ci-scripts/redcap_rebuild_local_oai_images.sh`: passed after Docker escalation.
-- `ci-scripts/redcap_mmtc_smoke_validation.sh`: passed with `failures=0`, `gnb_restart=0`, `iperf_ul_ok=1`.
+- `redcap_interface/redcap_rebuild_local_oai_images.sh`: passed after Docker escalation.
+- `redcap_interface/redcap_mmtc_smoke_validation.sh`: passed with `failures=0`, `gnb_restart=0`, `iperf_ul_ok=1`.
 
 ## Logs
 - Build log: `redcap_library/library_build_evidence/build_nr_uesoftmodem_redcap_pusch256qam_final.log`

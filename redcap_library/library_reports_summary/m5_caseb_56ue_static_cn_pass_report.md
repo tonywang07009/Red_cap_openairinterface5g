@@ -9,7 +9,7 @@
 - [gNB runtime config]: `redcap_library/library_gnb_config/gnb_redcap_mmtc_case_b_final.yaml`.
 - [CN runtime config]: `/home/tonywang/OAI/oai-cn5g/conf/config.yaml`.
 - [CN backup]: `redcap_library/library_cn5g/oai_cn5g_static_config_backup_final.yaml`.
-- [mMTC script]: `ci-scripts/redcap_mmtc_smoke_validation.sh`.
+- [mMTC script]: `redcap_interface/redcap_mmtc_smoke_validation.sh`.
 - [Docker compose source]: `/home/tonywang/OAI/oai-cn5g/docker-compose.yaml`.
 
 ## 3. Test Results Summary

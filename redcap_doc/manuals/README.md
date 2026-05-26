@@ -9,3 +9,4 @@
 | File | Purpose |
 |---|---|
 | `redcap_mmtc_systematic_usage_steps.md` | Baseline 50 UE mMTC validation procedure and troubleshooting notes |
+| `redcap_project_onboarding_step_by_step.md` | Step-by-step handoff guide for dependencies, build, UI use, and function modification |

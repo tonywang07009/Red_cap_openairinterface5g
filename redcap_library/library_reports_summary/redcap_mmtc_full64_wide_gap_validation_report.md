@@ -5,7 +5,7 @@
 - Milestone: [Milestone 5: Compose Rebase & mMTC Scaling]
 - Sub-task: [64-UE full attach and parallel ping validation]
 - Validation Command:
-  `env MMTC_TOTAL_UES=64 MMTC_SAMPLE_UES=1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64 MMTC_START_XAPP=0 MMTC_FORWARD_PING_MODE=parallel MMTC_RUN_REVERSE_PING=0 MMTC_GNB_WARMUP=10 MMTC_UE_START_GAP=10 ci-scripts/redcap_mmtc_smoke_validation.sh`
+  `env MMTC_TOTAL_UES=64 MMTC_SAMPLE_UES=1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64 MMTC_START_XAPP=0 MMTC_FORWARD_PING_MODE=parallel MMTC_RUN_REVERSE_PING=0 MMTC_GNB_WARMUP=10 MMTC_UE_START_GAP=10 redcap_interface/redcap_mmtc_smoke_validation.sh`
 - Primary Log Prefix:
   `test_log/compiler_logs/mmtc_smoke_2026-04-19_00-11-51_*`
 
@@ -62,11 +62,11 @@
   Propose a minimal multi-UE experiment matrix that can separate [launch-order sensitivity], [UE capability sensitivity], and [CellGroupConfig application sensitivity] without changing CN topology.
 
 ## Modification Logs
-- `[ci-scripts/redcap_mmtc_smoke_validation.sh]`:
+- `[redcap_interface/redcap_mmtc_smoke_validation.sh]`:
   Added `[MMTC_GNB_WARMUP]` and `[MMTC_UE_START_GAP]` controls for staged UE startup.
-- `[ci-scripts/redcap_mmtc_smoke_validation.sh]`:
+- `[redcap_interface/redcap_mmtc_smoke_validation.sh]`:
   Added `[MMTC_FORWARD_PING_MODE=parallel]` and `[MMTC_RUN_REVERSE_PING]` controls for concurrent ping validation.
-- `[ci-scripts/redcap_mmtc_smoke_validation.sh]`:
+- `[redcap_interface/redcap_mmtc_smoke_validation.sh]`:
   Added shared user-plane snapshots and per-UE state capture to improve runtime evidence collection.
 
 ## Conclusion

@@ -14,8 +14,16 @@
 | PDU session success ratio | percent | UE/CN logs | User-plane readiness metric |
 | Tunnel readiness ratio | percent | UE/container network check | Data-path readiness metric |
 | gNB restart count | count | Docker inspect/log markers | Stability metric |
+| Modeled UE UL power | W / mW | `analysis/scripts/p08_uplink_power_calculator.py` | PAPER-08 Equation (1) estimate, not RF power-meter evidence |
+| Duty-cycle average power | W / mW | `analysis/scripts/p08_uplink_power_calculator.py` | Uses transmit, connected-idle, and eDRX time shares |
+| Uplink transmit power input | dBm | experiment matrix / external calculator input | Model input axis for PAPER-08 power estimate |
+| Host CPU utilization | percent / cores | `top`, `docker stats`, or host monitor log | PAPER-10 host-resource sensitivity metric |
+| Host memory utilization | percent / MiB | `top`, `docker stats`, or host monitor log | PAPER-10 host-resource sensitivity metric |
+| Observed MCS / Qm / NPRB | table/index/order/PRB | gNB `nrMAC_stats.log` | Scheduler evidence for throughput interpretation |
 
 ## Plot Axis Rule
 - X-axis must be one of the controlled simulator factors, such as [UE count], [offered rate], [run index], or [BWP/scheduler case].
 - Y-axis must be one measured metric from this dictionary.
 - Do not plot paper-only variables unless the simulator has an explicit equivalent.
+- PAPER-08 power plots must label [Modeled UE UL power] as a calculator output, not a direct RFsim measurement.
+- PAPER-10 host-resource plots must record the monitor source and sampling window.

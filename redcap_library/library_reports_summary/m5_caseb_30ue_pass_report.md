@@ -9,7 +9,7 @@
 - `gNB_scheduler_RA.c` — gNB RA Msg2/Msg4 scheduling and runtime markers.
 - `nr_mac_redcap_bwp.c` — RedCap Case A/B BWP and CORESET helper path.
 - `nr_ue_procedures.c` — UE RA-RNTI monitoring and Msg2 handling path.
-- `ci-scripts/redcap_mmtc_smoke_validation.sh` — staged UE launch, tunnel, ping, and log capture.
+- `redcap_interface/redcap_mmtc_smoke_validation.sh` — staged UE launch, tunnel, ping, and log capture.
 
 ## 3. Test Results Summary Table
 | Test Item | Pass-Fail Status | Code Coverage | Modification Logs |

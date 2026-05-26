@@ -30,7 +30,7 @@
 - Primary mMTC compose overlay:
   - `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.mmtc.yml`
 - Primary mMTC script:
-  - `ci-scripts/redcap_mmtc_smoke_validation.sh`
+  - `redcap_interface/redcap_mmtc_smoke_validation.sh`
 - Runtime-generated config path:
   - `test_log/runtime_configs/`
 

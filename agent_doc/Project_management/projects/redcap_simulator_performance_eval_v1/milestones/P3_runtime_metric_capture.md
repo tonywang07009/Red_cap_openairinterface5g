@@ -17,7 +17,7 @@
 
 ## Runtime Sources
 - Scenario directory: `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/`
-- Current helper: `ci-scripts/redcap_runtime_menu.sh`
+- Current helper: `redcap_interface/redcap_runtime_menu.sh`
 - Logs: `test_log/compiler_logs/`, `test_log/runtime_artifacts/`
 - Run matrix: `analysis/data/p2_taguchi_l9_run_matrix.csv`
 - Success criteria: `validation/success_criteria.md`

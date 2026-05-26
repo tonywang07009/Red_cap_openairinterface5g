@@ -67,9 +67,9 @@ Rate unit rule:
 - A bad unitless run is easy to identify because the final iperf summary will show only about one datagram over 60 seconds.
 
 Runtime menu shortcut:
-- Run `ci-scripts/redcap_runtime_menu.sh`.
+- Run `redcap_interface/redcap_runtime_menu.sh`.
 - Alias wrapper is also available:
-  - `ci-scripts/mmtc.menu.bash`
+  - `redcap_interface/mmtc.menu.bash`
 - Choose `8) Enable PAPER-07 256QAM profile` to set:
   - `PUSCH256QAM=1`
   - `PDSCH256QAM=1`
@@ -110,7 +110,7 @@ MMTC_UE_START_GAP=0 \
 MMTC_PUCCH_COMMON_FALLBACK_BWP0=1 \
 MMTC_PUSCH_256QAM=1 \
 MMTC_PDSCH_256QAM=1 \
-ci-scripts/redcap_mmtc_smoke_validation.sh
+redcap_interface/redcap_mmtc_smoke_validation.sh
 ```
 
 Expected health summary:
@@ -200,7 +200,7 @@ Interpretation:
 
 ## 8. Run DL 141M Reverse iperf
 Menu path:
-- In `ci-scripts/redcap_runtime_menu.sh`, choose `10` for the DL 256QAM profile.
+- In `redcap_interface/redcap_runtime_menu.sh`, choose `10` for the DL 256QAM profile.
 - Choose `2` to restart/apply UE capability without UL iperf, or choose `3` if an UL check is also desired.
 - Choose `11` to run DL reverse iperf with the current DL rate.
 - Choose `12` if a custom DL rate or shorter validation duration is needed.
@@ -390,13 +390,13 @@ The UE side must be aligned with the gNB command-line hint printed by OAI:
 Use the wrapper or the original menu:
 
 ```bash
-ci-scripts/mmtc.menu.bash
+redcap_interface/mmtc.menu.bash
 ```
 
 or:
 
 ```bash
-ci-scripts/redcap_runtime_menu.sh
+redcap_interface/redcap_runtime_menu.sh
 ```
 
 For the original 106PRB carrier:
@@ -471,7 +471,7 @@ MMTC_UE_START_GAP=0 \
 MMTC_PUCCH_COMMON_FALLBACK_BWP0=1 \
 MMTC_PUSCH_256QAM=1 \
 MMTC_PDSCH_256QAM=1 \
-ci-scripts/redcap_mmtc_smoke_validation.sh
+redcap_interface/redcap_mmtc_smoke_validation.sh
 ```
 
 Expected smoke summary:

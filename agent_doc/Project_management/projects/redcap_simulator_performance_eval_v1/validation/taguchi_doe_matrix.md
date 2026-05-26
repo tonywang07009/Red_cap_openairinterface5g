@@ -5,8 +5,8 @@
 - Task IDs: P2-T1, P2-T2
 - Source metric baseline: `literature/p1_metric_baseline.md`
 - Runtime helper checked:
-  - `ci-scripts/redcap_runtime_menu.sh`
-  - `ci-scripts/redcap_mmtc_smoke_validation.sh`
+  - `redcap_interface/redcap_runtime_menu.sh`
+  - `redcap_interface/redcap_mmtc_smoke_validation.sh`
 - CSV run matrix:
   - `analysis/data/p2_taguchi_l9_run_matrix.csv`
 - Success criteria:
@@ -72,7 +72,7 @@ MMTC_IPERF_RATE=<rate> \
 MMTC_IPERF_DURATION=30 \
 MMTC_FORWARD_PING_MODE=parallel \
 MMTC_RUN_REVERSE_PING=0 \
-bash ci-scripts/redcap_mmtc_smoke_validation.sh
+bash redcap_interface/redcap_mmtc_smoke_validation.sh
 ```
 
 ## Response Metrics
@@ -103,6 +103,20 @@ bash ci-scripts/redcap_mmtc_smoke_validation.sh
 - [Interaction effects] are limited because the first L9 design uses only main-effect screening.
 - [Sample depth] is a validation-cost factor, not true simultaneous traffic concurrency. Current smoke script runs selected iperf checks sequentially.
 - [Runtime minimum compose pool] is 29 because `generate_mmtc_overlay.sh` extends a fixed UE1..UE28 base compose and rejects `MMTC_TOTAL_UES <= 28`.
+
+## PAPER-08 / PAPER-10 Extension
+- Extended matrix path:
+  - `validation/paper08_10_extended_test_matrix.md`
+  - `analysis/data/paper08_10_extended_run_matrix_2026-05-26.csv`
+- New controlled factors:
+  - [PAPER-08] `band`, `ptx_dbm`, `tx_seconds_per_period`, `period_seconds`.
+  - [PAPER-10] `traffic_direction`, `sample_ues`, `duration_s`, `host_resource_monitor`, `PRB profile`.
+- New responses:
+  - [PAPER-08] modeled `pue_w`, modeled `average_power_mw`.
+  - [PAPER-10] UL/DL ratio, host CPU/memory, multi-UE restart/failure classification.
+- Guardrail:
+  - The first L9 DOE remains the validated UL runtime baseline.
+  - The PAPER-08/PAPER-10 rows are an extended validation layer and must not be merged into the original L9 main-effect analysis.
 
 ## P2 Decision
 - First executable DOE: [DOE-BASE-001] plus [DOE-L9-01..09].

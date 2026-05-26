@@ -7,8 +7,8 @@
 ## 2. 適用範圍
 - Repo：`Red_cap_openairinterface5g`
 - 主要腳本：
-  - `ci-scripts/redcap_mmtc_stage_scan.sh`
-  - `ci-scripts/redcap_mmtc_smoke_validation.sh`
+  - `redcap_interface/redcap_mmtc_stage_scan.sh`
+  - `redcap_interface/redcap_mmtc_smoke_validation.sh`
 
 ## 3. 前置條件
 - Docker / docker compose 可正常操作。
@@ -16,8 +16,8 @@
   - `test_log/compiler_logs/`
   - `test_log/runtime_configs/`
 - 建議先確認：
-  - `bash -n ci-scripts/redcap_mmtc_stage_scan.sh`
-  - `bash -n ci-scripts/redcap_mmtc_smoke_validation.sh`
+  - `bash -n redcap_interface/redcap_mmtc_stage_scan.sh`
+  - `bash -n redcap_interface/redcap_mmtc_smoke_validation.sh`
 
 ## 4. 基線定義（短期驗收）
 - 基線名稱：[MMTC_BASELINE_50]
@@ -40,7 +40,7 @@ env MMTC_STAGE_LIST=50 \
     MMTC_UE_START_GAP=0 \
     MMTC_GNB_WARMUP=10 \
     MMTC_SLEEP_AFTER_UP=25 \
-    bash ci-scripts/redcap_mmtc_stage_scan.sh
+    bash redcap_interface/redcap_mmtc_stage_scan.sh
 ```
 
 ### 步驟 2：讀取第 1 輪摘要
@@ -56,7 +56,7 @@ env MMTC_STAGE_LIST=50 \
     MMTC_UE_START_GAP=0 \
     MMTC_GNB_WARMUP=10 \
     MMTC_SLEEP_AFTER_UP=25 \
-    bash ci-scripts/redcap_mmtc_stage_scan.sh
+    bash redcap_interface/redcap_mmtc_stage_scan.sh
 ```
 
 ### 步驟 4：讀取第 2 輪摘要
@@ -78,7 +78,7 @@ env MMTC_STAGE_LIST=52,56,60 \
     MMTC_UE_START_GAP=0 \
     MMTC_GNB_WARMUP=10 \
     MMTC_SLEEP_AFTER_UP=25 \
-    bash ci-scripts/redcap_mmtc_stage_scan.sh
+    bash redcap_interface/redcap_mmtc_stage_scan.sh
 ```
 
 ## 7. 常見失敗與排查
