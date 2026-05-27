@@ -359,12 +359,21 @@ void tdlModel(int  tdl_paths, double *tdl_delays, double *tdl_amps_dB, double DS
   chan_desc->nb_taps        = tdl_paths;
   chan_desc->Td             = tdl_delays[tdl_paths-1]*DS_TDL;
   printf("last path (%d) at %f * %e = %e\n",tdl_paths-1,tdl_delays[tdl_paths-1],DS_TDL,chan_desc->Td);
-  chan_desc->channel_length = (int) (2*chan_desc->sampling_rate*chan_desc->Td +
-                                     1 +
-                                     2/(M_PI*M_PI)*log(4*M_PI*chan_desc->sampling_rate*chan_desc->Td));
+  const int tdl_channel_length = (int) (2*chan_desc->sampling_rate*chan_desc->Td +
+                                        1 +
+                                        2/(M_PI*M_PI)*log(4*M_PI*chan_desc->sampling_rate*chan_desc->Td));
+  AssertFatal(tdl_channel_length > 0 && tdl_channel_length <= 255,
+              "Invalid TDL channel length %d for sampling_rate %f and DS_TDL %e\n",
+              tdl_channel_length,
+              chan_desc->sampling_rate,
+              DS_TDL);
+  chan_desc->channel_length = tdl_channel_length;
   printf("TDL : %f Ms/s, nb_taps %d, Td %e, channel_length %d\n",chan_desc->sampling_rate,tdl_paths,chan_desc->Td,chan_desc->channel_length);
   double sum_amps = 0;
   chan_desc->amps           = calloc(chan_desc->nb_taps, sizeof(double));
+  chan_desc->free_flags=chan_desc->free_flags|CHANMODEL_FREE_AMPS ;
+  double *delays = calloc(chan_desc->nb_taps, sizeof(double));
+  chan_desc->free_flags=chan_desc->free_flags|CHANMODEL_FREE_DELAY ;
 
   for (int i = 0; i<chan_desc->nb_taps; i++) {
     chan_desc->amps[i]      = pow(10,.1*tdl_amps_dB[i]);
@@ -373,12 +382,13 @@ void tdlModel(int  tdl_paths, double *tdl_delays, double *tdl_amps_dB, double DS
 
   for (int i = 0; i<chan_desc->nb_taps; i++) {
     chan_desc->amps[i] /= sum_amps;
-    tdl_delays[i] *= DS_TDL;
+    delays[i] = tdl_delays[i] * DS_TDL;
   }
 
-  chan_desc->delays         = tdl_delays;
+  chan_desc->delays         = delays;
   chan_desc->aoa            = 0;
   chan_desc->random_aoa     = 0;
+  chan_desc->Doppler_phase_cur = calloc(nb_rx, sizeof(double));
   chan_desc->ch             = calloc(nb_tx*nb_rx, sizeof(struct complexd *));
   chan_desc->chF            = calloc(nb_tx*nb_rx, sizeof(struct complexd *));
   chan_desc->a              = calloc(chan_desc->nb_taps, sizeof(struct complexd *));

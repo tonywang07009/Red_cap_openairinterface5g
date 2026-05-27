@@ -32,6 +32,9 @@ services:
   oai-gnb:
     environment:
       MMTC_SEGV_BACKTRACE: \${MMTC_SEGV_BACKTRACE:-0}
+      USE_ADDITIONAL_OPTIONS: >
+        -E --rfsim --log_config.global_log_options level,nocolor,time
+        \${MMTC_GNB_EXTRA_OPTIONS:-}
 
 EOF
 
@@ -60,6 +63,11 @@ for ((idx=1; idx<=BASE_FIXED_UE_COUNT; idx++)); do
       MMTC_PUCCH_COMMON_FALLBACK_BWP0: \${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
       MMTC_SEGV_BACKTRACE: \${MMTC_SEGV_BACKTRACE:-0}
       MMTC_PDCP_TRACE: \${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: \${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: \${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: \${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: \${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: \${MMTC_CHANMOD_DL_DS_TDL:-}
       USE_ADDITIONAL_OPTIONS: >
         -E --rfsim -r \${MMTC_N_RB_DL:-106} --numerology \${MMTC_NUMEROLOGY:-1}
         --uicc0.imsi ${imsi}
@@ -68,6 +76,7 @@ for ((idx=1; idx<=BASE_FIXED_UE_COUNT; idx++)); do
         --rfsimulator.serveraddr \${MMTC_GNB_ADDR:-192.168.70.140}
         --log_config.global_log_options level,nocolor,time
         --telnetsrv --telnetsrv.listenaddr 192.168.71.$((149 + idx)) --telnetsrv.listenport $((8090 + idx))
+        \${MMTC_UE_EXTRA_OPTIONS:-}
     volumes:
       - ../../conf_files/nrue_recap/nrue${idx}.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
       - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
@@ -109,6 +118,11 @@ for ((idx=START_UE_INDEX; idx<=TOTAL_UES; idx++)); do
       MMTC_PUCCH_COMMON_FALLBACK_BWP0: \${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
       MMTC_SEGV_BACKTRACE: \${MMTC_SEGV_BACKTRACE:-0}
       MMTC_PDCP_TRACE: \${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: \${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: \${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: \${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: \${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: \${MMTC_CHANMOD_DL_DS_TDL:-}
       USE_ADDITIONAL_OPTIONS: >
         -E --rfsim -r \${MMTC_N_RB_DL:-106} --numerology \${MMTC_NUMEROLOGY:-1}
         --uicc0.imsi ${imsi}
@@ -117,6 +131,7 @@ for ((idx=START_UE_INDEX; idx<=TOTAL_UES; idx++)); do
         --rfsimulator.serveraddr \${MMTC_GNB_ADDR:-192.168.70.140}
         --log_config.global_log_options level,nocolor,time
         --telnetsrv --telnetsrv.listenaddr 192.168.71.${ip_last} --telnetsrv.listenport ${telnet_port}
+        \${MMTC_UE_EXTRA_OPTIONS:-}
     depends_on:
       - oai-gnb
     networks:

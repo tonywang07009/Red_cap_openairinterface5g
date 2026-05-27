@@ -7,6 +7,9 @@ services:
   oai-gnb:
     environment:
       MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
+      USE_ADDITIONAL_OPTIONS: >
+        -E --rfsim --log_config.global_log_options level,nocolor,time
+        ${MMTC_GNB_EXTRA_OPTIONS:-}
 
   oai-nr-ue1:
     environment:
@@ -28,6 +31,11 @@ services:
       MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
       MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
       MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
       USE_ADDITIONAL_OPTIONS: >
         -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
         --uicc0.imsi 001010000000001
@@ -36,6 +44,7 @@ services:
         --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
         --log_config.global_log_options level,nocolor,time
         --telnetsrv --telnetsrv.listenaddr 192.168.71.150 --telnetsrv.listenport 8091
+        ${MMTC_UE_EXTRA_OPTIONS:-}
     volumes:
       - ../../conf_files/nrue_recap/nrue1.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
       - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
@@ -60,6 +69,11 @@ services:
       MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
       MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
       MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
       USE_ADDITIONAL_OPTIONS: >
         -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
         --uicc0.imsi 001010000000002
@@ -68,6 +82,7 @@ services:
         --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
         --log_config.global_log_options level,nocolor,time
         --telnetsrv --telnetsrv.listenaddr 192.168.71.151 --telnetsrv.listenport 8092
+        ${MMTC_UE_EXTRA_OPTIONS:-}
     volumes:
       - ../../conf_files/nrue_recap/nrue2.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
       - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
@@ -92,6 +107,11 @@ services:
       MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
       MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
       MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
       USE_ADDITIONAL_OPTIONS: >
         -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
         --uicc0.imsi 001010000000003
@@ -100,6 +120,7 @@ services:
         --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
         --log_config.global_log_options level,nocolor,time
         --telnetsrv --telnetsrv.listenaddr 192.168.71.152 --telnetsrv.listenport 8093
+        ${MMTC_UE_EXTRA_OPTIONS:-}
     volumes:
       - ../../conf_files/nrue_recap/nrue3.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
       - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
@@ -124,6 +145,11 @@ services:
       MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
       MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
       MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
       USE_ADDITIONAL_OPTIONS: >
         -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
         --uicc0.imsi 001010000000004
@@ -132,6 +158,7 @@ services:
         --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
         --log_config.global_log_options level,nocolor,time
         --telnetsrv --telnetsrv.listenaddr 192.168.71.153 --telnetsrv.listenport 8094
+        ${MMTC_UE_EXTRA_OPTIONS:-}
     volumes:
       - ../../conf_files/nrue_recap/nrue4.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
       - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
@@ -156,6 +183,11 @@ services:
       MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
       MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
       MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
       USE_ADDITIONAL_OPTIONS: >
         -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
         --uicc0.imsi 001010000000005
@@ -164,6 +196,7 @@ services:
         --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
         --log_config.global_log_options level,nocolor,time
         --telnetsrv --telnetsrv.listenaddr 192.168.71.154 --telnetsrv.listenport 8095
+        ${MMTC_UE_EXTRA_OPTIONS:-}
     volumes:
       - ../../conf_files/nrue_recap/nrue5.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
       - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
@@ -188,6 +221,11 @@ services:
       MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
       MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
       MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
       USE_ADDITIONAL_OPTIONS: >
         -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
         --uicc0.imsi 001010000000006
@@ -196,6 +234,7 @@ services:
         --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
         --log_config.global_log_options level,nocolor,time
         --telnetsrv --telnetsrv.listenaddr 192.168.71.155 --telnetsrv.listenport 8096
+        ${MMTC_UE_EXTRA_OPTIONS:-}
     volumes:
       - ../../conf_files/nrue_recap/nrue6.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
       - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
@@ -220,6 +259,11 @@ services:
       MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
       MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
       MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
       USE_ADDITIONAL_OPTIONS: >
         -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
         --uicc0.imsi 001010000000007
@@ -228,6 +272,7 @@ services:
         --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
         --log_config.global_log_options level,nocolor,time
         --telnetsrv --telnetsrv.listenaddr 192.168.71.156 --telnetsrv.listenport 8097
+        ${MMTC_UE_EXTRA_OPTIONS:-}
     volumes:
       - ../../conf_files/nrue_recap/nrue7.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
       - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
@@ -252,6 +297,11 @@ services:
       MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
       MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
       MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
       USE_ADDITIONAL_OPTIONS: >
         -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
         --uicc0.imsi 001010000000008
@@ -260,6 +310,7 @@ services:
         --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
         --log_config.global_log_options level,nocolor,time
         --telnetsrv --telnetsrv.listenaddr 192.168.71.157 --telnetsrv.listenport 8098
+        ${MMTC_UE_EXTRA_OPTIONS:-}
     volumes:
       - ../../conf_files/nrue_recap/nrue8.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
       - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
@@ -284,6 +335,11 @@ services:
       MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
       MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
       MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
       USE_ADDITIONAL_OPTIONS: >
         -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
         --uicc0.imsi 001010000000009
@@ -292,6 +348,7 @@ services:
         --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
         --log_config.global_log_options level,nocolor,time
         --telnetsrv --telnetsrv.listenaddr 192.168.71.158 --telnetsrv.listenport 8099
+        ${MMTC_UE_EXTRA_OPTIONS:-}
     volumes:
       - ../../conf_files/nrue_recap/nrue9.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
       - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
@@ -316,6 +373,11 @@ services:
       MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
       MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
       MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
       USE_ADDITIONAL_OPTIONS: >
         -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
         --uicc0.imsi 001010000000010
@@ -324,6 +386,7 @@ services:
         --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
         --log_config.global_log_options level,nocolor,time
         --telnetsrv --telnetsrv.listenaddr 192.168.71.159 --telnetsrv.listenport 8100
+        ${MMTC_UE_EXTRA_OPTIONS:-}
     volumes:
       - ../../conf_files/nrue_recap/nrue10.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
       - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
@@ -348,6 +411,11 @@ services:
       MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
       MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
       MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
       USE_ADDITIONAL_OPTIONS: >
         -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
         --uicc0.imsi 001010000000011
@@ -356,6 +424,7 @@ services:
         --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
         --log_config.global_log_options level,nocolor,time
         --telnetsrv --telnetsrv.listenaddr 192.168.71.160 --telnetsrv.listenport 8101
+        ${MMTC_UE_EXTRA_OPTIONS:-}
     volumes:
       - ../../conf_files/nrue_recap/nrue11.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
       - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
@@ -380,6 +449,11 @@ services:
       MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
       MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
       MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
       USE_ADDITIONAL_OPTIONS: >
         -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
         --uicc0.imsi 001010000000012
@@ -388,6 +462,7 @@ services:
         --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
         --log_config.global_log_options level,nocolor,time
         --telnetsrv --telnetsrv.listenaddr 192.168.71.161 --telnetsrv.listenport 8102
+        ${MMTC_UE_EXTRA_OPTIONS:-}
     volumes:
       - ../../conf_files/nrue_recap/nrue12.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
       - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
@@ -412,6 +487,11 @@ services:
       MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
       MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
       MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
       USE_ADDITIONAL_OPTIONS: >
         -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
         --uicc0.imsi 001010000000013
@@ -420,6 +500,7 @@ services:
         --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
         --log_config.global_log_options level,nocolor,time
         --telnetsrv --telnetsrv.listenaddr 192.168.71.162 --telnetsrv.listenport 8103
+        ${MMTC_UE_EXTRA_OPTIONS:-}
     volumes:
       - ../../conf_files/nrue_recap/nrue13.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
       - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
@@ -444,6 +525,11 @@ services:
       MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
       MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
       MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
       USE_ADDITIONAL_OPTIONS: >
         -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
         --uicc0.imsi 001010000000014
@@ -452,6 +538,7 @@ services:
         --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
         --log_config.global_log_options level,nocolor,time
         --telnetsrv --telnetsrv.listenaddr 192.168.71.163 --telnetsrv.listenport 8104
+        ${MMTC_UE_EXTRA_OPTIONS:-}
     volumes:
       - ../../conf_files/nrue_recap/nrue14.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
       - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
@@ -476,6 +563,11 @@ services:
       MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
       MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
       MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
       USE_ADDITIONAL_OPTIONS: >
         -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
         --uicc0.imsi 001010000000015
@@ -484,6 +576,7 @@ services:
         --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
         --log_config.global_log_options level,nocolor,time
         --telnetsrv --telnetsrv.listenaddr 192.168.71.164 --telnetsrv.listenport 8105
+        ${MMTC_UE_EXTRA_OPTIONS:-}
     volumes:
       - ../../conf_files/nrue_recap/nrue15.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
       - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
@@ -508,6 +601,11 @@ services:
       MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
       MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
       MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
       USE_ADDITIONAL_OPTIONS: >
         -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
         --uicc0.imsi 001010000000016
@@ -516,6 +614,7 @@ services:
         --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
         --log_config.global_log_options level,nocolor,time
         --telnetsrv --telnetsrv.listenaddr 192.168.71.165 --telnetsrv.listenport 8106
+        ${MMTC_UE_EXTRA_OPTIONS:-}
     volumes:
       - ../../conf_files/nrue_recap/nrue16.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
       - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
@@ -540,6 +639,11 @@ services:
       MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
       MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
       MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
       USE_ADDITIONAL_OPTIONS: >
         -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
         --uicc0.imsi 001010000000017
@@ -548,6 +652,7 @@ services:
         --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
         --log_config.global_log_options level,nocolor,time
         --telnetsrv --telnetsrv.listenaddr 192.168.71.166 --telnetsrv.listenport 8107
+        ${MMTC_UE_EXTRA_OPTIONS:-}
     volumes:
       - ../../conf_files/nrue_recap/nrue17.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
       - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
@@ -572,6 +677,11 @@ services:
       MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
       MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
       MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
       USE_ADDITIONAL_OPTIONS: >
         -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
         --uicc0.imsi 001010000000018
@@ -580,6 +690,7 @@ services:
         --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
         --log_config.global_log_options level,nocolor,time
         --telnetsrv --telnetsrv.listenaddr 192.168.71.167 --telnetsrv.listenport 8108
+        ${MMTC_UE_EXTRA_OPTIONS:-}
     volumes:
       - ../../conf_files/nrue_recap/nrue18.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
       - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
@@ -604,6 +715,11 @@ services:
       MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
       MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
       MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
       USE_ADDITIONAL_OPTIONS: >
         -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
         --uicc0.imsi 001010000000019
@@ -612,6 +728,7 @@ services:
         --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
         --log_config.global_log_options level,nocolor,time
         --telnetsrv --telnetsrv.listenaddr 192.168.71.168 --telnetsrv.listenport 8109
+        ${MMTC_UE_EXTRA_OPTIONS:-}
     volumes:
       - ../../conf_files/nrue_recap/nrue19.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
       - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
@@ -636,6 +753,11 @@ services:
       MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
       MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
       MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
       USE_ADDITIONAL_OPTIONS: >
         -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
         --uicc0.imsi 001010000000020
@@ -644,6 +766,7 @@ services:
         --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
         --log_config.global_log_options level,nocolor,time
         --telnetsrv --telnetsrv.listenaddr 192.168.71.169 --telnetsrv.listenport 8110
+        ${MMTC_UE_EXTRA_OPTIONS:-}
     volumes:
       - ../../conf_files/nrue_recap/nrue20.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
       - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
@@ -668,6 +791,11 @@ services:
       MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
       MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
       MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
       USE_ADDITIONAL_OPTIONS: >
         -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
         --uicc0.imsi 001010000000021
@@ -676,6 +804,7 @@ services:
         --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
         --log_config.global_log_options level,nocolor,time
         --telnetsrv --telnetsrv.listenaddr 192.168.71.170 --telnetsrv.listenport 8111
+        ${MMTC_UE_EXTRA_OPTIONS:-}
     volumes:
       - ../../conf_files/nrue_recap/nrue21.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
       - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
@@ -700,6 +829,11 @@ services:
       MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
       MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
       MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
       USE_ADDITIONAL_OPTIONS: >
         -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
         --uicc0.imsi 001010000000022
@@ -708,6 +842,7 @@ services:
         --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
         --log_config.global_log_options level,nocolor,time
         --telnetsrv --telnetsrv.listenaddr 192.168.71.171 --telnetsrv.listenport 8112
+        ${MMTC_UE_EXTRA_OPTIONS:-}
     volumes:
       - ../../conf_files/nrue_recap/nrue22.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
       - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
@@ -732,6 +867,11 @@ services:
       MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
       MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
       MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
       USE_ADDITIONAL_OPTIONS: >
         -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
         --uicc0.imsi 001010000000023
@@ -740,6 +880,7 @@ services:
         --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
         --log_config.global_log_options level,nocolor,time
         --telnetsrv --telnetsrv.listenaddr 192.168.71.172 --telnetsrv.listenport 8113
+        ${MMTC_UE_EXTRA_OPTIONS:-}
     volumes:
       - ../../conf_files/nrue_recap/nrue23.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
       - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
@@ -764,6 +905,11 @@ services:
       MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
       MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
       MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
       USE_ADDITIONAL_OPTIONS: >
         -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
         --uicc0.imsi 001010000000024
@@ -772,6 +918,7 @@ services:
         --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
         --log_config.global_log_options level,nocolor,time
         --telnetsrv --telnetsrv.listenaddr 192.168.71.173 --telnetsrv.listenport 8114
+        ${MMTC_UE_EXTRA_OPTIONS:-}
     volumes:
       - ../../conf_files/nrue_recap/nrue24.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
       - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
@@ -796,6 +943,11 @@ services:
       MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
       MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
       MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
       USE_ADDITIONAL_OPTIONS: >
         -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
         --uicc0.imsi 001010000000025
@@ -804,6 +956,7 @@ services:
         --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
         --log_config.global_log_options level,nocolor,time
         --telnetsrv --telnetsrv.listenaddr 192.168.71.174 --telnetsrv.listenport 8115
+        ${MMTC_UE_EXTRA_OPTIONS:-}
     volumes:
       - ../../conf_files/nrue_recap/nrue25.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
       - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
@@ -828,6 +981,11 @@ services:
       MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
       MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
       MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
       USE_ADDITIONAL_OPTIONS: >
         -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
         --uicc0.imsi 001010000000026
@@ -836,6 +994,7 @@ services:
         --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
         --log_config.global_log_options level,nocolor,time
         --telnetsrv --telnetsrv.listenaddr 192.168.71.175 --telnetsrv.listenport 8116
+        ${MMTC_UE_EXTRA_OPTIONS:-}
     volumes:
       - ../../conf_files/nrue_recap/nrue26.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
       - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
@@ -860,6 +1019,11 @@ services:
       MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
       MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
       MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
       USE_ADDITIONAL_OPTIONS: >
         -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
         --uicc0.imsi 001010000000027
@@ -868,6 +1032,7 @@ services:
         --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
         --log_config.global_log_options level,nocolor,time
         --telnetsrv --telnetsrv.listenaddr 192.168.71.176 --telnetsrv.listenport 8117
+        ${MMTC_UE_EXTRA_OPTIONS:-}
     volumes:
       - ../../conf_files/nrue_recap/nrue27.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
       - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
@@ -892,6 +1057,11 @@ services:
       MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
       MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
       MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
       USE_ADDITIONAL_OPTIONS: >
         -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
         --uicc0.imsi 001010000000028
@@ -900,6 +1070,7 @@ services:
         --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
         --log_config.global_log_options level,nocolor,time
         --telnetsrv --telnetsrv.listenaddr 192.168.71.177 --telnetsrv.listenport 8118
+        ${MMTC_UE_EXTRA_OPTIONS:-}
     volumes:
       - ../../conf_files/nrue_recap/nrue28.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
       - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
@@ -932,6 +1103,11 @@ services:
       MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
       MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
       MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
       USE_ADDITIONAL_OPTIONS: >
         -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
         --uicc0.imsi 001010000000029
@@ -940,6 +1116,7 @@ services:
         --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
         --log_config.global_log_options level,nocolor,time
         --telnetsrv --telnetsrv.listenaddr 192.168.71.178 --telnetsrv.listenport 8119
+        ${MMTC_UE_EXTRA_OPTIONS:-}
     depends_on:
       - oai-gnb
     networks:

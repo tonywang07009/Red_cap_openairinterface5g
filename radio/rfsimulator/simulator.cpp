@@ -1568,6 +1568,8 @@ extern "C" __attribute__((__visibility__("default"))) int device_init(openair0_d
   rfsimulator->rx_freq = openair0_cfg->rx_freq[0];
   rfsimulator->tx_bw = openair0_cfg->tx_bw;
   rfsimulator->beam_ctrl = new rfsim_beam_ctrl_t;
+  // TDL channel loading can normalize taps with gaussZiggurat().
+  randominit();
   rfsimulator_readconfig(rfsimulator);
   if (rfsimulator->prop_delay_ms > 0.0)
     rfsimulator->chan_offset = ceil(rfsimulator->sample_rate * rfsimulator->prop_delay_ms / 1000);
@@ -1607,8 +1609,7 @@ extern "C" __attribute__((__visibility__("default"))) int device_init(openair0_d
   rfsimulator->next_buf = 0;
 
   AssertFatal((rfsimulator->epollfd = epoll_create1(0)) != -1, "epoll_create1() failed, errno(%d)", errno);
-  // we need to call randominit() for telnet server (use gaussdouble=>uniformrand)
-  randominit();
+  // The RNG is initialized before channelmod config loading; telnet commands reuse the same generator.
   set_taus_seed(0);
   /* look for telnet server, if it is loaded, add the channel modeling commands to it */
   add_telnetcmd_func_t addcmd = (add_telnetcmd_func_t)get_shlibmodule_fptr("telnetsrv", TELNET_ADDCMD_FNAME);

@@ -5,6 +5,7 @@
 - [Paper Anchor 2]: `paper_Performance Analysis and Comparison of.pdf`.
 - [Purpose]: extend the original RFsim validation matrix with modeled UE uplink power, UL/DL balance, latency, host-resource pressure, and multi-UE stability tests.
 - [Guardrail]: PAPER-08 power is a [model estimate], not direct RF power-meter evidence.
+- [Guardrail]: PAPER-08 Fig.9 SNR sweep is an [RFsim SNR proxy], not calibrated channel-emulator SNR.
 - [Guardrail]: PAPER-10 coverage/position tests are [Not Directly Comparable] until RFsim exposes a controlled channel/path-loss axis for this scenario.
 
 ## PAPER-08 Power Model
@@ -69,6 +70,7 @@ python3 agent_doc/Project_management/projects/redcap_simulator_performance_eval_
 | PERF-P08-PWR-001 | PAPER-08 Eq. (1), Table II | band, PTx dBm | `pue_w`, segment, duty-cycle average | calculator self-test passes |
 | PERF-P08-PWR-002 | PAPER-08 external calculator concept | JSON socket request | same as CLI response | valid JSON response and error handling |
 | PERF-P08-PWR-003 | PAPER-08 uplink-centered application | UL offered rate, band, PTx dBm, duty cycle | UL Mbps, UDP loss, modeled UL power | RFsim hard pass plus model row joined |
+| PERF-P08-SNR-001 | PAPER-08 Fig.9 UDP DL SNR sweep | channel model, RFsim noise power, path loss | DL receiver Mbps, UDP loss, timeout/setup failures | [PASS_WITH_GAP] when completed rows and blocked models are recorded |
 | PERF-P10-THR-001 | PAPER-10 data rate method | single UE, UL/DL iperf, duration 180s | UL/DL Mbps, DL/UL ratio | hard pass and parsed UL/DL logs |
 | PERF-P10-THR-002 | PAPER-10 multi-UE cases | 2-3 UEs, UL/DL iperf | per-UE Mbps, fairness, restart count | no gNB restart, no unclassified failures |
 | PERF-P10-LAT-001 | PAPER-10 ping latency method | single UE, 180s ping window | RTT min/avg/max, ping loss | ping loss 0%, RTT parsed |
@@ -81,11 +83,12 @@ python3 agent_doc/Project_management/projects/redcap_simulator_performance_eval_
 - [Step 2]: generate `PTx` sweeps for `n41` and `n78`; store output under `analysis/data/`.
 - [Step 3]: run an RFsim UL throughput row using the Paper07-style hard-pass gates.
 - [Step 4]: add the modeled power columns to the RFsim row using the same `band`, `PTx`, and duty-cycle assumptions.
-- [Step 5]: run PAPER-10 single-UE UL/DL balance using `180s` windows where runtime cost allows.
-- [Step 6]: run PAPER-10 multi-UE UL stability for 2 and 3 selected UEs.
-- [Step 7]: collect host CPU/memory during the same traffic window.
-- [Step 8]: classify each row with `validation/success_criteria.md`.
-- [Step 9]: update `validation/test_matrix.md`, `analysis/data/paper08_10_extended_run_matrix_2026-05-26.csv`, and the final report.
+- [Step 5]: run PAPER-08 Fig.9 UDP DL SNR-proxy sweep through RFsim channelmod.
+- [Step 6]: run PAPER-10 single-UE UL/DL balance using `180s` windows where runtime cost allows.
+- [Step 7]: run PAPER-10 multi-UE UL stability for 2 and 3 selected UEs.
+- [Step 8]: collect host CPU/memory during the same traffic window.
+- [Step 9]: classify each row with `validation/success_criteria.md`.
+- [Step 10]: update `validation/test_matrix.md`, `analysis/data/paper08_10_extended_run_matrix_2026-05-26.csv`, and the final report.
 
 ## RFsim Command Templates
 - [PAPER-08 UL + Power Merge]:
@@ -121,6 +124,17 @@ MMTC_RUN_REVERSE_PING=0 \
 bash redcap_interface/redcap_mmtc_smoke_validation.sh
 ```
 
+- [PAPER-08 Fig.9 UDP DL SNR-Proxy Sweep]:
+
+```bash
+P08_CHANNEL_MODELS="AWGN Rayleigh1 Rayleigh8 Rayleigh1_corr Rayleigh1_anticorr Rice1 Rice8 TDL_A" \
+P08_SNR_NOISE_PAIRS="30:-80,20:-65,10:-50,0:-40" \
+P08_DURATION=15 \
+P08_OFFERED_RATE=90M \
+P08_TDL_DS_TDL=0.00000003 \
+bash redcap_interface/paper08_fig9_chanmod_batch.sh
+```
+
 - [PAPER-10 Multi-UE UL Stability]:
 
 ```bash
@@ -143,9 +157,28 @@ run_id,paper_anchor,test_id,status,total_ues,sample_ues,traffic_direction,offere
 
 ## Interpretation Rules
 - [Modeled Power]: use only as a PAPER-08 model comparison and energy estimate.
+- [SNR Proxy]: use `target_snr_proxy_db` only as a sweep label mapped to RFsim `noise_power_dB`; do not claim calibrated SNR equivalence.
 - [Throughput Improvement]: do not claim improvement until the corresponding PAPER-10 rows pass against a recorded baseline.
 - [Position Sensitivity]: do not claim Good/Fair/Bad reproduction until the RFsim channel knob is verified.
 - [Host Sensitivity]: if only one physical host is available, use constrained CPU/memory containers as a proxy and mark it [Needs Verification].
+
+## Latest PAPER-08 Fig.9 SNR-Proxy Evidence
+- [Run ID]: `paper08_fig9_udp_snr_combined_2026-05-27_16-03-00`.
+- [Report]: `analysis/paper08_fig9_udp_snr_sweep_report.md`.
+- [Combined CSV]: `analysis/data/paper08_fig9_udp_snr_combined_2026-05-27_16-03-00.csv`.
+- [Blocked CSV]: `analysis/data/paper08_fig9_udp_snr_blocked_2026-05-27_16-03-00.csv`.
+- [Plot PNG]: `analysis/plots/paper08_fig9_udp_snr_combined_2026-05-27_16-03-00.png`.
+- [Plot PDF]: `analysis/plots/paper08_fig9_udp_snr_combined_2026-05-27_16-03-00.pdf`.
+- [Status]:
+  - `PERF-P08-SNR-001`: [PASS_WITH_GAP].
+- [Result Summary]:
+  - Completed measurement rows: `22`.
+  - Failed measurement rows: `2` (`Rayleigh8` at SNR proxy `10` and `0`, iperf timeout code `124`).
+  - Blocked setup rows: `2` (`Rayleigh1_corr`, `Rayleigh1_anticorr` did not reach UE tunnel readiness).
+  - Best completed channel families: `AWGN`, `Rayleigh1`, and `Rice1` stayed near `91 Mbps` receiver throughput under the selected proxy points.
+  - TDL_A now completes all four SNR-proxy rows after setting RFsim `ds_tdl` default to `0.00000003`; best receiver throughput is `52.845 Mbps`.
+- [Limitation]:
+  - RFsim/OAI-CN/OAI-nrUE proxy; PAPER-08 uses a calibrated hardware channel emulator, spectrum analyzer verification, and fixed tester-side MCS.
 
 ## Latest PAPER-10 Multi-UE Evidence
 - [Run ID]: `paper10_multiue_2026-05-26_17-26-35`.

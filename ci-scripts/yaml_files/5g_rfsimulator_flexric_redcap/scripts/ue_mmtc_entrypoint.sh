@@ -70,6 +70,34 @@ fi
 [[ -n "${MMTC_N_RB_DL:-}" ]] && update_yaml_scalar "N_RB_DL" "$MMTC_N_RB_DL"
 [[ -n "${MMTC_SSB_START:-}" ]] && update_yaml_scalar "ssb_start" "$MMTC_SSB_START"
 
+update_dl_channelmod_scalar()
+{
+  local key="$1"
+  local value="$2"
+
+  sed -i -E "/model_name:[[:space:]]*rfsimu_channel_enB0/,/model_name:/ s/^([[:space:]]*${key}:).*/\\1 ${value}/" "$RUNTIME_CONFIGFILE"
+}
+
+default_dl_tdl_delay_spread()
+{
+  case "${MMTC_CHANMOD_DL_TYPE:-}" in
+    TDL_A) printf '%s\n' "0.00000003" ;;
+    TDL_B) printf '%s\n' "0.00000010" ;;
+    TDL_C) printf '%s\n' "0.00000030" ;;
+    TDL_D|TDL_E) printf '%s\n' "0.00000003" ;;
+    *) return 1 ;;
+  esac
+}
+
+[[ -n "${MMTC_CHANMOD_DL_TYPE:-}" ]] && update_dl_channelmod_scalar "type" "$MMTC_CHANMOD_DL_TYPE"
+[[ -n "${MMTC_CHANMOD_DL_PLOSS_DB:-}" ]] && update_dl_channelmod_scalar "ploss_dB" "$MMTC_CHANMOD_DL_PLOSS_DB"
+[[ -n "${MMTC_CHANMOD_DL_NOISE_DB:-}" ]] && update_dl_channelmod_scalar "noise_power_dB" "$MMTC_CHANMOD_DL_NOISE_DB"
+if [[ -n "${MMTC_CHANMOD_DL_DS_TDL:-}" ]]; then
+  update_dl_channelmod_scalar "ds_tdl" "$MMTC_CHANMOD_DL_DS_TDL"
+elif dl_ds_tdl="$(default_dl_tdl_delay_spread)"; then
+  update_dl_channelmod_scalar "ds_tdl" "$dl_ds_tdl"
+fi
+
 echo "=================================="
 echo "== Generated mMTC configuration file:"
 cat "$RUNTIME_CONFIGFILE"
@@ -95,4 +123,8 @@ if [[ -v USE_ADDITIONAL_OPTIONS ]]; then
 fi
 
 echo "${new_args[@]}"
+if [[ "${MMTC_UE_GDB_BT:-0}" == "1" ]]; then
+  echo "== Running NR UE under gdb batch backtrace"
+  exec gdb -batch -ex run -ex "thread apply all bt" --args "${new_args[@]}"
+fi
 exec "${new_args[@]}"

@@ -20,6 +20,7 @@
 | PERF-P08-PWR-001 | PAPER-08 uplink power calculator self-test | Equation (1), Table II coefficients | deterministic model outputs for n41/n78 | [x] |
 | PERF-P08-PWR-002 | PAPER-08 power calculator socket integration | newline-delimited JSON request | JSON response with `pue_w`, `segment`, duty-cycle average | [x] |
 | PERF-P08-PWR-003 | RFsim UL throughput plus modeled power merge | UL iperf row + `band` + `ptx_dbm` input | throughput, jitter, loss, modeled UE UL power | [PASS_WITH_GAP] |
+| PERF-P08-SNR-001 | PAPER-08 Fig.9 UDP DL SNR-proxy sweep | RFsim channelmod model + `noise_power_dB` sweep | DL receiver Mbps, UDP loss, blocked/timeout rows | [PASS_WITH_GAP] |
 | PERF-P10-THR-001 | PAPER-10 single-UE UL/DL balance | UE1, UL and DL full-buffer iperf | UL Mbps, DL Mbps, DL/UL ratio, MAC evidence | [TODO] |
 | PERF-P10-THR-002 | PAPER-10 multi-UE UL/DL balance | 2 to 3 sampled UEs, UL/DL traffic | per-UE throughput, fairness, restart count | [PASS_WITH_GAP] |
 | PERF-P10-LAT-001 | PAPER-10 E2E latency proxy | UE ping to 5GC/ext-dn target | RTT min/avg/max, packet loss | [TODO] |
@@ -47,6 +48,12 @@
   - `validation/paper10_platform_improvement_checklist.md`
 - PAPER-08 calculator:
   - `analysis/scripts/p08_uplink_power_calculator.py`
+- PAPER-08 Fig.9 UDP SNR-proxy reproduction:
+  - `analysis/paper08_fig9_udp_snr_sweep_report.md`
+  - `analysis/scripts/p08_fig9_udp_snr_sweep.py`
+  - `analysis/data/paper08_fig9_udp_snr_combined_2026-05-27_16-03-00.csv`
+  - `analysis/data/paper08_fig9_udp_snr_blocked_2026-05-27_16-03-00.csv`
+  - `analysis/plots/paper08_fig9_udp_snr_combined_2026-05-27_16-03-00.png`
 - PAPER-10 multi-UE software throughput reproduction:
   - `analysis/paper10_multiue_software_throughput_reproduction_2026-05-26_report.md`
   - `analysis/data/paper10_multiue_raw/paper10_multiue_2026-05-26_17-26-35/paper10_multiue_2026-05-26_17-26-35_results.csv`
