@@ -13,6 +13,10 @@ BASE_COMPOSE="${REPO_ROOT}/ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/d
 OVERLAY_COMPOSE="${REPO_ROOT}/ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.mmtc.yml"
 OVERLAY_GENERATOR="${REPO_ROOT}/ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/scripts/generate_mmtc_overlay.sh"
 SMOKE_SCRIPT="${REPO_ROOT}/redcap_interface/redcap_mmtc_smoke_validation.sh"
+PAPER11_SCRIPT="${REPO_ROOT}/redcap_interface/paper11_iperf_live_demo.sh"
+PAPER11_TABLE3_SCRIPT="${REPO_ROOT}/redcap_interface/paper11_table3_peak_reproduction.sh"
+IPERF_PANEL_SCRIPT="${REPO_ROOT}/redcap_interface/iperf_live_panel.py"
+EVALUATION_RECOVER_DIR="${REPO_ROOT}/redcap_doc/evluation_recover"
 LOG_DIR="${REPO_ROOT}/test_log/compiler_logs"
 
 normalize_iperf_rate()
@@ -374,6 +378,98 @@ run_dl_iperf()
   rg -n "sender|receiver|Mbits/sec|Gbits/sec|lost|%" "${log_file}" || true
 }
 
+run_paper07_reproduction_bundle()
+{
+  echo "[INFO] Running PAPER-07 reproduction bundle: 106PRB, UL 35M, DL 141M, PUSCH/PDSCH 256QAM"
+  select_106prb_profile
+  enable_paper07_256qam_profile
+  run_smoke 1 "35M" "60"
+  run_dl_iperf "141M" "60"
+  echo "[INFO] PAPER-07 bundle finished"
+  echo "[INFO] Step-by-step manual: ${EVALUATION_RECOVER_DIR}/paper07_tdd_reproduction_step_by_step.md"
+}
+
+run_paper11_reproduction_bundle()
+{
+  local duration="${P11_DURATION:-20}"
+  local ul_rate="${P11_UL_RATE:-17M}"
+  local dl_rate="${P11_DL_RATE:-68M}"
+
+  if [ ! -x "${PAPER11_SCRIPT}" ]; then
+    echo "[ERROR] Missing PAPER-11 script: ${PAPER11_SCRIPT}" >&2
+    return 1
+  fi
+
+  echo "[INFO] Running PAPER-11 live reproduction with panel: UL=${ul_rate}, DL=${dl_rate}, duration=${duration}s"
+  env \
+    P11_PANEL=1 \
+    P11_MODE=both \
+    P11_UL_RATE="${ul_rate}" \
+    P11_DL_RATE="${dl_rate}" \
+    P11_DURATION="${duration}" \
+    bash "${PAPER11_SCRIPT}"
+  echo "[INFO] PAPER-11 bundle finished"
+  echo "[INFO] Step-by-step manual: ${EVALUATION_RECOVER_DIR}/paper11_real_network_reproduction_step_by_step.md"
+}
+
+run_paper11_table3_bundle()
+{
+  local duration="${P11T3_DURATION:-60}"
+
+  if [ ! -x "${PAPER11_TABLE3_SCRIPT}" ]; then
+    echo "[ERROR] Missing PAPER-11 Table 3 script: ${PAPER11_TABLE3_SCRIPT}" >&2
+    return 1
+  fi
+
+  echo "[INFO] Running PAPER-11 Table 3 RedCap target-rate proxy, duration=${duration}s"
+  env \
+    P11T3_PROFILE="${P11T3_PROFILE:-51prb}" \
+    P11T3_DURATION="${duration}" \
+    bash "${PAPER11_TABLE3_SCRIPT}"
+  echo "[INFO] PAPER-11 Table 3 bundle finished"
+  echo "[INFO] Step-by-step manual: ${EVALUATION_RECOVER_DIR}/paper11_table3_2p1g_peak_rate_step_by_step.md"
+}
+
+run_standalone_iperf_panel()
+{
+  local direction="${PANEL_DIRECTION:-both}"
+  local ul_rate="${PANEL_UL_RATE:-${IPERF_RATE}}"
+  local dl_rate="${PANEL_DL_RATE:-${DL_IPERF_RATE}}"
+  local duration="${PANEL_DURATION:-20}"
+
+  if [ ! -x "${IPERF_PANEL_SCRIPT}" ]; then
+    echo "[ERROR] Missing iperf panel script: ${IPERF_PANEL_SCRIPT}" >&2
+    return 1
+  fi
+
+  read -r -p "Direction ul/dl/both [${direction}]: " direction
+  direction="${direction:-${PANEL_DIRECTION:-both}}"
+  read -r -p "UL rate [${ul_rate}]: " ul_rate
+  ul_rate="$(normalize_iperf_rate "${ul_rate:-${PANEL_UL_RATE:-${IPERF_RATE}}}")"
+  read -r -p "DL rate [${dl_rate}]: " dl_rate
+  dl_rate="$(normalize_iperf_rate "${dl_rate:-${PANEL_DL_RATE:-${DL_IPERF_RATE}}}")"
+  read -r -p "Duration seconds [${duration}]: " duration
+  duration="${duration:-${PANEL_DURATION:-20}}"
+
+  python3 "${IPERF_PANEL_SCRIPT}" \
+    --direction "${direction}" \
+    --ue 1 \
+    --protocol udp \
+    --ul-rate "${ul_rate}" \
+    --dl-rate "${dl_rate}" \
+    --duration "${duration}"
+}
+
+show_evaluation_recover_docs()
+{
+  echo "[INFO] Evaluation reproduction manuals: ${EVALUATION_RECOVER_DIR}"
+  if [ ! -d "${EVALUATION_RECOVER_DIR}" ]; then
+    echo "[WARN] Directory does not exist"
+    return 0
+  fi
+  find "${EVALUATION_RECOVER_DIR}" -maxdepth 1 -type f -name '*.md' -printf '%f\n' | sort
+}
+
 custom_dl_iperf_run()
 {
   local rate="${DL_IPERF_RATE}"
@@ -626,6 +722,11 @@ Select action:
  13) Select 106PRB carrier profile
  14) Select 51PRB full-carrier profile
  15) Run RedCap vs non-RedCap live probe
+  16) Run PAPER-07 reproduction bundle
+  17) Run PAPER-11 reproduction with live iperf panel
+  18) Run standalone iperf live panel
+  19) Show evaluation recovery manuals
+  20) Run PAPER-11 Table 3 RedCap peak-rate proxy
   q) Quit
 
 EOF
@@ -646,6 +747,11 @@ EOF
       13) select_106prb_profile; pause_for_enter ;;
       14) select_51prb_profile; pause_for_enter ;;
       15) run_redcap_vs_nonredcap_probe; pause_for_enter ;;
+      16) run_paper07_reproduction_bundle; pause_for_enter ;;
+      17) run_paper11_reproduction_bundle; pause_for_enter ;;
+      18) run_standalone_iperf_panel; pause_for_enter ;;
+      19) show_evaluation_recover_docs; pause_for_enter ;;
+      20) run_paper11_table3_bundle; pause_for_enter ;;
       q|Q) exit 0 ;;
       *) echo "[WARN] Unknown choice: ${choice}"; pause_for_enter ;;
     esac

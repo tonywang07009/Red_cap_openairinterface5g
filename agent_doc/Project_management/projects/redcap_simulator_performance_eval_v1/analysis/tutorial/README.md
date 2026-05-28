@@ -8,5 +8,5 @@
 ## Tutorials
 | Tutorial | Scope | Output |
 |---|---|---|
-| `paper07_tdd_reproduction_step_by_step.md` | Reproduce the TDD part of `RedCap_Performance_Analysis_and_Deployment_Strategy_Research.pdf` | UL/DL iperf data, gNB MAC evidence, CSV, plot, report |
+| `redcap_doc/evluation_recover/paper07_tdd_reproduction_step_by_step.md` | Reproduce the TDD part of `RedCap_Performance_Analysis_and_Deployment_Strategy_Research.pdf` | Moved to stable recovery manuals |
 | `redcap_vs_nonredcap_live_probe_design.md` | Design and run a live control probe for RedCap UE vs normal UE capability flow | Live menu status, temporary compose override, UE capability evidence |

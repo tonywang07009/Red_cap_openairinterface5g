@@ -182,7 +182,7 @@ run_id,paper_anchor,test_id,status,total_ues,sample_ues,traffic_direction,offere
 
 ## Latest PAPER-10 Multi-UE Evidence
 - [Run ID]: `paper10_multiue_2026-05-26_17-26-35`.
-- [Report]: `analysis/paper10_multiue_software_throughput_reproduction_2026-05-26_report.md`.
+- [Report]: `redcap_doc/evluation_recover/paper10_multiue_software_throughput_reproduction_2026-05-26_report.md`.
 - [Raw Directory]: `analysis/data/paper10_multiue_raw/paper10_multiue_2026-05-26_17-26-35/`.
 - [Combination Summary]: `analysis/data/paper10_multiue_combination_summary_2026-05-26.csv`.
 - [Status]:

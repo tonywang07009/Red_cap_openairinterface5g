@@ -27,6 +27,9 @@
 | PERF-P10-POS-001 | PAPER-10 Good/Fair/Bad position proxy | controlled channel/MCS/SNR proxy where available | throughput drop ratio, MCS/SNR evidence | [BLOCKED_BY_INSTRUMENTATION] |
 | PERF-P10-HOST-001 | PAPER-10 host PC sensitivity proxy | same RFsim run under different host/resource budget | throughput, RTT, host CPU/memory | [TODO] |
 | PERF-P10-STAB-001 | PAPER-10 multi-UE UL stability stress | 2 to 3 UEs with UL traffic and restart diagnostics | gNB restart count, failures, UE attach/PDU/tunnel | [PASS] |
+| PERF-P11-APP-001 | PAPER-11 IoT application gate reproduction | UE1 RedCap RFsim, UL/DL iperf and 32/1500-byte ping | industrial/video/wearable gate verdicts | [PASS_WITH_GAP] |
+| PERF-P11-CQT-001 | PAPER-11 near/middle/far CQT proxy | controlled RFsim channel/SNR proxy where available | throughput trend, loss, setup status | [TODO] |
+| PERF-P11-LIVE-001 | PAPER-11 visible iperf traffic demo | `paper11_iperf_live_demo.sh`, UE1, UL/DL UDP | live interval output, raw logs, parsed CSV | [PASS] |
 
 ## Partial P3 Evidence
 - `DOE-BASE-001` and `DOE-L9-01..09` are complete.
@@ -55,6 +58,13 @@
   - `analysis/data/paper08_fig9_udp_snr_blocked_2026-05-27_16-03-00.csv`
   - `analysis/plots/paper08_fig9_udp_snr_combined_2026-05-27_16-03-00.png`
 - PAPER-10 multi-UE software throughput reproduction:
-  - `analysis/paper10_multiue_software_throughput_reproduction_2026-05-26_report.md`
+  - `redcap_doc/evluation_recover/paper10_multiue_software_throughput_reproduction_2026-05-26_report.md`
   - `analysis/data/paper10_multiue_raw/paper10_multiue_2026-05-26_17-26-35/paper10_multiue_2026-05-26_17-26-35_results.csv`
   - `analysis/data/paper10_multiue_combination_summary_2026-05-26.csv`
+- PAPER-11 real-network RedCap application proxy reproduction:
+  - `literature/paper11_research_real_network_redcap_performance.md`
+  - `validation/paper11_real_network_proxy_test_matrix.md`
+  - `analysis/paper11_real_network_proxy_reproduction_2026-05-27_report.md`
+  - `analysis/data/paper11_live_iperf_summary_2026-05-27.csv`
+  - `redcap_interface/paper11_iperf_live_demo.sh`
+  - `redcap_doc/evluation_recover/paper11_real_network_reproduction_step_by_step.md`

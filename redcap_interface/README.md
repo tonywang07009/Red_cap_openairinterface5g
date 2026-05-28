@@ -9,7 +9,11 @@
 | Script | Role |
 |---|---|
 | `mmtc.menu.bash` | Compatibility menu launcher |
+| `mmtc.ment.bash` | Compatibility launcher using the user-requested spelling |
 | `redcap_runtime_menu.sh` | Interactive Paper 07 / RFsim runtime menu |
+| `paper11_iperf_live_demo.sh` | PAPER-11 service-gate iperf/ping reproduction wrapper |
+| `paper11_table3_peak_reproduction.sh` | PAPER-11 Table 3 RedCap peak-rate target proxy runner |
+| `iperf_live_panel.py` | Standalone live UL/DL iperf3 display panel |
 | `redcap_mmtc_smoke_validation.sh` | mMTC smoke validation runner |
 | `redcap_mmtc_stage_scan.sh` | staged UE load scan runner |
 | `redcap_runtime_host_validation.sh` | host-side RFsim validation runner |

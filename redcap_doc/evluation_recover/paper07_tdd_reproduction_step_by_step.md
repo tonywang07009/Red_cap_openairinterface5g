@@ -315,7 +315,7 @@ Run:
 
 ```bash
 git diff --check -- \
-  agent_doc/Project_management/projects/redcap_simulator_performance_eval_v1/analysis/tutorial/paper07_tdd_reproduction_step_by_step.md \
+  redcap_doc/evluation_recover/paper07_tdd_reproduction_step_by_step.md \
   agent_doc/Project_management/projects/redcap_simulator_performance_eval_v1/analysis/tutorial/README.md
 ```
 

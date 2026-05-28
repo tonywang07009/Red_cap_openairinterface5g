@@ -17,6 +17,7 @@
 | PAPER-08 | `paper_Empirical_Comparison_of_Power_Consumption_and_Data_Rates_for_5G_New_Radio_and_RedCap_Devices.pdf` | Power consumption and data rate comparison |
 | PAPER-09 | `paper_Filling_a_Gap_Performance_Comparison_ofpaper_RedCap_and_eRedCap_for_Mid-Tier_Applications.pdf` | RedCap/eRedCap mid-tier performance comparison |
 | PAPER-10 | `paper_Performance Analysis and Comparison of.pdf` | Performance comparison reference |
+| PAPER-11 | `Research on RedCap UE’s performance indicators in real networkto support iot applications.pdf` | Real-network RedCap UE performance indicators; rate, latency, coverage, and power validation anchor |
 
 ## Rule
 - Do not duplicate extracted paper notes here.

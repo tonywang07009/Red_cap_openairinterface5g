@@ -19,6 +19,7 @@
 | PAPER-08 | `redcap_doc/evaluation_papers/paper_Empirical_Comparison_of_Power_Consumption_and_Data_Rates_for_5G_New_Radio_and_RedCap_Devices.pdf` | power consumption and data rate comparison | [MinerU cache ready; Equation (1) calculator and extended matrix ready] |
 | PAPER-09 | `redcap_doc/evaluation_papers/paper_Filling_a_Gap_Performance_Comparison_ofpaper_RedCap_and_eRedCap_for_Mid-Tier_Applications.pdf` | RedCap/eRedCap mid-tier comparison | [MinerU cache ready; metric extraction pending] |
 | PAPER-10 | `redcap_doc/evaluation_papers/paper_Performance Analysis and Comparison of.pdf` | performance comparison reference | [MinerU cache ready; platform improvement checklist and extended matrix ready] |
+| PAPER-11 | `redcap_doc/evaluation_papers/Research on RedCap UE’s performance indicators in real networkto support iot applications.pdf` | real-network RedCap UE performance indicators for IoT applications | [Extracted in `paper11_research_real_network_redcap_performance.md`; RFsim proxy reproduction flow ready] |
 
 ## Extraction Template
 | Paper ID | Page/Figure/Table | Metric | Scenario | X-axis | Y-axis | Simulator Equivalent | Confidence |

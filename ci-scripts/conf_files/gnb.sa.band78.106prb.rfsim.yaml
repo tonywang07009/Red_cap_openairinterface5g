@@ -8,8 +8,8 @@ gNBs:
     gNB_name: gnb-rfsim
     tracking_area_code: 1
     plmn_list:
-      - mcc: 208
-        mnc: 99
+      - mcc: 001
+        mnc: 01
         mnc_length: 2
         snssaiList:
           - sst: 1
