@@ -7,9 +7,26 @@ services:
   oai-gnb:
     environment:
       MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
+      REDCAP_CASE: ${REDCAP_CASE:-case_a}
+      REDCAP_POLICY_FILE: /opt/redcap/control/policy.yaml
+      REDCAP_CONTROL_CONTRACT_FILE: /opt/redcap/control/redcap_control_contract.yaml
+      REDCAP_POLICY_SOURCE: ${REDCAP_POLICY_HOST_FILE:-./control/redcap_policy_case_a.yaml}
       USE_ADDITIONAL_OPTIONS: >
         -E --rfsim --log_config.global_log_options level,nocolor,time
         ${MMTC_GNB_EXTRA_OPTIONS:-}
+    volumes:
+      - ${REDCAP_POLICY_HOST_FILE:-./control/redcap_policy_case_a.yaml}:/opt/redcap/control/policy.yaml:ro
+      - ./control/redcap_control_contract.yaml:/opt/redcap/control/redcap_control_contract.yaml:ro
+
+  xapp-kpm-rc:
+    environment:
+      REDCAP_CASE: ${REDCAP_CASE:-case_a}
+      REDCAP_POLICY_FILE: /opt/redcap/control/policy.yaml
+      REDCAP_CONTROL_CONTRACT_FILE: /opt/redcap/control/redcap_control_contract.yaml
+      REDCAP_POLICY_SOURCE: ${REDCAP_POLICY_HOST_FILE:-./control/redcap_policy_case_a.yaml}
+    volumes:
+      - ${REDCAP_POLICY_HOST_FILE:-./control/redcap_policy_case_a.yaml}:/opt/redcap/control/policy.yaml:ro
+      - ./control/redcap_control_contract.yaml:/opt/redcap/control/redcap_control_contract.yaml:ro
 
   oai-nr-ue1:
     environment:
@@ -1134,4 +1151,3 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-

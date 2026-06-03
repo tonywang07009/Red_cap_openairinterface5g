@@ -1,0 +1,162 @@
+version: 1
+project: redcap_rrc_inactive_sdt_oran_control_v1
+description: >
+  Control contract for RedCap RRC_INACTIVE, SDT, and O-RAN policy experiments.
+  KPM is observation only; runtime updates must pass this contract before apply.
+
+runtime_source_of_truth: ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap
+default_policy: redcap_policy_case_a.yaml
+
+controller_priority:
+  - dapp_gnb_guard
+  - xapp
+  - rapp_policy
+
+parameters:
+  - name: inactive_allowed
+    owner: gnb_rrc
+    unit: boolean
+    default: false
+    runtime_mutable: true
+    allowed_values: [false, true]
+    rollback: restore_previous_value
+    validation_log_marker: "inactive_allowed applied"
+
+  - name: suspend_config_enable
+    owner: gnb_rrc
+    unit: boolean
+    default: false
+    runtime_mutable: false
+    allowed_values: [false, true]
+    rollback: restart_required
+    validation_log_marker: "suspendConfig selected"
+
+  - name: ue_context_retention_ms
+    owner: gnb_rrc
+    unit: ms
+    default: 60000
+    runtime_mutable: true
+    min: 1000
+    max: 3600000
+    rollback: restore_previous_value
+    validation_log_marker: "ue_context_retention_ms applied"
+
+  - name: pdcp_counter_preserve
+    owner: gnb_pdcp
+    unit: boolean
+    default: true
+    runtime_mutable: false
+    allowed_values: [true]
+    rollback: reject_update
+    validation_log_marker: "pdcp_counter_preserve checked"
+
+  - name: configured_grant_enable
+    owner: gnb_mac
+    unit: boolean
+    default: false
+    runtime_mutable: true
+    allowed_values: [false, true]
+    rollback: restore_previous_value
+    validation_log_marker: "configuredGrantConfig applied"
+
+  - name: cg_sdt_enable
+    owner: gnb_mac
+    unit: boolean
+    default: false
+    runtime_mutable: true
+    allowed_values: [false, true]
+    rollback: restore_previous_value
+    validation_log_marker: "cg-SDT control applied"
+
+  - name: configured_grant_profile_id
+    owner: gnb_mac
+    unit: id
+    default: 0
+    runtime_mutable: true
+    min: 0
+    max: 8
+    rollback: restore_previous_value
+    validation_log_marker: "configured_grant_profile_id applied"
+
+  - name: cg_sdt_rsrp_change_threshold_db
+    owner: ue_mac
+    unit: dB
+    default: 6
+    runtime_mutable: true
+    min: 1
+    max: 30
+    rollback: restore_previous_value
+    validation_log_marker: "cg-SDT-RSRP-ChangeThreshold applied"
+
+  - name: cg_sdt_time_alignment_timer
+    owner: ue_mac
+    unit: enum
+    default: "infinity"
+    runtime_mutable: true
+    allowed_values: ["ms500", "ms750", "ms1280", "ms1920", "ms2560", "ms5120", "ms10240", "infinity"]
+    rollback: restore_previous_value
+    validation_log_marker: "cg-SDT-TimeAlignmentTime applied"
+
+  - name: sdt_payload_threshold_bytes
+    owner: gnb_mac
+    unit: bytes
+    default: 256
+    runtime_mutable: true
+    min: 1
+    max: 2048
+    rollback: restore_previous_value
+    validation_log_marker: "sdt_payload_threshold_bytes applied"
+
+  - name: force_four_step_ra_on_threshold
+    owner: ue_mac
+    unit: boolean
+    default: false
+    runtime_mutable: true
+    allowed_values: [false, true]
+    rollback: restore_previous_value
+    validation_log_marker: "4-step RA threshold fallback applied"
+
+  - name: drx_profile
+    owner: gnb_rrc
+    unit: enum
+    default: "off"
+    runtime_mutable: true
+    allowed_values: ["off", "low_latency", "balanced", "power_saving"]
+    rollback: restore_previous_value
+    validation_log_marker: "drx_profile applied"
+
+  - name: kpm_control_enable
+    owner: xapp
+    unit: boolean
+    default: false
+    runtime_mutable: true
+    allowed_values: [false, true]
+    rollback: restore_previous_value
+    validation_log_marker: "KPM-driven control mode"
+
+  - name: e2sm_rc_control_enable
+    owner: xapp
+    unit: boolean
+    default: false
+    runtime_mutable: true
+    allowed_values: [false, true]
+    rollback: restore_previous_value
+    validation_log_marker: "E2SM-RC control enabled"
+
+  - name: custom_sm_control_enable
+    owner: xapp
+    unit: boolean
+    default: false
+    runtime_mutable: true
+    allowed_values: [false, true]
+    rollback: restore_previous_value
+    validation_log_marker: "custom SM control enabled"
+
+  - name: dapp_local_api_enable
+    owner: dapp_gnb_guard
+    unit: boolean
+    default: false
+    runtime_mutable: true
+    allowed_values: [false, true]
+    rollback: restore_previous_value
+    validation_log_marker: "dApp local API enabled"
