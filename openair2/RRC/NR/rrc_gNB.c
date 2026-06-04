@@ -101,6 +101,8 @@
 #include "ds/byte_array.h"
 #include "alg/find.h"
 #include "NR_HandoverCommand.h"
+#include "NR_RRCResumeComplete.h"
+#include "NR_RRCResumeRequest-IEs.h"
 #include "openair2/SDAP/nr_sdap/nr_sdap_configuration.h"
 
 #ifdef E2_AGENT
@@ -1717,6 +1719,17 @@ static int handle_rrcReestablishmentComplete(gNB_RRC_INST *rrc, gNB_RRC_UE_t *UE
   return 0;
 }
 
+static int handle_rrcResumeComplete(gNB_RRC_UE_t *UE, const NR_RRCResumeComplete_t *cplt)
+{
+  NR_RRCResumeComplete__criticalExtensions_PR p = cplt->criticalExtensions.present;
+  if (p != NR_RRCResumeComplete__criticalExtensions_PR_rrcResumeComplete) {
+    LOG_E(NR_RRC, "UE %d: expected presence of rrcResumeComplete, but message has %d\n", UE->rrc_ue_id, p);
+    return -1;
+  }
+  LOG_UE_UL_EVENT(UE, "RRCResumeComplete received; RRC_CONNECTED\n");
+  return 0;
+}
+
 /**
  * @brief Forward stored NAS PDU to UE (3GPP TS 38.413)
  *        - 8.2.1.2: If the NAS-PDU IE is included in the PDU SESSION RESOURCE SETUP REQUEST message,
@@ -1800,6 +1813,17 @@ static void handle_ueCapabilityInformation(gNB_RRC_INST *rrc, gNB_RRC_UE_t *UE, 
           if (UE->UE_Capability_nr->rlc_Parameters && UE->UE_Capability_nr->rlc_Parameters->ext2)
             UE->redcap_cap->rlc_am_drb_long_sn_redcap_r17 =
                 UE->UE_Capability_nr->rlc_Parameters->ext2->am_WithLongSN_RedCap_r17 != NULL;
+          LOG_I(NR_RRC,
+                "Parsed UE redCapParameters-r17: UE %d RNTI %04x supportOfRedCap-r17=%d "
+                "supportOf16DRB-RedCap-r17=%d pdcpLongSN-RedCap-r17=%d rlcAmLongSN-RedCap-r17=%d\n",
+                UE->rrc_ue_id,
+                UE->rnti,
+                UE->redcap_cap->support_of_redcap_r17,
+                UE->redcap_cap->support_of_16drb_redcap_r17,
+                UE->redcap_cap->pdcp_drb_long_sn_redcap_r17,
+                UE->redcap_cap->rlc_am_drb_long_sn_redcap_r17);
+        } else {
+          LOG_I(NR_RRC, "Parsed UE redCapParameters-r17: UE %d RNTI %04x absent\n", UE->rrc_ue_id, UE->rnti);
         }
 
         UE->UE_Capability_size = ue_cap_container->ue_CapabilityRAT_Container.size;
@@ -2128,12 +2152,68 @@ static int rrc_gNB_decode_dcch(gNB_RRC_INST *rrc, const f1ap_ul_rrc_message_t *m
         handle_rrcReestablishmentComplete(rrc, UE, ul_dcch_msg->message.choice.c1->choice.rrcReestablishmentComplete);
         break;
 
+      case NR_UL_DCCH_MessageType__c1_PR_rrcResumeComplete:
+        LOG_UE_UL_EVENT(UE, "Received RRCResumeComplete\n");
+        handle_rrcResumeComplete(UE, ul_dcch_msg->message.choice.c1->choice.rrcResumeComplete);
+        break;
+
       default:
         break;
     }
   }
   ASN_STRUCT_FREE(asn_DEF_NR_UL_DCCH_Message, ul_dcch_msg);
   return 0;
+}
+
+static rrc_gNB_ue_context_t *rrc_gNB_get_ue_context_by_short_i_rnti(gNB_RRC_INST *rrc, sctp_assoc_t assoc_id, uint32_t short_i_rnti)
+{
+  rrc_gNB_ue_context_t *ue_context_p = NULL;
+  RB_FOREACH(ue_context_p, rrc_nr_ue_tree_s, &rrc->rrc_ue_head) {
+    f1_ue_data_t ue_data = cu_get_f1_ue_data(ue_context_p->ue_context.rrc_ue_id);
+    if (ue_data.du_assoc_id == assoc_id && (ue_context_p->ue_context.rnti & 0xffffff) == short_i_rnti)
+      return ue_context_p;
+  }
+  return NULL;
+}
+
+static void rrc_handle_RRCResumeRequest(gNB_RRC_INST *rrc,
+                                        sctp_assoc_t assoc_id,
+                                        const NR_RRCResumeRequest_IEs_t *req,
+                                        const f1ap_initial_ul_rrc_message_t *msg)
+{
+  if (req->resumeIdentity.size != 3) {
+    LOG_E(NR_RRC,
+          "RRCResumeRequest resumeIdentity size mismatch, expected 3, provided %lu\n",
+          (long unsigned int)req->resumeIdentity.size);
+    return;
+  }
+
+  uint32_t short_i_rnti = BIT_STRING_to_uint32(&req->resumeIdentity);
+  LOG_I(NR_RRC,
+        "RRCResumeRequest received: shortI-RNTI %06x resumeCause %ld new C-RNTI %04x\n",
+        short_i_rnti,
+        req->resumeCause,
+        msg->crnti);
+
+  rrc_gNB_ue_context_t *ue_context_p = rrc_gNB_get_ue_context_by_short_i_rnti(rrc, assoc_id, short_i_rnti);
+  if (ue_context_p == NULL) {
+    LOG_E(NR_RRC, "RRCResumeRequest without retained UE context for shortI-RNTI %06x\n", short_i_rnti);
+    return;
+  }
+
+  gNB_RRC_UE_t *UE = &ue_context_p->ue_context;
+  if (!UE->as_security_active)
+    LOG_W(NR_RRC, "RRCResumeRequest matched UE %u without active AS security [Needs Verification]\n", UE->rrc_ue_id);
+
+  UE->rnti = msg->crnti;
+  UE->nr_cellid = msg->nr_cellid;
+  f1_ue_data_t ue_data = cu_get_f1_ue_data(UE->rrc_ue_id);
+  ue_data.secondary_ue = msg->gNB_DU_ue_id;
+  bool success = cu_update_f1_ue_data(UE->rrc_ue_id, &ue_data);
+  DevAssert(success);
+
+  LOG_UE_UL_EVENT(UE, "RRC context found for RRCResumeRequest shortI-RNTI %06x\n", short_i_rnti);
+  rrc_gNB_generate_RRCResume(rrc, UE);
 }
 
 void rrc_gNB_process_initial_ul_rrc_message(sctp_assoc_t assoc_id, const f1ap_initial_ul_rrc_message_t *ul_rrc)
@@ -2167,7 +2247,8 @@ void rrc_gNB_process_initial_ul_rrc_message(sctp_assoc_t assoc_id, const f1ap_in
         break;
 
       case NR_UL_CCCH_MessageType__c1_PR_rrcResumeRequest:
-        LOG_E(NR_RRC, "Received rrcResumeRequest message, but handling is not implemented\n");
+        rrc_handle_RRCResumeRequest(
+            rrc, assoc_id, &ul_ccch_msg->message.choice.c1->choice.rrcResumeRequest->rrcResumeRequest, ul_rrc);
         break;
 
       case NR_UL_CCCH_MessageType__c1_PR_rrcReestablishmentRequest: {
@@ -3317,6 +3398,17 @@ void rrc_gNB_generate_RRCRelease_suspend(gNB_RRC_INST *rrc, gNB_RRC_UE_t *UE)
         short_i_rnti);
   LOG_UE_DL_EVENT(UE, "Send RRC Release suspendConfig\n");
   const uint32_t msg_id = NR_DL_DCCH_MessageType__c1_PR_rrcRelease;
+  nr_rrc_transfer_protected_rrc_message(rrc, UE, DL_SCH_LCID_DCCH, msg_id, buffer, size);
+}
+
+void rrc_gNB_generate_RRCResume(gNB_RRC_INST *rrc, gNB_RRC_UE_t *UE)
+{
+  uint8_t buffer[NR_RRC_BUF_SIZE] = {0};
+  int size = do_NR_RRCResume(buffer, NR_RRC_BUF_SIZE, rrc_gNB_get_next_transaction_identifier(rrc->module_id));
+
+  LOG_I(NR_RRC, "RRCResume sent for UE %u RNTI %04x\n", UE->rrc_ue_id, UE->rnti);
+  LOG_UE_DL_EVENT(UE, "Send RRCResume\n");
+  const uint32_t msg_id = NR_DL_DCCH_MessageType__c1_PR_rrcResume;
   nr_rrc_transfer_protected_rrc_message(rrc, UE, DL_SCH_LCID_DCCH, msg_id, buffer, size);
 }
 

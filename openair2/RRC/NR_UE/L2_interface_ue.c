@@ -288,6 +288,12 @@ void process_msg_rcc_to_mac(nr_mac_rrc_message_t *msg, int instance_id)
     case NR_MAC_RRC_RESUME_RB:
       nr_rrc_mac_resume_rb(instance_id, msg->payload.resume_rb.is_srb, msg->payload.resume_rb.rb_id);
       break;
+    case NR_MAC_RRC_TRIGGER_RA: {
+      NR_UE_MAC_INST_t *mac = get_mac_inst(instance_id);
+      LOG_I(NR_MAC, "RRC requested RA for Msg3 CCCH\n");
+      trigger_MAC_UE_RA(mac, NULL);
+      mac->msg3_C_RNTI = false;
+    } break;
     default:
       LOG_E(NR_MAC, "Unexpected msg from RRC: %d\n", msg->payload_type);
   }

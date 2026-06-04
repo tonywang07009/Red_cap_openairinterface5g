@@ -580,8 +580,8 @@ static int nr_process_mac_pdu(instance_t module_idP,
         LOG_I(MAC, "[RAPROC] Received SDU for CCCH length %d for UE %04x\n", mac_len, UE->rnti);
 
         if (lcid == UL_SCH_LCID_CCCH_48_BITS_REDCAP) {
-          LOG_I(MAC, "UE with RNTI %04x is RedCap\n", UE->rnti);
           UE->is_redcap = true;
+          LOG_I(MAC, "[RedCap MAC][gNB UE profile] UE with RNTI %04x is RedCap via CCCH 48-bit RedCap LCID\n", UE->rnti);
         }
 
         if (prepare_initial_ul_rrc_message(RC.nrmac[module_idP], UE)) {

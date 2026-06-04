@@ -2020,6 +2020,26 @@ void nr_rrc_mac_config_req_sib1(module_id_t module_id, int cc_idP, NR_SIB1_t *si
   const bool is_redcap_ue = use_sib1_redcap_initial_bwp();
   NR_BWP_DownlinkCommon_t *initial_dl_bwp = nr_ue_get_sib1_initial_dl_bwp(scc, is_redcap_ue);
   NR_BWP_UplinkCommon_t *initial_ul_bwp = nr_ue_get_sib1_initial_ul_bwp(scc, is_redcap_ue);
+  const bool redcap_dl_bwp_present = scc->downlinkConfigCommon.ext1
+                                     && scc->downlinkConfigCommon.ext1->initialDownlinkBWP_RedCap_r17;
+  const bool redcap_ul_bwp_present = scc->ext2 && scc->ext2->uplinkConfigCommon_v1700
+                                     && scc->ext2->uplinkConfigCommon_v1700->initialUplinkBWP_RedCap_r17;
+  if (is_redcap_ue) {
+    const int dl_start = NRRIV2PRBOFFSET(initial_dl_bwp->genericParameters.locationAndBandwidth, MAX_BWP_SIZE);
+    const int dl_size = NRRIV2BW(initial_dl_bwp->genericParameters.locationAndBandwidth, MAX_BWP_SIZE);
+    const int ul_start =
+        initial_ul_bwp ? NRRIV2PRBOFFSET(initial_ul_bwp->genericParameters.locationAndBandwidth, MAX_BWP_SIZE) : -1;
+    const int ul_size = initial_ul_bwp ? NRRIV2BW(initial_ul_bwp->genericParameters.locationAndBandwidth, MAX_BWP_SIZE) : -1;
+    LOG_I(NR_MAC,
+          "SIB1 RedCap initial BWP decision: enabled=1 dl_present=%d dl_start=%d dl_size=%d "
+          "ul_present=%d ul_start=%d ul_size=%d\n",
+          redcap_dl_bwp_present,
+          dl_start,
+          dl_size,
+          redcap_ul_bwp_present,
+          ul_start,
+          ul_size);
+  }
   if (is_redcap_ue && initial_dl_bwp != &scc->downlinkConfigCommon.initialDownlinkBWP) {
     LOG_I(NR_MAC,
           "Applying SIB1 RedCap initial DL BWP: start=%d size=%d\n",

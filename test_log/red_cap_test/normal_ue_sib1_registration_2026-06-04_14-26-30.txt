@@ -1,0 +1,47 @@
+# Normal UE SIB1 / Registration Evidence
+Generated: 2026-06-04_14-26-30
+Container: rfsim5g-oai-nr-ue1_redcap
+Expected role: non-RedCap UE, original 106PRB carrier path
+
+## Key Interpretation
+- UE1 is expected to have no nrue_recap runtime marker.
+- SIB1 decoded proves UE received and decoded SIB1.
+- Registration Accept + PDU Session Establishment Accept prove CN attach and data tunnel success.
+
+## Filtered UE1 Docker Log Markers
+4:== Generated mMTC configuration file:
+6:  imsi: 001010000000001
+50:Error 3: No such process trying to get nice value of thread 4262438592 
+124:57092.793812 [NR_RRC] A SIB1 decoded
+141:57092.799420 [NR_RRC] I [UE0][RAPROC] Logical Channel DL-CCCH (SRB0), Received NR_RRCSetup
+144:57092.799535 [NAS]    I Generate Initial NAS Message: Registration Request
+150:57092.830327 [NAS]    I Generate Initial NAS Message: Registration Request
+197:57092.851023 [NAS]    I Received Registration Accept with result 3GPP
+219:57092.864417 [NAS]    I Received PDU Session Establishment Accept, UE IPv4: 10.0.0.2
+
+## UE1 IP Address Snapshot
+1: lo    inet 127.0.0.1/8 scope host lo\       valid_lft forever preferred_lft forever
+2: eth0    inet 192.168.71.150/23 brd 192.168.71.255 scope global eth0\       valid_lft forever preferred_lft forever
+3: oaitun_ue1    inet 10.0.0.2/24 scope global oaitun_ue1\       valid_lft forever preferred_lft forever
+
+## Latest Live Probe Rows
+5:[INFO] Profile: gNB=/home/tonywang/OAI/Red_cap_openairinterface5g/ci-scripts/conf_files/gnb.sa.band78.fr1.106PRB.usrpb210.redcap.yaml, UE -r=106, RF=3630360000, ssb=144, PUCCH_BWP0=1, PUSCH256=0, PDSCH256=0
+68:14:04:44 UE1-Normal   running    10.0.0.2         RC=0     cap=no       yes   yes  PASS no-nrue-recap
+70:14:04:49 UE1-Normal   running    10.0.0.2         RC=0     cap=no       yes   yes  PASS no-nrue-recap
+72:14:04:55 UE1-Normal   running    10.0.0.2         RC=0     cap=no       yes   yes  PASS no-nrue-recap
+74:14:05:00 UE1-Normal   running    10.0.0.2         RC=0     cap=no       yes   yes  PASS no-nrue-recap
+76:14:05:05 UE1-Normal   running    10.0.0.2         RC=0     cap=no       yes   yes  PASS no-nrue-recap
+78:14:05:11 UE1-Normal   running    10.0.0.2         RC=0     cap=no       yes   yes  PASS no-nrue-recap
+80:14:05:16 UE1-Normal   running    10.0.0.2         RC=0     cap=no       yes   yes  PASS no-nrue-recap
+82:14:05:22 UE1-Normal   running    10.0.0.2         RC=0     cap=no       yes   yes  PASS no-nrue-recap
+84:14:05:27 UE1-Normal   running    10.0.0.2         RC=0     cap=no       yes   yes  PASS no-nrue-recap
+86:14:05:32 UE1-Normal   running    10.0.0.2         RC=0     cap=no       yes   yes  PASS no-nrue-recap
+88:14:05:38 UE1-Normal   running    10.0.0.2         RC=0     cap=no       yes   yes  PASS no-nrue-recap
+90:14:05:43 UE1-Normal   running    10.0.0.2         RC=0     cap=no       yes   yes  PASS no-nrue-recap
+92:14:05:49 UE1-Normal   running    10.0.0.2         RC=0     cap=no       yes   yes  PASS no-nrue-recap
+94:14:05:54 UE1-Normal   running    10.0.0.2         RC=0     cap=no       yes   yes  PASS no-nrue-recap
+96:14:05:59 UE1-Normal   running    10.0.0.2         RC=0     cap=no       yes   yes  PASS no-nrue-recap
+98:14:06:05 UE1-Normal   running    10.0.0.2         RC=0     cap=no       yes   yes  PASS no-nrue-recap
+100:14:06:10 UE1-Normal   running    10.0.0.2         RC=0     cap=no       yes   yes  PASS no-nrue-recap
+102:14:06:16 UE1-Normal   running    10.0.0.2         RC=0     cap=no       yes   yes  PASS no-nrue-recap
+105:[INFO] Decision rule

@@ -79,6 +79,9 @@
 #include "NR_SDAP-Config.h"
 #include "NR_RRCReconfigurationComplete.h"
 #include "NR_RRCReconfigurationComplete-IEs.h"
+#include "NR_RRCResume.h"
+#include "NR_RRCResumeComplete.h"
+#include "NR_RRCResumeRequest.h"
 #include "NR_DLInformationTransfer.h"
 #include "NR_RRCReestablishmentRequest.h"
 #include "NR_PCCH-Message.h"
@@ -822,6 +825,72 @@ int do_NR_RRCReconfigurationComplete(uint8_t *buffer, size_t buffer_size, const 
   LOG_I(NR_RRC,"rrcReconfigurationComplete Encoded %zd bits (%zd bytes)\n",enc_rval.encoded,(enc_rval.encoded+7)/8);
   ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_NR_UL_DCCH_Message, &ul_dcch_msg);
   return((enc_rval.encoded+7)/8);
+}
+
+int do_NR_RRCResume(uint8_t *buffer, size_t buffer_size, const uint8_t Transaction_id)
+{
+  NR_DL_DCCH_Message_t dl_dcch_msg = {0};
+  dl_dcch_msg.message.present = NR_DL_DCCH_MessageType_PR_c1;
+  asn1cCalloc(dl_dcch_msg.message.choice.c1, c1);
+  c1->present = NR_DL_DCCH_MessageType__c1_PR_rrcResume;
+  asn1cCalloc(c1->choice.rrcResume, rrc_resume);
+  rrc_resume->rrc_TransactionIdentifier = Transaction_id;
+  rrc_resume->criticalExtensions.present = NR_RRCResume__criticalExtensions_PR_rrcResume;
+  rrc_resume->criticalExtensions.choice.rrcResume = CALLOC(1, sizeof(*rrc_resume->criticalExtensions.choice.rrcResume));
+
+  if (LOG_DEBUGFLAG(DEBUG_ASN1))
+    xer_fprint(stdout, &asn_DEF_NR_DL_DCCH_Message, (void *)&dl_dcch_msg);
+
+  asn_enc_rval_t enc_rval = uper_encode_to_buffer(&asn_DEF_NR_DL_DCCH_Message, NULL, (void *)&dl_dcch_msg, buffer, buffer_size);
+  AssertFatal(enc_rval.encoded > 0, "ASN1 message encoding failed (%s, %lu)!\n", enc_rval.failed_type->name, enc_rval.encoded);
+  LOG_I(NR_RRC, "RRCResume Encoded %zd bits (%zd bytes)\n", enc_rval.encoded, (enc_rval.encoded + 7) / 8);
+  ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_NR_DL_DCCH_Message, &dl_dcch_msg);
+  return (enc_rval.encoded + 7) / 8;
+}
+
+int do_NR_RRCResumeComplete(uint8_t *buffer, size_t buffer_size, const uint8_t Transaction_id)
+{
+  NR_UL_DCCH_Message_t ul_dcch_msg = {0};
+  ul_dcch_msg.message.present = NR_UL_DCCH_MessageType_PR_c1;
+  asn1cCalloc(ul_dcch_msg.message.choice.c1, c1);
+  c1->present = NR_UL_DCCH_MessageType__c1_PR_rrcResumeComplete;
+  asn1cCalloc(c1->choice.rrcResumeComplete, resume_complete);
+  resume_complete->rrc_TransactionIdentifier = Transaction_id;
+  resume_complete->criticalExtensions.present = NR_RRCResumeComplete__criticalExtensions_PR_rrcResumeComplete;
+  resume_complete->criticalExtensions.choice.rrcResumeComplete = CALLOC(1, sizeof(*resume_complete->criticalExtensions.choice.rrcResumeComplete));
+
+  if (LOG_DEBUGFLAG(DEBUG_ASN1))
+    xer_fprint(stdout, &asn_DEF_NR_UL_DCCH_Message, (void *)&ul_dcch_msg);
+
+  asn_enc_rval_t enc_rval = uper_encode_to_buffer(&asn_DEF_NR_UL_DCCH_Message, NULL, (void *)&ul_dcch_msg, buffer, buffer_size);
+  AssertFatal(enc_rval.encoded > 0, "ASN1 message encoding failed (%s, %lu)!\n", enc_rval.failed_type->name, enc_rval.encoded);
+  LOG_I(NR_RRC, "RRCResumeComplete Encoded %zd bits (%zd bytes)\n", enc_rval.encoded, (enc_rval.encoded + 7) / 8);
+  ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_NR_UL_DCCH_Message, &ul_dcch_msg);
+  return (enc_rval.encoded + 7) / 8;
+}
+
+int do_NR_RRCResumeRequest(uint8_t *buffer, size_t buffer_size, uint32_t short_i_rnti, NR_ResumeCause_t resume_cause)
+{
+  NR_UL_CCCH_Message_t ul_ccch_msg = {0};
+  ul_ccch_msg.message.present = NR_UL_CCCH_MessageType_PR_c1;
+  asn1cCalloc(ul_ccch_msg.message.choice.c1, c1);
+  c1->present = NR_UL_CCCH_MessageType__c1_PR_rrcResumeRequest;
+  asn1cCalloc(c1->choice.rrcResumeRequest, resume_request);
+
+  fill_rrc_release_bit_string(&resume_request->rrcResumeRequest.resumeIdentity, short_i_rnti & 0xffffff, 3);
+  fill_rrc_release_bit_string(&resume_request->rrcResumeRequest.resumeMAC_I, 0, 2);
+  resume_request->rrcResumeRequest.resumeCause = resume_cause;
+  fill_rrc_release_bit_string(&resume_request->rrcResumeRequest.spare, 0, 1);
+  resume_request->rrcResumeRequest.spare.bits_unused = 7;
+
+  if (LOG_DEBUGFLAG(DEBUG_ASN1))
+    xer_fprint(stdout, &asn_DEF_NR_UL_CCCH_Message, (void *)&ul_ccch_msg);
+
+  asn_enc_rval_t enc_rval = uper_encode_to_buffer(&asn_DEF_NR_UL_CCCH_Message, NULL, (void *)&ul_ccch_msg, buffer, buffer_size);
+  AssertFatal(enc_rval.encoded > 0, "ASN1 message encoding failed (%s, %lu)!\n", enc_rval.failed_type->name, enc_rval.encoded);
+  LOG_I(NR_RRC, "RRCResumeRequest Encoded %zd bits (%zd bytes)\n", enc_rval.encoded, (enc_rval.encoded + 7) / 8);
+  ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_NR_UL_CCCH_Message, &ul_ccch_msg);
+  return (enc_rval.encoded + 7) / 8;
 }
 
 int do_RRCSetupComplete(uint8_t *buffer,

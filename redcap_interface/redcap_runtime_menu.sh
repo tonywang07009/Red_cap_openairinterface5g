@@ -509,7 +509,10 @@ write_redcap_vs_normal_override()
 
   cat > "${override_file}" <<EOF
 services:
+  oai-gnb:
+    image: oai-gnb:latest
   oai-nr-ue1:
+    image: oai-nr-ue:latest
     environment:
       MMTC_EXPERIMENT_ROLE: "normal-probe"
       MMTC_REDCAP_ENABLE: "0"
@@ -519,6 +522,7 @@ services:
       - ${REPO_ROOT}/ci-scripts/conf_files/nrue/nrue1.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
       - ${REPO_ROOT}/ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
   oai-nr-ue2:
+    image: oai-nr-ue:latest
     environment:
       MMTC_EXPERIMENT_ROLE: "redcap-probe"
       MMTC_REDCAP_ENABLE: "1"
@@ -591,7 +595,7 @@ print_probe_row()
     config_marker="no-nrue-recap"
   fi
 
-  if ue_log_has "${container}" 'supportOfRedCap-r17|Built UE NR capability from nrue_recap YAML'; then
+  if ue_log_has "${container}" 'Built RedCap UE capability: supportOfRedCap-r17=1|Using RedCap UE capability for UECapabilityInformation: supportOfRedCap-r17=1|Built UE NR capability from nrue_recap YAML'; then
     cap_marker="yes"
   fi
   if [ "${expected_redcap}" = "1" ] && ue_log_has "rfsim5g-oai-gnb_redcap" 'UE with RNTI [0-9a-fA-F]{4} is RedCap'; then

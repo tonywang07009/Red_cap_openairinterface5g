@@ -23,8 +23,8 @@
 - UE `RRCRelease.suspendConfig` no longer reaches `AssertFatal("Inactive State not supported")` in the current worktree;
   [Gate 1 RFsim PASS] confirms controlled `[RRC_INACTIVE]` entry on 2026-06-04.
 - gNB has a validation-only `MMTC_RRC_INACTIVE_GATE1_TRIGGER` path, default disabled, to emit `RRCRelease.suspendConfig` after PDU session setup.
-- gNB `rrcResumeRequest` handling currently logs unsupported behavior.
-- UE `RRCResume` DL-DCCH handling is not implemented.
+- gNB `rrcResumeRequest` handling has a Gate 2 validation path that keeps the retained UE RRC context and resumes it by `shortI-RNTI`.
+- UE `RRCResume` DL-DCCH handling has a Gate 2 validation path that returns UE state to `[RRC_CONNECTED]` and sends `RRCResumeComplete`.
 - UE `configuredGrantConfig` currently has an unsupported assert path.
 - Existing MAC SDT FSM hooks are not a complete RRC_INACTIVE + SDT protocol implementation.
 
@@ -49,13 +49,16 @@
 - [Validation Log] `test_log/work_daily/2026-06-04_rrc_inactive_sdt_gate1_rfsim_validation.md`
 
 ## Gate 2: T2-2 RRCResume / RRCReestablishment
+- [Status] [~] C implementation/build PASS on 2026-06-04; RFsim runtime pending.
 - [Modification Point] -> gNB `rrcResumeRequest` handler and UE `RRCResume` DL-DCCH handler.
 - [Reason] -> INACTIVE must have a normal path back to CONNECTED.
 - [Before vs. After Comparison] -> Before: gNB/UE log unsupported; After: UE sends `RRCResumeRequest`, gNB sends `RRCResume`, UE sends `RRCResumeComplete`.
 - [Discussion Point] -> `RRCReestablishment` is fallback only and must not mask normal Resume behavior.
+- [Discussion Point] -> `resumeMAC-I` is currently deterministic zero in the validation helper; formal integrity behavior remains `[Needs Verification]`.
 - [MUST] RFsim log or Wireshark shows `RRCResumeRequest`.
 - [MUST] UE returns to `[RRC_CONNECTED]`.
 - [MUST] PDCP SN preservation is checked or marked `[Needs Verification]`.
+- [Validation Log] `test_log/work_daily/2026-06-04_rrc_inactive_sdt_gate2_c_implementation.md`
 
 ## Gate 3: T2-3 configuredGrantConfig + cg-SDT
 - [Modification Point] -> SIB1 / UL BWP / MAC UE configured grant parse path.

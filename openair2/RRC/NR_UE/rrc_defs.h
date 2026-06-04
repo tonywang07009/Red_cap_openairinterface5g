@@ -257,6 +257,9 @@ typedef struct NR_UE_RRC_INST_s {
   bool detach_after_release;
   NR_timer_t release_timer;
   NR_RRCRelease_t *RRCRelease;
+  bool inactive_context_valid;
+  uint64_t inactive_full_i_rnti;
+  uint32_t inactive_short_i_rnti;
   long selected_plmn_identity;
   Rrc_State_NR_t nrRrcState;
   // flag to identify 1st reconfiguration after reestablishment

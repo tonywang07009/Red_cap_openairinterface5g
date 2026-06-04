@@ -1,0 +1,20 @@
+services:
+  oai-gnb:
+    image: oai-gnb:latest
+  oai-nr-ue1:
+    image: oai-nr-ue:latest
+    environment:
+      MMTC_EXPERIMENT_ROLE: "normal-probe"
+      MMTC_REDCAP_ENABLE: "0"
+      MMTC_REDCAP_HALF_DUPLEX: "0"
+      MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
+    volumes:
+      - /home/tonywang/OAI/Red_cap_openairinterface5g/ci-scripts/conf_files/nrue/nrue1.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
+      - /home/tonywang/OAI/Red_cap_openairinterface5g/ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
+  oai-nr-ue2:
+    image: oai-nr-ue:latest
+    environment:
+      MMTC_EXPERIMENT_ROLE: "redcap-probe"
+      MMTC_REDCAP_ENABLE: "1"
+      MMTC_REDCAP_NUM_RX: "1"
+      MMTC_REDCAP_HALF_DUPLEX: "1"

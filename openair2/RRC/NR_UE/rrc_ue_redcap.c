@@ -59,6 +59,17 @@ NR_UE_NR_Capability_t *nr_rrc_build_redcap_ue_capability(const nr_redcap_cfg_t *
   if (cfg->support_of_16drb_redcap_r17)
     set_optional_enum_supported(&redcap->supportOf16DRB_RedCap_r17);
 
+  LOG_I(NR_RRC,
+        "Built RedCap UE capability: supportOfRedCap-r17=%d supportOf16DRB-RedCap-r17=%d band=n%d "
+        "pdcpLongSN-RedCap-r17=%d rlcAmLongSN-RedCap-r17=%d pusch256QAM=%d pdsch256QAM=%d\n",
+        cfg->support_of_redcap_r17,
+        cfg->support_of_16drb_redcap_r17,
+        cfg->band,
+        cfg->pdcp_drb_long_sn_redcap_r17,
+        cfg->rlc_am_drb_long_sn_redcap_r17,
+        cfg->pusch_256qam,
+        cfg->pdsch_256qam);
+
   return cap;
 }
 

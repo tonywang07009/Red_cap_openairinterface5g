@@ -60,6 +60,7 @@ unsigned int rrc_gNB_get_next_transaction_identifier(module_id_t gnb_mod_idP);
 
 void rrc_gNB_generate_RRCRelease(gNB_RRC_INST *rrc, gNB_RRC_UE_t *UE);
 void rrc_gNB_generate_RRCRelease_suspend(gNB_RRC_INST *rrc, gNB_RRC_UE_t *UE);
+void rrc_gNB_generate_RRCResume(gNB_RRC_INST *rrc, gNB_RRC_UE_t *UE);
 
 /**\brief RRC eNB task.
    \param args_p Pointer on arguments to start the task. */

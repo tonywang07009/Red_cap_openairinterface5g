@@ -249,8 +249,8 @@ static bool configure_redcap_msg2_bwp(gNB_MAC_INST *nr_mac, NR_ServingCellConfig
                                                 &redcap_dl_bwp->genericParameters,
                                                 type0_PDCCH_CSS_config);
   LOG_I(NR_MAC,
-        "[RedCap RA][gNB Msg2 gate] using RedCap Case B RA path: ss_id %ld coreset_id %ld dl_bwp_start %u "
-        "dl_bwp_size %u ul_bwp_start %u ul_bwp_size %u\n",
+        "[RedCap RA][gNB Msg2 BWP selected] using RedCap Case B RA path: ss_id %ld coreset_id %ld "
+        "dl_bwp_start %u dl_bwp_size %u ul_bwp_start %u ul_bwp_size %u\n",
         sched_ctrl->search_space->searchSpaceId,
         sched_ctrl->coreset->controlResourceSetId,
         UE->current_DL_BWP.BWPStart,

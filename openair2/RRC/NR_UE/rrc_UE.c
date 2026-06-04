@@ -41,6 +41,7 @@
 #include "NR_CellGroupConfig.h"        //asn_DEF_NR_CellGroupConfig
 #include "NR_BWP-Downlink.h"           //asn_DEF_NR_BWP_Downlink
 #include "NR_RRCReconfiguration.h"
+#include "NR_RRCResume.h"
 #include "NR_MeasConfig.h"
 #include "NR_UL-DCCH-Message.h"
 #include "uper_encoder.h"
@@ -63,6 +64,7 @@
 
 #include "common/utils/LOG/log.h"
 #include "common/utils/LOG/vcd_signal_dumper.h"
+#include "common/utils/oai_asn1.h"
 
 #ifndef CELLULAR
   #include "RRC/NR/MESSAGES/asn1_msg.h"
@@ -152,11 +154,52 @@ static void nr_rrc_send_msg_to_mac(NR_UE_RRC_INST_t *rrc, nr_mac_rrc_message_t *
   pushNotifiedFIFO(rrc->mac_input_nf, nf_msg);
 }
 
+static bool nr_rrc_gate2_resume_trigger_enabled(void)
+{
+  const char *env = getenv("MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER");
+  return env && atoi(env) > 0;
+}
+
+static void nr_rrc_ue_prepare_RRCResumeRequest(NR_UE_RRC_INST_t *rrc)
+{
+  if (!rrc->inactive_context_valid) {
+    LOG_E(NR_RRC, "RRCResumeRequest cannot be generated: inactive context is not valid\n");
+    return;
+  }
+
+  uint8_t buffer[1024];
+  int size = do_NR_RRCResumeRequest(buffer, sizeof(buffer), rrc->inactive_short_i_rnti, NR_ResumeCause_mo_Data);
+  rrc->ra_trigger = RRC_RESUME_REQUEST;
+  LOG_I(NR_RRC, "RRCResumeRequest sent shortI-RNTI %06x\n", rrc->inactive_short_i_rnti);
+  nr_rlc_srb_recv_sdu(rrc->ue_id, 0, buffer, size);
+}
+
+static void nr_rrc_ue_trigger_RRCResumeRequest_ra(NR_UE_RRC_INST_t *rrc)
+{
+  if (!rrc->inactive_context_valid) {
+    LOG_E(NR_RRC, "RRCResumeRequest RA cannot be triggered: inactive context is not valid\n");
+    return;
+  }
+
+  rrc->ra_trigger = RRC_RESUME_REQUEST;
+  nr_mac_rrc_message_t rrc_msg = {0};
+  rrc_msg.payload_type = NR_MAC_RRC_TRIGGER_RA;
+  LOG_I(NR_RRC, "MMTC Gate 2 trigger: requesting RA for RRCResumeRequest after RRC_INACTIVE entry\n");
+  nr_rrc_send_msg_to_mac(rrc, &rrc_msg);
+}
+
 static void nr_rrc_enter_inactive_from_suspend(NR_UE_RRC_INST_t *rrc, const NR_SuspendConfig_t *suspend_config)
 {
   NR_UE_Timers_Constants_t *tac = &rrc->timers_and_constants;
 
   LOG_I(NR_RRC, "RRCRelease suspendConfig received\n");
+  rrc->inactive_full_i_rnti = BIT_STRING_to_uint64(&suspend_config->fullI_RNTI);
+  rrc->inactive_short_i_rnti = BIT_STRING_to_uint32(&suspend_config->shortI_RNTI);
+  rrc->inactive_context_valid = true;
+  LOG_I(NR_RRC,
+        "RRC_INACTIVE context stored fullI-RNTI %010lx shortI-RNTI %06x\n",
+        rrc->inactive_full_i_rnti,
+        rrc->inactive_short_i_rnti);
   nr_timer_stop(&tac->T300);
   nr_timer_stop(&tac->T301);
   nr_timer_stop(&tac->T302);
@@ -171,6 +214,8 @@ static void nr_rrc_enter_inactive_from_suspend(NR_UE_RRC_INST_t *rrc, const NR_S
 
   rrc->nrRrcState = RRC_STATE_INACTIVE_NR;
   LOG_I(NR_RRC, "RRC_INACTIVE entered\n");
+  if (nr_rrc_gate2_resume_trigger_enabled())
+    nr_rrc_ue_trigger_RRCResumeRequest_ra(rrc);
 }
 
 NR_UE_RRC_INST_t *get_NR_UE_rrc_inst(int instance)
@@ -1845,6 +1890,9 @@ static void nr_rrc_prepare_msg3_payload(NR_UE_RRC_INST_t *rrc)
       // preparing MSG3 for re-establishment in advance
       nr_rrc_ue_prepare_RRCReestablishmentRequest(rrc);
       break;
+    case RRC_RESUME_REQUEST:
+      nr_rrc_ue_prepare_RRCResumeRequest(rrc);
+      break;
     default:
       AssertFatal(false, "RA trigger not implemented\n");
   }
@@ -1880,6 +1928,11 @@ static void nr_rrc_handle_msg3_indication(NR_UE_RRC_INST_t *rrc, rnti_t rnti)
       rrc_msg.payload.resume_rb.is_srb = true;
       rrc_msg.payload.resume_rb.rb_id = 1;
       nr_rrc_send_msg_to_mac(rrc, &rrc_msg);
+      break;
+    case RRC_RESUME_REQUEST:
+      rrc->rnti = rnti;
+      nr_timer_start(&tac->T319);
+      LOG_I(NR_RRC, "RRCResumeRequest Msg3 indication new C-RNTI %04x\n", rnti);
       break;
     case DURING_HANDOVER:
       AssertFatal(1==0, "ra_trigger not implemented yet!\n");
@@ -2348,6 +2401,35 @@ static void nr_rrc_ue_generate_rrcReestablishmentComplete(const NR_UE_RRC_INST_t
   nr_pdcp_data_req_srb(rrc->ue_id, srb_id, 0, size, buffer, deliver_pdu_srb_rlc, NULL);
 }
 
+static void nr_rrc_ue_generate_RRCResumeComplete(NR_UE_RRC_INST_t *rrc, const int srb_id, const uint8_t Transaction_id)
+{
+  uint8_t buffer[32];
+  int size = do_NR_RRCResumeComplete(buffer, sizeof(buffer), Transaction_id);
+  LOG_I(NR_RRC, "RRCResumeComplete sent\n");
+  AssertFatal(srb_id == 1 || srb_id == 3, "Invalid SRB ID %d\n", srb_id);
+  nr_pdcp_data_req_srb(rrc->ue_id, srb_id, 0, size, buffer, deliver_pdu_srb_rlc, NULL);
+}
+
+static void nr_rrc_ue_process_rrcResume(NR_UE_RRC_INST_t *rrc, const NR_RRCResume_t *rrcResume, const int srb_id)
+{
+  if (rrcResume->criticalExtensions.present != NR_RRCResume__criticalExtensions_PR_rrcResume) {
+    LOG_E(NR_RRC, "Received RRCResume with unsupported criticalExtensions %d\n", rrcResume->criticalExtensions.present);
+    return;
+  }
+
+  LOG_I(NR_RRC, "RRCResume received\n");
+  NR_UE_Timers_Constants_t *timers = &rrc->timers_and_constants;
+  nr_timer_stop(&timers->T300);
+  nr_timer_stop(&timers->T301);
+  nr_timer_stop(&timers->T319);
+
+  rrc->nrRrcState = RRC_STATE_CONNECTED_NR;
+  rrc->ra_trigger = RA_NOT_RUNNING;
+  rrc->inactive_context_valid = false;
+  LOG_I(NR_RRC, "RRC_CONNECTED\n");
+  nr_rrc_ue_generate_RRCResumeComplete(rrc, srb_id, rrcResume->rrc_TransactionIdentifier);
+}
+
 static void nr_rrc_ue_process_rrcReestablishment(NR_UE_RRC_INST_t *rrc,
                                                  const int gNB_index,
                                                  const NR_RRCReestablishment_t *rrcReestablishment,
@@ -2417,6 +2499,26 @@ static void nr_rrc_ue_process_ueCapabilityEnquiry(NR_UE_RRC_INST_t *rrc, NR_UECa
   c1->present = NR_UL_DCCH_MessageType__c1_PR_ueCapabilityInformation;
   asn1cCalloc(c1->choice.ueCapabilityInformation, info);
   info->rrc_TransactionIdentifier = UECapabilityEnquiry->rrc_TransactionIdentifier;
+
+  nr_redcap_cfg_t redcap_cfg = {0};
+  const bool redcap_cfg_loaded = load_nr_redcap_config(NULL, &redcap_cfg);
+  LOG_I(NR_RRC,
+        "UECapabilityEnquiry RedCap YAML check: loaded=%d enabled=%d supportOfRedCap-r17=%d band=n%d\n",
+        redcap_cfg_loaded,
+        redcap_cfg.enabled,
+        redcap_cfg.support_of_redcap_r17,
+        redcap_cfg.band);
+  if (redcap_cfg_loaded && redcap_cfg.support_of_redcap_r17) {
+    if (rrc->UECap.UE_NR_Capability) {
+      ASN_STRUCT_FREE(asn_DEF_NR_UE_NR_Capability, rrc->UECap.UE_NR_Capability);
+      rrc->UECap.UE_NR_Capability = NULL;
+    }
+    rrc->UECap.UE_NR_Capability = nr_rrc_build_redcap_ue_capability(&redcap_cfg);
+    LOG_I(NR_RRC,
+          "Using RedCap UE capability for UECapabilityInformation: supportOfRedCap-r17=1 band=n%d\n",
+          redcap_cfg.band);
+  }
+
   if (!rrc->UECap.UE_NR_Capability) {
     rrc->UECap.UE_NR_Capability = CALLOC(1, sizeof(NR_UE_NR_Capability_t));
     asn1cSequenceAdd(rrc->UECap.UE_NR_Capability->rf_Parameters.supportedBandListNR.list, NR_BandNR_t, nr_bandnr);
@@ -2529,7 +2631,7 @@ static int nr_rrc_ue_decode_dcch(NR_UE_RRC_INST_t *rrc,
         } break;
 
         case NR_DL_DCCH_MessageType__c1_PR_rrcResume:
-          LOG_E(NR_RRC, "Received rrcResume on DL-DCCH-Message -> Not handled\n");
+          nr_rrc_ue_process_rrcResume(rrc, c1->choice.rrcResume, Srb_id);
           break;
         case NR_DL_DCCH_MessageType__c1_PR_rrcRelease:
           LOG_I(NR_RRC, "[UE %ld] Received RRC Release (gNB %d)\n", rrc->ue_id, gNB_indexP);

@@ -46,6 +46,7 @@
 #include "NR_RLC-BearerConfig.h"
 #include "NR_RLC-Config.h"
 #include "NR_RRC-TransactionIdentifier.h"
+#include "NR_ResumeCause.h"
 #include "NR_RadioBearerConfig.h"
 #include "NR_ReestablishmentCause.h"
 #include "NR_SRB-ToAddModList.h"
@@ -143,6 +144,12 @@ int do_nrMeasurementReport_SA(long trigger_to_measid,
 int do_NR_RRCReconfigurationComplete_for_nsa(uint8_t *buffer, size_t buffer_size, NR_RRC_TransactionIdentifier_t Transaction_id);
 
 int do_NR_RRCReconfigurationComplete(uint8_t *buffer, size_t buffer_size, const uint8_t Transaction_id);
+
+int do_NR_RRCResume(uint8_t *buffer, size_t buffer_size, const uint8_t Transaction_id);
+
+int do_NR_RRCResumeComplete(uint8_t *buffer, size_t buffer_size, const uint8_t Transaction_id);
+
+int do_NR_RRCResumeRequest(uint8_t *buffer, size_t buffer_size, uint32_t short_i_rnti, NR_ResumeCause_t resume_cause);
 
 int do_NR_DLInformationTransfer(uint8_t *buffer,
                                 size_t buffer_len,
