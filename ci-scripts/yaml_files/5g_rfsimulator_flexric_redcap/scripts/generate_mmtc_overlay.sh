@@ -32,9 +32,27 @@ services:
   oai-gnb:
     environment:
       MMTC_SEGV_BACKTRACE: \${MMTC_SEGV_BACKTRACE:-0}
+      REDCAP_CASE: \${REDCAP_CASE:-case_a}
+      REDCAP_POLICY_FILE: /opt/redcap/control/policy.yaml
+      REDCAP_CONTROL_CONTRACT_FILE: /opt/redcap/control/redcap_control_contract.yaml
+      REDCAP_POLICY_SOURCE: \${REDCAP_POLICY_HOST_FILE:-./control/redcap_policy_case_a.yaml}
+      MMTC_RRC_INACTIVE_GATE1_TRIGGER: \${MMTC_RRC_INACTIVE_GATE1_TRIGGER:-0}
       USE_ADDITIONAL_OPTIONS: >
         -E --rfsim --log_config.global_log_options level,nocolor,time
         \${MMTC_GNB_EXTRA_OPTIONS:-}
+    volumes:
+      - \${REDCAP_POLICY_HOST_FILE:-./control/redcap_policy_case_a.yaml}:/opt/redcap/control/policy.yaml:ro
+      - ./control/redcap_control_contract.yaml:/opt/redcap/control/redcap_control_contract.yaml:ro
+
+  xapp-kpm-rc:
+    environment:
+      REDCAP_CASE: \${REDCAP_CASE:-case_a}
+      REDCAP_POLICY_FILE: /opt/redcap/control/policy.yaml
+      REDCAP_CONTROL_CONTRACT_FILE: /opt/redcap/control/redcap_control_contract.yaml
+      REDCAP_POLICY_SOURCE: \${REDCAP_POLICY_HOST_FILE:-./control/redcap_policy_case_a.yaml}
+    volumes:
+      - \${REDCAP_POLICY_HOST_FILE:-./control/redcap_policy_case_a.yaml}:/opt/redcap/control/policy.yaml:ro
+      - ./control/redcap_control_contract.yaml:/opt/redcap/control/redcap_control_contract.yaml:ro
 
 EOF
 
@@ -152,5 +170,7 @@ for ((idx=START_UE_INDEX; idx<=TOTAL_UES; idx++)); do
 
 EOF
 done
+
+sed -i '${/^$/d;}' "$OUTPUT_FILE"
 
 echo "Generated mMTC overlay: $OUTPUT_FILE (UE1..UE${TOTAL_UES})"

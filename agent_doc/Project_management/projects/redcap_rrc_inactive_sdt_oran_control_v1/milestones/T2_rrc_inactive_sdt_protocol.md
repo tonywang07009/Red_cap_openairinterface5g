@@ -20,7 +20,9 @@
 - [RedCap capability]: TS 38.306 `[Needs Verification]`.
 
 ## Current OAI Status
-- UE `RRCRelease.suspendConfig` currently reaches `AssertFatal("Inactive State not supported")`.
+- UE `RRCRelease.suspendConfig` no longer reaches `AssertFatal("Inactive State not supported")` in the current worktree;
+  [Gate 1 RFsim PASS] confirms controlled `[RRC_INACTIVE]` entry on 2026-06-04.
+- gNB has a validation-only `MMTC_RRC_INACTIVE_GATE1_TRIGGER` path, default disabled, to emit `RRCRelease.suspendConfig` after PDU session setup.
 - gNB `rrcResumeRequest` handling currently logs unsupported behavior.
 - UE `RRCResume` DL-DCCH handling is not implemented.
 - UE `configuredGrantConfig` currently has an unsupported assert path.
@@ -36,6 +38,7 @@
 - [Inventory Log] `test_log/work_daily/2026-06-03_rrc_inactive_sdt_gate0_inventory.md`
 
 ## Gate 1: T2-1 RRCRelease suspendConfig to UE INACTIVE
+- [Status] [x] Completed on 2026-06-04.
 - [Modification Point] -> `nr_rrc.c` / UE RRC release handling path.
 - [Reason] -> UE currently crashes when receiving `suspendConfig`; the path must become a controlled state transition.
 - [Before vs. After Comparison] -> Before: `AssertFatal`; After: UE stores needed AS context and enters `[RRC_INACTIVE]`.
@@ -43,6 +46,7 @@
 - [MUST] UE log includes `RRCRelease suspendConfig received`.
 - [MUST] UE log includes `RRC_INACTIVE entered`.
 - [MUST] No `exit 139`.
+- [Validation Log] `test_log/work_daily/2026-06-04_rrc_inactive_sdt_gate1_rfsim_validation.md`
 
 ## Gate 2: T2-2 RRCResume / RRCReestablishment
 - [Modification Point] -> gNB `rrcResumeRequest` handler and UE `RRCResume` DL-DCCH handler.

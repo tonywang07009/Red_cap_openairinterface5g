@@ -152,6 +152,27 @@ static void nr_rrc_send_msg_to_mac(NR_UE_RRC_INST_t *rrc, nr_mac_rrc_message_t *
   pushNotifiedFIFO(rrc->mac_input_nf, nf_msg);
 }
 
+static void nr_rrc_enter_inactive_from_suspend(NR_UE_RRC_INST_t *rrc, const NR_SuspendConfig_t *suspend_config)
+{
+  NR_UE_Timers_Constants_t *tac = &rrc->timers_and_constants;
+
+  LOG_I(NR_RRC, "RRCRelease suspendConfig received\n");
+  nr_timer_stop(&tac->T300);
+  nr_timer_stop(&tac->T301);
+  nr_timer_stop(&tac->T302);
+  nr_timer_stop(&tac->T304);
+  nr_timer_stop(&tac->T310);
+  nr_timer_stop(&tac->T311);
+  nr_timer_stop(&tac->T319);
+  nr_timer_stop(&tac->T390);
+
+  if (suspend_config->t380)
+    LOG_W(NR_RRC, "RRC_INACTIVE T380 from suspendConfig not started yet [Needs Verification]\n");
+
+  rrc->nrRrcState = RRC_STATE_INACTIVE_NR;
+  LOG_I(NR_RRC, "RRC_INACTIVE entered\n");
+}
+
 NR_UE_RRC_INST_t *get_NR_UE_rrc_inst(int instance)
 {
   AssertFatal(instance >= 0 && instance < MAX_NUM_NR_UE_INST, "RRC instance %d out of bounds\n", instance);
@@ -3038,8 +3059,7 @@ void handle_RRCRelease(NR_UE_RRC_INST_t *rrc)
       LOG_E(NR_RRC, "deprioritisationReq in RRCRelease not handled\n");
     if (rrcReleaseIEs->suspendConfig) {
       suspend = true;
-      // procedures to go in INACTIVE state
-      AssertFatal(false, "Inactive State not supported\n");
+      nr_rrc_enter_inactive_from_suspend(rrc, rrcReleaseIEs->suspendConfig);
     }
   }
   if (!suspend) {

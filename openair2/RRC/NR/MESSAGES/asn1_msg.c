@@ -88,6 +88,7 @@
 #include "NR_HandoverPreparationInformation-IEs.h"
 #include "NR_HandoverCommand.h"
 #include "NR_UE-CapabilityRAT-ContainerList.h"
+#include "NR_SuspendConfig.h"
 #include "common/utils/nr/nr_common.h"
 #if defined(NR_Rel16)
   #include "NR_SCS-SpecificCarrier.h"
@@ -472,7 +473,21 @@ int do_NR_SA_UECapabilityEnquiry(uint8_t *const buffer, const uint8_t Transactio
   return((enc_rval.encoded+7)/8);
 }
 
-int do_NR_RRCRelease(uint8_t *buffer, size_t buffer_size, uint8_t Transaction_id)
+static void fill_rrc_release_bit_string(BIT_STRING_t *str, uint64_t value, size_t size)
+{
+  str->size = size;
+  str->bits_unused = 0;
+  str->buf = calloc_or_fail(size, sizeof(str->buf[0]));
+  for (size_t i = 0; i < size; i++)
+    str->buf[i] = (value >> (8 * (size - i - 1))) & 0xff;
+}
+
+static int do_NR_RRCRelease_internal(uint8_t *buffer,
+                                     size_t buffer_size,
+                                     uint8_t Transaction_id,
+                                     bool suspend_release,
+                                     uint64_t full_i_rnti,
+                                     uint32_t short_i_rnti)
 {
   asn_enc_rval_t enc_rval;
   NR_DL_DCCH_Message_t dl_dcch_msg;
@@ -487,12 +502,18 @@ int do_NR_RRCRelease(uint8_t *buffer, size_t buffer_size, uint8_t Transaction_id
   rrcConnectionRelease->rrc_TransactionIdentifier = Transaction_id;
   rrcConnectionRelease->criticalExtensions.present = NR_RRCRelease__criticalExtensions_PR_rrcRelease;
   rrcConnectionRelease->criticalExtensions.choice.rrcRelease = CALLOC(1, sizeof(NR_RRCRelease_IEs_t));
-  rrcConnectionRelease->criticalExtensions.choice.rrcRelease->deprioritisationReq =
-      CALLOC(1, sizeof(struct NR_RRCRelease_IEs__deprioritisationReq));
-  rrcConnectionRelease->criticalExtensions.choice.rrcRelease->deprioritisationReq->deprioritisationType =
-      NR_RRCRelease_IEs__deprioritisationReq__deprioritisationType_nr;
-  rrcConnectionRelease->criticalExtensions.choice.rrcRelease->deprioritisationReq->deprioritisationTimer =
-      NR_RRCRelease_IEs__deprioritisationReq__deprioritisationTimer_min10;
+  NR_RRCRelease_IEs_t *release_ies = rrcConnectionRelease->criticalExtensions.choice.rrcRelease;
+  if (suspend_release) {
+    release_ies->suspendConfig = CALLOC(1, sizeof(*release_ies->suspendConfig));
+    fill_rrc_release_bit_string(&release_ies->suspendConfig->fullI_RNTI, full_i_rnti & ((1ULL << 40) - 1), 5);
+    fill_rrc_release_bit_string(&release_ies->suspendConfig->shortI_RNTI, short_i_rnti & 0xffffff, 3);
+    release_ies->suspendConfig->ran_PagingCycle = NR_PagingCycle_rf128;
+    release_ies->suspendConfig->nextHopChainingCount = 0;
+  } else {
+    release_ies->deprioritisationReq = CALLOC(1, sizeof(*release_ies->deprioritisationReq));
+    release_ies->deprioritisationReq->deprioritisationType = NR_RRCRelease_IEs__deprioritisationReq__deprioritisationType_nr;
+    release_ies->deprioritisationReq->deprioritisationTimer = NR_RRCRelease_IEs__deprioritisationReq__deprioritisationTimer_min10;
+  }
 
   enc_rval = uper_encode_to_buffer(&asn_DEF_NR_DL_DCCH_Message,
                                    NULL,
@@ -503,6 +524,20 @@ int do_NR_RRCRelease(uint8_t *buffer, size_t buffer_size, uint8_t Transaction_id
               enc_rval.failed_type->name, enc_rval.encoded);
   ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_NR_DL_DCCH_Message, &dl_dcch_msg);
   return((enc_rval.encoded+7)/8);
+}
+
+int do_NR_RRCRelease(uint8_t *buffer, size_t buffer_size, uint8_t Transaction_id)
+{
+  return do_NR_RRCRelease_internal(buffer, buffer_size, Transaction_id, false, 0, 0);
+}
+
+int do_NR_RRCRelease_suspend(uint8_t *buffer,
+                             size_t buffer_size,
+                             uint8_t Transaction_id,
+                             uint64_t full_i_rnti,
+                             uint32_t short_i_rnti)
+{
+  return do_NR_RRCRelease_internal(buffer, buffer_size, Transaction_id, true, full_i_rnti, short_i_rnti);
 }
 
 /** @brief Build RRCReconfiguration message (3GPP TS 38.331) */

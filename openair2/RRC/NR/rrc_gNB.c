@@ -3295,6 +3295,31 @@ void rrc_gNB_generate_RRCRelease(gNB_RRC_INST *rrc, gNB_RRC_UE_t *UE)
 #endif
 }
 
+//-----------------------------------------------------------------------------
+/*
+* Generate RRCRelease with suspendConfig without releasing the F1 UE context.
+*/
+void rrc_gNB_generate_RRCRelease_suspend(gNB_RRC_INST *rrc, gNB_RRC_UE_t *UE)
+{
+  uint8_t buffer[NR_RRC_BUF_SIZE] = {0};
+  const uint64_t full_i_rnti = UE->rrc_ue_id & ((1ULL << 40) - 1);
+  const uint32_t short_i_rnti = UE->rnti & 0xffffff;
+  int size = do_NR_RRCRelease_suspend(buffer,
+                                      NR_RRC_BUF_SIZE,
+                                      rrc_gNB_get_next_transaction_identifier(rrc->module_id),
+                                      full_i_rnti,
+                                      short_i_rnti);
+
+  LOG_I(NR_RRC,
+        "RRCRelease suspendConfig selected for UE %u fullI-RNTI %010lx shortI-RNTI %06x\n",
+        UE->rrc_ue_id,
+        full_i_rnti,
+        short_i_rnti);
+  LOG_UE_DL_EVENT(UE, "Send RRC Release suspendConfig\n");
+  const uint32_t msg_id = NR_DL_DCCH_MessageType__c1_PR_rrcRelease;
+  nr_rrc_transfer_protected_rrc_message(rrc, UE, DL_SCH_LCID_DCCH, msg_id, buffer, size);
+}
+
 int rrc_gNB_generate_pcch_msg(sctp_assoc_t assoc_id, const NR_SIB1_t *sib1, uint32_t tmsi, uint8_t paging_drx)
 {
   instance_t instance = 0;

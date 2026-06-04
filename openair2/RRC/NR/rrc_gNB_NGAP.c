@@ -108,6 +108,12 @@ static const uint16_t NGAP_INTEGRITY_NIA3_MASK = 0x2000;
 
 #define INTEGRITY_ALGORITHM_NONE NR_IntegrityProtAlgorithm_nia0
 
+static bool mmtc_rrc_inactive_gate1_trigger_enabled(void)
+{
+  const char *env = getenv("MMTC_RRC_INACTIVE_GATE1_TRIGGER");
+  return env && atoi(env) > 0;
+}
+
 static void set_UE_security_algos(const gNB_RRC_INST *rrc, gNB_RRC_UE_t *UE, const ngap_security_capabilities_t *cap);
 
 /** @brief Validates PLMN against allowed PLMN list and returns pointer to matching PLMN
@@ -780,6 +786,12 @@ void rrc_gNB_send_NGAP_PDUSESSION_SETUP_RESP(gNB_RRC_INST *rrc, gNB_RRC_UE_t *UE
   if ((pdu_sessions_done > 0 || pdu_sessions_failed)) {
     LOG_I(NR_RRC, "NGAP_PDUSESSION_SETUP_RESP: sending the message\n");
     itti_send_msg_to_task(TASK_NGAP, rrc->module_id, msg_p);
+    if (pdu_sessions_done > 0 && mmtc_rrc_inactive_gate1_trigger_enabled()) {
+      LOG_I(NR_RRC,
+            "MMTC Gate 1 trigger: sending RRCRelease suspendConfig after PDU session setup response for UE %u\n",
+            UE->rrc_ue_id);
+      rrc_gNB_generate_RRCRelease_suspend(rrc, UE);
+    }
   }
 
   FOR_EACH_SEQ_ARR(rrc_pdu_session_param_t *, session, &UE->pduSessions) {

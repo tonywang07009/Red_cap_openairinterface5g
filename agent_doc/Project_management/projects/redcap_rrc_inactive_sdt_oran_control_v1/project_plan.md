@@ -20,7 +20,8 @@
 
 ## Confirmed Current State
 - OAI currently has partial [RRC_INACTIVE] hooks.
-- UE `RRCRelease.suspendConfig` currently reaches `AssertFatal("Inactive State not supported")`.
+- UE `RRCRelease.suspendConfig` no longer reaches `AssertFatal("Inactive State not supported")` in the current worktree;
+  it now enters a controlled [RRC_INACTIVE] transition. [Gate 1 RFsim PASS on 2026-06-04]
 - gNB `RRCResumeRequest` handling currently logs unsupported behavior.
 - UE `configuredGrantConfig` currently has an unsupported assert path.
 - `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/` already hosts the RedCap RFsim + FlexRIC compose path.
@@ -43,14 +44,14 @@
 ## Milestone Index
 | Milestone | File | Purpose | Status |
 |---|---|---|---|
-| T2 | `milestones/T2_rrc_inactive_sdt_protocol.md` | RRC_INACTIVE, RRCResume, CG-SDT, TA fallback protocol baseline | [ ] |
+| T2 | `milestones/T2_rrc_inactive_sdt_protocol.md` | RRC_INACTIVE, RRCResume, CG-SDT, TA fallback protocol baseline | [~] Gate 1 PASS; Gates 2-4 pending |
 | T2B | `milestones/T2B_oran_policy_control.md` | KPM-driven O-RAN policy/control over validated RedCap parameters | [ ] |
 
 ## Gate Index
 | Gate | Task | Primary Output Checkpoint | Status |
 |---|---|---|---|
 | Gate 0 | Protocol/code inventory | Existing branches and 3GPP mapping confirmed | [x] |
-| Gate 1 | T2-1 `RRCRelease.suspendConfig` to UE INACTIVE | UE log: `RRC_INACTIVE entered`; no `exit 139` | [ ] |
+| Gate 1 | T2-1 `RRCRelease.suspendConfig` to UE INACTIVE | UE log: `RRC_INACTIVE entered`; no `exit 139` | [x] C build PASS; local images rebuilt; RFsim PASS 2026-06-04 |
 | Gate 2 | T2-2 RRCResume / RRCReestablishment | RFsim or Wireshark captures `RRCResumeRequest` | [ ] |
 | Gate 3 | T2-3 `configuredGrantConfig` + `cg-SDT` | UE uses CG PUSCH for small data | [ ] |
 | Gate 4 | T2-4 TA / RSRP threshold fallback | Threshold exceed triggers 4-step RA | [ ] |
@@ -58,9 +59,9 @@
 
 ## Active Focus
 - [Current Batch]: [T2 protocol baseline]
-- [Current Milestone]: [T2 Gate 1 preparation]
+- [Current Milestone]: [T2 Gate 2 RRCResume / RRCReestablishment pending]
 - [Current Runtime Policy Default]: [Case A]
-- [Current Implementation Status]: [Gate 0 inventory complete; Gate 1 ready for design/implementation]
+- [Current Implementation Status]: [Gate 1 RFsim PASS; Gate 2 not started]
 
 ## Daily Log Follow Rules
 - Every new `test_log/work_daily/*.md` entry for this project must include:

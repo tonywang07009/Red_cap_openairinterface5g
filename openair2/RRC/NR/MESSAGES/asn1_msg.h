@@ -107,6 +107,12 @@ int do_NR_SA_UECapabilityEnquiry(uint8_t *const buffer, const uint8_t Transactio
 
 int do_NR_RRCRelease(uint8_t *buffer, size_t buffer_size, uint8_t Transaction_id);
 
+int do_NR_RRCRelease_suspend(uint8_t *buffer,
+                             size_t buffer_size,
+                             uint8_t Transaction_id,
+                             uint64_t full_i_rnti,
+                             uint32_t short_i_rnti);
+
 byte_array_t do_RRCReconfiguration(const nr_rrc_reconfig_param_t *params);
 
 int do_RRCSetupComplete(uint8_t *buffer,
