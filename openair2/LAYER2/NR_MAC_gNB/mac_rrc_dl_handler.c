@@ -942,9 +942,10 @@ void dl_rrc_message_transfer(const f1ap_dl_rrc_message_t *dl_rrc)
   }
 
 
-  /* if we get the old-gNB-DU-UE-ID, this means there is a reestablishment
-   * ongoing. */
+  /* if we get the old-gNB-DU-UE-ID, this means there is a UE ID migration
+   * ongoing for RRCReestablishment or RRCResume. */
   if (dl_rrc->old_gNB_DU_ue_id != NULL) {
+    const bool rrc_resume = dl_rrc->rrc_resume;
     AssertFatal(*dl_rrc->old_gNB_DU_ue_id != dl_rrc->gNB_DU_ue_id,
                 "logic bug: current and old gNB DU UE ID cannot be the same\n");
     /* 38.401 says: "Find UE context based on old gNB-DU UE F1AP ID, replace
@@ -960,7 +961,8 @@ void dl_rrc_message_transfer(const f1ap_dl_rrc_message_t *dl_rrc)
     for (int i = 1; i < seq_arr_size(&oldUE->UE_sched_ctrl.lc_config); ++i) {
       const nr_lc_config_t *c = seq_arr_at(&oldUE->UE_sched_ctrl.lc_config, i);
       nr_lc_config_t new = *c;
-      new.suspended = true;
+      if (!rrc_resume)
+        new.suspended = true;
       nr_mac_add_lcid(&UE->UE_sched_ctrl, &new);
     }
     ASN_STRUCT_FREE(asn_DEF_NR_CellGroupConfig, UE->CellGroup);
@@ -972,26 +974,35 @@ void dl_rrc_message_transfer(const f1ap_dl_rrc_message_t *dl_rrc)
     UE->mac_stats = oldUE->mac_stats;
     UE->measgap_config = oldUE->measgap_config;
     UE->local_bwp_id = oldUE->local_bwp_id;
-    /* 38.331 5.3.7.2 says that the UE releases the spCellConfig, so we drop it
-     * from the current configuration. It will be reapplied when the
-     * reconfiguration has succeeded (indicated by the CU) */
-    asn_copy(&asn_DEF_NR_CellGroupConfig, (void **)&UE->reconfigCellGroup, UE->CellGroup);
-    ASN_STRUCT_FREE(asn_DEF_NR_SpCellConfig, UE->CellGroup->spCellConfig);
-    UE->CellGroup->spCellConfig = NULL;
-    UE->reestablish_rlc = true;
+    if (!rrc_resume) {
+      /* 38.331 5.3.7.2 says that the UE releases the spCellConfig, so we drop it
+       * from the current configuration. It will be reapplied when the
+       * reconfiguration has succeeded (indicated by the CU) */
+      asn_copy(&asn_DEF_NR_CellGroupConfig, (void **)&UE->reconfigCellGroup, UE->CellGroup);
+      ASN_STRUCT_FREE(asn_DEF_NR_SpCellConfig, UE->CellGroup->spCellConfig);
+      UE->CellGroup->spCellConfig = NULL;
+      UE->reestablish_rlc = true;
+    } else {
+      LOG_I(NR_MAC,
+            "RRCResume old UE ID migration %04x -> %04x: keeping logical channels active\n",
+            *dl_rrc->old_gNB_DU_ue_id,
+            dl_rrc->gNB_DU_ue_id);
+    }
     mac_remove_nr_ue(mac, *dl_rrc->old_gNB_DU_ue_id);
     pthread_mutex_unlock(&mac->sched_lock);
     nr_rlc_remove_ue(dl_rrc->gNB_DU_ue_id);
-    nr_rlc_update_id(*dl_rrc->old_gNB_DU_ue_id, dl_rrc->gNB_DU_ue_id);
-    /* 38.331 clause 5.3.7.4: apply gNB RLC configuration for SRB1 to match the UE RLC configuration defined in 9.2.1 */
-    nr_rlc_configuration_t rlc_configuration = mac->rlc_config; // use configuration file values for timers t_poll_retransmit, t_reassembly and t_status_prohibit
-    rlc_configuration.srb.poll_pdu = -1;
-    rlc_configuration.srb.poll_byte = -1;
-    rlc_configuration.srb.max_retx_threshold = 8;
-    rlc_configuration.srb.sn_field_length = 12;
-    NR_RLC_Config_t *rlc_Config = nr_srb_config(&rlc_configuration);
-    nr_rlc_reconfigure_entity(dl_rrc->gNB_DU_ue_id, 1, rlc_Config);
-    ASN_STRUCT_FREE(asn_DEF_NR_RLC_Config, rlc_Config);
+    nr_rlc_update_id(*dl_rrc->old_gNB_DU_ue_id, dl_rrc->gNB_DU_ue_id, true);
+    if (!rrc_resume) {
+      /* 38.331 clause 5.3.7.4: apply gNB RLC configuration for SRB1 to match the UE RLC configuration defined in 9.2.1 */
+      nr_rlc_configuration_t rlc_configuration = mac->rlc_config; // use configuration file values for timers t_poll_retransmit, t_reassembly and t_status_prohibit
+      rlc_configuration.srb.poll_pdu = -1;
+      rlc_configuration.srb.poll_byte = -1;
+      rlc_configuration.srb.max_retx_threshold = 8;
+      rlc_configuration.srb.sn_field_length = 12;
+      NR_RLC_Config_t *rlc_Config = nr_srb_config(&rlc_configuration);
+      nr_rlc_reconfigure_entity(dl_rrc->gNB_DU_ue_id, 1, rlc_Config);
+      ASN_STRUCT_FREE(asn_DEF_NR_RLC_Config, rlc_Config);
+    }
     instance_t f1inst = get_f1_gtp_instance();
     if (f1inst >= 0) // we actually use F1-U
       gtpv1u_update_ue_id(f1inst, *dl_rrc->old_gNB_DU_ue_id, dl_rrc->gNB_DU_ue_id);

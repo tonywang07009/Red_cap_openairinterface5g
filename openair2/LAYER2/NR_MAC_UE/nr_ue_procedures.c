@@ -1630,6 +1630,16 @@ static int mmtc_pucch_common_fallback_bwp0_enabled(void)
   return cached;
 }
 
+static int mmtc_rrc_inactive_gate2_resume_trigger_enabled(void)
+{
+  static int cached = -1;
+  if (cached >= 0)
+    return cached;
+  const char *env = getenv("MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER");
+  cached = (env != NULL && atoi(env) > 0) ? 1 : 0;
+  return cached;
+}
+
 static NR_UE_UL_BWP_t *find_ul_bwp_by_id(const NR_UE_MAC_INST_t *mac, const int bwp_id)
 {
   if (mac == NULL)
@@ -3986,6 +3996,20 @@ static void nr_ue_process_mac_pdu(NR_UE_MAC_INST_t *mac, nr_downlink_indication_
     uint8_t rx_lcid = ((NR_MAC_SUBHEADER_FIXED *)pduP)->LCID;
 
     LOG_D(MAC, "[UE] LCID %d, PDU length %d\n", rx_lcid, pdu_len);
+    if (mmtc_rrc_inactive_gate2_resume_trigger_enabled()
+        && (rx_lcid == DL_SCH_LCID_CON_RES_ID || rx_lcid == DL_SCH_LCID_DCCH)) {
+      LOG_I(NR_MAC,
+            "[RRC_INACTIVE Gate 2][UE Msg4] RX subPDU LCID %d pdu_len %d RA state %d active %d "
+            "TC-RNTI %04x C-RNTI %04x sfn %d.%d\n",
+            rx_lcid,
+            pdu_len,
+            ra->ra_state,
+            ra->RA_active,
+            ra->t_crnti,
+            mac->crnti,
+            frameP,
+            slot);
+    }
     bool ret;
     switch (rx_lcid) {
       //  MAC CE
@@ -4107,6 +4131,14 @@ static void nr_ue_process_mac_pdu(NR_UE_MAC_INST_t *mac, nr_downlink_indication_
           bool ra_success = check_ra_contention_resolution(&pduP[1], ra->cont_res_id);
 
           if (ra->RA_active && ra_success) {
+            if (mmtc_rrc_inactive_gate2_resume_trigger_enabled()) {
+              LOG_I(NR_MAC,
+                    "[RRC_INACTIVE Gate 2][UE Msg4] contention resolution success TC-RNTI %04x C-RNTI %04x "
+                    "remaining_pdu_len %d\n",
+                    ra->t_crnti,
+                    mac->crnti,
+                    pdu_len - (mac_subheader_len + mac_len));
+            }
             nr_ra_succeeded(mac, gNB_index, frameP, slot);
           } else if (!ra_success) {
             // consider this Contention Resolution not successful and discard the successfully decoded MAC PDU
@@ -4125,7 +4157,19 @@ static void nr_ue_process_mac_pdu(NR_UE_MAC_INST_t *mac, nr_downlink_indication_
         if (!get_mac_len(pduP, pdu_len, &mac_len, &mac_subheader_len))
           return;
         // discard the received subPDU if RB is suspended
-        if (is_lcid_suspended(mac, rx_lcid)) {
+        const bool rb_suspended = is_lcid_suspended(mac, rx_lcid);
+        if (mmtc_rrc_inactive_gate2_resume_trigger_enabled() && rx_lcid == DL_SCH_LCID_DCCH) {
+          LOG_I(NR_MAC,
+                "[RRC_INACTIVE Gate 2][UE Msg4] DCCH parsed LCID %d len %u subheader %u suspended %d "
+                "TC-RNTI %04x C-RNTI %04x\n",
+                rx_lcid,
+                mac_len,
+                mac_subheader_len,
+                rb_suspended,
+                ra->t_crnti,
+                mac->crnti);
+        }
+        if (rb_suspended) {
           LOG_W(NR_MAC, "Received PDU for a suspended RB, corresponding to LCID %d. Dropping it.\n", rx_lcid);
           break;
         }

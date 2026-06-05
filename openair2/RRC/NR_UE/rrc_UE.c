@@ -1932,6 +1932,22 @@ static void nr_rrc_handle_msg3_indication(NR_UE_RRC_INST_t *rrc, rnti_t rnti)
     case RRC_RESUME_REQUEST:
       rrc->rnti = rnti;
       nr_timer_start(&tac->T319);
+      const int resume_srb_id = 1;
+      const int resume_lc_id = nr_rlc_get_lcid_from_rb(rrc->ue_id, true, resume_srb_id);
+      if (resume_lc_id > 0) {
+        // Align SRB1 RLC state with the new C-RNTI RA leg before receiving RRCResume.
+        nr_rlc_reestablish_entity(rrc->ue_id, resume_lc_id);
+        nr_rlc_reconfigure_entity(rrc->ue_id, resume_lc_id, NULL);
+        rrc->Srb[resume_srb_id] = RB_ESTABLISHED;
+        nr_mac_rrc_message_t resume_rrc_msg = {0};
+        resume_rrc_msg.payload_type = NR_MAC_RRC_RESUME_RB;
+        resume_rrc_msg.payload.resume_rb.is_srb = true;
+        resume_rrc_msg.payload.resume_rb.rb_id = resume_srb_id;
+        nr_rrc_send_msg_to_mac(rrc, &resume_rrc_msg);
+        LOG_I(NR_RRC, "RRCResumeRequest resumed SRB1 RLC/MAC for LCID %d\n", resume_lc_id);
+      } else {
+        LOG_E(NR_RRC, "RRCResumeRequest could not find SRB1 LCID for lower-layer resume\n");
+      }
       LOG_I(NR_RRC, "RRCResumeRequest Msg3 indication new C-RNTI %04x\n", rnti);
       break;
     case DURING_HANDOVER:

@@ -442,6 +442,7 @@ f1ap_dl_rrc_message_t cp_dl_rrc_message_transfer(const f1ap_dl_rrc_message_t *ms
       .gNB_DU_ue_id = msg->gNB_DU_ue_id,
       .gNB_CU_ue_id = msg->gNB_CU_ue_id,
       .old_gNB_DU_ue_id = old_gNB_DU_ue_id,
+      .rrc_resume = msg->rrc_resume,
       .srb_id = msg->srb_id,
       .execute_duplication = msg->execute_duplication,
       .rrc_container = rrc_container,
@@ -463,6 +464,7 @@ bool eq_dl_rrc_message_transfer(const f1ap_dl_rrc_message_t *a, const f1ap_dl_rr
   _F1_EQ_CHECK_INT(a->gNB_DU_ue_id, b->gNB_DU_ue_id);
   if (!(a->old_gNB_DU_ue_id == NULL && b->old_gNB_DU_ue_id == NULL))
     _F1_EQ_CHECK_INT(*a->old_gNB_DU_ue_id, *b->old_gNB_DU_ue_id);
+  _F1_EQ_CHECK_INT(a->rrc_resume, b->rrc_resume);
   _F1_EQ_CHECK_INT(a->srb_id, b->srb_id);
   _F1_EQ_CHECK_INT(a->execute_duplication, b->execute_duplication);
   _F1_EQ_CHECK_INT(a->rrc_container_length, b->rrc_container_length);

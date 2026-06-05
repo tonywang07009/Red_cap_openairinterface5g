@@ -45,10 +45,21 @@
 #include "openair2/LAYER2/nr_rlc/nr_rlc_oai_api.h"
 
 #include <executables/softmodem-common.h>
+#include <stdlib.h>
 
 static void nr_fill_rar(uint8_t Mod_idP, NR_UE_info_t *UE, uint8_t *dlsch_buffer, nfapi_nr_pusch_pdu_t *pusch_pdu);
 
 static const float ssb_per_rach_occasion[8] = {0.125, 0.25, 0.5, 1, 2, 4, 8};
+
+static int mmtc_rrc_inactive_gate2_resume_trigger_enabled(void)
+{
+  static int cached = -1;
+  if (cached >= 0)
+    return cached;
+  const char *env = getenv("MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER");
+  cached = (env != NULL && atoi(env) > 0) ? 1 : 0;
+  return cached;
+}
 
 static int count_vrb_occupied_prbs(const uint16_t *vrb_map, int bwp_start, int bwp_size, uint16_t symbol_mask)
 {
@@ -2031,6 +2042,14 @@ static void nr_generate_Msg4_MsgB(module_id_t module_idP,
       if (srb_status.bytes_in_buffer == 0)
         return;
       mac_sdu_length = srb_status.bytes_in_buffer;
+      if (mmtc_rrc_inactive_gate2_resume_trigger_enabled() && lcid == DL_SCH_LCID_DCCH) {
+        LOG_I(NR_MAC,
+              "[RRC_INACTIVE Gate 2][gNB Msg4] SRB1 pending TC-RNTI %04x bytes %u sfn %d.%d\n",
+              UE->rnti,
+              mac_sdu_length,
+              frameP,
+              slotP);
+      }
     }
 
     const int n_slots_frame = nr_mac->frame_structure.numb_slots_frame;
@@ -2313,6 +2332,17 @@ static void nr_generate_Msg4_MsgB(module_id_t module_idP,
       uint8_t mac_subheader_len = sizeof(NR_MAC_SUBHEADER_SHORT);
       // Get RLC data on the SRB (RRCSetup, RRCReestablishment)
       mac_sdu_length = nr_mac_rlc_data_req(module_idP, UE->rnti, true, lcid, CCCH_SDU_SIZE, (char *)buffer);
+      if (mmtc_rrc_inactive_gate2_resume_trigger_enabled() && lcid == DL_SCH_LCID_DCCH) {
+        LOG_I(NR_MAC,
+              "[RRC_INACTIVE Gate 2][gNB Msg4] RLC data req TC-RNTI %04x LCID %d len %u ce_len %u tb_size %u "
+              "harq_pid %d\n",
+              UE->rnti,
+              lcid,
+              mac_sdu_length,
+              mac_pdu_length,
+              tb_size,
+              current_harq_pid);
+      }
 
       if (mac_sdu_length < 256) {
         ((NR_MAC_SUBHEADER_SHORT *)&buf[mac_pdu_length])->R = 0;
@@ -2329,6 +2359,16 @@ static void nr_generate_Msg4_MsgB(module_id_t module_idP,
         ra->mac_pdu_length = mac_pdu_length + mac_sdu_length + sizeof(NR_MAC_SUBHEADER_LONG);
       }
       memcpy(&buf[mac_pdu_length + mac_subheader_len], buffer, mac_sdu_length);
+      if (mmtc_rrc_inactive_gate2_resume_trigger_enabled() && lcid == DL_SCH_LCID_DCCH) {
+        LOG_I(NR_MAC,
+              "[RRC_INACTIVE Gate 2][gNB Msg4] muxed TC-RNTI %04x LCID %d subheader %u mac_pdu_length %u "
+              "tb_size %u\n",
+              UE->rnti,
+              lcid,
+              mac_subheader_len,
+              ra->mac_pdu_length,
+              tb_size);
+      }
     }
 
     rnti_t rnti = ra->ra_type == RA_4_STEP ? UE->rnti : ra->MsgB_rnti;

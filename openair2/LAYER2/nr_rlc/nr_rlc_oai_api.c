@@ -917,7 +917,7 @@ void nr_rlc_remove_ue(int ue_id)
   nr_rlc_manager_unlock(nr_rlc_ue_manager);
 }
 
-bool nr_rlc_update_id(int from_id, int to_id)
+bool nr_rlc_update_id(int from_id, int to_id, bool reestablish_srb1)
 {
   nr_rlc_manager_lock(nr_rlc_ue_manager);
   nr_rlc_ue_t *ue = nr_rlc_manager_get_ue(nr_rlc_ue_manager, from_id);
@@ -929,7 +929,7 @@ bool nr_rlc_update_id(int from_id, int to_id)
   ue->ue_id = to_id;
   LOG_I(RLC, "Update old UE ID %d context to ID %d\n", from_id, to_id);
   /* re-establish RLC for SRB1: according to 5.3.7.4 of TS 38.331 */
-  if (ue->srb[0]) {
+  if (reestablish_srb1 && ue->srb[0]) {
     LOG_I(RLC, "Re-establish RLC for SRB 1\n");
     ue->srb[0]->reestablishment(ue->srb[0]);
   }

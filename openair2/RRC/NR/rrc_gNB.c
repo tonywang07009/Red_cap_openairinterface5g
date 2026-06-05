@@ -2205,6 +2205,7 @@ static void rrc_handle_RRCResumeRequest(gNB_RRC_INST *rrc,
   if (!UE->as_security_active)
     LOG_W(NR_RRC, "RRCResumeRequest matched UE %u without active AS security [Needs Verification]\n", UE->rrc_ue_id);
 
+  const rnti_t old_rnti = UE->rnti;
   UE->rnti = msg->crnti;
   UE->nr_cellid = msg->nr_cellid;
   f1_ue_data_t ue_data = cu_get_f1_ue_data(UE->rrc_ue_id);
@@ -2213,7 +2214,7 @@ static void rrc_handle_RRCResumeRequest(gNB_RRC_INST *rrc,
   DevAssert(success);
 
   LOG_UE_UL_EVENT(UE, "RRC context found for RRCResumeRequest shortI-RNTI %06x\n", short_i_rnti);
-  rrc_gNB_generate_RRCResume(rrc, UE);
+  rrc_gNB_generate_RRCResume(rrc, UE, old_rnti);
 }
 
 void rrc_gNB_process_initial_ul_rrc_message(sctp_assoc_t assoc_id, const f1ap_initial_ul_rrc_message_t *ul_rrc)
@@ -3401,15 +3402,34 @@ void rrc_gNB_generate_RRCRelease_suspend(gNB_RRC_INST *rrc, gNB_RRC_UE_t *UE)
   nr_rrc_transfer_protected_rrc_message(rrc, UE, DL_SCH_LCID_DCCH, msg_id, buffer, size);
 }
 
-void rrc_gNB_generate_RRCResume(gNB_RRC_INST *rrc, gNB_RRC_UE_t *UE)
+void rrc_gNB_generate_RRCResume(gNB_RRC_INST *rrc, gNB_RRC_UE_t *UE, const rnti_t old_rnti)
 {
   uint8_t buffer[NR_RRC_BUF_SIZE] = {0};
   int size = do_NR_RRCResume(buffer, NR_RRC_BUF_SIZE, rrc_gNB_get_next_transaction_identifier(rrc->module_id));
 
   LOG_I(NR_RRC, "RRCResume sent for UE %u RNTI %04x\n", UE->rrc_ue_id, UE->rnti);
   LOG_UE_DL_EVENT(UE, "Send RRCResume\n");
-  const uint32_t msg_id = NR_DL_DCCH_MessageType__c1_PR_rrcResume;
-  nr_rrc_transfer_protected_rrc_message(rrc, UE, DL_SCH_LCID_DCCH, msg_id, buffer, size);
+  LOG_I(NR_RRC, "RRCResume F1 transfer old gNB-DU UE ID %04x new gNB-DU UE ID %04x\n", old_rnti, UE->rnti);
+  f1_ue_data_t ue_data = cu_get_f1_ue_data(UE->rrc_ue_id);
+  RETURN_IF_INVALID_ASSOC_ID(ue_data.du_assoc_id);
+  uint32_t old_gNB_DU_ue_id = old_rnti;
+  f1ap_dl_rrc_message_t dl_rrc = {.gNB_CU_ue_id = UE->rrc_ue_id,
+                                  .gNB_DU_ue_id = ue_data.secondary_ue,
+                                  .srb_id = DL_SCH_LCID_DCCH,
+                                  .old_gNB_DU_ue_id = &old_gNB_DU_ue_id,
+                                  .rrc_resume = true};
+  deliver_dl_rrc_message_data_t data = {.rrc = rrc, .dl_rrc = &dl_rrc, .assoc_id = ue_data.du_assoc_id};
+  nr_pdcp_data_req_srb(UE->rrc_ue_id,
+                       DL_SCH_LCID_DCCH,
+                       rrc_gNB_mui++,
+                       size,
+                       (unsigned char *const)buffer,
+                       rrc_deliver_dl_rrc_message,
+                       &data);
+
+#ifdef E2_AGENT
+  E2_AGENT_SIGNAL_DL_DCCH_RRC_MSG(buffer, size, NR_DL_DCCH_MessageType__c1_PR_rrcResume);
+#endif
 }
 
 int rrc_gNB_generate_pcch_msg(sctp_assoc_t assoc_id, const NR_SIB1_t *sib1, uint32_t tmsi, uint8_t paging_drx)
