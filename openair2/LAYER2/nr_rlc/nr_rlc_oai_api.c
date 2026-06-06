@@ -209,6 +209,12 @@ tbs_size_t nr_mac_rlc_data_req(const module_id_t  module_idP,
     rb->set_time(rb, get_nr_rlc_current_time());
     maxsize = tb_sizeP;
     ret = rb->generate_pdu(rb, buffer_pP, maxsize);
+    if (!gnb_flagP && channel_idP == 1 && ret > 0)
+      LOG_I(RLC,
+            "[RRC_INACTIVE Gate 2][UE RLC->MAC] generated SRB1 PDU UE %d bytes %d max %d\n",
+            ue_id,
+            ret,
+            maxsize);
   } else {
     LOG_D(RLC, "MAC PDU failed to get created for channel_idP:%d \n", channel_idP);
     ret = 0;
@@ -288,6 +294,12 @@ rlc_op_status_t nr_rlc_data_req(const protocol_ctxt_t *const ctxt_pP,
 
   if (rb != NULL) {
     rb->set_time(rb, get_nr_rlc_current_time());
+    if (srb_flagP && rb_idP == 1 && sdu_sizeP <= 16)
+      LOG_I(RLC,
+            "[RRC_INACTIVE Gate 2][RLC recv_sdu] UE %d enb %d SRB1 bytes %d\n",
+            ue_id,
+            ctxt_pP->enb_flag,
+            sdu_sizeP);
     rb->recv_sdu(rb, (char *)sdu_pP, sdu_sizeP, muiP);
   } else {
     LOG_E(RLC, "%s:%d:%s: fatal: SDU sent to unknown RB\n", __FILE__, __LINE__, __FUNCTION__);

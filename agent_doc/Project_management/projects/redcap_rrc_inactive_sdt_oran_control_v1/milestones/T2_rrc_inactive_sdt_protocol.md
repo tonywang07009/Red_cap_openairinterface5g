@@ -49,7 +49,7 @@
 - [Validation Log] `test_log/work_daily/2026-06-04_rrc_inactive_sdt_gate1_rfsim_validation.md`
 
 ## Gate 2: T2-2 RRCResume / RRCReestablishment
-- [Status] [~] C implementation/build PASS on 2026-06-04; RFsim runtime pending.
+- [Status] [x] RFsim PASS on 2026-06-05.
 - [Modification Point] -> gNB `rrcResumeRequest` handler and UE `RRCResume` DL-DCCH handler.
 - [Reason] -> INACTIVE must have a normal path back to CONNECTED.
 - [Before vs. After Comparison] -> Before: gNB/UE log unsupported; After: UE sends `RRCResumeRequest`, gNB sends `RRCResume`, UE sends `RRCResumeComplete`.
@@ -59,6 +59,8 @@
 - [MUST] UE returns to `[RRC_CONNECTED]`.
 - [MUST] PDCP SN preservation is checked or marked `[Needs Verification]`.
 - [Validation Log] `test_log/work_daily/2026-06-04_rrc_inactive_sdt_gate2_c_implementation.md`
+- [RFsim Validation Log] `test_log/work_daily/2026-06-05_rrc_inactive_sdt_gate2_rfsim_validation.md`
+- [RFsim Evidence] `test_log/compiler_logs/rrc_inactive_gate2_bwp_restore_rfsim_2026-06-05_23-34-44.log`
 
 ## Gate 3: T2-3 configuredGrantConfig + cg-SDT
 - [Modification Point] -> SIB1 / UL BWP / MAC UE configured grant parse path.

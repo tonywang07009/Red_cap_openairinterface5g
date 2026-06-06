@@ -95,6 +95,7 @@ void nr_rrc_mac_config_req_sib1(module_id_t module_id, int cc_idP, NR_SIB1_t *si
 struct position; /* forward declaration */
 void nr_rrc_mac_config_other_sib(module_id_t module_id, NR_SIB19_r17_t *sib19_r17, int hfn, int frame, bool can_start_ra);
 void nr_rrc_mac_resume_rb(module_id_t module_id, bool is_srb, int rb_id);
+void nr_rrc_mac_restore_active_bwp(module_id_t module_id, NR_BWP_Id_t dl_bwp_id, NR_BWP_Id_t ul_bwp_id);
 void nr_rrc_mac_config_req_reset(module_id_t module_id, NR_UE_MAC_reset_cause_t cause);
 
 /**\brief initialization NR UE MAC instance(s)*/

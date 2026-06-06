@@ -2421,7 +2421,7 @@ static void nr_rrc_ue_generate_RRCResumeComplete(NR_UE_RRC_INST_t *rrc, const in
 {
   uint8_t buffer[32];
   int size = do_NR_RRCResumeComplete(buffer, sizeof(buffer), Transaction_id);
-  LOG_I(NR_RRC, "RRCResumeComplete sent\n");
+  LOG_I(NR_RRC, "RRCResumeComplete sent on SRB%d bytes %d\n", srb_id, size);
   AssertFatal(srb_id == 1 || srb_id == 3, "Invalid SRB ID %d\n", srb_id);
   nr_pdcp_data_req_srb(rrc->ue_id, srb_id, 0, size, buffer, deliver_pdu_srb_rlc, NULL);
 }
@@ -2443,6 +2443,7 @@ static void nr_rrc_ue_process_rrcResume(NR_UE_RRC_INST_t *rrc, const NR_RRCResum
   rrc->ra_trigger = RA_NOT_RUNNING;
   rrc->inactive_context_valid = false;
   LOG_I(NR_RRC, "RRC_CONNECTED\n");
+  nr_rrc_mac_restore_active_bwp(rrc->ue_id, rrc->dl_bwp_id, rrc->ul_bwp_id);
   nr_rrc_ue_generate_RRCResumeComplete(rrc, srb_id, rrcResume->rrc_TransactionIdentifier);
 }
 

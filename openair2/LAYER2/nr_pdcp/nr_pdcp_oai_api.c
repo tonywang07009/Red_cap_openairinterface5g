@@ -214,6 +214,14 @@ static void enqueue_rlc_data_req(const protocol_ctxt_t *const ctxt_pP,
   q.q[i].sdu_sizeP  = sdu_sizeP;
   q.q[i].sdu_pP     = sdu_pP;
 
+  if (srb_flagP && rb_idP == 1 && sdu_sizeP <= 16)
+    LOG_I(PDCP,
+          "[RRC_INACTIVE Gate 2][PDCP->RLC] enqueue SRB1 UE %ld enb %d bytes %d queue_len %d\n",
+          ctxt_pP->rntiMaybeUEid,
+          ctxt_pP->enb_flag,
+          sdu_sizeP,
+          q.length);
+
   if (pthread_cond_signal(&q.c) != 0) abort();
   if (pthread_mutex_unlock(&q.m) != 0) abort();
 }

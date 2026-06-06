@@ -31,6 +31,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <pthread.h>
+#include <stdlib.h>
 
 /* exe */
 #include <common/utils/nr/nr_common.h>
@@ -60,6 +61,16 @@
 
 static void nr_ue_prach_scheduler(NR_UE_MAC_INST_t *mac, frame_t frameP, slot_t slotP);
 static void schedule_ta_command(fapi_nr_dl_config_request_t *dl_config, NR_UE_MAC_INST_t *mac);
+
+static bool gate2_resume_trace_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled < 0) {
+    const char *value = getenv("MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER");
+    enabled = value && value[0] != '\0' && value[0] != '0';
+  }
+  return enabled;
+}
 
 static void nr_ue_fill_phr(NR_UE_MAC_INST_t *mac,
                            NR_SINGLE_ENTRY_PHR_MAC_CE *phr,
@@ -1249,6 +1260,28 @@ static void nr_update_sr(NR_UE_MAC_INST_t *mac, bool BSRsent)
     return;
   }
 
+  NR_LC_SCHEDULING_INFO *selected_sched_info = get_scheduling_info_from_lcid(mac, lc_info->lcid);
+  NR_UE_UL_BWP_t *current_UL_BWP = mac->current_UL_BWP;
+  NR_PUCCH_Config_t *pucch_Config = current_UL_BWP ? current_UL_BWP->pucch_Config : NULL;
+  const bool trace_lcid1 = gate2_resume_trace_enabled() && lc_info->lcid == 1;
+  if (trace_lcid1)
+    LOG_I(NR_MAC,
+          "[RRC_INACTIVE Gate 2][UE SR] update UE %d LCID1 bytes %d BSRsent %d sr_delay %d cg %d sr_mask %d sr_id %d "
+          "pucch_sr_count %d ul_bwp_id %ld start %d size %d\n",
+          mac->ue_id,
+          selected_sched_info->LCID_buffer_remain,
+          BSRsent,
+          nr_timer_is_active(&sched_info->sr_DelayTimer),
+          current_UL_BWP && current_UL_BWP->configuredGrantConfig,
+          lc_info->lc_SRMask,
+          lc_info->sr_id,
+          (pucch_Config && pucch_Config->schedulingRequestResourceToAddModList)
+              ? pucch_Config->schedulingRequestResourceToAddModList->list.count
+              : 0,
+          current_UL_BWP ? current_UL_BWP->bwp_id : -1,
+          current_UL_BWP ? current_UL_BWP->BWPStart : -1,
+          current_UL_BWP ? current_UL_BWP->BWPSize : -1);
+
   // if a Regular BSR has been triggered and logicalChannelSR-DelayTimer is not running
   if (BSRsent || nr_timer_is_active(&sched_info->sr_DelayTimer))
     return;
@@ -1262,8 +1295,6 @@ static void nr_update_sr(NR_UE_MAC_INST_t *mac, bool BSRsent)
   // if the UL-SCH resources available for a new transmission do not meet the LCP mapping restrictions
   // TODO not implemented
 
-  NR_UE_UL_BWP_t *current_UL_BWP = mac->current_UL_BWP;
-  NR_PUCCH_Config_t *pucch_Config = current_UL_BWP ? current_UL_BWP->pucch_Config : NULL;
   if (!pucch_Config
       || !pucch_Config->schedulingRequestResourceToAddModList
       || pucch_Config->schedulingRequestResourceToAddModList->list.count == 0)
@@ -1310,6 +1341,22 @@ static void nr_update_rlc_buffers_status(NR_UE_MAC_INST_t *mac, frame_t frameP, 
             slotP);
     }
     lc_sched_info->LCID_buffer_remain = rlc_status.bytes_in_buffer;
+    if (gate2_resume_trace_enabled() && lcid == 1 && rlc_status.bytes_in_buffer > 0) {
+      NR_UE_UL_BWP_t *ul_bwp = mac->current_UL_BWP;
+      LOG_I(NR_MAC,
+            "[RRC_INACTIVE Gate 2][UE LCID1 buffer] UE %d frame.slot %d.%d bytes %d Bj %d lcg %ld suspended %d "
+            "ul_bwp_id %ld start %d size %d\n",
+            mac->ue_id,
+            frameP,
+            slotP,
+            rlc_status.bytes_in_buffer,
+            lc_sched_info->Bj,
+            lc_sched_info->LCGID,
+            lc_info->rb_suspended,
+            ul_bwp ? ul_bwp->bwp_id : -1,
+            ul_bwp ? ul_bwp->BWPStart : -1,
+            ul_bwp ? ul_bwp->BWPSize : -1);
+    }
   }
 }
 
@@ -1352,6 +1399,12 @@ static void nr_update_bsr(NR_UE_MAC_INST_t *mac, uint32_t *LCG_bytes)
       if (!bsr_regular_triggered) {
         bsr_regular_triggered = true;
         trigger_regular_bsr(mac, lcid, lc_info->sr_DelayTimerApplied);
+        if (gate2_resume_trace_enabled() && lcid == 1)
+          LOG_I(NR_MAC,
+                "[RRC_INACTIVE Gate 2][UE BSR] regular triggered UE %d LCID1 bytes %d LCG %d\n",
+                mac->ue_id,
+                lc_sched_info->LCID_buffer_remain,
+                lcgid);
         LOG_D(NR_MAC, "[UE %d] MAC BSR Triggered\n", mac->ue_id);
       }
     }
@@ -2715,6 +2768,19 @@ static bool fill_mac_sdu(NR_UE_MAC_INST_t *mac,
                                                 lcids_bytes_tot,
                                                 &target);
   header_sz = bytes_requested < 256 ? sizeof(NR_MAC_SUBHEADER_SHORT) : sizeof(NR_MAC_SUBHEADER_LONG);
+  if (gate2_resume_trace_enabled() && lcid == 1 && lcid_remain_buffer > 0)
+    LOG_I(NR_MAC,
+          "[RRC_INACTIVE Gate 2][UE LCP] considering SRB1 UE %d frame.slot %d.%d remain %d Bj %d usable %u "
+          "request %ld target %ld round %d\n",
+          mac->ue_id,
+          frame,
+          slot,
+          lcid_remain_buffer,
+          sched_info->Bj,
+          usable,
+          bytes_requested,
+          target,
+          mac_ce_p->lcp_allocation_counter);
 
   uint16_t sdu_length = nr_mac_rlc_data_req(mac->ue_id,
                                             mac->ue_id,
@@ -2744,6 +2810,14 @@ static bool fill_mac_sdu(NR_UE_MAC_INST_t *mac,
   int lc_idx = lcid_buffer_index(lcid);
   if (sdu_length > 0) {
     mac_ce_p->num_sdus++;
+    if (lcid == 1 && sdu_length <= 16)
+      LOG_I(NR_MAC,
+            "[RRC_INACTIVE Gate 2][UE MAC UL] muxed SRB1 SDU UE %d frame.slot %d.%d bytes %d requested %ld\n",
+            mac->ue_id,
+            frame,
+            slot,
+            sdu_length,
+            bytes_requested);
     LOG_D(NR_MAC,
           "[UE %d] [%d.%d] UL-DXCH -> ULSCH, Generating UL MAC sub-PDU for SDU %d, length %d bytes, RB with LCID "
           "0x%02x (buflen (TBS) %ld bytes)\n",

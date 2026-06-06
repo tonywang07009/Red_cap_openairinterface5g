@@ -604,6 +604,13 @@ static int nr_process_mac_pdu(instance_t module_idP,
         if (!srbc || srbc->suspended) {
           LOG_I(NR_MAC, "RNTI %04x LCID %d: ignoring %d bytes\n", UE->rnti, lcid, mac_len);
         } else {
+          if (lcid == UL_SCH_LCID_SRB1 && mac_len <= 16)
+            LOG_I(NR_MAC,
+                  "[RRC_INACTIVE Gate 2][gNB MAC UL] received SRB1 SDU RNTI %04x frame.slot %d.%d bytes %d\n",
+                  UE->rnti,
+                  frameP,
+                  slot,
+                  mac_len);
           nr_mac_rlc_data_ind(module_idP, UE->rnti, true, lcid, (char *)(pduP + mac_subheader_len), mac_len);
 
           UE->mac_stats.ul.total_sdu_bytes += mac_len;
@@ -1156,6 +1163,15 @@ static void _nr_rx_sdu(const module_id_t gnb_mod_idP,
       }
 
       if (!get_softmodem_params()->phy_test && UE->UE_sched_ctrl.pusch_consecutive_dtx_cnt >= pusch_failure_thres) {
+        const nr_lc_config_t *srb1 = nr_mac_get_lc_config(&UE->UE_sched_ctrl, UL_SCH_LCID_SRB1);
+        LOG_I(NR_MAC,
+              "[RRC_INACTIVE Gate 2][gNB UL DTX] RNTI %04x sched_ul_bytes %d estimated_ul_buffer %d SRB1_config %d "
+              "SRB1_suspended %d\n",
+              UE->rnti,
+              UE->UE_sched_ctrl.sched_ul_bytes,
+              UE->UE_sched_ctrl.estimated_ul_buffer,
+              srb1 != NULL,
+              srb1 ? srb1->suspended : -1);
         LOG_W(NR_MAC,
               "%4d.%2d UE %04x: Detected UL Failure on PUSCH after %d PUSCH DTX, stopping scheduling\n",
               frameP,

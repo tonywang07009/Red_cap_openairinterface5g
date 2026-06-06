@@ -1962,11 +1962,60 @@ void nr_rrc_mac_resume_rb(module_id_t module_id, bool is_srb, int rb_id)
   NR_UE_MAC_INST_t *mac = get_mac_inst(module_id);
   for (int j = 0; j < mac->lc_ordered_list.count; j++) {
     nr_lcordered_info_t *lc = mac->lc_ordered_list.array[j];
-    if (is_srb && lc->rb.type == NR_LCID_SRB && lc->rb.choice.srb_id == rb_id)
+    if (is_srb && lc->rb.type == NR_LCID_SRB && lc->rb.choice.srb_id == rb_id) {
+      NR_UE_UL_BWP_t *ul_bwp = mac->current_UL_BWP;
+      if (rb_id == 1)
+        LOG_I(NR_MAC,
+              "[RRC_INACTIVE Gate 2][UE MAC RB] resume SRB1 LCID %ld suspended %d->0 ul_bwp_id %ld start %d size %d\n",
+              lc->lcid,
+              lc->rb_suspended,
+              ul_bwp ? ul_bwp->bwp_id : -1,
+              ul_bwp ? ul_bwp->BWPStart : -1,
+              ul_bwp ? ul_bwp->BWPSize : -1);
       lc->rb_suspended = false;
+    }
     if (!is_srb && lc->rb.type == NR_LCID_DRB && lc->rb.choice.drb_id == rb_id)
       lc->rb_suspended = false;
   }
+}
+
+void nr_rrc_mac_restore_active_bwp(module_id_t module_id, NR_BWP_Id_t dl_bwp_id, NR_BWP_Id_t ul_bwp_id)
+{
+  NR_UE_MAC_INST_t *mac = get_mac_inst(module_id);
+  int ret = pthread_mutex_lock(&mac->if_mutex);
+  AssertFatal(!ret, "mutex failed %d\n", ret);
+
+  NR_UE_DL_BWP_t *target_dl_bwp = get_dl_bwp_structure(mac, dl_bwp_id, false);
+  NR_UE_UL_BWP_t *target_ul_bwp = get_ul_bwp_structure(mac, ul_bwp_id, false);
+  if (target_dl_bwp == NULL || target_ul_bwp == NULL) {
+    LOG_W(NR_MAC,
+          "[RRC_INACTIVE Gate 2][UE BWP restore] missing BWP target dl %ld ul %ld current dl %ld ul %ld\n",
+          dl_bwp_id,
+          ul_bwp_id,
+          mac->current_DL_BWP ? mac->current_DL_BWP->bwp_id : -1,
+          mac->current_UL_BWP ? mac->current_UL_BWP->bwp_id : -1);
+  } else {
+    const NR_BWP_Id_t old_dl_bwp_id = mac->current_DL_BWP ? mac->current_DL_BWP->bwp_id : -1;
+    const NR_BWP_Id_t old_ul_bwp_id = mac->current_UL_BWP ? mac->current_UL_BWP->bwp_id : -1;
+    mac->current_DL_BWP = target_dl_bwp;
+    mac->current_UL_BWP = target_ul_bwp;
+    NR_PUCCH_Config_t *pucch_config = mac->current_UL_BWP->pucch_Config;
+    const int sr_count = pucch_config && pucch_config->schedulingRequestResourceToAddModList
+                             ? pucch_config->schedulingRequestResourceToAddModList->list.count
+                             : 0;
+    LOG_I(NR_MAC,
+          "[RRC_INACTIVE Gate 2][UE BWP restore] active DL %ld->%ld UL %ld->%ld ul_start %d ul_size %d pucch_sr_count %d\n",
+          old_dl_bwp_id,
+          mac->current_DL_BWP->bwp_id,
+          old_ul_bwp_id,
+          mac->current_UL_BWP->bwp_id,
+          mac->current_UL_BWP->BWPStart,
+          mac->current_UL_BWP->BWPSize,
+          sr_count);
+  }
+
+  ret = pthread_mutex_unlock(&mac->if_mutex);
+  AssertFatal(!ret, "mutex failed %d\n", ret);
 }
 
 static void configure_si_schedulingInfo(NR_UE_MAC_INST_t *mac,
