@@ -52,3 +52,16 @@
   - references checked
   - expected impact
   - recommendation
+
+## Sub-task Closeout Knowledge Capture
+- At the end of each experiment, audit, or analysis sub-task, decide whether the work produced a reusable [trace step] or recurring [problem pattern].
+- If useful, add a concise candidate to `agent_doc/Project_management/redcap_trace_problem_kb/candidate_inbox.md`.
+- Candidate entries should include:
+  - [Experiment or Audit Item]
+  - [source evidence path]
+  - [success marker]
+  - [failure marker]
+  - [step-by-step draft]
+- After every 5 completed sub-tasks, run `agent_doc/Project_management/redcap_trace_problem_kb/maintenance_rule.md`.
+- Keep retained fix procedures numbered and step-by-step.
+- Do not store raw logs, heavy generated outputs, packet captures, or one-off command mistakes in the KB.

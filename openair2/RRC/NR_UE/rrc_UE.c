@@ -188,6 +188,13 @@ static void nr_rrc_ue_trigger_RRCResumeRequest_ra(NR_UE_RRC_INST_t *rrc)
   nr_rrc_send_msg_to_mac(rrc, &rrc_msg);
 }
 
+static void nr_rrc_ue_notify_mac_inactive(NR_UE_RRC_INST_t *rrc)
+{
+  nr_mac_rrc_message_t rrc_msg = {0};
+  rrc_msg.payload_type = NR_MAC_RRC_ENTER_INACTIVE;
+  nr_rrc_send_msg_to_mac(rrc, &rrc_msg);
+}
+
 static void nr_rrc_enter_inactive_from_suspend(NR_UE_RRC_INST_t *rrc, const NR_SuspendConfig_t *suspend_config)
 {
   NR_UE_Timers_Constants_t *tac = &rrc->timers_and_constants;
@@ -214,6 +221,7 @@ static void nr_rrc_enter_inactive_from_suspend(NR_UE_RRC_INST_t *rrc, const NR_S
 
   rrc->nrRrcState = RRC_STATE_INACTIVE_NR;
   LOG_I(NR_RRC, "RRC_INACTIVE entered\n");
+  nr_rrc_ue_notify_mac_inactive(rrc);
   if (nr_rrc_gate2_resume_trigger_enabled())
     nr_rrc_ue_trigger_RRCResumeRequest_ra(rrc);
 }

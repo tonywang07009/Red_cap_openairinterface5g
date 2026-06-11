@@ -1689,6 +1689,40 @@ static void configure_dedicated_BWP_dl(NR_UE_MAC_INST_t *mac, int bwp_id, NR_BWP
   }
 }
 
+static void configure_configured_grant(NR_UE_MAC_INST_t *mac,
+                                       NR_UE_UL_BWP_t *bwp,
+                                       const NR_SetupRelease_ConfiguredGrantConfig_t *configured_grant)
+{
+  if (!configured_grant)
+    return;
+
+  if (configured_grant->present == NR_SetupRelease_ConfiguredGrantConfig_PR_release) {
+    asn1cFreeStruc(asn_DEF_NR_ConfiguredGrantConfig, bwp->configuredGrantConfig);
+    bwp->configuredGrantConfig = NULL;
+    LOG_I(MAC, "[RRC_INACTIVE Gate 3][UE %d] configuredGrantConfig released bwp_id=%ld\n", mac->ue_id, (long)bwp->bwp_id);
+  }
+
+  if (configured_grant->present == NR_SetupRelease_ConfiguredGrantConfig_PR_setup) {
+    asn1cFreeStruc(asn_DEF_NR_ConfiguredGrantConfig, bwp->configuredGrantConfig);
+    bwp->configuredGrantConfig = NULL;
+
+    const int copy_result =
+        asn_copy(&asn_DEF_NR_ConfiguredGrantConfig, (void **)&bwp->configuredGrantConfig, configured_grant->choice.setup);
+    AssertFatal(copy_result == 0, "error during asn_copy() of ConfiguredGrantConfig\n");
+
+    const bool has_cg_sdt = bwp->configuredGrantConfig->rrc_ConfiguredUplinkGrant
+                            && bwp->configuredGrantConfig->rrc_ConfiguredUplinkGrant->ext2
+                            && bwp->configuredGrantConfig->rrc_ConfiguredUplinkGrant->ext2->cg_SDT_Configuration_r17;
+    LOG_I(MAC,
+          "[RRC_INACTIVE Gate 3][UE %d] configuredGrantConfig parsed bwp_id=%ld periodicity=%ld resourceAllocation=%ld cg_sdt=%d\n",
+          mac->ue_id,
+          (long)bwp->bwp_id,
+          bwp->configuredGrantConfig->periodicity,
+          bwp->configuredGrantConfig->resourceAllocation,
+          has_cg_sdt ? 1 : 0);
+  }
+}
+
 static void configure_dedicated_BWP_ul(NR_UE_MAC_INST_t *mac, int bwp_id, NR_BWP_UplinkDedicated_t *ul_dedicated)
 {
   if (ul_dedicated) {
@@ -1727,7 +1761,7 @@ static void configure_dedicated_BWP_ul(NR_UE_MAC_INST_t *mac, int bwp_id, NR_BWP
         setup_srsconfig(bwp, ul_dedicated->srs_Config->choice.setup, bwp->srs_Config);
       }
     }
-    AssertFatal(!ul_dedicated->configuredGrantConfig, "configuredGrantConfig not supported\n");
+    configure_configured_grant(mac, bwp, ul_dedicated->configuredGrantConfig);
   }
 }
 

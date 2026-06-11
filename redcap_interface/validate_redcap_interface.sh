@@ -69,6 +69,7 @@ check_file "${SCRIPT_DIR}/paper11_table3_peak_reproduction.sh" "PAPER-11 Table 3
 check_file "${SCRIPT_DIR}/iperf_live_panel.py" "iperf live panel"
 check_file "${SCRIPT_DIR}/redcap_mmtc_stage_scan.sh" "mMTC stage scan"
 check_file "${SCRIPT_DIR}/redcap_runtime_host_validation.sh" "host validation runner"
+check_file "${SCRIPT_DIR}/redcap_rrc_behavior_compare.bash" "RRC behavior comparator"
 check_file "${SCRIPT_DIR}/generate_mmtc_cn_db_overlay.sh" "CN DB overlay generator"
 check_file "${SCRIPT_DIR}/redcap_rebuild_local_oai_images.sh" "local image rebuild helper"
 check_file "${SCRIPT_DIR}/redcap_inspect_gnb_image.sh" "gNB image inspector"

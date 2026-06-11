@@ -25,7 +25,11 @@
 - gNB has a validation-only `MMTC_RRC_INACTIVE_GATE1_TRIGGER` path, default disabled, to emit `RRCRelease.suspendConfig` after PDU session setup.
 - gNB `rrcResumeRequest` handling has a Gate 2 validation path that keeps the retained UE RRC context and resumes it by `shortI-RNTI`.
 - UE `RRCResume` DL-DCCH handling has a Gate 2 validation path that returns UE state to `[RRC_CONNECTED]` and sends `RRCResumeComplete`.
-- UE `configuredGrantConfig` currently has an unsupported assert path.
+- UE `configuredGrantConfig` assert path has been replaced by a parse/store/release slice for Gate 3 validation.
+- UE now has a validation-oriented autonomous CG PUSCH scheduler slice, a RRC-to-MAC inactive indication,
+  and gNB has a CG-SDT RX classifier candidate.
+- Full Gate 3 PASS remains pending until Docker images can be rebuilt and RFsim proves `cg-SDT PUSCH tx`
+  and `cg-SDT PUSCH rx` markers together.
 - Existing MAC SDT FSM hooks are not a complete RRC_INACTIVE + SDT protocol implementation.
 
 ## Gate 0: Protocol and Code Inventory
@@ -63,10 +67,11 @@
 - [RFsim Evidence] `test_log/compiler_logs/rrc_inactive_gate2_bwp_restore_rfsim_2026-06-05_23-34-44.log`
 
 ## Gate 3: T2-3 configuredGrantConfig + cg-SDT
+- [Status] [~] In progress on 2026-06-11; source builds PASS, latest RFsim rerun blocked by Docker escalation credits.
 - [Modification Point] -> SIB1 / UL BWP / MAC UE configured grant parse path.
 - [Reason] -> UE configured grant support must exist before CG-SDT validation.
-- [Before vs. After Comparison] -> Before: configured grant assert; After: UE parses and stores CG resources.
-- [Discussion Point] -> `cg-SDT` ASN.1 availability must be confirmed before claiming full support.
+- [Before vs. After Comparison] -> Before: configured grant assert and no CG scheduler; After: UE parses/stores CG resources and can schedule a validation-only autonomous CG PUSCH occasion.
+- [Discussion Point] -> gNB classifier currently marks `cg-SDT PUSCH rx candidate`; final PASS still requires RFsim proof and may expose either RLC/SDAP inactive-buffer visibility or a gNB UL_TTI configured-grant expectation blocker.
 - [MUST] UE uses CG PUSCH for small data.
 - [SHOULD] gNB log includes `cg-SDT PUSCH rx`.
 

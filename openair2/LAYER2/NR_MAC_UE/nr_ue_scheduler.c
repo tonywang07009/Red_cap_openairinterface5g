@@ -1226,6 +1226,284 @@ void schedule_RA_after_SR_failure(NR_UE_MAC_INST_t *mac)
   // TODO we don't have semi-persistent CSI reporting
 }
 
+static bool nr_ue_has_cg_sdt_config(const NR_UE_UL_BWP_t *ul_bwp)
+{
+  return ul_bwp
+         && ul_bwp->configuredGrantConfig
+         && ul_bwp->configuredGrantConfig->rrc_ConfiguredUplinkGrant
+         && ul_bwp->configuredGrantConfig->rrc_ConfiguredUplinkGrant->ext2
+         && ul_bwp->configuredGrantConfig->rrc_ConfiguredUplinkGrant->ext2->cg_SDT_Configuration_r17;
+}
+
+static int nr_ue_cg_periodicity_slots(long periodicity)
+{
+  switch (periodicity) {
+    case NR_ConfiguredGrantConfig__periodicity_sym1x14:
+      return 1;
+    case NR_ConfiguredGrantConfig__periodicity_sym2x14:
+      return 2;
+    case NR_ConfiguredGrantConfig__periodicity_sym4x14:
+      return 4;
+    case NR_ConfiguredGrantConfig__periodicity_sym5x14:
+      return 5;
+    case NR_ConfiguredGrantConfig__periodicity_sym8x14:
+      return 8;
+    case NR_ConfiguredGrantConfig__periodicity_sym10x14:
+      return 10;
+    case NR_ConfiguredGrantConfig__periodicity_sym16x14:
+      return 16;
+    case NR_ConfiguredGrantConfig__periodicity_sym20x14:
+      return 20;
+    case NR_ConfiguredGrantConfig__periodicity_sym32x14:
+      return 32;
+    case NR_ConfiguredGrantConfig__periodicity_sym40x14:
+      return 40;
+    case NR_ConfiguredGrantConfig__periodicity_sym64x14:
+      return 64;
+    case NR_ConfiguredGrantConfig__periodicity_sym80x14:
+      return 80;
+    case NR_ConfiguredGrantConfig__periodicity_sym128x14:
+      return 128;
+    case NR_ConfiguredGrantConfig__periodicity_sym160x14:
+      return 160;
+    case NR_ConfiguredGrantConfig__periodicity_sym256x14:
+      return 256;
+    case NR_ConfiguredGrantConfig__periodicity_sym320x14:
+      return 320;
+    case NR_ConfiguredGrantConfig__periodicity_sym512x14:
+      return 512;
+    case NR_ConfiguredGrantConfig__periodicity_sym640x14:
+      return 640;
+    case NR_ConfiguredGrantConfig__periodicity_sym1024x14:
+      return 1024;
+    case NR_ConfiguredGrantConfig__periodicity_sym1280x14:
+      return 1280;
+    case NR_ConfiguredGrantConfig__periodicity_sym2560x14:
+      return 2560;
+    case NR_ConfiguredGrantConfig__periodicity_sym5120x14:
+      return 5120;
+    default:
+      return -1;
+  }
+}
+
+static bool nr_ue_decode_bit_string(const BIT_STRING_t *bits, uint32_t *value)
+{
+  if (!bits || !bits->buf || bits->size == 0 || bits->bits_unused >= 8)
+    return false;
+
+  const int nbits = bits->size * 8 - bits->bits_unused;
+  if (nbits <= 0 || nbits > 32)
+    return false;
+
+  uint32_t decoded = 0;
+  for (int bit = 0; bit < nbits; bit++) {
+    const int byte_idx = bit / 8;
+    const int bit_idx = 7 - bit % 8;
+    decoded = (decoded << 1) | ((bits->buf[byte_idx] >> bit_idx) & 1);
+  }
+  *value = decoded;
+  return true;
+}
+
+static bool nr_ue_get_cg_riv(const NR_ConfiguredGrantConfig_t *cg, uint32_t *riv)
+{
+  if (!cg
+      || !cg->rrc_ConfiguredUplinkGrant
+      || cg->resourceAllocation != NR_ConfiguredGrantConfig__resourceAllocation_resourceAllocationType1)
+    return false;
+  return nr_ue_decode_bit_string(&cg->rrc_ConfiguredUplinkGrant->frequencyDomainAllocation, riv);
+}
+
+static bool nr_ue_is_cg_occasion(const NR_UE_MAC_INST_t *mac, const NR_ConfiguredGrantConfig_t *cg, frame_t frame, slot_t slot)
+{
+  if (!cg || !cg->rrc_ConfiguredUplinkGrant)
+    return false;
+
+  const int period_slots = nr_ue_cg_periodicity_slots(cg->periodicity);
+  if (period_slots <= 0)
+    return false;
+
+  const long offset = cg->rrc_ConfiguredUplinkGrant->timeDomainOffset;
+  if (offset % 14 != 0) {
+    LOG_W(NR_MAC,
+          "[RRC_INACTIVE Gate 3][UE CG] unsupported sub-slot timeDomainOffset=%ld periodicity=%ld\n",
+          offset,
+          cg->periodicity);
+    return false;
+  }
+
+  const int offset_slots = offset / 14;
+  const int abs_slot = frame * mac->frame_structure.numb_slots_frame + slot;
+  return (abs_slot - offset_slots) >= 0 && ((abs_slot - offset_slots) % period_slots) == 0;
+}
+
+static int nr_ue_get_pending_lcid(const NR_UE_MAC_INST_t *mac, int *pending_lcid)
+{
+  int pending_bytes = 0;
+  *pending_lcid = -1;
+  for (int i = 0; i < mac->lc_ordered_list.count; i++) {
+    nr_lcordered_info_t *lc_info = mac->lc_ordered_list.array[i];
+    if (lc_info->rb_suspended)
+      continue;
+    const int lcid = lc_info->lcid;
+    NR_LC_SCHEDULING_INFO *sched_info = get_scheduling_info_from_lcid((NR_UE_MAC_INST_t *)mac, lcid);
+    if (sched_info->LCID_buffer_remain > 0) {
+      *pending_lcid = lcid;
+      pending_bytes = sched_info->LCID_buffer_remain;
+      break;
+    }
+  }
+  return pending_bytes;
+}
+
+static bool nr_ue_ul_config_has_pusch(NR_UE_MAC_INST_t *mac, frame_t frame, slot_t slot)
+{
+  fapi_nr_ul_config_request_pdu_t *ulcfg_pdu = lockGet_ul_iterator(mac, frame, slot);
+  if (!ulcfg_pdu)
+    return true;
+
+  fapi_nr_ul_config_request_pdu_t *it = ulcfg_pdu;
+  while (it->pdu_type != FAPI_NR_END) {
+    if (it->pdu_type == FAPI_NR_UL_CONFIG_TYPE_PUSCH) {
+      release_ul_config(ulcfg_pdu, false);
+      return true;
+    }
+    it++;
+  }
+  release_ul_config(ulcfg_pdu, false);
+  return false;
+}
+
+static int nr_ue_config_cg_sdt_pusch(NR_UE_MAC_INST_t *mac,
+                                     const NR_ConfiguredGrantConfig_t *cg,
+                                     frame_t frame,
+                                     slot_t slot,
+                                     int pending_lcid,
+                                     int pending_bytes)
+{
+  uint32_t riv = 0;
+  if (!nr_ue_get_cg_riv(cg, &riv)) {
+    LOG_W(NR_MAC, "[RRC_INACTIVE Gate 3][UE CG] skip unsupported configured grant frequency allocation\n");
+    return -1;
+  }
+
+  const long time_domain_allocation = cg->rrc_ConfiguredUplinkGrant->timeDomainAllocation;
+  NR_tda_info_t tda_info = get_ul_tda_info(mac->current_UL_BWP,
+                                           1,
+                                           NR_SearchSpace__searchSpaceType_PR_ue_Specific,
+                                           TYPE_C_RNTI_,
+                                           time_domain_allocation);
+  if (!tda_info.valid_tda || tda_info.nrOfSymbols == 0) {
+    LOG_W(NR_MAC,
+          "[RRC_INACTIVE Gate 3][UE CG] skip invalid TDA tda=%ld frame.slot %d.%d\n",
+          time_domain_allocation,
+          frame,
+          slot);
+    return -1;
+  }
+
+  if (nr_ue_ul_config_has_pusch(mac, frame, slot)) {
+    LOG_D(NR_MAC, "[RRC_INACTIVE Gate 3][UE CG] skip CG occasion with existing PUSCH frame.slot %d.%d\n", frame, slot);
+    return 0;
+  }
+
+  fapi_nr_ul_config_request_pdu_t *pdu = lockGet_ul_config(mac, frame, slot, FAPI_NR_UL_CONFIG_TYPE_PUSCH);
+  if (!pdu)
+    return -1;
+
+  dci_pdu_rel15_t cg_dci = {0};
+  cg_dci.mcs = cg->rrc_ConfiguredUplinkGrant->mcsAndTBS;
+  cg_dci.ndi = mac->ul_harq_info[0].last_ndi == 0 ? 1 : 0;
+  cg_dci.rv = 0;
+  cg_dci.tpc = 1;
+  cg_dci.ulsch_indicator = 1;
+  cg_dci.harq_pid.val = 0;
+  cg_dci.harq_pid.nbits = 4;
+  cg_dci.frequency_domain_assignment.val = riv;
+  cg_dci.time_domain_assignment.val = time_domain_allocation;
+
+  const int ret = nr_config_pusch_pdu(mac,
+                                      &tda_info,
+                                      &pdu->pusch_config_pdu,
+                                      &cg_dci,
+                                      NULL,
+                                      NULL,
+                                      mac->crnti,
+                                      NR_SearchSpace__searchSpaceType_PR_ue_Specific,
+                                      NR_UL_DCI_FORMAT_0_0);
+  if (ret != 0) {
+    remove_ul_config_last_item(pdu);
+  } else {
+    pdu->pusch_config_pdu.pusch_data.new_data_indicator = 1;
+    LOG_I(NR_MAC,
+          "[RRC_INACTIVE Gate 3][UE TX] cg-SDT autonomous CG PUSCH scheduled ue %d frame.slot %d.%d lcid %d bytes %d "
+          "harq_pid %d rb_start %d rb_size %d mcs %d tbs %d period_slots %d\n",
+          mac->ue_id,
+          frame,
+          slot,
+          pending_lcid,
+          pending_bytes,
+          pdu->pusch_config_pdu.pusch_data.harq_process_id,
+          pdu->pusch_config_pdu.rb_start,
+          pdu->pusch_config_pdu.rb_size,
+          pdu->pusch_config_pdu.mcs_index,
+          pdu->pusch_config_pdu.pusch_data.tb_size,
+          nr_ue_cg_periodicity_slots(cg->periodicity));
+  }
+  release_ul_config(pdu, false);
+  return ret;
+}
+
+static bool nr_ue_try_schedule_cg_sdt_pusch(NR_UE_MAC_INST_t *mac, frame_t frame, slot_t slot)
+{
+  NR_UE_UL_BWP_t *ul_bwp = mac->current_UL_BWP;
+  if (!nr_ue_has_cg_sdt_config(ul_bwp))
+    return false;
+
+  NR_ConfiguredGrantConfig_t *cg = ul_bwp->configuredGrantConfig;
+  if (!nr_ue_is_cg_occasion(mac, cg, frame, slot))
+    return false;
+
+  int pending_lcid = -1;
+  const int pending_bytes = nr_ue_get_pending_lcid(mac, &pending_lcid);
+  if (pending_bytes <= 0) {
+    if (mac->redcap_rrc_state == NR_REDCAP_RRC_INACTIVE)
+      LOG_I(NR_MAC,
+            "[RRC_INACTIVE Gate 3][UE CG] CG occasion has no pending LCID data ue %d frame.slot %d.%d\n",
+            mac->ue_id,
+            frame,
+            slot);
+    return false;
+  }
+
+  return nr_ue_config_cg_sdt_pusch(mac, cg, frame, slot, pending_lcid, pending_bytes) == 0;
+}
+
+static bool nr_ue_cg_sdt_inactive_active(const NR_UE_MAC_INST_t *mac)
+{
+  return mac->redcap_rrc_state == NR_REDCAP_RRC_INACTIVE && nr_ue_has_cg_sdt_config(mac->current_UL_BWP);
+}
+
+static bool nr_ue_pusch_matches_cg_sdt(const NR_UE_MAC_INST_t *mac, const nfapi_nr_ue_pusch_pdu_t *pdu, frame_t frame, slot_t slot)
+{
+  const NR_UE_UL_BWP_t *ul_bwp = mac->current_UL_BWP;
+  if (!nr_ue_has_cg_sdt_config(ul_bwp) || !pdu)
+    return false;
+
+  const NR_ConfiguredGrantConfig_t *cg = ul_bwp->configuredGrantConfig;
+  uint32_t riv = 0;
+  if (!nr_ue_get_cg_riv(cg, &riv) || !nr_ue_is_cg_occasion(mac, cg, frame, slot))
+    return false;
+
+  const uint16_t rb_size = NRRIV2BW(riv, ul_bwp->BWPSize);
+  const uint16_t rb_start = NRRIV2PRBOFFSET(riv, ul_bwp->BWPSize);
+  return pdu->pusch_data.harq_process_id == 0
+         && pdu->rb_size == rb_size
+         && pdu->rb_start == rb_start
+         && pdu->mcs_index == cg->rrc_ConfiguredUplinkGrant->mcsAndTBS;
+}
+
 static void nr_update_sr(NR_UE_MAC_INST_t *mac, bool BSRsent)
 {
   NR_UE_SCHEDULING_INFO *sched_info = &mac->scheduling_info;
@@ -1289,8 +1567,25 @@ static void nr_update_sr(NR_UE_MAC_INST_t *mac, bool BSRsent)
   // if there is no UL-SCH resource available for a new transmission (ie we are at this point)
   // if the MAC entity is configured with configured uplink grant(s) and the Regular BSR was triggered for a
   // logical channel for which logicalChannelSR-Mask is set to false or
-  if (mac->current_UL_BWP->configuredGrantConfig && lc_info->lc_SRMask)
+  if (current_UL_BWP && current_UL_BWP->configuredGrantConfig && lc_info->lc_SRMask) {
+    const bool has_cg_sdt = nr_ue_has_cg_sdt_config(current_UL_BWP);
+    LOG_I(NR_MAC,
+          "[RRC_INACTIVE Gate 3][UE SR] configured grant suppresses SR ue %d lcid %ld bytes %d bwp_id %ld sr_mask %d cg_sdt %d\n",
+          mac->ue_id,
+          lc_info->lcid,
+          selected_sched_info->LCID_buffer_remain,
+          current_UL_BWP->bwp_id,
+          lc_info->lc_SRMask,
+          has_cg_sdt ? 1 : 0);
+    if (has_cg_sdt)
+      LOG_W(NR_MAC,
+            "[RRC_INACTIVE Gate 3][UE TX] cg-SDT CG scheduler missing ue %d lcid %ld bytes %d bwp_id %ld\n",
+            mac->ue_id,
+            lc_info->lcid,
+            selected_sched_info->LCID_buffer_remain,
+            current_UL_BWP->bwp_id);
     return;
+  }
 
   // if the UL-SCH resources available for a new transmission do not meet the LCP mapping restrictions
   // TODO not implemented
@@ -1430,9 +1725,12 @@ void nr_ue_ul_scheduler(NR_UE_MAC_INST_t *mac, nr_uplink_indication_t *ul_info)
     nr_ue_prach_scheduler(mac, frame_tx, slot_tx);
 
   bool BSRsent = false;
-  if (mac->state == UE_CONNECTED) {
-    nr_ue_periodic_srs_scheduling(mac, frame_tx, slot_tx);
+  const bool cg_sdt_inactive = nr_ue_cg_sdt_inactive_active(mac);
+  if (mac->state == UE_CONNECTED || cg_sdt_inactive) {
+    if (mac->state == UE_CONNECTED)
+      nr_ue_periodic_srs_scheduling(mac, frame_tx, slot_tx);
     nr_update_rlc_buffers_status(mac, frame_tx, slot_tx, gNB_index);
+    nr_ue_try_schedule_cg_sdt_pusch(mac, frame_tx, slot_tx);
   }
 
   // Schedule ULSCH only if the current frame and slot match those in ul_config_req
@@ -1468,8 +1766,9 @@ void nr_ue_ul_scheduler(NR_UE_MAC_INST_t *mac, nr_uplink_indication_t *ul_info)
         T(T_NRUE_MAC_UL_PDU_WITH_DATA, T_INT(mac->crnti), T_INT(frame_tx), T_INT(slot_tx),
           T_INT(ulcfg_pdu->pusch_config_pdu.pusch_data.harq_process_id), T_BUFFER(ulsch_input_buffer, TBS_bytes));
       } else {
+        const bool cg_sdt_pusch = nr_ue_pusch_matches_cg_sdt(mac, pdu, frame_tx, slot_tx);
         if (ulcfg_pdu->pusch_config_pdu.pusch_data.new_data_indicator
-            && (mac->state == UE_CONNECTED || (ra->ra_state == nrRA_WAIT_RAR && ra->cfra))) {
+            && (mac->state == UE_CONNECTED || cg_sdt_pusch || (ra->ra_state == nrRA_WAIT_RAR && ra->cfra))) {
           if (!nr_timer_is_active(&mac->time_alignment_timer) && mac->state == UE_CONNECTED && !get_softmodem_params()->phy_test) {
             // UL data arrival during RRC_CONNECTED when UL synchronisation status is "non-synchronised"
             trigger_MAC_UE_RA(mac, NULL);
@@ -1490,7 +1789,18 @@ void nr_ue_ul_scheduler(NR_UE_MAC_INST_t *mac, nr_uplink_indication_t *ul_info)
                                     pdu->rb_size,
                                     pdu->rb_start);
 
-          nr_ue_get_sdu(mac, cc_id, frame_tx, slot_tx, gNB_index, ulsch_input_buffer, TBS_bytes, tx_power, P_CMAX, &BSRsent);
+          const bool sdu_muxed =
+              nr_ue_get_sdu(mac, cc_id, frame_tx, slot_tx, gNB_index, ulsch_input_buffer, TBS_bytes, tx_power, P_CMAX, &BSRsent);
+          if (cg_sdt_pusch && sdu_muxed)
+            LOG_I(NR_MAC,
+                  "[RRC_INACTIVE Gate 3][UE TX] cg-SDT PUSCH tx UE %d frame.slot %d.%d harq_pid %d tbs %d rb_start %d rb_size %d\n",
+                  mac->ue_id,
+                  frame_tx,
+                  slot_tx,
+                  pdu->pusch_data.harq_process_id,
+                  TBS_bytes,
+                  pdu->rb_start,
+                  pdu->rb_size);
           nr_ue_drx_note_activity(mac, frame_tx, slot_tx);
           pdu->tx_request_body.fapiTxPdu = ulsch_input_buffer;
           pdu->tx_request_body.pdu_length = TBS_bytes;
@@ -1499,7 +1809,7 @@ void nr_ue_ul_scheduler(NR_UE_MAC_INST_t *mac, nr_uplink_indication_t *ul_info)
             T_INT(ulcfg_pdu->pusch_config_pdu.pusch_data.harq_process_id), T_BUFFER(ulsch_input_buffer, TBS_bytes));
           // start or restart dataInactivityTimer  if any MAC entity transmits a MAC SDU for DTCH logical channel,
           // or DCCH logical channel
-          if (mac->data_inactivity_timer)
+          if (mac->state == UE_CONNECTED && mac->data_inactivity_timer)
             nr_timer_start(mac->data_inactivity_timer);
         }
       }

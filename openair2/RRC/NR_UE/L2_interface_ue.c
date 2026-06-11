@@ -294,6 +294,14 @@ void process_msg_rcc_to_mac(nr_mac_rrc_message_t *msg, int instance_id)
       trigger_MAC_UE_RA(mac, NULL);
       mac->msg3_C_RNTI = false;
     } break;
+    case NR_MAC_RRC_ENTER_INACTIVE: {
+      NR_UE_MAC_INST_t *mac = get_mac_inst(instance_id);
+      mac->redcap_rrc_state = NR_REDCAP_RRC_INACTIVE;
+      LOG_I(NR_MAC,
+            "[RRC_INACTIVE Gate 3][UE MAC] entered inactive for cg-SDT scheduling ue %d mac_state %d\n",
+            instance_id,
+            mac->state);
+    } break;
     default:
       LOG_E(NR_MAC, "Unexpected msg from RRC: %d\n", msg->payload_type);
   }

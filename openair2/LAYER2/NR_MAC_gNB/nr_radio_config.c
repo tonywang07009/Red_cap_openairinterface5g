@@ -37,6 +37,8 @@
 #include "constr_TYPE.h"
 #include "executables/softmodem-common.h"
 #include "oai_asn1.h"
+#include "NR_ConfiguredGrantConfig.h"
+#include "NR_SetupRelease.h"
 #include "openair2/LAYER2/NR_MAC_gNB/nr_mac_gNB.h"
 #include "openair2/LAYER2/NR_MAC_gNB/mac_proto.h"
 #include "openair3/UTILS/conversions.h"
@@ -60,6 +62,82 @@ const uint8_t slotsperframe[5] = {10, 20, 40, 80, 160};
 
 static NR_ControlResourceSet_t *get_coreset_config(int bwp_id, int bwp_start, int bwp_size, uint64_t ssb_bitmap);
 uint64_t get_ssb_bitmap(const NR_ServingCellConfigCommon_t *scc);
+
+static int mmtc_rrc_inactive_gate3_cg_config_enabled(void)
+{
+  static int cached = -1;
+  if (cached >= 0)
+    return cached;
+  const char *env = getenv("MMTC_RRC_INACTIVE_GATE3_CG_CONFIG");
+  cached = (env != NULL && atoi(env) > 0) ? 1 : 0;
+  return cached;
+}
+
+static uint32_t get_type1_riv(int n_rb, int rb_start, int rb_size)
+{
+  DevAssert(n_rb > 0);
+  DevAssert(rb_start >= 0);
+  DevAssert(rb_size > 0);
+  DevAssert(rb_start + rb_size <= n_rb);
+  return n_rb * (rb_size - 1) + rb_start;
+}
+
+static void fill_fixed_18bit_bit_string(BIT_STRING_t *bits, uint32_t value)
+{
+  DevAssert(value < (1 << 18));
+  bits->size = 3;
+  bits->bits_unused = 6;
+  bits->buf = calloc_or_fail(bits->size, sizeof(*bits->buf));
+  bits->buf[0] = (value >> 10) & 0xff;
+  bits->buf[1] = (value >> 2) & 0xff;
+  bits->buf[2] = (value & 0x3) << 6;
+}
+
+static NR_SetupRelease_ConfiguredGrantConfig_t *get_mmtc_gate3_configured_grant_config(int bwp_size)
+{
+  AssertFatal(bwp_size > 0, "Cannot build Gate 3 configured grant with invalid BWP size %d\n", bwp_size);
+
+  const int cg_rb_start = 0;
+  const int cg_rb_size = bwp_size < 8 ? bwp_size : 8;
+  const uint32_t riv = get_type1_riv(bwp_size, cg_rb_start, cg_rb_size);
+
+  NR_SetupRelease_ConfiguredGrantConfig_t *setup_release = calloc_or_fail(1, sizeof(*setup_release));
+  setup_release->present = NR_SetupRelease_ConfiguredGrantConfig_PR_setup;
+  setup_release->choice.setup = calloc_or_fail(1, sizeof(*setup_release->choice.setup));
+
+  NR_ConfiguredGrantConfig_t *cg = setup_release->choice.setup;
+  cg->resourceAllocation = NR_ConfiguredGrantConfig__resourceAllocation_resourceAllocationType1;
+  cg->powerControlLoopToUse = NR_ConfiguredGrantConfig__powerControlLoopToUse_n0;
+  cg->p0_PUSCH_Alpha = 0;
+  asn1cCallocOne(cg->transformPrecoder, NR_ConfiguredGrantConfig__transformPrecoder_disabled);
+  cg->nrofHARQ_Processes = 1;
+  cg->repK = NR_ConfiguredGrantConfig__repK_n1;
+  cg->periodicity = NR_ConfiguredGrantConfig__periodicity_sym20x14;
+
+  cg->rrc_ConfiguredUplinkGrant = calloc_or_fail(1, sizeof(*cg->rrc_ConfiguredUplinkGrant));
+  cg->rrc_ConfiguredUplinkGrant->timeDomainOffset = 0;
+  cg->rrc_ConfiguredUplinkGrant->timeDomainAllocation = 0;
+  fill_fixed_18bit_bit_string(&cg->rrc_ConfiguredUplinkGrant->frequencyDomainAllocation, riv);
+  cg->rrc_ConfiguredUplinkGrant->antennaPort = 0;
+  cg->rrc_ConfiguredUplinkGrant->precodingAndNumberOfLayers = 0;
+  cg->rrc_ConfiguredUplinkGrant->mcsAndTBS = 4;
+  cg->rrc_ConfiguredUplinkGrant->pathlossReferenceIndex = 0;
+  cg->rrc_ConfiguredUplinkGrant->ext2 = calloc_or_fail(1, sizeof(*cg->rrc_ConfiguredUplinkGrant->ext2));
+  cg->rrc_ConfiguredUplinkGrant->ext2->cg_SDT_Configuration_r17 =
+      calloc_or_fail(1, sizeof(*cg->rrc_ConfiguredUplinkGrant->ext2->cg_SDT_Configuration_r17));
+
+  LOG_I(NR_MAC,
+        "[RRC_INACTIVE Gate 3][gNB RRC] configuredGrantConfig validation setup bwp_size=%d rb_start=%d rb_size=%d riv=%u "
+        "periodicity=%ld time_domain_allocation=%ld cg_sdt=1\n",
+        bwp_size,
+        cg_rb_start,
+        cg_rb_size,
+        riv,
+        cg->periodicity,
+        cg->rrc_ConfiguredUplinkGrant->timeDomainAllocation);
+
+  return setup_release;
+}
 
 static NR_BWP_t clone_generic_parameters(const NR_BWP_t *gp)
 {
@@ -2038,7 +2116,8 @@ static NR_BWP_Uplink_t *config_uplinkBWP(bool is_SA,
                                                    configuration->minRXTXTIME,
                                                    configuration->do_SRS);
 
-  ubwp->bwp_Dedicated->configuredGrantConfig = NULL;
+  ubwp->bwp_Dedicated->configuredGrantConfig =
+      mmtc_rrc_inactive_gate3_cg_config_enabled() ? get_mmtc_gate3_configured_grant_config(curr_bwp) : NULL;
   ubwp->bwp_Dedicated->beamFailureRecoveryConfig = NULL;
   return ubwp;
 }

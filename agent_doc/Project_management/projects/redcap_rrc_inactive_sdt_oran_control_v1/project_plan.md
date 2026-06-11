@@ -24,7 +24,9 @@
   it now enters a controlled [RRC_INACTIVE] transition. [Gate 1 RFsim PASS on 2026-06-04]
 - gNB `RRCResumeRequest` handling has a Gate 2 validation path that preserves/looks up the retained RRC UE context by `shortI-RNTI`,
   emits `RRCResume`, and receives `RRCResumeComplete` after UE active BWP restoration. [Gate 2 RFsim PASS on 2026-06-05]
-- UE `configuredGrantConfig` currently has an unsupported assert path.
+- UE `configuredGrantConfig` parse/store smoke is implemented, and Gate 3 now has a source-build PASS slice for
+  [UE autonomous CG PUSCH scheduler], [RRC-to-MAC inactive indication], and [gNB CG PUSCH RX classifier].
+  Full RFsim Gate 3 PASS remains pending because the latest Docker image rebuild/RFsim rerun is blocked by workspace credits.
 - `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/` already hosts the RedCap RFsim + FlexRIC compose path.
 
 ## Document Model
@@ -45,7 +47,7 @@
 ## Milestone Index
 | Milestone | File | Purpose | Status |
 |---|---|---|---|
-| T2 | `milestones/T2_rrc_inactive_sdt_protocol.md` | RRC_INACTIVE, RRCResume, CG-SDT, TA fallback protocol baseline | [~] Gates 1-2 PASS; Gates 3-4 pending |
+| T2 | `milestones/T2_rrc_inactive_sdt_protocol.md` | RRC_INACTIVE, RRCResume, CG-SDT, TA fallback protocol baseline | [~] Gates 1-2 PASS; Gate 3 in progress; Gate 4 pending |
 | T2B | `milestones/T2B_oran_policy_control.md` | KPM-driven O-RAN policy/control over validated RedCap parameters | [ ] |
 
 ## Gate Index
@@ -54,15 +56,15 @@
 | Gate 0 | Protocol/code inventory | Existing branches and 3GPP mapping confirmed | [x] |
 | Gate 1 | T2-1 `RRCRelease.suspendConfig` to UE INACTIVE | UE log: `RRC_INACTIVE entered`; no `exit 139` | [x] C build PASS; local images rebuilt; RFsim PASS 2026-06-04 |
 | Gate 2 | T2-2 RRCResume / RRCReestablishment | RFsim or Wireshark captures `RRCResumeRequest` | [x] RFsim PASS 2026-06-05 |
-| Gate 3 | T2-3 `configuredGrantConfig` + `cg-SDT` | UE uses CG PUSCH for small data | [ ] |
+| Gate 3 | T2-3 `configuredGrantConfig` + `cg-SDT` | UE uses CG PUSCH for small data | [~] source-build PASS; latest RFsim rerun blocked by Docker escalation credits |
 | Gate 4 | T2-4 TA / RSRP threshold fallback | Threshold exceed triggers 4-step RA | [ ] |
 | Gate 5 | T2B O-RAN policy control | KPM snapshot, control request, ACK/NACK, applied snapshot logged | [ ] |
 
 ## Active Focus
 - [Current Batch]: [T2 protocol baseline]
-- [Current Milestone]: [T2 Gate 2 RRCResume / RRCReestablishment RFsim PASS; Gate 3 not started]
+- [Current Milestone]: [T2 Gate 3 configuredGrantConfig + cg-SDT in progress]
 - [Current Runtime Policy Default]: [Case A]
-- [Current Implementation Status]: [Gate 1 RFsim PASS; Gate 2 RFsim PASS; Gate 3 configuredGrantConfig + cg-SDT not started]
+- [Current Implementation Status]: [Gate 1 RFsim PASS; Gate 2 RFsim PASS; Gate 3 parse/store smoke PASS; UE CG scheduler, RRC-to-MAC inactive indication, and gNB RX classifier build PASS; latest RFsim full Gate 3 rerun blocked by Docker escalation credits]
 
 ## Daily Log Follow Rules
 - Every new `test_log/work_daily/*.md` entry for this project must include:

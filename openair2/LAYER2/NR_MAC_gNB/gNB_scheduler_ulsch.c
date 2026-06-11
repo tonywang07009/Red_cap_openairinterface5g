@@ -86,6 +86,81 @@ static bool nr_redcap_sdt_enabled(const gNB_MAC_INST *nr_mac, const NR_UE_info_t
   return nr_mac != NULL && nr_mac->radio_config.redcap != NULL && UE != NULL && UE->is_redcap;
 }
 
+static bool nr_redcap_sdt_has_cg_config(const NR_UE_info_t *UE)
+{
+  const NR_UE_UL_BWP_t *ul_bwp = UE ? &UE->current_UL_BWP : NULL;
+  return ul_bwp
+         && ul_bwp->configuredGrantConfig
+         && ul_bwp->configuredGrantConfig->rrc_ConfiguredUplinkGrant
+         && ul_bwp->configuredGrantConfig->rrc_ConfiguredUplinkGrant->ext2
+         && ul_bwp->configuredGrantConfig->rrc_ConfiguredUplinkGrant->ext2->cg_SDT_Configuration_r17;
+}
+
+static bool nr_redcap_sdt_decode_cg_riv(const NR_ConfiguredGrantConfig_t *cg, uint32_t *riv)
+{
+  if (!cg
+      || !cg->rrc_ConfiguredUplinkGrant
+      || cg->resourceAllocation != NR_ConfiguredGrantConfig__resourceAllocation_resourceAllocationType1)
+    return false;
+
+  const BIT_STRING_t *bits = &cg->rrc_ConfiguredUplinkGrant->frequencyDomainAllocation;
+  if (!bits->buf || bits->size == 0 || bits->bits_unused >= 8)
+    return false;
+
+  const int nbits = bits->size * 8 - bits->bits_unused;
+  if (nbits <= 0 || nbits > 32)
+    return false;
+
+  uint32_t decoded = 0;
+  for (int bit = 0; bit < nbits; bit++) {
+    const int byte_idx = bit / 8;
+    const int bit_idx = 7 - bit % 8;
+    decoded = (decoded << 1) | ((bits->buf[byte_idx] >> bit_idx) & 1);
+  }
+  *riv = decoded;
+  return true;
+}
+
+static void nr_redcap_sdt_classify_cg_rx(const gNB_MAC_INST *nr_mac,
+                                         const NR_UE_info_t *UE,
+                                         frame_t frame,
+                                         slot_t slot,
+                                         int harq_pid,
+                                         int sdu_len,
+                                         int decoded_sdus,
+                                         int sched_ul_bytes_before)
+{
+  if (!nr_redcap_sdt_enabled(nr_mac, UE) || !nr_redcap_sdt_has_cg_config(UE) || sdu_len <= 0 || harq_pid < 0)
+    return;
+
+  const NR_ConfiguredGrantConfig_t *cg = UE->current_UL_BWP.configuredGrantConfig;
+  const long n_harq = cg->nrofHARQ_Processes > 0 ? cg->nrofHARQ_Processes : 1;
+  if (harq_pid >= n_harq)
+    return;
+
+  uint32_t riv = 0;
+  if (!nr_redcap_sdt_decode_cg_riv(cg, &riv))
+    return;
+
+  const uint16_t rb_size = NRRIV2BW(riv, UE->current_UL_BWP.BWPSize);
+  const uint16_t rb_start = NRRIV2PRBOFFSET(riv, UE->current_UL_BWP.BWPSize);
+  const bool no_dynamic_grant_bytes = sched_ul_bytes_before == 0;
+  LOG_I(NR_MAC,
+        "[RRC_INACTIVE Gate 3][gNB MAC UL] cg-SDT PUSCH rx candidate RNTI %04x frame.slot %d.%d bytes %d sdus %d "
+        "harq_pid %d dynamic_sched_bytes_before %d rb_start %d rb_size %d mcs %ld cg_sdt=1 classifier=%s\n",
+        UE->rnti,
+        frame,
+        slot,
+        sdu_len,
+        decoded_sdus,
+        harq_pid,
+        sched_ul_bytes_before,
+        rb_start,
+        rb_size,
+        cg->rrc_ConfiguredUplinkGrant->mcsAndTBS,
+        no_dynamic_grant_bytes ? "cg-no-dynamic-grant" : "cg-config-present");
+}
+
 /**
  * @brief Append one SDT transition record with runtime coordinates to the log file.
  *
@@ -657,6 +732,13 @@ static int nr_process_mac_pdu(instance_t module_idP,
 
       case UL_SCH_LCID_CONFIGURED_GRANT_CONFIRMATION:
         // 38.321 Ch6.1.3.7
+        LOG_I(NR_MAC,
+              "[RRC_INACTIVE Gate 3][gNB MAC UL] configured grant confirmation received RNTI %04x frame.slot %d.%d bytes %d harq_pid %d\n",
+              UE->rnti,
+              frameP,
+              slot,
+              mac_len,
+              harq_pid);
         break;
 
       case UL_SCH_LCID_MULTI_ENTRY_PHR_1_OCT:
@@ -1150,11 +1232,20 @@ static void _nr_rx_sdu(const module_id_t gnb_mod_idP,
     if (sduP != NULL) {
       LOG_D(NR_MAC, "Received PDU at MAC gNB \n");
       UE->UE_sched_ctrl.pusch_consecutive_dtx_cnt = 0;
+      const int sched_ul_bytes_before = UE_scheduling_control->sched_ul_bytes;
       UE_scheduling_control->sched_ul_bytes -= sdu_lenP;
       if (UE_scheduling_control->sched_ul_bytes < 0)
         UE_scheduling_control->sched_ul_bytes = 0;
 
-      nr_process_mac_pdu(gnb_mod_idP, UE, CC_idP, frameP, slotP, sduP, sdu_lenP, harq_pid);
+      const int decoded_sdus = nr_process_mac_pdu(gnb_mod_idP, UE, CC_idP, frameP, slotP, sduP, sdu_lenP, harq_pid);
+      nr_redcap_sdt_classify_cg_rx(gNB_mac,
+                                   UE,
+                                   frameP,
+                                   slotP,
+                                   harq_pid,
+                                   sdu_lenP,
+                                   decoded_sdus,
+                                   sched_ul_bytes_before);
       nr_redcap_sdt_maybe_complete_ul_burst(gNB_mac, UE, frameP, slotP);
     } else {
       if (ul_cqi == 0xff || ul_cqi <= 128) {
@@ -1182,7 +1273,7 @@ static void _nr_rx_sdu(const module_id_t gnb_mod_idP,
       }
     }
     handle_nr_ul_harq(gNB_mac, UE, frameP, slotP, current_rnti, harq_pid, sduP == NULL);
-  } else { 
+  } else {
     nr_rx_ra_sdu(gnb_mod_idP, CC_idP, frameP, slotP, current_rnti, sduP, sdu_lenP, harq_pid, timing_advance, ul_cqi, rssi);
   }
 }

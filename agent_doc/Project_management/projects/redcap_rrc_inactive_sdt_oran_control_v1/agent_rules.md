@@ -66,6 +66,21 @@
   - [RFsim UE/gNB/CN runtime PASS/FAIL/NA]
   - [exit 139 present/absent]
 
+## Sub-task Closeout Knowledge Capture
+- [MUST] At the end of each gate or sub-task, decide whether the work produced a reusable [trace step] or recurring [problem pattern].
+- [MUST] If useful, add a concise candidate to `agent_doc/Project_management/redcap_trace_problem_kb/candidate_inbox.md`.
+- [MUST] Candidate entries include:
+  - [Case] A / B / NA
+  - [Gate] 0..5 / NA
+  - [source evidence path]
+  - [success marker]
+  - [failure marker]
+  - [step-by-step draft]
+- [MUST] After every 5 completed sub-tasks, run the KB maintenance rule in `agent_doc/Project_management/redcap_trace_problem_kb/maintenance_rule.md`.
+- [MUST] Keep all retained fix procedures numbered and step-by-step.
+- [MUST NOT] store raw logs, full Docker output, or one-off command mistakes in the KB.
+- [SHOULD] Prefer updating existing `trace_steps.md` or `problem_set.md` entries instead of creating new markdown files.
+
 ## Documentation Rule
 - [MUST] Mark uncertain 3GPP clauses as `[Needs Verification]`.
 - [MUST] Use Traditional Chinese project reports unless the user requests otherwise.

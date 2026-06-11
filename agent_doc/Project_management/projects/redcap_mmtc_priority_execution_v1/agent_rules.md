@@ -74,3 +74,17 @@
   - `[unit test PASS/FAIL]`
   - `[container image rebuilt or not]`
   - `[RFsim UE/gNB/CN runtime PASS/FAIL]`
+
+## Sub-task Closeout Knowledge Capture
+- At the end of each milestone sub-task, decide whether the work produced a reusable [trace step] or recurring [problem pattern].
+- If useful, add a concise candidate to `agent_doc/Project_management/redcap_trace_problem_kb/candidate_inbox.md`.
+- Candidate entries should include:
+  - [Milestone]
+  - [Task ID]
+  - [source evidence path]
+  - [success marker]
+  - [failure marker]
+  - [step-by-step draft]
+- After every 5 completed sub-tasks, run `agent_doc/Project_management/redcap_trace_problem_kb/maintenance_rule.md`.
+- Keep retained fix procedures numbered and step-by-step.
+- Do not store raw logs, full Docker output, or one-off command mistakes in the KB.
