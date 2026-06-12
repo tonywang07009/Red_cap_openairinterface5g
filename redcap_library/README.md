@@ -32,5 +32,7 @@
 
 ## Navigation Rule
 - For a new task, read this file first, then only the target subfolder `README.md`.
-- For runtime execution, use `redcap_interface/redcap_runtime_menu.sh`; its default gNB config points to `library_gnb_config/gnb_redcap_mmtc_case_b_final.yaml`.
+- For daily runtime execution, use `redcap_interface/mmtc.menu.bash`; its default gNB config points to `library_gnb_config/gnb_redcap_mmtc_case_b_final.yaml`.
+- For paper/demo panels, use `redcap_interface/mmtc.display.bash`.
+- Legacy script paths such as `redcap_interface/redcap_runtime_menu.sh` are compatibility shims unless a historical report says otherwise.
 - For historical report interpretation, old `test_log/...` paths inside moved reports are original evidence references. Prefer this folder's standardized paths for current work.

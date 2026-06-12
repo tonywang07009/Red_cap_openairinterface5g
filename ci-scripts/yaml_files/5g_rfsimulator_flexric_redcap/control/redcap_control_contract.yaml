@@ -125,6 +125,46 @@ parameters:
     rollback: restore_previous_value
     validation_log_marker: "drx_profile applied"
 
+  - name: edrx_cycle_s
+    owner: gnb_rrc
+    unit: seconds
+    default: 0
+    runtime_mutable: true
+    min: 0
+    max: 10485
+    rollback: restore_previous_value
+    validation_log_marker: "edrx_cycle_s applied"
+
+  - name: edrx_ptw_s
+    owner: gnb_rrc
+    unit: seconds
+    default: 0
+    runtime_mutable: true
+    min: 0
+    max: 40
+    rollback: restore_previous_value
+    validation_log_marker: "edrx_ptw_s applied"
+
+  - name: psm_t3324_active_time_s
+    owner: ue_nas
+    unit: seconds
+    default: 0
+    runtime_mutable: true
+    min: 0
+    max: 11160
+    rollback: restore_previous_value
+    validation_log_marker: "psm_t3324_active_time_s applied"
+
+  - name: psm_t3512_tau_s
+    owner: ue_nas
+    unit: seconds
+    default: 0
+    runtime_mutable: true
+    min: 0
+    max: 35712000
+    rollback: restore_previous_value
+    validation_log_marker: "psm_t3512_tau_s applied"
+
   - name: kpm_control_enable
     owner: xapp
     unit: boolean

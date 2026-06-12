@@ -54,6 +54,10 @@ allowed_runtime_parameters:
   - sdt_payload_threshold_bytes
   - force_four_step_ra_on_threshold
   - drx_profile
+  - edrx_cycle_s
+  - edrx_ptw_s
+  - psm_t3324_active_time_s
+  - psm_t3512_tau_s
 
 decision_policy:
   enable_cg_sdt_when:
@@ -67,6 +71,12 @@ decision_policy:
   prefer_power_saving_when:
     rapp_policy: power_saving_priority
     latency_budget_ms_at_or_above: 100
+  low_power_defaults:
+    drx_profile: power_saving
+    edrx_cycle_s: 0
+    edrx_ptw_s: 0
+    psm_t3324_active_time_s: 0
+    psm_t3512_tau_s: 0
 
 required_control_log:
   - "KPM snapshot"

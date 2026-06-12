@@ -45,6 +45,10 @@ baseline_parameters:
   sdt_payload_threshold_bytes: 256
   force_four_step_ra_on_threshold: false
   drx_profile: "off"
+  edrx_cycle_s: 0
+  edrx_ptw_s: 0
+  psm_t3324_active_time_s: 0
+  psm_t3512_tau_s: 0
 
 gate_overrides:
   gate_3_configured_grant_cg_sdt:

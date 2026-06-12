@@ -3,7 +3,7 @@
 ## Contents
 | File | Role |
 |---|---|
-| `gnb_redcap_mmtc_case_b_final.yaml` | Default mMTC Case B runtime config used by `redcap_runtime_menu.sh` |
+| `gnb_redcap_mmtc_case_b_final.yaml` | Default mMTC Case B runtime config used by `mmtc.menu.bash` |
 | `gnb_redcap_case_a_final.yaml` | Final Case A config retained for comparison |
 | `gnb_redcap_case_b_final.yaml` | Final Case B config retained for comparison |
 | `gnb_redcap_case_a_e2_disabled_final.yaml` | Case A config with E2 disabled for focused RFsim validation |
