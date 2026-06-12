@@ -1235,6 +1235,11 @@ static bool nr_ue_has_cg_sdt_config(const NR_UE_UL_BWP_t *ul_bwp)
          && ul_bwp->configuredGrantConfig->rrc_ConfiguredUplinkGrant->ext2->cg_SDT_Configuration_r17;
 }
 
+static bool nr_ue_should_log_cg_sdt_probe(const NR_UE_MAC_INST_t *mac, frame_t frame)
+{
+  return mac->redcap_rrc_state == NR_REDCAP_RRC_INACTIVE && frame % 100 == 0;
+}
+
 static int nr_ue_cg_periodicity_slots(long periodicity)
 {
   switch (periodicity) {
@@ -1458,12 +1463,47 @@ static int nr_ue_config_cg_sdt_pusch(NR_UE_MAC_INST_t *mac,
 static bool nr_ue_try_schedule_cg_sdt_pusch(NR_UE_MAC_INST_t *mac, frame_t frame, slot_t slot)
 {
   NR_UE_UL_BWP_t *ul_bwp = mac->current_UL_BWP;
-  if (!nr_ue_has_cg_sdt_config(ul_bwp))
+  if (!nr_ue_has_cg_sdt_config(ul_bwp)) {
+    if (nr_ue_should_log_cg_sdt_probe(mac, frame)) {
+      const NR_ConfiguredGrantConfig_t *cg = ul_bwp ? ul_bwp->configuredGrantConfig : NULL;
+      const struct NR_ConfiguredGrantConfig__rrc_ConfiguredUplinkGrant *grant = cg ? cg->rrc_ConfiguredUplinkGrant : NULL;
+      LOG_I(NR_MAC,
+            "[RRC_INACTIVE Gate 3][UE CG] inactive probe no cg-SDT config ue %d frame.slot %d.%d current_bwp_id %ld "
+            "configuredGrantConfig %d rrcConfiguredGrant %d ext2 %d\n",
+            mac->ue_id,
+            frame,
+            slot,
+            ul_bwp ? (long)ul_bwp->bwp_id : -1L,
+            cg != NULL,
+            grant != NULL,
+            grant && grant->ext2);
+    }
     return false;
+  }
 
   NR_ConfiguredGrantConfig_t *cg = ul_bwp->configuredGrantConfig;
-  if (!nr_ue_is_cg_occasion(mac, cg, frame, slot))
+  if (!nr_ue_is_cg_occasion(mac, cg, frame, slot)) {
+    if (nr_ue_should_log_cg_sdt_probe(mac, frame)) {
+      const int period_slots = nr_ue_cg_periodicity_slots(cg->periodicity);
+      const long offset = cg->rrc_ConfiguredUplinkGrant->timeDomainOffset;
+      const int slots_per_frame = mac->frame_structure.numb_slots_frame;
+      const int abs_slot = frame * slots_per_frame + slot;
+      const int offset_slots = offset / 14;
+      LOG_I(NR_MAC,
+            "[RRC_INACTIVE Gate 3][UE CG] inactive probe no CG occasion ue %d frame.slot %d.%d period_enum %ld "
+            "period_slots %d time_domain_offset %ld offset_slots %d abs_slot %d modulo %d\n",
+            mac->ue_id,
+            frame,
+            slot,
+            cg->periodicity,
+            period_slots,
+            offset,
+            offset_slots,
+            abs_slot,
+            period_slots > 0 ? (abs_slot - offset_slots) % period_slots : -1);
+    }
     return false;
+  }
 
   int pending_lcid = -1;
   const int pending_bytes = nr_ue_get_pending_lcid(mac, &pending_lcid);
@@ -1730,7 +1770,8 @@ void nr_ue_ul_scheduler(NR_UE_MAC_INST_t *mac, nr_uplink_indication_t *ul_info)
     if (mac->state == UE_CONNECTED)
       nr_ue_periodic_srs_scheduling(mac, frame_tx, slot_tx);
     nr_update_rlc_buffers_status(mac, frame_tx, slot_tx, gNB_index);
-    nr_ue_try_schedule_cg_sdt_pusch(mac, frame_tx, slot_tx);
+    if (cg_sdt_inactive)
+      nr_ue_try_schedule_cg_sdt_pusch(mac, frame_tx, slot_tx);
   }
 
   // Schedule ULSCH only if the current frame and slot match those in ul_config_req

@@ -115,7 +115,10 @@ static NR_SetupRelease_ConfiguredGrantConfig_t *get_mmtc_gate3_configured_grant_
   cg->periodicity = NR_ConfiguredGrantConfig__periodicity_sym20x14;
 
   cg->rrc_ConfiguredUplinkGrant = calloc_or_fail(1, sizeof(*cg->rrc_ConfiguredUplinkGrant));
-  cg->rrc_ConfiguredUplinkGrant->timeDomainOffset = 0;
+  const int cg_time_domain_offset_slot = 8;
+  const int symbols_per_slot = 14;
+  // Align the validation CG occasion with an uplink slot in the RFsim TDD pattern.
+  cg->rrc_ConfiguredUplinkGrant->timeDomainOffset = cg_time_domain_offset_slot * symbols_per_slot;
   cg->rrc_ConfiguredUplinkGrant->timeDomainAllocation = 0;
   fill_fixed_18bit_bit_string(&cg->rrc_ConfiguredUplinkGrant->frequencyDomainAllocation, riv);
   cg->rrc_ConfiguredUplinkGrant->antennaPort = 0;
@@ -128,12 +131,13 @@ static NR_SetupRelease_ConfiguredGrantConfig_t *get_mmtc_gate3_configured_grant_
 
   LOG_I(NR_MAC,
         "[RRC_INACTIVE Gate 3][gNB RRC] configuredGrantConfig validation setup bwp_size=%d rb_start=%d rb_size=%d riv=%u "
-        "periodicity=%ld time_domain_allocation=%ld cg_sdt=1\n",
+        "periodicity=%ld time_domain_offset=%ld time_domain_allocation=%ld cg_sdt=1\n",
         bwp_size,
         cg_rb_start,
         cg_rb_size,
         riv,
         cg->periodicity,
+        cg->rrc_ConfiguredUplinkGrant->timeDomainOffset,
         cg->rrc_ConfiguredUplinkGrant->timeDomainAllocation);
 
   return setup_release;

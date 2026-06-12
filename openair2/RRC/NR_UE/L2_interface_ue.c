@@ -297,10 +297,19 @@ void process_msg_rcc_to_mac(nr_mac_rrc_message_t *msg, int instance_id)
     case NR_MAC_RRC_ENTER_INACTIVE: {
       NR_UE_MAC_INST_t *mac = get_mac_inst(instance_id);
       mac->redcap_rrc_state = NR_REDCAP_RRC_INACTIVE;
+      const NR_UE_UL_BWP_t *ul_bwp = mac->current_UL_BWP;
+      const NR_ConfiguredGrantConfig_t *cg = ul_bwp ? ul_bwp->configuredGrantConfig : NULL;
+      const struct NR_ConfiguredGrantConfig__rrc_ConfiguredUplinkGrant *grant = cg ? cg->rrc_ConfiguredUplinkGrant : NULL;
+      const bool has_cg_sdt = grant && grant->ext2 && grant->ext2->cg_SDT_Configuration_r17;
       LOG_I(NR_MAC,
-            "[RRC_INACTIVE Gate 3][UE MAC] entered inactive for cg-SDT scheduling ue %d mac_state %d\n",
+            "[RRC_INACTIVE Gate 3][UE MAC] entered inactive for cg-SDT scheduling ue %d mac_state %d current_bwp_id %ld "
+            "has_cg_sdt %d periodicity %ld time_domain_offset %ld\n",
             instance_id,
-            mac->state);
+            mac->state,
+            ul_bwp ? (long)ul_bwp->bwp_id : -1L,
+            has_cg_sdt,
+            cg ? cg->periodicity : -1L,
+            grant ? grant->timeDomainOffset : -1L);
     } break;
     default:
       LOG_E(NR_MAC, "Unexpected msg from RRC: %d\n", msg->payload_type);
