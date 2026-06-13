@@ -12,3 +12,5 @@
 - RedCap capability notes.
 - RRC/MAC low-power behavior notes.
 - Project-specific spec summaries.
+- L1/L2 protocol guide: `../redcap_l1_l2_protocol_guide.md`.
+- L1-L3 function lookup: `../function_reference/redcap_l1_l3_function_lookup.md`.

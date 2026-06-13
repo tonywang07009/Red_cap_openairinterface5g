@@ -72,6 +72,16 @@ static bool gate2_resume_trace_enabled(void)
   return enabled;
 }
 
+static bool gate4_force_sdt_fallback_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled < 0) {
+    const char *value = getenv("MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK");
+    enabled = value && value[0] != '\0' && value[0] != '0';
+  }
+  return enabled;
+}
+
 static void nr_ue_fill_phr(NR_UE_MAC_INST_t *mac,
                            NR_SINGLE_ENTRY_PHR_MAC_CE *phr,
                            float P_CMAX,
@@ -1515,6 +1525,41 @@ static bool nr_ue_try_schedule_cg_sdt_pusch(NR_UE_MAC_INST_t *mac, frame_t frame
             frame,
             slot);
     return false;
+  }
+
+  if (gate4_force_sdt_fallback_enabled()) {
+    if (get_softmodem_params()->phy_test) {
+      LOG_W(NR_MAC,
+            "[RRC_INACTIVE Gate 4][UE Fallback] RSRP threshold exceeded but 4-step RA skipped in phy_test ue %d "
+            "frame.slot %d.%d lcid %d bytes %d\n",
+            mac->ue_id,
+            frame,
+            slot,
+            pending_lcid,
+            pending_bytes);
+      return false;
+    }
+    LOG_I(NR_MAC,
+          "[RRC_INACTIVE Gate 4][UE Fallback] RSRP threshold exceeded ue %d frame.slot %d.%d lcid %d bytes %d "
+          "reason forced-rfsim-hook\n",
+          mac->ue_id,
+          frame,
+          slot,
+          pending_lcid,
+          pending_bytes);
+    schedule_RA_after_SR_failure(mac);
+    LOG_I(NR_MAC,
+          "[RRC_INACTIVE Gate 4][UE Fallback] 4-step RA triggered ue %d frame.slot %d.%d lcid %d bytes %d "
+          "ra_state %d cfra %d msg3_C_RNTI %d\n",
+          mac->ue_id,
+          frame,
+          slot,
+          pending_lcid,
+          pending_bytes,
+          mac->ra.ra_state,
+          mac->ra.cfra,
+          mac->msg3_C_RNTI);
+    return true;
   }
 
   return nr_ue_config_cg_sdt_pusch(mac, cg, frame, slot, pending_lcid, pending_bytes) == 0;

@@ -3,7 +3,7 @@
 ## Project Metadata
 - Project Path: `agent_doc/Project_management/projects/redcap_docs_interface_reorg_v1/project_plan.md`
 - Created Date: 2026-06-12
-- Updated Date: 2026-06-12
+- Updated Date: 2026-06-14
 - Milestone Directory: `agent_doc/Project_management/projects/redcap_docs_interface_reorg_v1/milestones/`
 - Validation Directory: `agent_doc/Project_management/projects/redcap_docs_interface_reorg_v1/validation/`
 - Interface Root: `redcap_interface/`
@@ -21,6 +21,8 @@
 | Keep functional scripts organized | Function scripts named `fc_*` | Move implementations into `redcap_interface/bash_library/` | `redcap_interface/validate_redcap_interface.sh` |
 | Avoid unsafe cleanup | Inventory first, delete only after approval | Keep shims and list cleanup candidates | `validation/cleanup_inventory.md` |
 | Preserve future doc consistency | Reusable doc writer skill | `redcap_library/redcap_doc_writer_skill/SKILL.md` | Skill file existence and content review |
+| Use `doc_example` safely | README template information architecture, not copied branding/license | Rewrite root `README.md` as a RedCap/OAI route page | README route scan |
+| Explain RedCap L1/L2 protocol | Separate protocol guide from function lookup | `redcap_doc/specs/redcap_l1_l2_protocol_guide.md` | Link and `[Needs Verification]` scan |
 
 ## Seven-Question Definition
 | Question | Answer |
@@ -39,6 +41,7 @@
 | D1 | `milestones/D1_document_architecture.md` | Define bilingual KISS doc layout and folder routing | [x] |
 | D2 | `milestones/D2_script_interface_reorg.md` | Define two-menu Bash interface and `fc_*` library rules | [x] |
 | D3 | `milestones/D3_doc_writer_skill.md` | Define reusable documentation Skill workflow | [x] |
+| D4 | `milestones/D4_root_readme_protocol_routing.md` | Apply README template routing and add RedCap L1/L2 protocol guide | [x] |
 
 ## Validation Index
 | File | Purpose |
@@ -50,9 +53,12 @@
 ## Current Boundary
 - This project is a repository organization and documentation implementation batch.
 - It does not claim new 3GPP behavior.
+- `doc_example/Best_README_template/README.md` is used only for information architecture. Do not copy its MIT license, sample badges, author fields, or Simplified Chinese project branding into OAI docs.
+- Root `README.md` is now a RedCap/OAI route page. It should preserve OAI license/support context while making RedCap operator and protocol paths visible from the first screen.
 - DRX/eDRX/PSM knobs exposed through the menu and control contract are a configuration surface. Exact Release 17/18 timer encoding remains `[Needs Verification]` until checked against the local spec notes.
 - Legacy root scripts remain as compatibility shims because existing reports and manuals still reference them.
 
 ## Next Action
 - Use `redcap_library/redcap_doc_writer_skill/SKILL.md` whenever a future feature adds API behavior, Bash behavior, or recap instructions.
+- Use `redcap_doc/specs/redcap_l1_l2_protocol_guide.md` for protocol explanations and `redcap_doc/specs/function_reference/redcap_l1_l3_function_lookup.md` for function lookup.
 - Promote old root-script references to the new two-menu model only when editing the target manual for a real update.

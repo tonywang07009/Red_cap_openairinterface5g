@@ -26,6 +26,7 @@
 - [T2-3] `cg-SDT PUSCH rx candidate`.
 - [T2-4] `RSRP threshold exceeded`.
 - [T2-4] `4-step RA triggered`.
+- [T2-4] `4-Step RA procedure succeeded`.
 
 ## Required Case B Markers
 - [Control] `KPM snapshot`.
@@ -56,3 +57,4 @@
 - RRCResumeRequest count.
 - CG-SDT PUSCH tx/rx-candidate count.
 - 4-step RA fallback count.
+- Gate 4 fallback success count.

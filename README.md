@@ -1,98 +1,175 @@
-<h1 align="center">
-    <a href="https://openairinterface.org/"><img src="https://openairinterface.org/wp-content/uploads/2015/06/cropped-oai_final_logo.png" alt="OAI" width="550"></a>
-</h1>
+# OpenAirInterface5G RedCap Research Fork
 
 <p align="center">
-    <a href="https://gitlab.eurecom.fr/oai/openairinterface5g/-/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-OAI--Public--V1.1-blue" alt="License"></a>
-    <a href="https://releases.ubuntu.com/22.04/"><img src="https://img.shields.io/badge/OS-Ubuntu22-Green" alt="Supported OS Ubuntu 22"></a>
-    <a href="https://releases.ubuntu.com/24.04/"><img src="https://img.shields.io/badge/OS-Ubuntu24-Green" alt="Supported OS Ubuntu 24"></a>
-    <a href="https://www.redhat.com/en/technologies/linux-platforms/enterprise-linux"><img src="https://img.shields.io/badge/OS-RHEL9-Green" alt="Supported OS RHEL9"></a>
-    <a href="https://getfedora.org/en/workstation/"><img src="https://img.shields.io/badge/OS-Fedore41-Green" alt="Supported OS Fedora 41"></a>
+  <a href="https://openairinterface.org/">
+    <img src="https://openairinterface.org/wp-content/uploads/2015/06/cropped-oai_final_logo.png" alt="OAI" width="420">
+  </a>
 </p>
 
 <p align="center">
-    <a href="https://gitlab.eurecom.fr/oai/openairinterface5g/-/releases"><img alt="GitLab Release (custom instance)" src="https://img.shields.io/gitlab/v/release/oai/openairinterface5g?gitlab_url=https%3A%2F%2Fgitlab.eurecom.fr&include_prereleases&sort=semver"></a>
+  <a href="https://gitlab.eurecom.fr/oai/openairinterface5g/-/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-OAI--Public--V1.1-blue" alt="License"></a>
+  <a href="https://releases.ubuntu.com/22.04/"><img src="https://img.shields.io/badge/OS-Ubuntu22-green" alt="Ubuntu 22"></a>
+  <a href="https://releases.ubuntu.com/24.04/"><img src="https://img.shields.io/badge/OS-Ubuntu24-green" alt="Ubuntu 24"></a>
+  <a href="https://gitlab.eurecom.fr/oai/openairinterface5g/-/releases"><img alt="OAI releases" src="https://img.shields.io/gitlab/v/release/oai/openairinterface5g?gitlab_url=https%3A%2F%2Fgitlab.eurecom.fr&include_prereleases&sort=semver"></a>
 </p>
 
-<p align="center">
-    <a href="https://jenkins-oai.eurecom.fr/job/RAN-Ubuntu18-Image-Builder/"><img src="https://img.shields.io/jenkins/build?jobUrl=https%3A%2F%2Fjenkins-oai.eurecom.fr%2Fjob%2FRAN-Ubuntu18-Image-Builder%2F&label=build-Ubuntu-x86%20Images"></a>
-    <a href="https://jenkins-oai.eurecom.fr/job/RAN-RHEL8-Cluster-Image-Builder/"><img src="https://img.shields.io/jenkins/build?jobUrl=https%3A%2F%2Fjenkins-oai.eurecom.fr%2Fjob%2FRAN-RHEL8-Cluster-Image-Builder%2F&label=build-UBI-x86%20Images"></a>
-    <a href="https://jenkins-oai.eurecom.fr/job/RAN-Ubuntu-ARM-Image-Builder/"><img src="https://img.shields.io/jenkins/build?jobUrl=https%3A%2F%2Fjenkins-oai.eurecom.fr%2Fjob%2FRAN-Ubuntu-ARM-Image-Builder%2F&label=build-Ubuntu-ARM%20Images"></a>
-</p>
+This repository is an OpenAirInterface5G-based research workspace for [RedCap], [mMTC], [RRC_INACTIVE], [SDT], and [O-RAN/FlexRIC] experiments. It keeps the upstream OAI RAN codebase intact while adding local RedCap operator scripts, documentation routes, reusable runtime evidence, and project management records.
 
-<p align="center">
-  <a href="https://hub.docker.com/r/oaisoftwarealliance/oai-gnb"><img alt="Docker Pulls" src="https://img.shields.io/docker/pulls/oaisoftwarealliance/oai-gnb?label=gNB%20docker%20pulls"></a>
-  <a href="https://hub.docker.com/r/oaisoftwarealliance/oai-nr-ue"><img alt="Docker Pulls" src="https://img.shields.io/docker/pulls/oaisoftwarealliance/oai-nr-ue?label=NR-UE%20docker%20pulls"></a>
-  <a href="https://hub.docker.com/r/oaisoftwarealliance/oai-enb"><img alt="Docker Pulls" src="https://img.shields.io/docker/pulls/oaisoftwarealliance/oai-enb?label=eNB%20docker%20pulls"></a>
-  <a href="https://hub.docker.com/r/oaisoftwarealliance/oai-lte-ue"><img alt="Docker Pulls" src="https://img.shields.io/docker/pulls/oaisoftwarealliance/oai-lte-ue?label=LTE-UE%20docker%20pulls"></a>
-  <a href="https://hub.docker.com/r/oaisoftwarealliance/oai-nr-cuup"><img alt="Docker Pulls" src="https://img.shields.io/docker/pulls/oaisoftwarealliance/oai-nr-cuup?label=NR-CUUP%20docker%20pulls"></a>
-</p>
+繁體中文使用者：此 README 是專案入口。若你只想跑 RedCap/mMTC 測試，先看 [RedCap Operator Routes](#redcap-operator-routes)。若你想理解 L1/L2 協定與程式路徑，先看 [RedCap Protocol Learning Path](#redcap-protocol-learning-path)。
 
-# OpenAirInterface License #
+## Contents
 
- *  [OAI License Model](http://www.openairinterface.org/?page_id=101)
- *  [OAI License v1.1 on our website](http://www.openairinterface.org/?page_id=698)
+- [Quick Start](#quick-start)
+- [Documentation Routes](#documentation-routes)
+- [RedCap Operator Routes](#redcap-operator-routes)
+- [RedCap Protocol Learning Path](#redcap-protocol-learning-path)
+- [Repository Map](#repository-map)
+- [Build and Test](#build-and-test)
+- [License and Support](#license-and-support)
 
-It is distributed under **OAI Public License V1.1**.
+## Quick Start
 
-The license information is distributed under [LICENSE](LICENSE) file in the same directory.
+Use these commands from the repository root.
 
-Please see [NOTICE](NOTICE.md) file for third party software that is included in the sources.
+```bash
+# Validate the RedCap operator interface without starting RFsim.
+bash redcap_interface/validate_redcap_interface.sh
 
-# Where to Start #
+# Open the daily RedCap/mMTC operator menu.
+bash redcap_interface/mmtc.menu.bash
 
- *  [General overview of documentation](./doc/README.md)
- *  [The implemented features](./doc/FEATURE_SET.md)
- *  [System Requirements for Using OAI Stack](./doc/system_requirements.md)
- *  [How to build](./doc/BUILD.md)
- *  [How to run the modems](./doc/RUNMODEM.md)
+# Open paper/demo display tools.
+bash redcap_interface/mmtc.display.bash
 
-Not all information is available in a central place, and information for
-specific sub-systems might be available in the corresponding sub-directories.
-To find all READMEs, this command might be handy:
-
-```
-find . -iname "readme*"
+# Read the RedCap documentation router.
+sed -n '1,160p' redcap_doc/README.md
 ```
 
-# RAN repository structure #
+For upstream OAI build and modem usage, start with the official local docs:
 
-The OpenAirInterface (OAI) software is composed of the following parts: 
+| Need | Start Here |
+|---|---|
+| General OAI documentation | [`doc/README.md`](./doc/README.md) |
+| Implemented OAI features | [`doc/FEATURE_SET.md`](./doc/FEATURE_SET.md) |
+| System requirements | [`doc/system_requirements.md`](./doc/system_requirements.md) |
+| Build OAI | [`doc/BUILD.md`](./doc/BUILD.md) |
+| Run OAI modems | [`doc/RUNMODEM.md`](./doc/RUNMODEM.md) |
 
+## Documentation Routes
+
+| Route | Purpose | First File |
+|---|---|---|
+| RedCap operator scripts | Daily RFsim, Docker, Gate, DRX/eDRX/PSM, and display menus | [`redcap_interface/README.md`](./redcap_interface/README.md) |
+| Stable RedCap docs | Specs, papers, manuals, checklists, function references | [`redcap_doc/README.md`](./redcap_doc/README.md) |
+| Curated reusable evidence | Final configs, CN5G overlays, reports, runtime probes, build evidence | [`redcap_library/README.md`](./redcap_library/README.md) |
+| Active project management | Milestones, validation plans, cleanup inventories, implementation boundaries | [`agent_doc/Project_management/`](./agent_doc/Project_management/) |
+| Docs/interface reorg project | Rules for this README and RedCap documentation routing | [`redcap_docs_interface_reorg_v1`](./agent_doc/Project_management/projects/redcap_docs_interface_reorg_v1/project_plan.md) |
+
+Documentation style follows the local RedCap reorganization project:
+
+- Keep stable docs short and task-oriented.
+- Keep English and Traditional Chinese pages paired when a folder has `Doc/`.
+- Split [API/config behavior], [Bash usage], and [step-by-step recap] instead of mixing them.
+- Do not paste raw runtime logs into stable docs; link to log paths and marker names.
+- Mark uncertain 3GPP clause mappings as `[Needs Verification]`.
+
+## RedCap Operator Routes
+
+| Task | Command or File |
+|---|---|
+| Daily RFsim and mMTC operation | `bash redcap_interface/mmtc.menu.bash` |
+| Paper reproduction and display panels | `bash redcap_interface/mmtc.display.bash` |
+| Functional script implementation | [`redcap_interface/bash_library/`](./redcap_interface/bash_library/) |
+| Validate shell/Python layout | `bash redcap_interface/validate_redcap_interface.sh` |
+| Current runtime YAML source of truth | [`ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/`](./ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/) |
+
+Common RedCap gate commands:
+
+```bash
+# Gate 3 CG-SDT smoke path.
+MMTC_RRC_INACTIVE_GATE3_CG_CONFIG=1 bash redcap_interface/mmtc.menu.bash gate3
+
+# Gate 4 TA/RSRP fallback smoke path.
+MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK=1 bash redcap_interface/mmtc.menu.bash gate4
 ```
+
+Legacy root scripts under `redcap_interface/` are compatibility shims unless a current manual explicitly says otherwise. New operator work should route through `mmtc.menu.bash`, `mmtc.display.bash`, or `bash_library/fc_*`.
+
+## RedCap Protocol Learning Path
+
+Start here when the goal is to understand or modify RedCap behavior in OAI.
+
+| Topic | First File |
+|---|---|
+| L1/L2 RedCap protocol overview | [`redcap_doc/specs/redcap_l1_l2_protocol_guide.md`](./redcap_doc/specs/redcap_l1_l2_protocol_guide.md) |
+| L1-L3 function lookup | [`redcap_doc/specs/function_reference/redcap_l1_l3_function_lookup.md`](./redcap_doc/specs/function_reference/redcap_l1_l3_function_lookup.md) |
+| Local RedCap spec notes | [`redcap_doc/specs/README.md`](./redcap_doc/specs/README.md) |
+| RRC_INACTIVE + SDT project gates | [`redcap_rrc_inactive_sdt_oran_control_v1`](./agent_doc/Project_management/projects/redcap_rrc_inactive_sdt_oran_control_v1/project_plan.md) |
+
+Layer entry points:
+
+| Layer | OAI Area | RedCap Focus |
+|---|---|---|
+| L1 PHY | `openair1/PHY/` | FR1 PRB limits, frame parameter validation, RedCap UE/gNB capability checks |
+| L2 MAC/RLC/PDCP | `openair2/LAYER2/` | RedCap BWP, RACH, Msg2/Msg3, configured grant, CG-SDT, scheduler gates |
+| L3 RRC/UICC | `openair2/RRC/`, `openair3/UICC/` | UE capability, SIB1 RedCap parsing, RRC_INACTIVE, RRCResume |
+| O-RAN control | `openair2/E2AP/`, `ci-scripts/redcap_ul_prb_ctrl_xapp.c` | RedCap UL PRB control and policy experiments |
+
+## Repository Map
+
+```text
 openairinterface5g
-├── charts
-├── ci-scripts        : Meta-scripts used by the OSA CI process. Contains also configuration files used day-to-day by CI.
-├── CMakeLists.txt    : Top-level CMakeLists.txt for building
-├── cmake_targets     : Build utilities to compile (simulation, emulation and real-time platforms), and generated build files.
-├── common            : Some common OAI utilities, some other tools can be found at openair2/UTILS.
-├── doc               : Documentation
-├── docker            : Dockerfiles to build for Ubuntu and RHEL
-├── executables       : Top-level executable source files (gNB, eNB, ...)
-├── maketags          : Script to generate emacs tags.
-├── nfapi             : (n)FAPI code for MAC-PHY interface
-├── openair1          : Layer 1 (3GPP LTE Rel-10/12 PHY, NR Rel-15 PHY)
-├── openair2          : Layer 2 (3GPP LTE Rel-10 MAC/RLC/PDCP/RRC/X2AP, LTE Rel-14 M2AP, NR Rel-15+ MAC/RLC/PDCP/SDAP/RRC/X2AP/F1AP/E1AP), E2AP
-├── openair3          : Layer 3 (3GPP LTE Rel-10 S1AP/GTP, NR Rel-15 NGAP/GTP)
-├── openshift         : OpenShift helm charts for some deployment options of OAI
-├── radio             : Drivers for various radios such as USRP, AW2S, RFsim, 7.2 FHI, ...
-├── targets           : Some configuration files; only historical relevance, and might be deleted in the future
-└── tools             : Tools for use by the developers/ci machines: code analysis and formatting
+├── openair1/         L1 PHY and frame-parameter code
+├── openair2/         L2 MAC/RLC/PDCP/RRC, F1/E1/X2, and E2AP
+├── openair3/         NGAP, GTP, NAS, UICC, and related control-plane code
+├── executables/      gNB, eNB, UE, and softmodem entry points
+├── radio/            RF back ends, including RFsim
+├── ci-scripts/       CI helpers, runtime YAML, RFsim scenarios, xApp assets
+├── docker/           OAI runtime/build Dockerfiles
+├── doc/              Upstream OAI documentation
+├── redcap_interface/ RedCap operator menus and functional script library
+├── redcap_doc/       Stable RedCap docs, specs, manuals, and checklists
+├── redcap_library/   Curated reusable RedCap evidence and configs
+└── agent_doc/        Project management, milestones, validation, and rules
 ```
 
-# How to get support from the OAI Community # 
+## Build and Test
 
-You can ask your question on the [mailing lists](https://gitlab.eurecom.fr/oai/openairinterface5g/-/wikis/MailingList).
+Prefer preset-based CMake for local builds:
 
-Your email should contain below information:
+```bash
+cmake --preset default
+cmake --build --preset default
+cmake --preset tests
+cmake --build --preset tests
+cd cmake_targets/ran_build/build_test && ctest --output-on-failure
+```
 
-- A clear subject in your email.
-- For all the queries there should be [Query\] in the subject of the email and for problems there should be [Problem\].
-- In case of a problem, add a small description.
-- Do not share any photos unless you want to share a diagram.
-- OAI gNB/DU/CU/CU-CP/CU-UP configuration file in `.conf` format only.
-- Logs of OAI gNB/DU/CU/CU-CP/CU-UP in `.log` or `.txt` format only.
-- In case your question is related to performance, include a small description of the machine (Operating System, Kernel version, CPU, RAM and networking card) and diagram of your testing environment.
-- Known/open issues are present on [GitLab](https://gitlab.eurecom.fr/oai/openairinterface5g/-/issues), so keep checking.
+Use the standard OAI wrapper when dependency installation or target selection is needed:
 
-Always remember a structured email will help us understand your issues quickly.
+```bash
+cd cmake_targets
+./build_oai -I --install-optional-packages -w USRP
+./build_oai --ninja --gNB --nrUE
+./build_oai --phy_simulators
+```
+
+RedCap documentation/interface-only changes should at minimum run:
+
+```bash
+bash redcap_interface/validate_redcap_interface.sh
+git diff --check -- README.md redcap_doc redcap_interface agent_doc/Project_management
+```
+
+## License and Support
+
+This repository keeps the upstream [OAI Public License V1.1](./LICENSE). Third-party notices are listed in [`NOTICE.md`](./NOTICE.md).
+
+For upstream OAI community support, use the [OAI mailing lists](https://gitlab.eurecom.fr/oai/openairinterface5g/-/wikis/MailingList) and include:
+
+- A clear subject with `[Query]` or `[Problem]`.
+- Configuration files in `.conf` or `.yaml` format.
+- Logs in `.log` or `.txt` format.
+- System details and topology when the question is performance-related.
+
+For local RedCap research work, first include the active project path, command, expected marker, and log path.

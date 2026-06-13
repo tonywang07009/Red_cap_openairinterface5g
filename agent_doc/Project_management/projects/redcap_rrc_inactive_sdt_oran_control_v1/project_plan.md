@@ -28,6 +28,9 @@
   [UE autonomous CG PUSCH scheduler], [RRC-to-MAC inactive indication], and [gNB CG PUSCH RX classifier].
   [Gate 3 RFsim sampled multi-UE PASS on 2026-06-13] confirms `configuredGrantConfig parsed`,
   `cg-SDT PUSCH tx`, and `cg-SDT PUSCH rx candidate` for UE1-3 with no `exit 139`.
+- Gate 4 has a validation-only RFsim fallback hook, controlled by `MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK=1`.
+  [Gate 4 RFsim PASS on 2026-06-13] confirms `RSRP threshold exceeded`, `4-step RA triggered`,
+  fallback `4-Step RA procedure succeeded`, forward ping 10/10, and no `exit 139`.
 - `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/` already hosts the RedCap RFsim + FlexRIC compose path.
 
 ## Document Model
@@ -48,7 +51,7 @@
 ## Milestone Index
 | Milestone | File | Purpose | Status |
 |---|---|---|---|
-| T2 | `milestones/T2_rrc_inactive_sdt_protocol.md` | RRC_INACTIVE, RRCResume, CG-SDT, TA fallback protocol baseline | [~] Gates 1-3 PASS; Gate 4 pending |
+| T2 | `milestones/T2_rrc_inactive_sdt_protocol.md` | RRC_INACTIVE, RRCResume, CG-SDT, TA fallback protocol baseline | [x] Gates 1-4 PASS |
 | T2B | `milestones/T2B_oran_policy_control.md` | KPM-driven O-RAN policy/control over validated RedCap parameters | [ ] |
 
 ## Gate Index
@@ -58,14 +61,14 @@
 | Gate 1 | T2-1 `RRCRelease.suspendConfig` to UE INACTIVE | UE log: `RRC_INACTIVE entered`; no `exit 139` | [x] C build PASS; local images rebuilt; RFsim PASS 2026-06-04 |
 | Gate 2 | T2-2 RRCResume / RRCReestablishment | RFsim or Wireshark captures `RRCResumeRequest` | [x] RFsim PASS 2026-06-05 |
 | Gate 3 | T2-3 `configuredGrantConfig` + `cg-SDT` | UE uses CG PUSCH for small data | [x] RFsim sampled multi-UE PASS 2026-06-13 |
-| Gate 4 | T2-4 TA / RSRP threshold fallback | Threshold exceed triggers 4-step RA | [ ] |
+| Gate 4 | T2-4 TA / RSRP threshold fallback | Threshold exceed triggers 4-step RA | [x] RFsim PASS 2026-06-13 |
 | Gate 5 | T2B O-RAN policy control | KPM snapshot, control request, ACK/NACK, applied snapshot logged | [ ] |
 
 ## Active Focus
 - [Current Batch]: [T2 protocol baseline]
-- [Current Milestone]: [T2 Gate 4 TA / RSRP threshold fallback pending]
+- [Current Milestone]: [T2 Gate 4 TA / RSRP threshold fallback PASS; ready for Gate 5 planning]
 - [Current Runtime Policy Default]: [Case A]
-- [Current Implementation Status]: [Gate 1 RFsim PASS; Gate 2 RFsim PASS; Gate 3 RFsim sampled multi-UE PASS; Gate 4 pending]
+- [Current Implementation Status]: [Gate 1 RFsim PASS; Gate 2 RFsim PASS; Gate 3 RFsim sampled multi-UE PASS; Gate 4 RFsim PASS]
 
 ## Daily Log Follow Rules
 - Every new `test_log/work_daily/*.md` entry for this project must include:

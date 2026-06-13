@@ -30,6 +30,8 @@
   and gNB has a CG-SDT RX classifier candidate.
 - Gate 3 RFsim now has a repeat sample UE1 PASS and sampled UE1-3 PASS on 2026-06-13, proving
   `configuredGrantConfig parsed`, `cg-SDT PUSCH tx`, and `cg-SDT PUSCH rx candidate` together with no `exit 139`.
+- Gate 4 RFsim PASS on 2026-06-13 uses a validation-only forced fallback hook to prove
+  `RSRP threshold exceeded`, `4-step RA triggered`, and fallback `4-Step RA procedure succeeded` with no `exit 139`.
 - Existing MAC SDT FSM hooks are not a complete RRC_INACTIVE + SDT protocol implementation.
 
 ## Gate 0: Protocol and Code Inventory
@@ -80,12 +82,14 @@
 - [Repeat / Sampled Multi-UE Log] `test_log/work_daily/2026-06-13_rrc_inactive_sdt_gate3_repeat_sampled_multiue.md`
 
 ## Gate 4: T2-4 TA / RSRP Threshold to 4-Step RA
+- [Status] [x] RFsim PASS on 2026-06-13.
 - [Modification Point] -> UE SDT trigger decision and TA validity check.
 - [Reason] -> RFsim `cg-SDT-TimeAlignmentTime = infinity` is safe for smoke testing but does not validate fallback.
 - [Before vs. After Comparison] -> Before: no deterministic threshold validation; After: RFsim test hook can force re-RA.
 - [Discussion Point] -> Test hook is validation-only; formal behavior follows `cg-SDT-RSRP-ChangeThreshold`.
 - [MUST] Threshold exceed triggers 4-step RA.
 - [MAY] Use deterministic RFsim hook for repeatable PASS.
+- [Validation Log] `test_log/work_daily/2026-06-13_rrc_inactive_sdt_gate4_fallback_hook.md`
 
 ## Completion Criteria
 - [MUST] T2-1 through T2-4 pass in order.

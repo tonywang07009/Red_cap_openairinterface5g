@@ -40,6 +40,7 @@ PSM_T3512_S="${MMTC_PSM_T3512_TAU_S:-0}"
 GATE1="${MMTC_RRC_INACTIVE_GATE1_TRIGGER:-0}"
 GATE2="${MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER:-0}"
 GATE3="${MMTC_RRC_INACTIVE_GATE3_CG_CONFIG:-0}"
+GATE4="${MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK:-0}"
 
 print_header()
 {
@@ -56,7 +57,7 @@ Total/Sample  : ${TOTAL_UES} / ${SAMPLE_UES}
 PUSCH/PDSCH   : 256QAM=${PUSCH_256QAM}/${PDSCH_256QAM}
 RedCap RX/HD  : num_rx=${REDCAP_NUM_RX}, half_duplex=${REDCAP_HALF_DUPLEX}
 Low power     : drx=${DRX_PROFILE}, edrx_cycle_s=${EDRX_CYCLE_S}, edrx_ptw_s=${EDRX_PTW_S}, psm_t3324_s=${PSM_T3324_S}, psm_t3512_s=${PSM_T3512_S}
-Gate flags    : gate1=${GATE1}, gate2=${GATE2}, gate3=${GATE3}
+Gate flags    : gate1=${GATE1}, gate2=${GATE2}, gate3=${GATE3}, gate4=${GATE4}
 
 EOF
 }
@@ -157,6 +158,8 @@ configure_gates()
   GATE2="$(normalize_bool "${value:-${GATE2}}")"
   read -r -p "Gate3 configured grant trigger 0/1 [${GATE3}]: " value
   GATE3="$(normalize_bool "${value:-${GATE3}}")"
+  read -r -p "Gate4 force TA/RSRP fallback 0/1 [${GATE4}]: " value
+  GATE4="$(normalize_bool "${value:-${GATE4}}")"
 }
 
 run_smoke()
@@ -181,6 +184,7 @@ run_smoke()
     MMTC_RRC_INACTIVE_GATE1_TRIGGER="${GATE1}" \
     MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER="${GATE2}" \
     MMTC_RRC_INACTIVE_GATE3_CG_CONFIG="${GATE3}" \
+    MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK="${GATE4}" \
     bash "${LIB_DIR}/fc_mmtc_smoke_validation.sh"
 }
 
@@ -214,6 +218,14 @@ dispatch_cli()
       GATE1=1
       GATE2=0
       GATE3=1
+      GATE4=0
+      run_smoke
+      ;;
+    gate4)
+      GATE1=1
+      GATE2=0
+      GATE3=1
+      GATE4=1
       run_smoke
       ;;
     rebuild) run_rebuild ;;
@@ -224,7 +236,7 @@ dispatch_cli()
     "") return 1 ;;
     *)
       echo "[ERROR] Unknown subcommand: $1" >&2
-      echo "Known: smoke, gate3, rebuild, inspect, status, down, redcap-vs-normal" >&2
+      echo "Known: smoke, gate3, gate4, rebuild, inspect, status, down, redcap-vs-normal" >&2
       return 2
       ;;
   esac
@@ -243,10 +255,11 @@ main_menu()
 5) Configure RRC_INACTIVE Gate flags
 6) Run smoke validation
 7) Run Gate3 Gate2-OFF smoke
-8) Rebuild local OAI Docker images
-9) Inspect local gNB image markers
-10) Docker status
-11) Docker down
+8) Run Gate4 TA/RSRP fallback smoke
+9) Rebuild local OAI Docker images
+10) Inspect local gNB image markers
+11) Docker status
+12) Docker down
 q) Quit
 EOF
     read -r -p "Choice: " choice
@@ -257,11 +270,12 @@ EOF
       4) configure_low_power ;;
       5) configure_gates ;;
       6) run_smoke; pause_for_enter ;;
-      7) GATE1=1; GATE2=0; GATE3=1; run_smoke; pause_for_enter ;;
-      8) run_rebuild; pause_for_enter ;;
-      9) run_inspect; pause_for_enter ;;
-      10) docker_status; pause_for_enter ;;
-      11) docker_down; pause_for_enter ;;
+      7) GATE1=1; GATE2=0; GATE3=1; GATE4=0; run_smoke; pause_for_enter ;;
+      8) GATE1=1; GATE2=0; GATE3=1; GATE4=1; run_smoke; pause_for_enter ;;
+      9) run_rebuild; pause_for_enter ;;
+      10) run_inspect; pause_for_enter ;;
+      11) docker_status; pause_for_enter ;;
+      12) docker_down; pause_for_enter ;;
       q|Q) exit 0 ;;
       *) echo "[WARN] Unknown choice: ${choice}" ;;
     esac
