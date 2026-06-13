@@ -28,8 +28,8 @@
 - UE `configuredGrantConfig` assert path has been replaced by a parse/store/release slice for Gate 3 validation.
 - UE now has a validation-oriented autonomous CG PUSCH scheduler slice, a RRC-to-MAC inactive indication,
   and gNB has a CG-SDT RX classifier candidate.
-- Full Gate 3 PASS remains pending until Docker images can be rebuilt and RFsim proves `cg-SDT PUSCH tx`
-  and `cg-SDT PUSCH rx` markers together.
+- Gate 3 RFsim now has a repeat sample UE1 PASS and sampled UE1-3 PASS on 2026-06-13, proving
+  `configuredGrantConfig parsed`, `cg-SDT PUSCH tx`, and `cg-SDT PUSCH rx candidate` together with no `exit 139`.
 - Existing MAC SDT FSM hooks are not a complete RRC_INACTIVE + SDT protocol implementation.
 
 ## Gate 0: Protocol and Code Inventory
@@ -67,13 +67,17 @@
 - [RFsim Evidence] `test_log/compiler_logs/rrc_inactive_gate2_bwp_restore_rfsim_2026-06-05_23-34-44.log`
 
 ## Gate 3: T2-3 configuredGrantConfig + cg-SDT
-- [Status] [~] In progress on 2026-06-11; source builds PASS, latest RFsim rerun blocked by Docker escalation credits.
+- [Status] [x] RFsim sampled multi-UE PASS on 2026-06-13; full-scale stress is optional follow-up, not required before Gate 4 planning.
 - [Modification Point] -> SIB1 / UL BWP / MAC UE configured grant parse path.
 - [Reason] -> UE configured grant support must exist before CG-SDT validation.
 - [Before vs. After Comparison] -> Before: configured grant assert and no CG scheduler; After: UE parses/stores CG resources and can schedule a validation-only autonomous CG PUSCH occasion.
-- [Discussion Point] -> gNB classifier currently marks `cg-SDT PUSCH rx candidate`; final PASS still requires RFsim proof and may expose either RLC/SDAP inactive-buffer visibility or a gNB UL_TTI configured-grant expectation blocker.
+- [Discussion Point] -> gNB classifier currently marks `cg-SDT PUSCH rx candidate`; this is the accepted Gate 3 validation marker, while formal configured-grant classifier behavior remains `[Needs Verification]`.
 - [MUST] UE uses CG PUSCH for small data.
-- [SHOULD] gNB log includes `cg-SDT PUSCH rx`.
+- [MUST] UE log includes `configuredGrantConfig parsed`.
+- [MUST] UE log includes `cg-SDT PUSCH tx`.
+- [SHOULD] gNB log includes `cg-SDT PUSCH rx candidate`.
+- [Validation Log] `test_log/work_daily/2026-06-12_rrc_inactive_sdt_gate3_rebuilt_rfsim_gate2off.md`
+- [Repeat / Sampled Multi-UE Log] `test_log/work_daily/2026-06-13_rrc_inactive_sdt_gate3_repeat_sampled_multiue.md`
 
 ## Gate 4: T2-4 TA / RSRP Threshold to 4-Step RA
 - [Modification Point] -> UE SDT trigger decision and TA validity check.

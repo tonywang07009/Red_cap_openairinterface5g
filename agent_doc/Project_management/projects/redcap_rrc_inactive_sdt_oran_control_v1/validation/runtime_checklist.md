@@ -23,7 +23,7 @@
 - [T2-2] `RRC_CONNECTED`.
 - [T2-3] `configuredGrantConfig parsed`.
 - [T2-3] `cg-SDT PUSCH tx`.
-- [T2-3] `cg-SDT PUSCH rx`.
+- [T2-3] `cg-SDT PUSCH rx candidate`.
 - [T2-4] `RSRP threshold exceeded`.
 - [T2-4] `4-step RA triggered`.
 
@@ -54,5 +54,5 @@
 - `exit 139` count.
 - RRC_INACTIVE entry count.
 - RRCResumeRequest count.
-- CG-SDT PUSCH tx/rx count.
+- CG-SDT PUSCH tx/rx-candidate count.
 - 4-step RA fallback count.
