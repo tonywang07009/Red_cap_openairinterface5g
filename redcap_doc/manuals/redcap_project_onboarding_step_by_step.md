@@ -26,6 +26,11 @@ bash redcap_interface/validate_redcap_interface.sh
 | `test_log/` | 暫存 build/runtime/process log |
 
 ## 3. 依賴項檢查
+若你是第一次從 0 編譯與執行，優先照這份指南走：
+```bash
+sed -n '1,220p' redcap_doc/manuals/redcap_zero_to_build_and_run_guide.zh-TW.md
+```
+
 先跑非侵入檢查：
 ```bash
 bash redcap_interface/validate_redcap_interface.sh
@@ -100,7 +105,7 @@ env MMTC_TOTAL_UES=29 \
 ```
 
 ## 7. 修改函式前的定位流程
-1. 先查 `redcap_doc/function_reference/redcap_l1_l3_function_lookup.md`。
+1. 先查 `redcap_doc/specs/function_reference/redcap_l1_l3_function_lookup.md`。
 2. 找到函式所在檔案。
 3. 用 `symdex` 查 callers/callees。
 4. 修改最小範圍。

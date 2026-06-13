@@ -23,6 +23,7 @@
 | Preserve future doc consistency | Reusable doc writer skill | `redcap_library/redcap_doc_writer_skill/SKILL.md` | Skill file existence and content review |
 | Use `doc_example` safely | README template information architecture, not copied branding/license | Rewrite root `README.md` as a RedCap/OAI route page | README route scan |
 | Explain RedCap L1/L2 protocol | Separate protocol guide from function lookup | `redcap_doc/specs/redcap_l1_l2_protocol_guide.md` | Link and `[Needs Verification]` scan |
+| Help first-time users build and run | One concrete beginner path from repo root to RFsim result | Bilingual zero-to-build guide ending at 29 UE validation | Guide route scan and marker checklist |
 
 ## Seven-Question Definition
 | Question | Answer |
@@ -42,6 +43,7 @@
 | D2 | `milestones/D2_script_interface_reorg.md` | Define two-menu Bash interface and `fc_*` library rules | [x] |
 | D3 | `milestones/D3_doc_writer_skill.md` | Define reusable documentation Skill workflow | [x] |
 | D4 | `milestones/D4_root_readme_protocol_routing.md` | Apply README template routing and add RedCap L1/L2 protocol guide | [x] |
+| D5 | `milestones/D5_zero_to_build_guide.md` | Add bilingual beginner build/run guide and update Skill workflow | [x] |
 
 ## Validation Index
 | File | Purpose |
@@ -55,10 +57,12 @@
 - It does not claim new 3GPP behavior.
 - `doc_example/Best_README_template/README.md` is used only for information architecture. Do not copy its MIT license, sample badges, author fields, or Simplified Chinese project branding into OAI docs.
 - Root `README.md` is now a RedCap/OAI route page. It should preserve OAI license/support context while making RedCap operator and protocol paths visible from the first screen.
+- First-time users should start from `redcap_doc/manuals/redcap_zero_to_build_and_run_guide.zh-TW.md` or `.en.md`, then move to `redcap_interface/mmtc.menu.bash`.
 - DRX/eDRX/PSM knobs exposed through the menu and control contract are a configuration surface. Exact Release 17/18 timer encoding remains `[Needs Verification]` until checked against the local spec notes.
 - Legacy root scripts remain as compatibility shims because existing reports and manuals still reference them.
 
 ## Next Action
 - Use `redcap_library/redcap_doc_writer_skill/SKILL.md` whenever a future feature adds API behavior, Bash behavior, or recap instructions.
+- For new beginner-facing build/run docs, follow the Skill's Beginner Build/Run Guide Rules and keep English/Traditional Chinese pages paired.
 - Use `redcap_doc/specs/redcap_l1_l2_protocol_guide.md` for protocol explanations and `redcap_doc/specs/function_reference/redcap_l1_l3_function_lookup.md` for function lookup.
 - Promote old root-script references to the new two-menu model only when editing the target manual for a real update.

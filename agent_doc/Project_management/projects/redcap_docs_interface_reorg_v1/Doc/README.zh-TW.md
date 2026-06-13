@@ -18,8 +18,13 @@
 - 可重用文件 Skill：`redcap_library/redcap_doc_writer_skill/SKILL.md`。
 - Root `README.md` 的 RedCap 路由入口。
 - RedCap L1/L2 protocol guide：`redcap_doc/specs/redcap_l1_l2_protocol_guide.md`。
+- 新手 build/run 指南：`redcap_doc/manuals/redcap_zero_to_build_and_run_guide.zh-TW.md`。
 
 ## README 模板規則
 - 可參考 `doc_example/Best_README_template/README.md` 的章節順序。
 - 不複製範例專案的 MIT license、徽章、作者欄位或簡體中文品牌內容。
 - root README 必須保留 OAI license、NOTICE、upstream docs、support 入口。
+
+## 新手指南規則
+- 第一次 build/run 文件要維持一條線性路徑：從 repository root 到一個 pass/fail 目標。
+- 目前目標：29 UE RFsim validation markers。

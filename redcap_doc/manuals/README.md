@@ -8,6 +8,8 @@
 ## Current Manuals
 | File | Purpose |
 |---|---|
+| `redcap_zero_to_build_and_run_guide.zh-TW.md` | 繁體中文新手指南：從 repo root 編譯、重建 images、跑 29 UE RFsim validation |
+| `redcap_zero_to_build_and_run_guide.en.md` | English beginner guide: build, image rebuild, and 29 UE RFsim validation |
 | `redcap_mmtc_systematic_usage_steps.md` | Baseline 50 UE mMTC validation procedure and troubleshooting notes |
 | `redcap_project_onboarding_step_by_step.md` | Step-by-step handoff guide for dependencies, build, UI use, and function modification |
 

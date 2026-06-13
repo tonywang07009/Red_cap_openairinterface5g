@@ -32,6 +32,10 @@ This repository is an OpenAirInterface5G-based research workspace for [RedCap], 
 Use these commands from the repository root.
 
 ```bash
+# First-time build and 29 UE run guide.
+sed -n '1,220p' redcap_doc/manuals/redcap_zero_to_build_and_run_guide.en.md
+sed -n '1,220p' redcap_doc/manuals/redcap_zero_to_build_and_run_guide.zh-TW.md
+
 # Validate the RedCap operator interface without starting RFsim.
 bash redcap_interface/validate_redcap_interface.sh
 
@@ -59,6 +63,7 @@ For upstream OAI build and modem usage, start with the official local docs:
 
 | Route | Purpose | First File |
 |---|---|---|
+| Beginner build and 29 UE run | Compile gNB/NR UE, rebuild local images, and run a 29 UE RFsim validation | [`redcap_zero_to_build_and_run_guide.en.md`](./redcap_doc/manuals/redcap_zero_to_build_and_run_guide.en.md) / [`zh-TW`](./redcap_doc/manuals/redcap_zero_to_build_and_run_guide.zh-TW.md) |
 | RedCap operator scripts | Daily RFsim, Docker, Gate, DRX/eDRX/PSM, and display menus | [`redcap_interface/README.md`](./redcap_interface/README.md) |
 | Stable RedCap docs | Specs, papers, manuals, checklists, function references | [`redcap_doc/README.md`](./redcap_doc/README.md) |
 | Curated reusable evidence | Final configs, CN5G overlays, reports, runtime probes, build evidence | [`redcap_library/README.md`](./redcap_library/README.md) |
@@ -134,6 +139,11 @@ openairinterface5g
 ```
 
 ## Build and Test
+
+For a first-time RedCap workflow, use the bilingual step-by-step guide:
+
+- English: [`redcap_doc/manuals/redcap_zero_to_build_and_run_guide.en.md`](./redcap_doc/manuals/redcap_zero_to_build_and_run_guide.en.md)
+- 繁體中文：[`redcap_doc/manuals/redcap_zero_to_build_and_run_guide.zh-TW.md`](./redcap_doc/manuals/redcap_zero_to_build_and_run_guide.zh-TW.md)
 
 Prefer preset-based CMake for local builds:
 
