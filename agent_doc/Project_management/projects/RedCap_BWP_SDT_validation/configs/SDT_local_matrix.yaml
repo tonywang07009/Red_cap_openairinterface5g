@@ -1,0 +1,109 @@
+project: RedCap_BWP_SDT_validation
+experiment: RA_SDT_vs_CG_SDT_small_data
+status: scaffold_only
+
+runtime_source:
+  compose_root: ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap
+  compose_files:
+    - docker-compose.yml
+    - docker-compose.mmtc.yml
+  policy_files:
+    - control/redcap_policy_case_a.yaml
+    - control/redcap_control_contract.yaml
+
+paper_reference:
+  pdf: redcap_doc/evaluation_papers/redcap_vaildation_BWP_SDT/Novel_Random_Access_Schemes_for_Small_Data_Transmission.pdf
+  markdown: redcap_doc/evaluation_papers/redcap_vaildation_BWP_SDT/paper2_SDT_small_data.md
+  target_technology: RA-SDT vs CG-SDT
+  scenario: RRC_INACTIVE RedCap UE, single-cell RFsim baseline first
+
+local_rfsim_baseline:
+  carrier_frequency_hz: 3630360000
+  band: 78
+  numerology: 1
+  n_rb_dl: 106
+  ssb_start: 144
+  redcap_enable: 1
+  redcap_num_rx: 1
+  redcap_half_duplex: 1
+  inactive_resume_pipeline: existing RedCap SDT gate flow
+
+paper_parameters:
+  cell_model: 0.1 km2 circular single-BS cell
+  device_distribution: homogeneous PPP
+  packet_arrival: Poisson
+  mu_new_packets_per_time_slot: 0.1
+  rho_dbm: -90
+  sigma_n2_dbm: -100.4
+  gamma_threshold_db: -10
+  path_loss_exponent_alpha: 4
+  n_zc: 839
+  lambda_threshold_dbm: -51.5
+  example_device_intensity_per_preamble: 5
+
+local_sweep:
+  ra_modes:
+    - four_step_ra_baseline
+    - two_step_ra_baseline
+    - four_step_sdt
+    - two_step_sdt
+  sdt_payload_threshold_bytes:
+    - 64
+    - 128
+    - 256
+  cg_sdt_time_alignment_timer:
+    - ms500
+    - infinity
+  cg_sdt_rsrp_change_threshold_db:
+    - 3
+    - 6
+  configured_grant_profile_id:
+    - 0
+    - 1
+
+runtime_env:
+  MMTC_REDCAP_ENABLE: 1
+  MMTC_UE_INDEX: 2
+  MMTC_IMSI: "001010000000002"
+  MMTC_REDCAP_NUM_RX: 1
+  MMTC_REDCAP_HALF_DUPLEX: 1
+  MMTC_N_RB_DL: 106
+  MMTC_NUMEROLOGY: 1
+  MMTC_RF_FREQ: 3630360000
+  MMTC_SSB_START: 144
+  MMTC_RRC_INACTIVE_GATE1_TRIGGER: 1
+  MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER: 1
+  MMTC_RRC_INACTIVE_GATE3_CG_CONFIG: 1
+  MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK: 0
+  MMTC_CGCFG_NOFREE: 0
+  MMTC_CGCFG_DEFER_FREE_SLOTS: 0
+
+policy_parameters:
+  configured_grant_enable: true
+  cg_sdt_enable: true
+  sdt_payload_threshold_bytes: 256
+  cg_sdt_time_alignment_timer: infinity
+  cg_sdt_rsrp_change_threshold_db: 6
+  force_four_step_ra_on_threshold: false
+
+metrics:
+  csv: agent_doc/Project_management/projects/RedCap_BWP_SDT_validation/exp_result/SDT_results.csv
+  required_fields:
+    - scenario
+    - metric
+    - paper_value
+    - local_value
+    - diff_absolute
+    - diff_percent
+  target_metrics:
+    - packet_transmission_success_probability
+    - access_delay
+    - collision_probability
+
+spec_mapping:
+  - spec: TS 38.523-1
+    clause: 7.1.1.13
+    status: "Needs Verification"
+  - spec: TS 38.300
+    clause: 18
+    status: "Needs Verification"

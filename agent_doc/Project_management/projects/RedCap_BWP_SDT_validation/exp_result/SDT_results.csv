@@ -1,0 +1,13 @@
+scenario,metric,paper_value,local_value,diff_absolute,diff_percent
+4_step_ra,packet_transmission_success_probability,TBD,TBD,TBD,TBD
+2_step_ra,packet_transmission_success_probability,TBD,TBD,TBD,TBD
+4_step_sdt,packet_transmission_success_probability,TBD,TBD,TBD,TBD
+2_step_sdt,packet_transmission_success_probability,TBD,TBD,TBD,TBD
+2_step_sdt_lambda_dp_5,packet_transmission_success_probability,0.4201,TBD,TBD,TBD
+4_step_ra_slot10,packet_transmission_success_probability,0.2203,TBD,TBD,TBD
+2_step_ra_slot10,packet_transmission_success_probability,0.3805,TBD,TBD,TBD
+4_step_sdt_slot10,packet_transmission_success_probability,0.3093,TBD,TBD,TBD
+2_step_sdt_slot10,packet_transmission_success_probability,0.4008,TBD,TBD,TBD
+4_step_ra_lambda_dp_5,packet_transmission_success_probability,0.2511,TBD,TBD,TBD
+2_step_ra_lambda_dp_5,packet_transmission_success_probability,0.4018,TBD,TBD,TBD
+4_step_sdt_lambda_dp_5,packet_transmission_success_probability,0.3288,TBD,TBD,TBD

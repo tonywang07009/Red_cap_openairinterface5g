@@ -1,0 +1,3 @@
+run_id,direction,offered_rate,server_ip,ue_ip,current_mbps,receiver_mbps,jitter_ms,lost_packets,total_packets,lost_percent,return_code,log_path
+iperf_live_panel_2026-06-19_16-21-16,UL,17M,192.168.72.135,10.0.0.2,16.9,16.9,0.907,0,29350,0.0,0,/home/tonywang/OAI/Red_cap_openairinterface5g/test_log/compiler_logs/iperf_live_panel_2026-06-19_16-21-16/iperf_live_panel_2026-06-19_16-21-16_UL.log
+iperf_live_panel_2026-06-19_16-21-16,DL,68M,192.168.72.135,10.0.0.2,68.1,68.1,0.052,132,117757,0.11,0,/home/tonywang/OAI/Red_cap_openairinterface5g/test_log/compiler_logs/iperf_live_panel_2026-06-19_16-21-16/iperf_live_panel_2026-06-19_16-21-16_DL.log

@@ -1,0 +1,14 @@
+experiment=BWP_switching_with_DRX
+config=/home/tonywang/OAI/Red_cap_openairinterface5g/agent_doc/Project_management/projects/RedCap_BWP_SDT_validation/configs/BWP_local_matrix.yaml
+compose_root=/home/tonywang/OAI/Red_cap_openairinterface5g/ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap
+run_mode=--dry-run
+services=nearRT-RIC oai-gnb oai-nr-ue1 xapp-kpm-rc
+MMTC_REDCAP_ENABLE=1
+MMTC_REDCAP_NUM_RX=1
+MMTC_REDCAP_HALF_DUPLEX=1
+MMTC_N_RB_DL=106
+MMTC_NUMEROLOGY=1
+MMTC_RF_FREQ=3630360000
+MMTC_SSB_START=144
+MMTC_DRX_PROFILE=balanced
+note=BWP timer and switch-delay values are recorded in the YAML matrix and still need OAI runtime wiring.

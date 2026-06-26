@@ -1,0 +1,12 @@
+area,hook,status,file,line,evidence,reproduction_impact
+BWP,gNB BWP configuration,present,openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_primitives.c,2680,"void configure_UE_BWP(gNB_MAC_INST *nr_mac,",Configures current DL/UL BWP structures used by gNB scheduling.
+BWP,gNB BWP reconfiguration trigger,present,openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_primitives.c,3939,"void nr_mac_trigger_reconfiguration(const gNB_MAC_INST *nrmac, NR_UE_info_t *UE, int new_bwp_id)",Candidate hook for future BWP switch-delay instrumentation.
+BWP,gNB transmission interruption timer,present,openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_primitives.c,3517,"nr_timer_setup(&UE->UE_sched_ctrl.transm_interrupt, slots, 1);",Existing timing hook that can approximate switch interruption in local validation.
+BWP,UE random-access BWP operation,present,openair2/LAYER2/NR_MAC_UE/nr_ra_procedures.c,904,// perform the BWP operation as specified in clause 5.15,UE RA path switches current BWP according to TS 38.321 clause 5.15.
+BWP,UE bwp-InactivityTimer implementation,gap_present,openair2/LAYER2/NR_MAC_UE/nr_ra_procedures.c,924,// TODO bwp-InactivityTimer not implemented,Paper timer curves cannot be claimed reproduced until this gap is instrumented or implemented.
+SDT,gNB SDT log file hook,present,openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_ulsch.c,43,"#define NR_REDCAP_SDT_LOG_PATH_DEFAULT ""nrMAC_redcap_sdt.log""",Provides a stable log target for SDT FSM transitions.
+SDT,gNB CG-SDT classifier,present,openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_ulsch.c,124,"static void nr_redcap_sdt_classify_cg_rx(const gNB_MAC_INST *nr_mac,",Detects configured-grant SDT RX candidates in gNB UL processing.
+SDT,gNB SDT UL grant transition,present,openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_ulsch.c,198,"static void nr_redcap_sdt_note_ul_grant(gNB_MAC_INST *nr_mac,",Starts SDT FSM transition logging when scheduler grants UL bytes.
+SDT,gNB SDT UL burst completion,present,openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_ulsch.c,223,"static void nr_redcap_sdt_maybe_complete_ul_burst(gNB_MAC_INST *nr_mac,",Completes SDT FSM state when UL pending bytes drain.
+SDT,SDT FSM step,present,openair2/LAYER2/NR_MAC_gNB/nr_mac_sdt_fsm.c,110,"bool nr_redcap_sdt_fsm_step(nr_redcap_sdt_fsm_t *fsm,",Encodes the local SDT state/path transitions used by log extraction.
+SDT,UE CG-SDT config detection,present,openair2/LAYER2/NR_MAC_UE/nr_ue_scheduler.c,1239,static bool nr_ue_has_cg_sdt_config(const NR_UE_UL_BWP_t *ul_bwp),UE-side CG-SDT configuration gate for future runtime verification.
