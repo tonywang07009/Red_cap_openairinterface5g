@@ -1,12 +1,17 @@
 project: RedCap_BWP_SDT_validation
 experiment: RA_SDT_vs_CG_SDT_small_data
-status: scaffold_only
+status: runtime_aligned_with_standalone_gate3_and_matrix_smoke_baseline
 
 runtime_source:
   compose_root: ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap
   compose_files:
     - docker-compose.yml
     - docker-compose.mmtc.yml
+  runtime_delegate:
+    standalone: redcap_interface/mmtc.menu.bash gate3
+    matrix: redcap_interface/mmtc.menu.bash smoke
+  runtime_delegate_note: matrix rows use smoke so scenario-specific gate flags remain active
+  baseline_project: agent_doc/Project_management/projects/redcap_rrc_inactive_sdt_oran_control_v1
   policy_files:
     - control/redcap_policy_case_a.yaml
     - control/redcap_control_contract.yaml
@@ -72,7 +77,7 @@ runtime_env:
   MMTC_RF_FREQ: 3630360000
   MMTC_SSB_START: 144
   MMTC_RRC_INACTIVE_GATE1_TRIGGER: 1
-  MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER: 1
+  MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER: 0
   MMTC_RRC_INACTIVE_GATE3_CG_CONFIG: 1
   MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK: 0
   MMTC_CGCFG_NOFREE: 0

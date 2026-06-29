@@ -36,9 +36,37 @@ def marker_seen(text: str, *patterns: str) -> str:
     return "1" if any(re.search(pattern, text, re.IGNORECASE) for pattern in patterns) else "0"
 
 
+def marker_count(text: str, *patterns: str) -> int:
+    return sum(len(re.findall(pattern, text, re.IGNORECASE)) for pattern in patterns)
+
+
 def last_match(pattern: str, text: str) -> re.Match[str] | None:
     matches = list(re.finditer(pattern, text, re.MULTILINE))
     return matches[-1] if matches else None
+
+
+def classify_success_counters(combined: str, scenario: str, marker_values: dict[str, str]) -> dict[str, int | str]:
+    attempted = 1 if marker_values["ue_in_sync_seen"] == "1" or marker_values["rrc_inactive_marker_seen"] == "1" else 0
+    fallback = 1 if marker_count(combined, r"threshold fallback", r"fallback to .*RA", r"RSRP threshold exceeded") else 0
+
+    is_sdt_scenario = "sdt" in scenario.lower()
+    if is_sdt_scenario:
+        success = 1 if marker_values["cg_sdt_marker_seen"] == "1" else 0
+    else:
+        success = 1 if marker_values["rrc_resume_complete_seen"] == "1" else 0
+
+    timeout = 1 if attempted and not success and not fallback else 0
+    sdt_failure = 1 if attempted and is_sdt_scenario and not success and not fallback else 0
+    probability = "NA" if attempted == 0 else f"{success / attempted:.6f}"
+    return {
+        "packet_attempt_count": attempted,
+        "packet_success_count": success,
+        "threshold_fallback_count": fallback,
+        "timeout_failure_count": timeout,
+        "sdt_failure_count": sdt_failure,
+        "packet_transmission_success_probability": probability,
+        "success_classifier": "cg_sdt_marker" if is_sdt_scenario else "rrc_resume_complete",
+    }
 
 
 def extract_metrics(gnb_log: Path, ue_log: Path | None, scenario: str) -> list[dict[str, str]]:
@@ -49,13 +77,20 @@ def extract_metrics(gnb_log: Path, ue_log: Path | None, scenario: str) -> list[d
     rows: list[dict[str, str]] = []
     rntis = sorted(set(re.findall(r"UE RNTI ([0-9A-Fa-f]+) CU-UE-ID", gnb_text)))
 
+    marker_values = {
+        "ue_in_sync_seen": marker_seen(gnb_text, r"UE RNTI \S+ CU-UE-ID \S+ in-sync"),
+        "rrc_inactive_marker_seen": marker_seen(combined, r"RRC_INACTIVE", r"RRC INACTIVE"),
+        "rrc_resume_request_seen": marker_seen(combined, r"RRCResumeRequest"),
+        "rrc_resume_complete_seen": marker_seen(combined, r"RRCResumeComplete"),
+        "configured_grant_marker_seen": marker_seen(combined, r"configuredGrantConfig", r"configured grant"),
+        "cg_sdt_marker_seen": marker_seen(combined, r"cg-SDT", r"CG SDT"),
+    }
+
     add_metric(rows, scenario, "active_ue_count", str(len(rntis)))
-    add_metric(rows, scenario, "ue_in_sync_seen", marker_seen(gnb_text, r"UE RNTI \S+ CU-UE-ID \S+ in-sync"))
-    add_metric(rows, scenario, "rrc_inactive_marker_seen", marker_seen(combined, r"RRC_INACTIVE", r"RRC INACTIVE"))
-    add_metric(rows, scenario, "rrc_resume_request_seen", marker_seen(combined, r"RRCResumeRequest"))
-    add_metric(rows, scenario, "rrc_resume_complete_seen", marker_seen(combined, r"RRCResumeComplete"))
-    add_metric(rows, scenario, "configured_grant_marker_seen", marker_seen(combined, r"configuredGrantConfig", r"configured grant"))
-    add_metric(rows, scenario, "cg_sdt_marker_seen", marker_seen(combined, r"cg-SDT", r"CG SDT"))
+    for metric, value in marker_values.items():
+        add_metric(rows, scenario, metric, value)
+    add_metric(rows, scenario, "cg_sdt_rx_candidate_count", str(marker_count(combined, r"cg-SDT PUSCH rx candidate")))
+    add_metric(rows, scenario, "cg_sdt_tx_marker_count", str(marker_count(combined, r"cg-SDT.*PUSCH tx", r"autonomous CG PUSCH scheduled")))
 
     dlsch = last_match(r"UE\s+\S+:\s+dlsch_rounds\s+(\d+)/(\d+)/(\d+)/(\d+),\s+dlsch_errors\s+(\d+)", gnb_text)
     if dlsch:
@@ -80,6 +115,10 @@ def extract_metrics(gnb_log: Path, ue_log: Path | None, scenario: str) -> list[d
         tx_bytes, rx_bytes = mac.groups()
         add_metric(rows, scenario, "gnb_mac_tx_bytes", tx_bytes)
         add_metric(rows, scenario, "gnb_mac_rx_bytes", rx_bytes)
+
+    counters = classify_success_counters(combined, scenario, marker_values)
+    for metric, value in counters.items():
+        add_metric(rows, scenario, metric, str(value))
 
     return rows
 

@@ -1,12 +1,13 @@
 project: RedCap_BWP_SDT_validation
 experiment: BWP_switching_with_DRX
-status: scaffold_only
+status: runtime_matrix_executed_but_bwp_trigger_crash_blocked
 
 runtime_source:
   compose_root: ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap
   compose_files:
     - docker-compose.yml
     - docker-compose.mmtc.yml
+  shared_helper: agent_doc/Project_management/projects/RedCap_BWP_SDT_validation/scripts/redcap_runtime_common.sh
   baseline_gnb_config_env: GNB_REDCAP_CONFIG
   baseline_ue_config_prefix: NRUE_CONFIG_
 
@@ -66,6 +67,9 @@ local_sweep:
       - 3
     default_bwp_size_prb: TBD
     dedicated_bwp_size_prb: TBD
+  runtime_limitations:
+    - traffic/timer/switch-delay values are runner labels until OAI hooks are implemented
+    - 2026-06-28 BWP 0 telnet trigger crashes gNB in update_cellGroupConfig_for_BWP_switch
 
 runtime_env:
   MMTC_REDCAP_ENABLE: 1

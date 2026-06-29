@@ -36,9 +36,17 @@ HOOKS = [
         "BWP",
         "gNB BWP reconfiguration trigger",
         "openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_primitives.c",
-        "void nr_mac_trigger_reconfiguration",
+        "bool nr_mac_trigger_reconfiguration",
         "present",
-        "Candidate hook for future BWP switch-delay instrumentation.",
+        "Source hook for BWP switch trigger instrumentation and local delay extraction.",
+    ),
+    Hook(
+        "BWP",
+        "gNB BWP reconfiguration instrumentation",
+        "openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_primitives.c",
+        "[RedCap BWP][gNB reconfiguration]",
+        "present",
+        "Logs requested BWP switch target so the extractor can count local switch attempts.",
     ),
     Hook(
         "BWP",
@@ -46,7 +54,15 @@ HOOKS = [
         "openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_primitives.c",
         "nr_timer_setup(&UE->UE_sched_ctrl.transm_interrupt",
         "present",
-        "Existing timing hook that can approximate switch interruption in local validation.",
+        "Existing timing hook used with instrumentation to approximate local switch interruption.",
+    ),
+    Hook(
+        "BWP",
+        "gNB transmission interruption instrumentation",
+        "openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_primitives.c",
+        "[RedCap BWP][gNB interrupt]",
+        "present",
+        "Logs interruption slots for local switch-delay evidence.",
     ),
     Hook(
         "BWP",
@@ -58,11 +74,43 @@ HOOKS = [
     ),
     Hook(
         "BWP",
+        "UE random-access BWP instrumentation",
+        "openair2/LAYER2/NR_MAC_UE/nr_ra_procedures.c",
+        "[RedCap BWP][UE RA]",
+        "present",
+        "Logs old/new active BWP IDs and keeps the inactivity-timer implementation gap explicit.",
+    ),
+    Hook(
+        "BWP",
         "UE bwp-InactivityTimer implementation",
         "openair2/LAYER2/NR_MAC_UE/nr_ra_procedures.c",
         "TODO bwp-InactivityTimer not implemented",
         "gap_present",
-        "Paper timer curves cannot be claimed reproduced until this gap is instrumented or implemented.",
+        "Current instrumentation exposes the gap; paper timer curves still require full implementation or validated timer-equivalent runtime evidence.",
+    ),
+    Hook(
+        "BWP",
+        "BWP matrix traffic/timer scenario labels",
+        "agent_doc/Project_management/projects/RedCap_BWP_SDT_validation/scripts/run_bwp_validation.sh",
+        "MMTC_BWP_TRAFFIC_PROFILE",
+        "wrapper_label",
+        "Records traffic/timer labels in manifests; targeted scan found no OAI C or compose hook that changes offered load, bwp-InactivityTimer, or switch-delay behavior.",
+    ),
+    Hook(
+        "BWP",
+        "BWP matrix force-recreate isolation",
+        "agent_doc/Project_management/projects/RedCap_BWP_SDT_validation/scripts/redcap_runtime_common.sh",
+        "REDCAP_COMPOSE_FORCE_RECREATE",
+        "present",
+        "Prevents cumulative docker logs across matrix rows when enabled by the BWP matrix runner.",
+    ),
+    Hook(
+        "BWP",
+        "BWP telnet trigger crash path",
+        "openair2/LAYER2/NR_MAC_gNB/nr_radio_config.c",
+        "NR_CellGroupConfig_t *update_cellGroupConfig_for_BWP_switch",
+        "crash_repro_path",
+        "2026-06-28 RFsim backtrace shows BWP 0 telnet trigger crashes inside this reconfiguration path; Gate 5 remains blocked until fixed.",
     ),
     Hook(
         "SDT",
@@ -112,6 +160,30 @@ HOOKS = [
         "present",
         "UE-side CG-SDT configuration gate for future runtime verification.",
     ),
+    Hook(
+        "SDT",
+        "SDT 2-step RA scenario label",
+        "agent_doc/Project_management/projects/RedCap_BWP_SDT_validation/scripts/run_sdt_validation.sh",
+        "MMTC_RA_ACCESS_STEPS",
+        "wrapper_label",
+        "Records the 2-step/4-step dimension in manifests; targeted scan found no OAI C or compose hook that changes RA procedure steps.",
+    ),
+    Hook(
+        "SDT",
+        "SDT slot10 scenario label",
+        "agent_doc/Project_management/projects/RedCap_BWP_SDT_validation/scripts/run_sdt_matrix.sh",
+        "_slot10",
+        "wrapper_label",
+        "Records the slot10 paper dimension as a scenario name only; targeted scan found no runtime hook that changes slot timing.",
+    ),
+    Hook(
+        "SDT",
+        "SDT lambda_dp_5 scenario label",
+        "agent_doc/Project_management/projects/RedCap_BWP_SDT_validation/scripts/run_sdt_matrix.sh",
+        "_lambda_dp_5",
+        "wrapper_label",
+        "Records the lambda_Dp paper dimension as a scenario name only; targeted scan found no runtime hook that changes device intensity.",
+    ),
 ]
 
 
@@ -131,6 +203,10 @@ def find_line(root: Path, hook: Hook) -> tuple[str, int | None, str]:
         if hook.needle in line:
             if hook.expected_status == "gap_present":
                 return "gap_present", line_no, line.strip()
+            if hook.expected_status == "wrapper_label":
+                return "wrapper_label", line_no, line.strip()
+            if hook.expected_status == "crash_repro_path":
+                return "crash_repro_path", line_no, line.strip()
             return "present", line_no, line.strip()
 
     return "missing", None, ""
@@ -154,6 +230,8 @@ def write_markdown(rows: list[dict[str, str]]) -> Path:
         f"- [Generated At]: {datetime.now(timezone.utc).isoformat()}",
         "- [Source]: local OAI source tree scan",
         "- [Interpretation]: [gap_present] is an explicit implementation gap, not a missing file.",
+        "- [Interpretation]: [wrapper_label] is recorded by the project runner/manifest but is not proven to alter OAI runtime behavior.",
+        "- [Interpretation]: [crash_repro_path] is a runtime-crash path confirmed by RFsim evidence, not a passing hook.",
         "",
         "| area | hook | status | file:line | reproduction_impact |",
         "|---|---|---|---|---|",

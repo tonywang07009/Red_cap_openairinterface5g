@@ -3523,6 +3523,13 @@ static int nr_mac_interrupt_ue_transmission(gNB_MAC_INST *mac, NR_UE_info_t *UE,
   if ((UE->UE_sched_ctrl.ta_frame - mac->frame + MAX_FRAME_NUMBER) % MAX_FRAME_NUMBER < inactive_frames)
     UE->UE_sched_ctrl.ta_frame = (mac->frame + inactive_frames) % MAX_FRAME_NUMBER;
 
+  LOG_I(NR_MAC,
+        "[RedCap BWP][gNB interrupt] RNTI %04x slots %d slots_per_frame %d inactive_frames %d frame %d\n",
+        UE->rnti,
+        slots,
+        slots_per_frame,
+        inactive_frames,
+        mac->frame);
   LOG_D(NR_MAC, "UE %04x: Interrupt UE transmission (%d slots)\n", UE->rnti, slots);
   return 0;
 }
@@ -3936,17 +3943,21 @@ static bool verify_bwp_switch(const NR_UE_info_t *UE, const nr_mac_config_t *con
   return false;
 }
 
-void nr_mac_trigger_reconfiguration(const gNB_MAC_INST *nrmac, NR_UE_info_t *UE, int new_bwp_id)
+bool nr_mac_trigger_reconfiguration(const gNB_MAC_INST *nrmac, NR_UE_info_t *UE, int new_bwp_id)
 {
   DevAssert(UE->CellGroup != NULL);
   NR_CellGroupConfig_t *cellGroup_for_UE = NULL;
   if (new_bwp_id >= 0) {
     AssertFatal(UE->current_DL_BWP.bwp_id == UE->current_UL_BWP.bwp_id, "We only support same BWP for UL and DL\n");
+    LOG_I(NR_MAC,
+          "[RedCap BWP][gNB reconfiguration] RNTI %04x old_bwp_id %ld new_bwp_id %d local_bwp_id %ld\n",
+          UE->rnti,
+          (long)UE->current_DL_BWP.bwp_id,
+          new_bwp_id,
+          (long)UE->local_bwp_id);
     if (!verify_bwp_switch(UE, &nrmac->radio_config, new_bwp_id))
-      return;
+      return false;
     else {
-      UE->sc_info.csi_MeasConfig = NULL;  // to avoid segfault when freeing csi_MeasConfig in configDedicated
-      UE->local_bwp_id = new_bwp_id;
       cellGroup_for_UE = update_cellGroupConfig_for_BWP_switch(UE->CellGroup,
                                                                &nrmac->radio_config,
                                                                UE->capability,
@@ -3954,17 +3965,31 @@ void nr_mac_trigger_reconfiguration(const gNB_MAC_INST *nrmac, NR_UE_info_t *UE,
                                                                UE->uid,
                                                                UE->current_DL_BWP.bwp_id,
                                                                new_bwp_id);
+      if (!cellGroup_for_UE)
+        return false;
     }
   }
   uint8_t buf[2048];
+  NR_CellGroupConfig_t *cellGroup_to_encode = cellGroup_for_UE ? cellGroup_for_UE : UE->CellGroup;
   asn_enc_rval_t enc_rval = uper_encode_to_buffer(&asn_DEF_NR_CellGroupConfig,
                                                   NULL,
-                                                  cellGroup_for_UE ? cellGroup_for_UE : UE->CellGroup,
+                                                  cellGroup_to_encode,
                                                   buf,
                                                   sizeof(buf));
-  AssertFatal(enc_rval.encoded > 0, "ASN1 encoding of CellGroupConfig failed, failed type %s\n", enc_rval.failed_type->name);
+  if (enc_rval.encoded <= 0) {
+    LOG_E(NR_MAC,
+          "ASN1 encoding of CellGroupConfig failed, failed type %s\n",
+          enc_rval.failed_type ? enc_rval.failed_type->name : "unknown");
+    if (cellGroup_for_UE)
+      ASN_STRUCT_FREE(asn_DEF_NR_CellGroupConfig, cellGroup_for_UE);
+    return false;
+  }
   ASN_STRUCT_FREE(asn_DEF_NR_CellGroupConfig, UE->reconfigCellGroup);
   UE->reconfigCellGroup = cellGroup_for_UE;
+  if (new_bwp_id >= 0) {
+    UE->sc_info.csi_MeasConfig = NULL;
+    UE->local_bwp_id = new_bwp_id;
+  }
   du_to_cu_rrc_information_t du2cu = {
     .cellGroupConfig = buf,
     .cellGroupConfig_length = (enc_rval.encoded + 7) >> 3,
@@ -3978,6 +4003,7 @@ void nr_mac_trigger_reconfiguration(const gNB_MAC_INST *nrmac, NR_UE_info_t *UE,
     .cause_value = F1AP_CauseRadioNetwork_action_desirable_for_radio_reasons,
   };
   nrmac->mac_rrc.ue_context_modification_required(&required);
+  return true;
 }
 
 long get_lcid_from_drbid(int drb_id)

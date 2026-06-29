@@ -1428,7 +1428,7 @@ static void config_pucch_resset0(NR_PUCCH_Config_t *pucch_Config,
   asn1cSeqAdd(&pucchresset->resourceList.list,pucchid);
   pucchresset->maxPayloadSize = NULL;
 
-  if(uecap) {
+  if (uecap && uecap->phy_Parameters.phy_ParametersFRX_Diff) {
     long *pucch_F0_2WithoutFH = uecap->phy_Parameters.phy_ParametersFRX_Diff->pucch_F0_2WithoutFH;
     AssertFatal(pucch_F0_2WithoutFH == NULL,"UE does not support PUCCH F0 without frequency hopping. Current configuration is without FH\n");
   }
@@ -1464,7 +1464,7 @@ static void config_pucch_resset1(NR_PUCCH_Config_t *pucch_Config,
   asn1cSeqAdd(&pucchresset->resourceList.list,pucchressetid);
   pucchresset->maxPayloadSize = NULL;
 
-  if(uecap) {
+  if (uecap && uecap->phy_Parameters.phy_ParametersFRX_Diff) {
     long *pucch_F0_2WithoutFH = uecap->phy_Parameters.phy_ParametersFRX_Diff->pucch_F0_2WithoutFH;
     AssertFatal(pucch_F0_2WithoutFH == NULL,"UE does not support PUCCH F2 without frequency hopping. Current configuration is without FH\n");
   }
@@ -3625,6 +3625,10 @@ static NR_BWP_UplinkDedicated_t *configure_initial_ul_bwp(const NR_ServingCellCo
   NR_BWP_UplinkDedicated_t *initialUplinkBWP = calloc(1, sizeof(*initialUplinkBWP));
   NR_BWP_t *genericParameters = &scc->downlinkConfigCommon->initialDownlinkBWP->genericParameters;
   int curr_bwp = NRRIV2BW(genericParameters->locationAndBandwidth, MAX_BWP_SIZE);
+  int pucch_id = id;
+  const int max_supported_ues = get_max_supported_ues_for_pucch(scc, curr_bwp);
+  if (max_supported_ues > 0 && id >= max_supported_ues)
+    pucch_id = id % max_supported_ues;
   initialUplinkBWP->pucch_Config = calloc(1, sizeof(*initialUplinkBWP->pucch_Config));
   initialUplinkBWP->pucch_Config->present = NR_SetupRelease_PUCCH_Config_PR_setup;
   NR_PUCCH_Config_t *pucch_Config = calloc(1, sizeof(*pucch_Config));
@@ -3634,8 +3638,8 @@ static NR_BWP_UplinkDedicated_t *configure_initial_ul_bwp(const NR_ServingCellCo
   pucch_Config->resourceToAddModList = calloc(1, sizeof(*pucch_Config->resourceToAddModList));
   pucch_Config->resourceToReleaseList = NULL;
   int num_pucch2 = get_nb_pucch2_per_slot(scc, curr_bwp);
-  config_pucch_resset0(pucch_Config, id, curr_bwp, num_pucch2, uecap);
-  config_pucch_resset1(pucch_Config, id, num_pucch2, uecap);
+  config_pucch_resset0(pucch_Config, pucch_id, curr_bwp, num_pucch2, uecap);
+  config_pucch_resset1(pucch_Config, pucch_id, num_pucch2, uecap);
   set_pucch_power_config(pucch_Config, configuration->do_CSIRS);
 
   initialUplinkBWP->pusch_Config = config_pusch(configuration, scc, uecap);
@@ -4111,10 +4115,37 @@ NR_CellGroupConfig_t *update_cellGroupConfig_for_BWP_switch(NR_CellGroupConfig_t
                                                             int old_bwp,
                                                             int new_bwp)
 {
-  NR_SpCellConfig_t *spCellConfig = cellGroupConfig->spCellConfig;
+  if (!cellGroupConfig || !configuration || !scc) {
+    LOG_E(NR_RRC, "Cannot build BWP switch CellGroupConfig: missing mandatory input\n");
+    return NULL;
+  }
+
+  NR_CellGroupConfig_t *clone_cg = NULL;
+  const int copy_result = asn_copy(&asn_DEF_NR_CellGroupConfig, (void **)&clone_cg, cellGroupConfig);
+  if (copy_result != 0 || !clone_cg) {
+    LOG_E(NR_RRC, "Unable to copy NR_CellGroupConfig for BWP switch candidate\n");
+    return NULL;
+  }
+
+  NR_SpCellConfig_t *spCellConfig = clone_cg->spCellConfig;
+  if (!spCellConfig || !spCellConfig->spCellConfigDedicated) {
+    LOG_E(NR_RRC, "Cannot build BWP switch CellGroupConfig: missing SpCellConfig dedicated tree\n");
+    ASN_STRUCT_FREE(asn_DEF_NR_CellGroupConfig, clone_cg);
+    return NULL;
+  }
+
   NR_ServingCellConfig_t *configDedicated = spCellConfig->spCellConfigDedicated;
+  if (!configDedicated->firstActiveDownlinkBWP_Id)
+    configDedicated->firstActiveDownlinkBWP_Id = calloc_or_fail(1, sizeof(*configDedicated->firstActiveDownlinkBWP_Id));
   *configDedicated->firstActiveDownlinkBWP_Id = new_bwp != 0;  // 1 for any BWP != 0
   NR_UplinkConfig_t *uplinkConfig = configDedicated->uplinkConfig;
+  if (!uplinkConfig) {
+    LOG_E(NR_RRC, "Cannot build BWP switch CellGroupConfig: missing uplinkConfig\n");
+    ASN_STRUCT_FREE(asn_DEF_NR_CellGroupConfig, clone_cg);
+    return NULL;
+  }
+  if (!uplinkConfig->firstActiveUplinkBWP_Id)
+    uplinkConfig->firstActiveUplinkBWP_Id = calloc_or_fail(1, sizeof(*uplinkConfig->firstActiveUplinkBWP_Id));
   *uplinkConfig->firstActiveUplinkBWP_Id = new_bwp != 0;  // 1 for any BWP != 0
   nr_mac_config_t local_config = *configuration;
   long ul_maxMIMO_Layers = set_ul_max_layers(configuration, uecap);
@@ -4124,10 +4155,6 @@ NR_CellGroupConfig_t *update_cellGroupConfig_for_BWP_switch(NR_CellGroupConfig_t
     configuration->pdsch_AntennaPorts.N1 * configuration->pdsch_AntennaPorts.N2 * configuration->pdsch_AntennaPorts.XP;
   // add new BWP
   if (new_bwp == 0) {
-    if (!configDedicated->initialDownlinkBWP)
-      configDedicated->initialDownlinkBWP = calloc_or_fail(1, sizeof(*configDedicated->initialDownlinkBWP));
-    if (!uplinkConfig->initialUplinkBWP)
-      uplinkConfig->initialUplinkBWP = calloc_or_fail(1, sizeof(*uplinkConfig->initialUplinkBWP));
     uplinkConfig->initialUplinkBWP = configure_initial_ul_bwp(scc, &local_config, ul_maxMIMO_Layers, uecap, uid);
     configDedicated->initialDownlinkBWP = configure_initial_dl_bwp(scc, pdsch_AntennaPorts, bitmap, uecap, &local_config);
   } else {
@@ -4147,7 +4174,11 @@ NR_CellGroupConfig_t *update_cellGroupConfig_for_BWP_switch(NR_CellGroupConfig_t
     asn1cSeqAdd(&uplinkConfig->uplinkBWP_ToAddModList->list, ul_bwp);
   }
 
-  ASN_STRUCT_FREE(asn_DEF_NR_CSI_MeasConfig, configDedicated->csi_MeasConfig->choice.setup);
+  if (!configDedicated->csi_MeasConfig)
+    configDedicated->csi_MeasConfig = calloc_or_fail(1, sizeof(*configDedicated->csi_MeasConfig));
+  configDedicated->csi_MeasConfig->present = NR_SetupRelease_CSI_MeasConfig_PR_setup;
+  if (configDedicated->csi_MeasConfig->choice.setup)
+    ASN_STRUCT_FREE(asn_DEF_NR_CSI_MeasConfig, configDedicated->csi_MeasConfig->choice.setup);
   configDedicated->csi_MeasConfig->choice.setup = get_csiMeasConfig(configDedicated,
                                                                     uecap,
                                                                     scc,
@@ -4156,11 +4187,6 @@ NR_CellGroupConfig_t *update_cellGroupConfig_for_BWP_switch(NR_CellGroupConfig_t
                                                                     *uplinkConfig->firstActiveUplinkBWP_Id,
                                                                     bitmap);
 
-  // we temporarily need to keep both the old and the new BWP in the CG used by the gNB
-  // while removing the old from the CG sent to the UE
-  NR_CellGroupConfig_t *clone_cg = NULL;
-  const int copy_result = asn_copy(&asn_DEF_NR_CellGroupConfig, (void **)&clone_cg, cellGroupConfig);
-  AssertFatal(copy_result == 0, "unable to copy NR_CellGroupConfig for cloning\n");
   if (old_bwp > 0)
     clean_bwp_structures(clone_cg->spCellConfig);
   return clone_cg;

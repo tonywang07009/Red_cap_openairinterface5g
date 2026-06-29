@@ -901,6 +901,10 @@ bool init_RA(NR_UE_MAC_INST_t *mac, int frame)
   // set POWER_OFFSET_2STEP_RA to 0 dB
   prach_resources->power_offset_2step = 0;
 
+  const long old_ul_bwp_id = mac->current_UL_BWP ? (long)mac->current_UL_BWP->bwp_id : -1;
+  const long old_dl_bwp_id = mac->current_DL_BWP ? (long)mac->current_DL_BWP->bwp_id : -1;
+  const bool had_rach_config = mac->current_UL_BWP && mac->current_UL_BWP->rach_ConfigCommon;
+
   // perform the BWP operation as specified in clause 5.15
   // if PRACH occasions are not configured for the active UL BWP
   if (!mac->current_UL_BWP->rach_ConfigCommon) {
@@ -916,6 +920,16 @@ bool init_RA(NR_UE_MAC_INST_t *mac, int frame)
       mac->current_DL_BWP = get_dl_bwp_structure(mac, 0, false);
     }
   }
+  const long new_ul_bwp_id = mac->current_UL_BWP ? (long)mac->current_UL_BWP->bwp_id : -1;
+  const long new_dl_bwp_id = mac->current_DL_BWP ? (long)mac->current_DL_BWP->bwp_id : -1;
+  LOG_I(NR_MAC,
+        "[RedCap BWP][UE RA] active BWP operation old_dl_bwp_id %ld old_ul_bwp_id %ld new_dl_bwp_id %ld "
+        "new_ul_bwp_id %ld rach_configured %d bwp_inactivity_timer=not_implemented\n",
+        old_dl_bwp_id,
+        old_ul_bwp_id,
+        new_dl_bwp_id,
+        new_ul_bwp_id,
+        had_rach_config ? 1 : 0);
 
   const NR_UE_UL_BWP_t *current_UL_BWP = mac->current_UL_BWP;
   NR_RACH_ConfigCommon_t *nr_rach_ConfigCommon = current_UL_BWP->rach_ConfigCommon;

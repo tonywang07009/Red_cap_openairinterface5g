@@ -75,6 +75,10 @@ Reference only unless the user explicitly asks for commit or MR preparation. Tar
   - `redcap_interface/`
 - Common logging rules:
   - `agent_doc/Project_management/logging_rules.md`
+- AI-native review and validation workflow:
+  - `agent_doc/Project_management/redcap_ai_native_review_validation_workflow.md`
+- RedCap MCP and command toolbox:
+  - `agent_doc/Project_management/redcap_toolbox.md`
 - Curated RedCap reusable artifacts:
   - `redcap_library/`
 - Stable RedCap docs:

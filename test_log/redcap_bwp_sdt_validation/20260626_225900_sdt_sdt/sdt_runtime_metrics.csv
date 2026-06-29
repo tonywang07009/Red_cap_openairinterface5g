@@ -1,0 +1,16 @@
+scenario,metric,paper_value,local_value,diff_absolute,diff_percent
+local_rfsim_ue2_minimal_sdt,active_ue_count,TBD,1,TBD,TBD
+local_rfsim_ue2_minimal_sdt,ue_in_sync_seen,TBD,1,TBD,TBD
+local_rfsim_ue2_minimal_sdt,rrc_inactive_marker_seen,TBD,1,TBD,TBD
+local_rfsim_ue2_minimal_sdt,rrc_resume_request_seen,TBD,0,TBD,TBD
+local_rfsim_ue2_minimal_sdt,rrc_resume_complete_seen,TBD,0,TBD,TBD
+local_rfsim_ue2_minimal_sdt,configured_grant_marker_seen,TBD,0,TBD,TBD
+local_rfsim_ue2_minimal_sdt,cg_sdt_marker_seen,TBD,0,TBD,TBD
+local_rfsim_ue2_minimal_sdt,dlsch_total_rounds,TBD,498,TBD,TBD
+local_rfsim_ue2_minimal_sdt,dlsch_errors,TBD,0,TBD,TBD
+local_rfsim_ue2_minimal_sdt,dlsch_retx_ratio_percent,TBD,0.000000,TBD,TBD
+local_rfsim_ue2_minimal_sdt,ulsch_total_rounds,TBD,4965,TBD,TBD
+local_rfsim_ue2_minimal_sdt,ulsch_errors,TBD,0,TBD,TBD
+local_rfsim_ue2_minimal_sdt,ulsch_retx_ratio_percent,TBD,0.000000,TBD,TBD
+local_rfsim_ue2_minimal_sdt,gnb_mac_tx_bytes,TBD,8449,TBD,TBD
+local_rfsim_ue2_minimal_sdt,gnb_mac_rx_bytes,TBD,81937,TBD,TBD

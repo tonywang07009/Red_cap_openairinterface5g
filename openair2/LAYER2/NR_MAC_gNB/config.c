@@ -1069,8 +1069,7 @@ bool nr_trigger_bwp_switch(uint16_t rnti, int bwp_id)
   } else if (UE->current_DL_BWP.bwp_id == bwp_id) {
     LOG_W(NR_MAC, "UE %04x is already on BWP ID %d, not triggering reconfiguration\n", rnti, bwp_id);
   } else { // UE != NULL && current_DL_BWP.bwp_id != bwp_id
-    nr_mac_trigger_reconfiguration(nrmac, UE, bwp_id);
-    success = true;
+    success = nr_mac_trigger_reconfiguration(nrmac, UE, bwp_id);
   }
   NR_SCHED_UNLOCK(&nrmac->sched_lock);
   return success;

@@ -13,6 +13,13 @@
   3. relevant validation file
   4. latest `test_log/work_daily/*.md`
 
+## Review And Validation Workflow
+- For RedCap code review, functional validation, and learning reports, use:
+  - `agent_doc/Project_management/redcap_ai_native_review_validation_workflow.md`
+- For MCP routing, command selection, and known tool limitations, use:
+  - `agent_doc/Project_management/redcap_toolbox.md`
+- Keep `AGENTS.md` as the router; do not copy workflow templates or command tables into root guidance.
+
 ## Document Model
 - `project_plan.md` is the active index and status source.
 - `Simluation_v2.md` is retained as a baseline archive only.

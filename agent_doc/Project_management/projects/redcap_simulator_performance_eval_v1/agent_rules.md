@@ -18,6 +18,13 @@
   4. `literature/paper_index.md` only when paper evidence is needed
   5. latest `test_log/work_daily/*.md`
 
+## Review And Validation Workflow
+- For RedCap code review, functional validation, and learning reports, use:
+  - `agent_doc/Project_management/redcap_ai_native_review_validation_workflow.md`
+- For MCP routing, command selection, and known tool limitations, use:
+  - `agent_doc/Project_management/redcap_toolbox.md`
+- Keep `AGENTS.md` as the router; do not copy workflow templates or command tables into root guidance.
+
 ## Paper Extraction
 - Do not bulk-read all PDFs.
 - Extract only targeted pages, figures, tables, or metric definitions needed for the active task.

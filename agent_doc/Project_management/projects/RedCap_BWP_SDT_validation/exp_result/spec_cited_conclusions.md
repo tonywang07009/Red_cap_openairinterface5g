@@ -11,36 +11,47 @@
 
 - [BWP switch behavior] maps primarily to [TS 38.321 clause 5.15.1] and [TS 38.523-1 clause 7.1.1.12].
   - [Reason]: local TS 38.321 describes BWP switching as activation of an inactive BWP and deactivation of the active BWP, controlled by [PDCCH], [bwp-InactivityTimer], [RRC signalling], or [MAC random access behavior].
-  - [Local impact]: `BWP_results.csv` currently proves only a clean UE2 RFsim baseline; it does not yet prove [active/default BWP occupancy] or [bwp-InactivityTimer expiry].
+  - [Local impact]: `BWP_results.csv` now includes marker-derived BWP matrix rows from `20260628_151500_bwp_matrix_recreate`, but every BWP 0 telnet trigger crashed gNB in `update_cellGroupConfig_for_BWP_switch`; it does not prove full [bwp-InactivityTimer expiry] behavior.
 
 - [Power saving conclusion] is valid only after measuring [Default BWP ratio] and [Dedicated BWP ratio].
   - [Reason]: local TS 38.321 says the MAC does not monitor/transmit/receive on inactive or dormant BWPs, so a power-saving conclusion must be tied to actual BWP state residency.
-  - [Current status]: coarse paper-side anchors exist, but local BWP state counters are `[TBD]`; no final power-saving claim should be made from the current UE2 attach/in-sync result alone.
+  - [Current status]: coarse paper-side anchors exist, and the 2026-06-28 matrix produced numeric marker-derived rows, but [traffic profile], [inactivity timer], and [switch delay] fields are `[wrapper_label]`; no final paper-equivalent power-saving claim should be made until the crash and runtime hooks are fixed.
 
 - [Latency conclusion] must distinguish [scheduler health] from [BWP switch delay].
   - [Reason]: TS 38.321 clause 5.15.1 ties BWP switching to PDCCH/RRC/MAC events and `bwp-InactivityTimer`; a delay curve must capture the switch trigger and the resulting scheduling delay.
-  - [Current status]: local counters show `dlsch_errors = 0`, `ulsch_errors = 0`, and zero retransmission ratio, but those are RFsim health metrics, not the paper's [PDU scheduling delay] reproduction.
+  - [Current status]: 2026-06-28 matrix rows do not produce `pdu_scheduling_delay_ms` because BWP 0 reconfiguration crashes gNB before post-switch scheduling evidence. The earlier `4.249000` value remains historical local marker evidence, not current matrix evidence.
 
 ## SDT Conclusions
 
 - [RA-SDT gating] maps to [TS 38.523-1 clause 7.1.1.13.1] and [TS 38.300 clause 18].
   - [Reason]: the conformance test requires UE in [NR RRC_INACTIVE], configured RA-SDT resources, pending UL data not exceeding [sdt-DataVolumeThreshold], and RSRP above [sdt-RSRP-Threshold] before initiating RA-SDT.
-  - [Current status]: `SDT_results.csv` now contains coarse paper-side anchors, but local SDT runtime values remain `[TBD]` because the Docker SDT run was blocked by workspace-credit approval rejection.
+  - [Current status]: `20260627_200958_sdt_matrix` generated 36 RFsim samples across 12 RA/SDT scenarios, and `SDT_repeated_run_aggregate.csv` now has `run_count = 3` for every scenario. The local probabilities are marker-classified values, not publication-grade paper-equivalent stochastic curves.
 
 - [Threshold failure behavior] must be treated as a separate scenario, not a failed SDT run.
   - [Reason]: TS 38.523-1 clause 7.1.1.13.1 says when data volume exceeds [sdt-DataVolumeThreshold] or RSRP is below threshold, the UE should not initiate RA-SDT and should use normal RRC Resume.
-  - [Local impact]: the SDT extractor must classify [normal resume due threshold] separately from [RA-SDT success] and [RA-SDT failure].
+  - [Local impact]: the SDT extractor now exports `threshold_fallback_count` separately from `packet_success_count`, `timeout_failure_count`, and `sdt_failure_count`.
 
 - [CG-SDT behavior] maps to [TS 38.523-1 clause 7.1.1.13.5] and [TS 38.300 clause 18].
   - [Reason]: CG-SDT requires [SDT-CG-Config-r17], data volume within threshold, RSRP/SSB conditions, and a running [cg-SDT-TimeAlignmentTimer]; timer expiry can redirect the UE to RA-SDT or terminate ongoing CG-SDT.
-  - [Current status]: local runtime proof still requires a successful SDT log bundle showing [RRC_INACTIVE], [RA-SDT or CG-SDT initiation], [threshold decision], and final [RRC state].
+  - [Current status]: local runtime marker proof exists for [RRC_INACTIVE], [configuredGrantConfig], and [cg-SDT] from `SDT_runtime_evidence_20260626_230300.md` and the 2026-06-27 matrix. SDT rows are classified by `cg_sdt_marker`; RA rows are classified separately by `rrc_resume_complete`.
+
+- [Scenario-semantics limitation] is now classified as `[wrapper_label]`.
+  - [Reason]: `MMTC_RA_ACCESS_STEPS=2`, `slot10`, and `lambda_dp_5` are recorded in the runner/manifest, but targeted source scan found no OAI C or compose hook that changes RA steps, slot timing, or device intensity.
+  - [Local impact]: `SDT_results.csv` may show `1.000000` local success probability for all 12 rows, but these are [marker-classified local RFsim probabilities] and must not be reported as final paper reproduction curves.
 
 ## Evidence Status
 
 | Area | Current evidence | Conclusion strength |
 |---|---|---|
-| [BWP RFsim health] | `BWP_runtime_evidence_20260625_213152.md`, `BWP_results.csv` | [Baseline only] |
-| [BWP paper curve] | `paper_curve_digitization_template.csv` | `[TBD]` |
+| [BWP RFsim health] | `BWP_runtime_evidence_20260625_213152.md`, `BWP_runtime_evidence_20260628_151500.md`, `BWP_results.csv` | [Runtime matrix executed, crash blocker] |
+| [BWP paper curve] | `paper_curve_digitization_template.csv`; 2026-06-28 matrix rows in `BWP_results.csv` | [Blocked by crash and wrapper-label semantics] |
 | [BWP clause mapping] | TS 38.321 [5.15.1] found; requested [5.9] is `[Needs Verification]` | [Partially confirmed] |
-| [SDT runtime] | `SDT_runtime_blocker_20260625.md` | [Blocked] |
+| [SDT runtime] | `SDT_runtime_evidence_20260626_230300.md`; `20260627_200958_sdt_matrix`; `SDT_repeated_run_aggregate.csv` | [Marker-classified 12-scenario aggregate with limitations] |
 | [SDT clause mapping] | TS 38.523-1 [7.1.1.13.1], [7.1.1.13.5]; TS 38.300 [18] | [Confirmed from local Markdown] |
+
+## Remaining Verification Tasks
+
+- [~] [BWP inactivity timer / residency counters]: current `bwp-InactivityTimer` gap is instrumented and Default/Dedicated BWP residency is derived from runtime logs; full timer behavior remains open.
+- [BLOCKED] [BWP low/high load sweep]: force-recreate matrix ran 8/8 rows, but BWP 0 trigger crash and wrapper-label traffic/timer semantics block power-saving or delay claims.
+- [~] [SDT RA/SDT success-probability matrix]: 12 scenarios x 3 repeated RFsim samples are complete and aggregated; paper-equivalent interpretation remains blocked by `[wrapper_label]` scenario semantics.
+- [~] [Final report/plot refresh]: `SDT_results.csv`, `SDT_repeated_run_aggregate.csv`, `exp_result_summary.md`, and `exp_pictture/*.png` were refreshed after the 2026-06-27 matrix.
