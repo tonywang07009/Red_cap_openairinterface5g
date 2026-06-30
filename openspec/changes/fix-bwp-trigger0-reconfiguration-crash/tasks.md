@@ -18,11 +18,10 @@
 
 ## 4. Runtime Validation
 
-- [Blocked 2026-06-29] The host `nr-softmodem` build passes after the optional PUCCH capability guard, but Docker image rebuild and post-guard RFsim validation are blocked by the workspace credits gate. Do not mark this section complete from host build evidence alone.
-- [ ] 4.1 Run a single `BWP_TRIGGER_SEQUENCE=0` RFsim case with `MMTC_SEGV_BACKTRACE=1`.
-- [ ] 4.2 Run a bidirectional `BWP_TRIGGER_SEQUENCE="0 1 0"` RFsim sanity case.
-- [ ] 4.3 Rerun the eight-row BWP matrix after the crash fix and merge only new runtime evidence.
-- [ ] 4.4 Update BWP runtime evidence, CSVs, plots, and summary docs only after new runtime evidence exists.
+- [x] 4.1 Run a single `BWP_TRIGGER_SEQUENCE=0` RFsim case with `MMTC_SEGV_BACKTRACE=1`.
+- [x] 4.2 Run a bidirectional `BWP_TRIGGER_SEQUENCE="0 1 0"` RFsim sanity case.
+- [x] 4.3 Rerun the eight-row BWP matrix after the crash fix and merge only new runtime evidence.
+- [x] 4.4 Update BWP runtime evidence, CSVs, plots, and summary docs only after new runtime evidence exists.
 
 ## 5. Project Code Review And Gate Alignment
 

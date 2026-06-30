@@ -11,15 +11,15 @@
 
 - [BWP switch behavior] maps primarily to [TS 38.321 clause 5.15.1] and [TS 38.523-1 clause 7.1.1.12].
   - [Reason]: local TS 38.321 describes BWP switching as activation of an inactive BWP and deactivation of the active BWP, controlled by [PDCCH], [bwp-InactivityTimer], [RRC signalling], or [MAC random access behavior].
-  - [Local impact]: `BWP_results.csv` now includes marker-derived BWP matrix rows from `20260628_151500_bwp_matrix_recreate`, but every BWP 0 telnet trigger crashed gNB in `update_cellGroupConfig_for_BWP_switch`; it does not prove full [bwp-InactivityTimer expiry] behavior.
+  - [Local impact]: `BWP_results.csv` now includes post-fix marker-derived BWP matrix rows from `20260630_100615_bwp_matrix_apply_marker`; the tested BWP 1 -> 0 telnet trigger path no longer crashes gNB and emits post-ACK BWP0 apply evidence. It still does not prove full [bwp-InactivityTimer expiry] behavior because the timer remains a source gap.
 
 - [Power saving conclusion] is valid only after measuring [Default BWP ratio] and [Dedicated BWP ratio].
   - [Reason]: local TS 38.321 says the MAC does not monitor/transmit/receive on inactive or dormant BWPs, so a power-saving conclusion must be tied to actual BWP state residency.
-  - [Current status]: coarse paper-side anchors exist, and the 2026-06-28 matrix produced numeric marker-derived rows, but [traffic profile], [inactivity timer], and [switch delay] fields are `[wrapper_label]`; no final paper-equivalent power-saving claim should be made until the crash and runtime hooks are fixed.
+  - [Current status]: coarse paper-side anchors exist, and the 2026-06-30 post-fix matrix produced numeric marker-derived rows, but [traffic profile], [inactivity timer], and [switch delay] fields are `[wrapper_label]`; no final paper-equivalent power-saving claim should be made until runtime hooks are implemented or verified.
 
 - [Latency conclusion] must distinguish [scheduler health] from [BWP switch delay].
   - [Reason]: TS 38.321 clause 5.15.1 ties BWP switching to PDCCH/RRC/MAC events and `bwp-InactivityTimer`; a delay curve must capture the switch trigger and the resulting scheduling delay.
-  - [Current status]: 2026-06-28 matrix rows do not produce `pdu_scheduling_delay_ms` because BWP 0 reconfiguration crashes gNB before post-switch scheduling evidence. The earlier `4.249000` value remains historical local marker evidence, not current matrix evidence.
+  - [Current status]: 2026-06-30 matrix rows produce numeric `bwp_switch_apply_delay_ms` and `pdu_scheduling_delay_ms` values after BWP0 apply. These are local RFsim marker-derived delay values; the configured switch-delay dimension is still a wrapper label.
 
 ## SDT Conclusions
 
@@ -43,8 +43,8 @@
 
 | Area | Current evidence | Conclusion strength |
 |---|---|---|
-| [BWP RFsim health] | `BWP_runtime_evidence_20260625_213152.md`, `BWP_runtime_evidence_20260628_151500.md`, `BWP_results.csv` | [Runtime matrix executed, crash blocker] |
-| [BWP paper curve] | `paper_curve_digitization_template.csv`; 2026-06-28 matrix rows in `BWP_results.csv` | [Blocked by crash and wrapper-label semantics] |
+| [BWP RFsim health] | `BWP_runtime_evidence_20260625_213152.md`, `BWP_runtime_evidence_20260628_151500.md`, `BWP_runtime_evidence_20260630_100615.md`, `BWP_results.csv` | [Post-fix matrix executed, no crash markers in tested rows] |
+| [BWP paper curve] | `paper_curve_digitization_template.csv`; 2026-06-30 matrix rows in `BWP_results.csv` | [Local RFsim numeric evidence with wrapper-label semantics] |
 | [BWP clause mapping] | TS 38.321 [5.15.1] found; requested [5.9] is `[Needs Verification]` | [Partially confirmed] |
 | [SDT runtime] | `SDT_runtime_evidence_20260626_230300.md`; `20260627_200958_sdt_matrix`; `SDT_repeated_run_aggregate.csv` | [Marker-classified 12-scenario aggregate with limitations] |
 | [SDT clause mapping] | TS 38.523-1 [7.1.1.13.1], [7.1.1.13.5]; TS 38.300 [18] | [Confirmed from local Markdown] |
@@ -52,6 +52,6 @@
 ## Remaining Verification Tasks
 
 - [~] [BWP inactivity timer / residency counters]: current `bwp-InactivityTimer` gap is instrumented and Default/Dedicated BWP residency is derived from runtime logs; full timer behavior remains open.
-- [BLOCKED] [BWP low/high load sweep]: force-recreate matrix ran 8/8 rows, but BWP 0 trigger crash and wrapper-label traffic/timer semantics block power-saving or delay claims.
+- [~] [BWP low/high load sweep]: post-fix force-recreate matrix ran 8/8 rows and no longer crashes, but wrapper-label traffic/timer semantics still limit power-saving and delay claims.
 - [~] [SDT RA/SDT success-probability matrix]: 12 scenarios x 3 repeated RFsim samples are complete and aggregated; paper-equivalent interpretation remains blocked by `[wrapper_label]` scenario semantics.
 - [~] [Final report/plot refresh]: `SDT_results.csv`, `SDT_repeated_run_aggregate.csv`, `exp_result_summary.md`, and `exp_pictture/*.png` were refreshed after the 2026-06-27 matrix.

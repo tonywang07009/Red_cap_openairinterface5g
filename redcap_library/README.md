@@ -1,5 +1,7 @@
 # RedCap Library
 
+[English](./Doc/README.en.md) | [繁體中文](./Doc/README.zh-TW.md)
+
 ## Purpose
 - This folder is the curated replacement for high-value artifacts previously scattered under `test_log/`.
 - Use it as the first lookup point for reusable RedCap runtime configs, CN5G overlays, runtime probes, build evidence, and summarized reports.

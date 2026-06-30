@@ -1,5 +1,7 @@
 # RedCap Interface
 
+[English](./Doc/README.en.md) | [繁體中文](./Doc/README.zh-TW.md)
+
 ## Purpose
 - Keep RedCap/mMTC operator-facing shell entry points out of `ci-scripts/`.
 - Leave Python/C/YAML/XML implementation assets in `ci-scripts/`.

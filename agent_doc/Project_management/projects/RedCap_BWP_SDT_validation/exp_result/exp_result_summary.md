@@ -24,8 +24,8 @@
 - [BWP clause note]: local TS 38.321 V18.2.0 places [BWP operation] at [clause 5.15]; the originally requested [clause 5.9] maps to [Activation/Deactivation of SCells] and remains `[Needs Verification]`.
 - [SDT clause note]: local Markdown confirms [TS 38.523-1 clause 7.1.1.13.1], [TS 38.523-1 clause 7.1.1.13.5], and [TS 38.300 clause 18] for the current SDT reproduction plan.
 - [BWP implementation note]: local source scan marks [UE bwp-InactivityTimer implementation] as `[gap_present]`; current BWP traffic/timer/switch-delay scenario fields are `[wrapper_label]`.
-- [BWP crash note]: `20260628_151500_bwp_matrix_recreate` ran 8/8 force-recreate BWP matrix rows, but every BWP 0 telnet trigger crashed gNB inside `update_cellGroupConfig_for_BWP_switch`.
-- [BWP instrumentation note]: source markers `[RedCap BWP][gNB reconfiguration]`, `[RedCap BWP][gNB interrupt]`, and `[RedCap BWP][UE RA]` are available, and the extractor now derives BWP residency, switch delay, throughput, and estimated power saving from timestamped logs.
+- [BWP crash note]: the historical `20260628_151500_bwp_matrix_recreate` matrix reproduced the BWP 1 -> 0 crash; the post-fix `20260630_100615_bwp_matrix_apply_marker` matrix completed 8/8 rows with `runner_failures = 0`.
+- [BWP instrumentation note]: source markers `[RedCap BWP][gNB reconfiguration]`, `[RedCap BWP][gNB apply]`, `[RedCap BWP][gNB interrupt]`, and `[RedCap BWP][UE RA]` are available, and the extractor now derives BWP residency, switch/apply delay, PDU scheduling delay, throughput, and estimated power saving from timestamped logs.
 - [BWP extractor note]: `scripts/test_extract_bwp_metrics.py` validates marker parsing and residency/delay extraction; `scripts/test_merge_runtime_metrics.py` prevents stale local metric leakage when newer runtime CSVs omit a metric.
 - [SDT aggregation note]: `scripts/test_extract_sdt_metrics.py` validates attempt/success/fallback/timeout counters; `scripts/aggregate_sdt_success.py` writes `SDT_repeated_run_aggregate.csv`.
 - [Runtime layering note]: SDT protocol runtime is owned by `redcap_rrc_inactive_sdt_oran_control_v1` [Case A Gate 3]; this project performs paper-facing log collation, CSV merge, and comparison reporting.
@@ -76,6 +76,11 @@
 - [Matrix Interpretation]: 8/8 force-recreate RFsim rows completed, but every BWP 0 trigger crashed gNB; matrix values are crash-repro evidence and do not satisfy Gate 5 PASS criteria.
 - [Backtrace Run ID]: `20260628_154000_bwp_trigger0_bt`
 - [Backtrace Frame]: `update_cellGroupConfig_for_BWP_switch+0x151`, called through `nr_mac_trigger_reconfiguration` and `nr_trigger_bwp_switch`.
+- [Post-fix Single Trigger Run ID]: `20260630_100054_bwp_trigger0_apply_marker`
+- [Post-fix Bidirectional Run ID]: `20260630_100329_bwp_bidirectional_apply_marker`
+- [Post-fix Matrix Run ID]: `20260630_100615_bwp_matrix_apply_marker`
+- [Post-fix Matrix Evidence]: `exp_result/BWP_runtime_evidence_20260630_100615.md`
+- [Post-fix Matrix Interpretation]: 8/8 force-recreate RFsim rows completed with no gNB crash markers; each row produced numeric local values for Default BWP ratio, estimated power saving, switch apply delay, PDU scheduling delay, throughput, and final BWP0 apply evidence.
 
 ## Local Validation On 2026-06-26
 
@@ -120,6 +125,17 @@
 | Runtime merge hygiene | [PASS]; `merge_runtime_metrics.py --replace-scenario` resets stale local values when newer runtime CSVs omit a metric |
 | BWP plot refresh | [PASS]; plot refreshed after CSV cleanup |
 
+## Local Validation On 2026-06-30
+
+| item | result |
+|---|---|
+| BWP trigger0 crash fix | [PASS]; `20260630_100054_bwp_trigger0_apply_marker` completed with final `bwp_gnb_apply_last_new_dl_bwp_id = 0` and no gNB crash marker |
+| BWP bidirectional trigger sanity | [PASS]; `20260630_100329_bwp_bidirectional_apply_marker` completed `0 1 0`, final apply returned to BWP 0 |
+| BWP full matrix runtime | [PASS]; `20260630_100615_bwp_matrix_apply_marker` completed 8/8 rows with `runner_failures = 0` |
+| BWP runtime metrics | [PASS]; all eight matrix scenarios have numeric `default_bwp_ratio_percent`, `power_saving_percent`, `bwp_switch_apply_delay_ms`, and `pdu_scheduling_delay_ms` rows |
+| Plot refresh | [PASS]; `BWP_paper_vs_local.png` and `SDT_paper_vs_local.png` refreshed after CSV update |
+| Paper-equivalence status | [LIMITED]; BWP traffic profile, inactivity timer, and switch-delay controls remain `[wrapper_label]` / source-gap limited |
+
 ## SDT Comparison
 
 | scenario | metric | paper_value | local_value | diff_absolute | diff_percent |
@@ -155,14 +171,15 @@
 - [Matrix Run ID]: `20260627_200958_sdt_matrix`
 - [Matrix Evidence Root]: `test_log/redcap_bwp_sdt_validation/20260627_200958_sdt_matrix_*_sdt/`
 - [Matrix aggregate]: `SDT_repeated_run_aggregate.csv`; 12 scenarios x 3 repeats, `packet_attempt_count = 3`, `packet_success_count = 3`, `threshold_fallback_count = 0`, `timeout_failure_count = 0`, `sdt_failure_count = 0` for every scenario.
+- [Bilingual explanation]: `report/SDT_small_packet_experiment_explanation_bilingual.md`
 - [Runner alignment]: standalone SDT validation still defaults to `redcap_interface/mmtc.menu.bash gate3`; matrix runs use `MMTC_SDT_MENU_SUBCOMMAND=smoke` so RA/SDT gate flags are preserved.
 - [Classifier limitation]: RA rows are classified by `rrc_resume_complete`; SDT rows are classified by `cg_sdt_marker`. The local probabilities are marker-classified values, not publication-grade stochastic paper reproduction.
 - [Runtime limitation]: `MMTC_RA_ACCESS_STEPS=2`, `slot10`, and `lambda_dp_5` are `[wrapper_label]` dimensions in the current implementation; exact OAI hook impact is not present.
 
 ## Remaining Paper-Comparable Work
 
-- [BLOCKED] [BWP inactivity timer / residency counters]: current gap is instrumented, but 2026-06-28 BWP 0 trigger crashes gNB before delay evidence can be produced.
-- [BLOCKED] [BWP low/high load sweep]: 8/8 force-recreate runtime rows completed, but all rows are crash-repro evidence; traffic/timer/switch-delay fields remain `[wrapper_label]`.
+- [~] [BWP inactivity timer / residency counters]: current gap is instrumented and post-fix matrix rows produce numeric residency and delay estimates; real UE `bwp-InactivityTimer` behavior remains a source gap.
+- [~] [BWP low/high load sweep]: 8/8 post-fix force-recreate runtime rows completed, but traffic/timer/switch-delay fields remain `[wrapper_label]`, so this is local RFsim evidence rather than publication-grade paper reproduction.
 - [~] [SDT RA/SDT success-probability matrix]: 36 repeated RFsim samples completed and aggregate values are numeric; 2-step RA, slot10, and `lambda_dp_5` are `[wrapper_label]`.
 - [~] [Final report/plot refresh]: CSVs, aggregate, and plots were refreshed after SDT matrix execution; conclusion text still marks non-paper-equivalent local limitations.
 
@@ -170,7 +187,7 @@
 
 - [BWP] The paper reports that high offered load shows little BWP switching impact because UEs remain in Dedicated BWP; local validation must therefore include both high-load and low-load cases before judging BWP behavior.
 - [BWP] The paper reports that shorter `bwp-InactivityTimer` increases time in Default BWP and estimated power saving, but can increase PDU scheduling delay and reduce throughput under low load.
-- [BWP local baseline] UE2 RedCap RFsim ran in-sync with clean HARQ counters, but BWP 0 telnet reconfiguration currently crashes gNB; Gate 5 is blocked until `update_cellGroupConfig_for_BWP_switch` is fixed.
+- [BWP local baseline] UE2 RedCap RFsim now completes BWP 1 -> 0 and `0 1 0` telnet reconfiguration without gNB crash, and the 2026-06-30 matrix provides numeric local BWP residency, estimated power saving, switch apply delay, PDU scheduling delay, and throughput evidence.
 - [SDT] The paper reports that [2-step SDT RA] has the highest packet transmission success probability, while the gain decreases as device intensity increases.
 - [SDT local status] SDT RFsim marker generation is available, and `20260627_200958_sdt_matrix` produced marker-classified repeated-run values for all 12 paper scenarios; paper-equivalent stochastic success-probability claims remain limited by unverified 2-step/slot/lambda runtime semantics and ping flakiness.
 - [Spec citation status] see `spec_cited_conclusions.md`; TS 38.321 [BWP operation] is locally confirmed at clause 5.15.1, while the requested clause 5.9 mapping remains `[Needs Verification]`.

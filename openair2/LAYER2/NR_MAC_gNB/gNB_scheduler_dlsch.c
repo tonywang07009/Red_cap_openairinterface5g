@@ -600,6 +600,9 @@ static void ack_reconfig(gNB_MAC_INST *mac, NR_UE_info_t *UE)
     LOG_W(NR_MAC, "Received ACK for RRCReconfiguration, but nothing to apply!\n");
     return;
   }
+  const long old_dl_bwp_id = UE->current_DL_BWP.bwp_id;
+  const long old_ul_bwp_id = UE->current_UL_BWP.bwp_id;
+  const long pending_bwp_id = UE->local_bwp_id;
   ASN_STRUCT_FREE(asn_DEF_NR_CellGroupConfig, UE->CellGroup);
   UE->CellGroup = UE->reconfigCellGroup;
   UE->reconfigCellGroup = NULL;
@@ -607,6 +610,15 @@ static void ack_reconfig(gNB_MAC_INST *mac, NR_UE_info_t *UE)
   /* clean BWP structures */
   clean_bwp_structures(UE->CellGroup->spCellConfig);
   configure_UE_BWP(mac, scc, UE, false, NR_SearchSpace__searchSpaceType_PR_common, -1, -1);
+  LOG_I(NR_MAC,
+        "[RedCap BWP][gNB apply] RNTI %04x old_dl_bwp_id %ld old_ul_bwp_id %ld new_dl_bwp_id %ld new_ul_bwp_id %ld "
+        "local_bwp_id %ld\n",
+        UE->rnti,
+        old_dl_bwp_id,
+        old_ul_bwp_id,
+        (long)UE->current_DL_BWP.bwp_id,
+        (long)UE->current_UL_BWP.bwp_id,
+        pending_bwp_id);
 }
 
 typedef struct UEsched_s {

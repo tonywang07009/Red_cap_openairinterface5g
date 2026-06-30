@@ -88,14 +88,14 @@
 | [Gate 2] Local RFsim metric execution | [x] | Historical SDT local-image runtime completed at `test_log/redcap_bwp_sdt_validation/20260626_230300_sdt_local_sdt/`; standalone SDT runs default to `redcap_interface/mmtc.menu.bash gate3`, while matrix runs delegate through `smoke`; BWP local-image marker runtime completed at `test_log/redcap_bwp_sdt_validation/20260626_231100_bwp_local_ci_bwp/` |
 | [Gate 3] Paper curve digitization / exact point extraction | [~] | 12 paper-side anchors are marked `[text_anchor]` or `[calibrated_visual_digitized]`; Fig. 3 BWP throughput and publication-grade full-curve extraction remain `[TBD]` |
 | [Gate 4] 3GPP clause confirmation and OAI hook audit | [~] | `exp_result/spec_cited_conclusions.md` and `exp_result/oai_hook_inventory.md` added; BWP instrumentation markers are audited; SDT 2-step/slot/lambda dimensions are now marked `[wrapper_label]`; TS 38.321 clause 5.9 vs 5.15.1 mismatch remains `[Needs Verification]` |
-| [Gate 5] BWP timer/residency/sweep | [BLOCKED] | `20260628_151500_bwp_matrix_recreate` ran 8/8 matrix rows with force-recreate logs, but every BWP 0 telnet trigger crashed gNB in `update_cellGroupConfig_for_BWP_switch`; no Gate 5 PASS |
+| [Gate 5] BWP timer/residency/sweep | [~] | `20260630_100615_bwp_matrix_apply_marker` ran 8/8 post-fix matrix rows with `runner_failures = 0`; BWP 1 -> 0 crash is fixed for tested RFsim triggers, but traffic/timer/switch-delay dimensions remain `[wrapper_label]` |
 | [Gate 6] SDT success-probability matrix | [~] | `20260627_200958_sdt_matrix` completed 12 scenarios x 3 RFsim samples and `SDT_repeated_run_aggregate.csv` has `run_count = 3` for every scenario; local values are marker-classified; 2-step/slot/lambda dimensions are `[wrapper_label]` |
 
 ## Next Progress
 
 - [Current confirmed status]: this project is past scaffold and first local RFsim marker runs, but it is not a full paper-curve reproduction.
 - [CSV inventory]:
-  - `BWP_results.csv`: includes 8 matrix scenario rows from `20260628_151500_bwp_matrix_recreate`; [Default BWP ratio] and [power saving] are numeric marker-derived zeros, but [PDU scheduling delay] is `[TBD]` because every BWP 0 trigger crashed before post-switch scheduling evidence.
+  - `BWP_results.csv`: includes 8 post-fix matrix scenario rows from `20260630_100615_bwp_matrix_apply_marker`; [Default BWP ratio], [estimated power saving], [BWP switch apply delay], and [PDU scheduling delay] are numeric local RFsim values.
   - `SDT_results.csv`: includes marker-classified numeric local success probabilities for all 12 paper scenario rows plus `local_rfsim_ue2_minimal_sdt`; 2-step/slot/lambda semantic mapping is `[wrapper_label]`.
 - [Next Gate 5]: BWP timer/residency/sweep
   - [Goal]: produce paper-comparable [Default BWP ratio], [estimated power saving], and [PDU scheduling delay] values.
@@ -105,9 +105,9 @@
     - [x] lock [Default BWP] and [Dedicated BWP] sizes in extracted metrics
     - [x] measure BWP switch apply delay and first post-switch scheduled SDU delay
     - [x] run the full high/low wrapper matrix with force-recreate runtime logs
-    - [ ] fix BWP 1 -> BWP 0 telnet-trigger crash before claiming Gate 5 PASS
+    - [x] fix BWP 1 -> BWP 0 telnet-trigger crash before using the matrix as local runtime evidence
     - [ ] implement or validate real traffic/timer/switch-delay hooks before claiming publication-grade equivalence
-  - [Run matrix]: low/high load x `bwp-InactivityTimer` 8/80 ms x switch delay 1/3 ms; current run is blocked by crash and label-only traffic/timer semantics.
+  - [Run matrix]: low/high load x `bwp-InactivityTimer` 8/80 ms x switch delay 1/3 ms; current post-fix run is complete, but label-only traffic/timer semantics still block publication-grade equivalence.
 - [Next Gate 6]: SDT paper-comparable scenario matrix
   - [Goal]: compute [packet transmission success probability] for [4-step RA], [2-step RA], [4-step SDT], and [2-step SDT].
   - [Runtime baseline]: keep standalone `scripts/run_sdt_validation.sh` delegated to `redcap_interface/mmtc.menu.bash gate3`; use `MMTC_SDT_MENU_SUBCOMMAND=smoke` only for matrix rows that need scenario-specific gate flags.

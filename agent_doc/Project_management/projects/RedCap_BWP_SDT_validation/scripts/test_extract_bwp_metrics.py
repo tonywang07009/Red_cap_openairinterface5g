@@ -35,6 +35,7 @@ def main() -> int:
                     "5.000000 [NR_MAC] I [RedCap BWP][gNB reconfiguration] RNTI 1234 old_bwp_id 1 new_bwp_id 0 local_bwp_id 1",
                     "5.001000 [NR_MAC] I [RedCap BWP][gNB interrupt] RNTI 1234 slots 6 slots_per_frame 20 inactive_frames 0 frame 10",
                     "5.002000 [NR_MAC] I Switching to DL-BWP 0",
+                    "5.002000 [NR_MAC] I [RedCap BWP][gNB apply] RNTI 1234 old_dl_bwp_id 1 old_ul_bwp_id 1 new_dl_bwp_id 0 new_ul_bwp_id 0 local_bwp_id 0",
                     "5.004000 [NR_MAC] I [RRC_INACTIVE Gate 2][gNB MAC UL] received SRB1 SDU RNTI 1234 frame.slot 10.1 bytes 8",
                     "6.000000 [NR_MAC] I final timestamp",
                 ]
@@ -59,6 +60,9 @@ def main() -> int:
         "xapp_e42_setup_seen": "1",
         "bwp_gnb_reconfiguration_count": "1",
         "bwp_gnb_reconfiguration_last_new_bwp_id": "0",
+        "bwp_gnb_apply_count": "1",
+        "bwp_gnb_apply_last_new_dl_bwp_id": "0",
+        "bwp_gnb_apply_last_new_ul_bwp_id": "0",
         "bwp_gnb_interrupt_count": "1",
         "bwp_gnb_interrupt_last_slots": "6",
         "bwp_ue_ra_operation_count": "1",

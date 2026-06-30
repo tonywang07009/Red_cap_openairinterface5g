@@ -58,6 +58,18 @@ Use this workflow when writing a guide for a first-time user:
    - Do not paste raw runtime logs into the stable guide.
 7. When a guide has an English page and a Traditional Chinese page, update both in the same change.
 
+## Public Bilingual Documentation Rules
+
+Use these rules for public RedCap documentation entrypoints:
+
+1. Keep root `README.md` as a short language selector.
+2. Keep public English and Traditional Chinese pages split as `.en.md` and `.zh-TW.md`.
+3. Do not add language links for languages that do not have real pages.
+4. Keep install and rebuild manuals under `redcap_doc/manuals/install/`.
+5. Use `redcap_doc/evluation_recover/README.en.md` and `README.zh-TW.md` for paper recovery tutorial routing.
+6. Preserve historical reports as evidence and link to them from tutorials instead of rewriting their contents.
+7. Public user-facing Markdown must not include Codex-only command wrappers.
+
 ## Validation
 
 Run only checks relevant to touched files:
@@ -72,6 +84,7 @@ For beginner build/run guide routing, also check:
 ```bash
 rg -n "redcap_zero_to_build_and_run_guide|Beginner build|新手" README.md redcap_doc redcap_library agent_doc/Project_management
 rg -n "shaojintian|MIT License|LinkedIn|your_github_name|your_repository" README.md redcap_doc/manuals
+bash redcap_interface/bash_library/fc_doc_newcomer_gate_check.sh
 ```
 
 For script edits:

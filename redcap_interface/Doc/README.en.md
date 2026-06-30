@@ -1,5 +1,7 @@
 # RedCap Interface Docs
 
+[English](./README.en.md) | [繁體中文](./README.zh-TW.md)
+
 ## Purpose
 - Operator-facing RedCap and mMTC shell entrypoints live here.
 - Use this folder for running RFsim, paper demos, and quick interface validation.
@@ -17,3 +19,8 @@ bash redcap_interface/mmtc.menu.bash
 bash redcap_interface/mmtc.display.bash
 bash redcap_interface/validate_redcap_interface.sh
 ```
+
+## Related Public Manuals
+- Install from zero: `redcap_doc/manuals/install/redcap_begin_from_zero.en.md`.
+- Rebuild after changes: `redcap_doc/manuals/install/redcap_rebuild_after_changes.en.md`.
+- Paper recovery tutorials: `redcap_doc/evluation_recover/README.en.md`.

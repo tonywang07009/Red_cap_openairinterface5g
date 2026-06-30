@@ -10,7 +10,7 @@
 - [Experiment Wrapper]: `agent_doc/Project_management/projects/RedCap_BWP_SDT_validation/scripts/run_bwp_validation.sh`
 - [Shared Runtime Helper]: `agent_doc/Project_management/projects/RedCap_BWP_SDT_validation/scripts/redcap_runtime_common.sh`
 - [Paper Source]: `redcap_doc/evaluation_papers/redcap_vaildation_BWP_SDT/paper1_BWP_switching.md`
-- [Status]: BWP matrix runtime executed; Gate 5 blocked by BWP 0 telnet-trigger gNB crash
+- [Status]: BWP 1 -> 0 telnet-trigger crash fixed for tested RFsim paths; post-fix 8-row matrix completed, with traffic/timer/switch-delay semantics still `[wrapper_label]`
 
 ## Experiment Intent
 
@@ -46,7 +46,7 @@
   - [x] [BWP residency counters]: extractor derives Default/Dedicated residency from timestamped `Switching to DL-BWP` events.
   - [x] [Switch-delay measurement]: extractor measures reconfiguration marker to BWP apply and first post-switch scheduled SDU.
   - [x] [Wrapper matrix execution]: run all high/low scenario rows with force-recreate logs.
-  - [ ] [Crash fix]: fix BWP 1 -> BWP 0 telnet-trigger crash before claiming Gate 5 PASS.
+  - [x] [Crash fix]: fix BWP 1 -> BWP 0 telnet-trigger crash before using the matrix as local runtime evidence.
   - [ ] [Full paper sweep]: implement or validate real traffic and timer behavior before claiming publication-grade reproduction.
 
 | scenario | load profile | `bwp-InactivityTimer` | switch delay target | required local metrics |
@@ -111,10 +111,14 @@
 | `20260626_231100_bwp_local_ci` | Local-image BWP marker run completed; BWP 0 trigger succeeded, BWP 1 trigger failed because UE was already on BWP 1 | `test_log/redcap_bwp_sdt_validation/20260626_231100_bwp_local_ci_bwp/` |
 | `20260628_151500_bwp_matrix_recreate` | 8/8 matrix rows executed with force-recreate logs; every BWP 0 trigger crashed gNB | `test_log/redcap_bwp_sdt_validation/20260628_151500_bwp_matrix_recreate_*_bwp/` |
 | `20260628_154000_bwp_trigger0_bt` | Backtrace run confirms crash frame `update_cellGroupConfig_for_BWP_switch+0x151` | `test_log/redcap_bwp_sdt_validation/20260628_154000_bwp_trigger0_bt_bwp/` |
+| `20260630_100054_bwp_trigger0_apply_marker` | Single BWP 1 -> 0 trigger completed without gNB crash; final gNB apply marker shows BWP0 | `test_log/redcap_bwp_sdt_validation/20260630_100054_bwp_trigger0_apply_marker_bwp/` |
+| `20260630_100329_bwp_bidirectional_apply_marker` | Bidirectional `0 1 0` trigger completed without gNB crash; final gNB apply marker returns to BWP0 | `test_log/redcap_bwp_sdt_validation/20260630_100329_bwp_bidirectional_apply_marker_bwp/` |
+| `20260630_100615_bwp_matrix_apply_marker` | Post-fix 8/8 matrix rows completed with `runner_failures = 0` and numeric local BWP metrics | `test_log/redcap_bwp_sdt_validation/20260630_100615_bwp_matrix_apply_marker_*_bwp/` |
 
 - [Stable evidence report]: `agent_doc/Project_management/projects/RedCap_BWP_SDT_validation/exp_result/BWP_runtime_evidence_20260625_213152.md`
 - [Stable BWP marker report]: `agent_doc/Project_management/projects/RedCap_BWP_SDT_validation/exp_result/BWP_runtime_evidence_20260626_231100.md`
 - [Stable BWP matrix report]: `agent_doc/Project_management/projects/RedCap_BWP_SDT_validation/exp_result/BWP_runtime_evidence_20260628_151500.md`
+- [Stable post-fix BWP matrix report]: `agent_doc/Project_management/projects/RedCap_BWP_SDT_validation/exp_result/BWP_runtime_evidence_20260630_100615.md`
 
 ## Source Validation
 
@@ -128,6 +132,9 @@
 | 2026-06-26 | local-image BWP marker run `20260626_231100_bwp_local_ci` | [PASS]; `bwp_gnb_reconfiguration_count = 1`, `bwp_ue_ra_operation_count = 2` |
 | 2026-06-28 | BWP force-recreate matrix `20260628_151500_bwp_matrix_recreate` | [BLOCKED]; 8/8 rows generated runtime CSVs, but all 8 hit gNB `Segmentation fault` after BWP 0 trigger |
 | 2026-06-28 | BWP backtrace `20260628_154000_bwp_trigger0_bt` | [PASS]; captured `update_cellGroupConfig_for_BWP_switch+0x151` crash frame |
+| 2026-06-30 | BWP single trigger0 `20260630_100054_bwp_trigger0_apply_marker` | [PASS]; final gNB apply marker shows BWP0 and no crash marker was found |
+| 2026-06-30 | BWP bidirectional trigger `20260630_100329_bwp_bidirectional_apply_marker` | [PASS]; `0 1 0` completed with final BWP0 apply |
+| 2026-06-30 | BWP force-recreate matrix `20260630_100615_bwp_matrix_apply_marker` | [PASS]; 8/8 rows completed with `runner_failures = 0`, numeric delay/residency/power metrics, and no crash markers |
 
 ## Metric Extraction
 
@@ -151,11 +158,15 @@
   - `xapp_e42_setup_seen = 1`
 - [New BWP instrumentation markers for the next RFsim run]:
   - `[RedCap BWP][gNB reconfiguration]`
+  - `[RedCap BWP][gNB apply]`
   - `[RedCap BWP][gNB interrupt]`
   - `[RedCap BWP][UE RA]`
 - [New extractor fields]:
   - `bwp_gnb_reconfiguration_count`
   - `bwp_gnb_reconfiguration_last_new_bwp_id`
+  - `bwp_gnb_apply_count`
+  - `bwp_gnb_apply_last_new_dl_bwp_id`
+  - `bwp_gnb_apply_last_new_ul_bwp_id`
   - `bwp_gnb_interrupt_count`
   - `bwp_gnb_interrupt_last_slots`
   - `bwp_ue_ra_operation_count`
@@ -183,7 +194,7 @@
 ## Adjusted 3GPP Parameters
 
 - [BWP inactivity timer]: not implemented in local UE MAC; marker exports `bwp_inactivity_timer=not_implemented`
-- [BWP switch delay]: current 2026-06-28 matrix does not produce switch-delay or PDU-delay metrics because BWP 0 trigger crashes gNB.
+- [BWP switch delay]: current 2026-06-30 matrix produces marker-derived switch apply and PDU scheduling delay metrics, but the configured switch-delay scenario dimension is still a wrapper label.
 - [BWP telnet trigger]: wrapper enables `--telnetsrv.shrmod ci`; BWP switch evidence uses `ci trigger_bwp_switch`
 - [BWP matrix labels]: `MMTC_BWP_TRAFFIC_PROFILE`, `MMTC_BWP_INACTIVITY_TIMER_MS`, and `MMTC_BWP_SWITCH_DELAY_MS` are runner/manifest labels until OAI runtime hooks are implemented.
 - [Default BWP size]: `51` PRB from runtime gNB log

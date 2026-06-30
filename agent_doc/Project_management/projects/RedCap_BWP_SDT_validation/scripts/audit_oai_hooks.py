@@ -66,6 +66,14 @@ HOOKS = [
     ),
     Hook(
         "BWP",
+        "gNB BWP apply instrumentation",
+        "openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_dlsch.c",
+        "[RedCap BWP][gNB apply]",
+        "present",
+        "Logs the post-ACK DL/UL BWP IDs after the pending CellGroup is applied.",
+    ),
+    Hook(
+        "BWP",
         "UE random-access BWP operation",
         "openair2/LAYER2/NR_MAC_UE/nr_ra_procedures.c",
         "perform the BWP operation as specified in clause 5.15",

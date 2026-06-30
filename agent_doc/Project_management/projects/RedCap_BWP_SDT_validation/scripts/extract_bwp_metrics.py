@@ -136,7 +136,7 @@ def extract_bwp_delay_metrics(rows: list[dict[str, str]], scenario: str, gnb_tex
         ts = line_timestamp(line)
         if ts is None or ts < reconfig_ts:
             continue
-        if switch_apply_ts is None and "Switching to DL-BWP" in line:
+        if switch_apply_ts is None and ("[RedCap BWP][gNB apply]" in line or "Switching to DL-BWP" in line):
             switch_apply_ts = ts
         if first_sdu_ts is None and re.search(r"received SRB1 SDU|MAC:\s+TX\s+\d+\s+RX\s+\d+\s+bytes", line):
             first_sdu_ts = ts
@@ -236,6 +236,17 @@ def extract_metrics(
     add_metric(rows, scenario, "bwp_gnb_reconfiguration_count", str(len(bwp_reconfigs)))
     if bwp_reconfigs:
         add_metric(rows, scenario, "bwp_gnb_reconfiguration_last_new_bwp_id", bwp_reconfigs[-1].group(1))
+
+    bwp_applies = list(
+        re.finditer(
+            r"\[RedCap BWP\]\[gNB apply\].*?new_dl_bwp_id\s+(-?\d+).*?new_ul_bwp_id\s+(-?\d+)",
+            gnb_text,
+        )
+    )
+    add_metric(rows, scenario, "bwp_gnb_apply_count", str(len(bwp_applies)))
+    if bwp_applies:
+        add_metric(rows, scenario, "bwp_gnb_apply_last_new_dl_bwp_id", bwp_applies[-1].group(1))
+        add_metric(rows, scenario, "bwp_gnb_apply_last_new_ul_bwp_id", bwp_applies[-1].group(2))
 
     bwp_interrupts = list(re.finditer(r"\[RedCap BWP\]\[gNB interrupt\].*?slots\s+(\d+)", gnb_text))
     add_metric(rows, scenario, "bwp_gnb_interrupt_count", str(len(bwp_interrupts)))

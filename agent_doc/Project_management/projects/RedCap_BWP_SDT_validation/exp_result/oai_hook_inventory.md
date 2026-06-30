@@ -1,6 +1,6 @@
 # OAI Hook Inventory For BWP / SDT Reproduction
 
-- [Generated At]: 2026-06-29T15:32:28.836790+00:00
+- [Generated At]: 2026-06-30T02:26:02.772191+00:00
 - [Source]: local OAI source tree scan
 - [Interpretation]: [gap_present] is an explicit implementation gap, not a missing file.
 - [Interpretation]: [wrapper_label] is recorded by the project runner/manifest but is not proven to alter OAI runtime behavior.
@@ -13,12 +13,13 @@
 | [BWP] | gNB BWP reconfiguration instrumentation | [present] | `openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_primitives.c:3953` | Logs requested BWP switch target so the extractor can count local switch attempts. |
 | [BWP] | gNB transmission interruption timer | [present] | `openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_primitives.c:3517` | Existing timing hook used with instrumentation to approximate local switch interruption. |
 | [BWP] | gNB transmission interruption instrumentation | [present] | `openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_primitives.c:3527` | Logs interruption slots for local switch-delay evidence. |
+| [BWP] | gNB BWP apply instrumentation | [present] | `openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_dlsch.c:614` | Logs the post-ACK DL/UL BWP IDs after the pending CellGroup is applied. |
 | [BWP] | UE random-access BWP operation | [present] | `openair2/LAYER2/NR_MAC_UE/nr_ra_procedures.c:908` | UE RA path switches current BWP according to TS 38.321 clause 5.15. |
 | [BWP] | UE random-access BWP instrumentation | [present] | `openair2/LAYER2/NR_MAC_UE/nr_ra_procedures.c:926` | Logs old/new active BWP IDs and keeps the inactivity-timer implementation gap explicit. |
 | [BWP] | UE bwp-InactivityTimer implementation | [gap_present] | `openair2/LAYER2/NR_MAC_UE/nr_ra_procedures.c:938` | Current instrumentation exposes the gap; paper timer curves still require full implementation or validated timer-equivalent runtime evidence. |
 | [BWP] | BWP matrix traffic/timer scenario labels | [wrapper_label] | `agent_doc/Project_management/projects/RedCap_BWP_SDT_validation/scripts/run_bwp_validation.sh:32` | Records traffic/timer labels in manifests; targeted scan found no OAI C or compose hook that changes offered load, bwp-InactivityTimer, or switch-delay behavior. |
 | [BWP] | BWP matrix force-recreate isolation | [present] | `agent_doc/Project_management/projects/RedCap_BWP_SDT_validation/scripts/redcap_runtime_common.sh:49` | Prevents cumulative docker logs across matrix rows when enabled by the BWP matrix runner. |
-| [BWP] | BWP telnet trigger crash path | [crash_repro_path] | `openair2/LAYER2/NR_MAC_gNB/nr_radio_config.c:4106` | 2026-06-28 RFsim backtrace shows BWP 0 telnet trigger crashes inside this reconfiguration path; Gate 5 remains blocked until fixed. |
+| [BWP] | BWP telnet trigger crash path | [crash_repro_path] | `openair2/LAYER2/NR_MAC_gNB/nr_radio_config.c:4110` | 2026-06-28 RFsim backtrace shows BWP 0 telnet trigger crashes inside this reconfiguration path; Gate 5 remains blocked until fixed. |
 | [SDT] | gNB SDT log file hook | [present] | `openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_ulsch.c:43` | Provides a stable log target for SDT FSM transitions. |
 | [SDT] | gNB CG-SDT classifier | [present] | `openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_ulsch.c:124` | Detects configured-grant SDT RX candidates in gNB UL processing. |
 | [SDT] | gNB SDT UL grant transition | [present] | `openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_ulsch.c:198` | Starts SDT FSM transition logging when scheduler grants UL bytes. |

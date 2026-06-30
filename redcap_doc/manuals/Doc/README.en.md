@@ -3,7 +3,9 @@
 ## Purpose
 - Step-by-step RedCap operator manuals live here.
 - Manuals should be runnable from the repository root.
-- First-time users should start with `redcap_zero_to_build_and_run_guide.en.md`.
+- First-time users should start with `install/redcap_begin_from_zero.en.md`.
+- Rebuild users should start with `install/redcap_rebuild_after_changes.en.md`.
+- Newcomer gate runs should start with `install/redcap_newcomer_runtime_gate.en.md`.
 
 ## Writing Rule
 - Start with prerequisites.

@@ -1,5 +1,7 @@
 # RedCap Interface 文件
 
+[English](./README.en.md) | [繁體中文](./README.zh-TW.md)
+
 ## 用途
 - 這裡放 RedCap / mMTC 操作者會直接使用的 shell 入口。
 - RFsim、paper demo、介面驗證都從這裡開始。
@@ -17,3 +19,8 @@ bash redcap_interface/mmtc.menu.bash
 bash redcap_interface/mmtc.display.bash
 bash redcap_interface/validate_redcap_interface.sh
 ```
+
+## 相關公開手冊
+- 從零安裝：`redcap_doc/manuals/install/redcap_begin_from_zero.zh-TW.md`。
+- 修改後重建：`redcap_doc/manuals/install/redcap_rebuild_after_changes.zh-TW.md`。
+- Paper recovery 教學：`redcap_doc/evluation_recover/README.zh-TW.md`。
