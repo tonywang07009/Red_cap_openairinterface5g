@@ -104,6 +104,7 @@ Reference only unless the user explicitly asks for commit or MR preparation. Tar
 |---|---|---|
 | RedCap mMTC execution | `agent_doc/Project_management/projects/redcap_mmtc_priority_execution_v1/project_plan.md` | `agent_doc/Project_management/projects/redcap_mmtc_priority_execution_v1/agent_rules.md` |
 | RedCap simulator performance evaluation | `agent_doc/Project_management/projects/redcap_simulator_performance_eval_v1/project_plan.md` | `agent_doc/Project_management/projects/redcap_simulator_performance_eval_v1/agent_rules.md` |
+| RedCap O-RAN SDK workflow 3.0 | `agent_doc/Project_management/projects/redcap_oran_sdk_workflow_v3/project_plan.md` | `agent_doc/Project_management/projects/redcap_oran_sdk_workflow_v3/agent_rules.md` |
 
 ## Context Loading Rule
 

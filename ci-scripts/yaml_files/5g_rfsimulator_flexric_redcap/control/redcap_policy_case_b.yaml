@@ -52,6 +52,7 @@ allowed_runtime_parameters:
   - configured_grant_profile_id
   - cg_sdt_rsrp_change_threshold_db
   - sdt_payload_threshold_bytes
+  - redcap_ul_prb_cap
   - force_four_step_ra_on_threshold
   - drx_profile
   - edrx_cycle_s

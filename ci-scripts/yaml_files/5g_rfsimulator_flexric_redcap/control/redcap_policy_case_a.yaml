@@ -43,6 +43,7 @@ baseline_parameters:
   cg_sdt_rsrp_change_threshold_db: 6
   cg_sdt_time_alignment_timer: "infinity"
   sdt_payload_threshold_bytes: 256
+  redcap_ul_prb_cap: 0
   force_four_step_ra_on_threshold: false
   drx_profile: "off"
   edrx_cycle_s: 0

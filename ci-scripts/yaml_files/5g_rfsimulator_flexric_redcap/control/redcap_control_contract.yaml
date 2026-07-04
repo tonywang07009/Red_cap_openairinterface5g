@@ -107,6 +107,16 @@ parameters:
     rollback: restore_previous_value
     validation_log_marker: "sdt_payload_threshold_bytes applied"
 
+  - name: redcap_ul_prb_cap
+    owner: gnb_mac
+    unit: prb
+    default: 0
+    runtime_mutable: true
+    min: 0
+    max: 275
+    rollback: restore_previous_value
+    validation_log_marker: "RedCap UL PRB control"
+
   - name: force_four_step_ra_on_threshold
     owner: ue_mac
     unit: boolean

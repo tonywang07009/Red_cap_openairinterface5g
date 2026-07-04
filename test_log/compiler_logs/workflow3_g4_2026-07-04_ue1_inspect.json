@@ -1,0 +1,312 @@
+[
+    {
+        "Id": "249e2b0ac736f48b467d222e9a59a9b1e588618ba9a82c8a733dbbe423b61e3e",
+        "Created": "2026-07-04T14:00:08.812023194Z",
+        "Path": "/tini",
+        "Args": [
+            "-v",
+            "--",
+            "/opt/oai-nr-ue/bin/entrypoint.sh",
+            "/opt/oai-nr-ue/bin/nr-uesoftmodem"
+        ],
+        "State": {
+            "Status": "exited",
+            "Running": false,
+            "Paused": false,
+            "Restarting": false,
+            "OOMKilled": false,
+            "Dead": false,
+            "Pid": 0,
+            "ExitCode": 139,
+            "Error": "",
+            "StartedAt": "2026-07-04T14:00:09.704339905Z",
+            "FinishedAt": "2026-07-04T14:00:13.947873943Z",
+            "Health": {
+                "Status": "unhealthy",
+                "FailingStreak": 0,
+                "Log": [
+                    {
+                        "Start": "2026-07-04T22:00:10.310687618+08:00",
+                        "End": "2026-07-04T22:00:10.36206407+08:00",
+                        "ExitCode": 0,
+                        "Output": "7\n26\n"
+                    }
+                ]
+            }
+        },
+        "Image": "sha256:cbbca520962225724f23ed5905166c486b76ea0dcae37a50dd0b53f2f215b9df",
+        "ResolvConfPath": "/var/lib/docker/containers/249e2b0ac736f48b467d222e9a59a9b1e588618ba9a82c8a733dbbe423b61e3e/resolv.conf",
+        "HostnamePath": "/var/lib/docker/containers/249e2b0ac736f48b467d222e9a59a9b1e588618ba9a82c8a733dbbe423b61e3e/hostname",
+        "HostsPath": "/var/lib/docker/containers/249e2b0ac736f48b467d222e9a59a9b1e588618ba9a82c8a733dbbe423b61e3e/hosts",
+        "LogPath": "/var/lib/docker/containers/249e2b0ac736f48b467d222e9a59a9b1e588618ba9a82c8a733dbbe423b61e3e/249e2b0ac736f48b467d222e9a59a9b1e588618ba9a82c8a733dbbe423b61e3e-json.log",
+        "Name": "/rfsim5g-oai-nr-ue1_redcap",
+        "RestartCount": 0,
+        "Driver": "overlayfs",
+        "Platform": "linux",
+        "MountLabel": "",
+        "ProcessLabel": "",
+        "AppArmorProfile": "docker-default",
+        "ExecIDs": null,
+        "HostConfig": {
+            "Binds": [
+                "/home/tonywang/OAI/Red_cap_openairinterface5g/ci-scripts/conf_files/nrue_recap/nrue1.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro",
+                "/home/tonywang/OAI/Red_cap_openairinterface5g/ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro"
+            ],
+            "ContainerIDFile": "",
+            "LogConfig": {
+                "Type": "json-file",
+                "Config": {}
+            },
+            "NetworkMode": "oai-cn5g-public-net",
+            "PortBindings": {},
+            "RestartPolicy": {
+                "Name": "no",
+                "MaximumRetryCount": 0
+            },
+            "AutoRemove": false,
+            "VolumeDriver": "",
+            "VolumesFrom": null,
+            "ConsoleSize": [
+                0,
+                0
+            ],
+            "CapAdd": [
+                "CAP_NET_ADMIN",
+                "CAP_NET_RAW",
+                "CAP_SYS_NICE"
+            ],
+            "CapDrop": [
+                "ALL"
+            ],
+            "CgroupnsMode": "private",
+            "Dns": null,
+            "DnsOptions": null,
+            "DnsSearch": null,
+            "ExtraHosts": [],
+            "GroupAdd": null,
+            "IpcMode": "private",
+            "Cgroup": "",
+            "Links": null,
+            "OomScoreAdj": 0,
+            "PidMode": "",
+            "Privileged": false,
+            "PublishAllPorts": false,
+            "ReadonlyRootfs": false,
+            "SecurityOpt": null,
+            "UTSMode": "",
+            "UsernsMode": "",
+            "ShmSize": 67108864,
+            "Runtime": "runc",
+            "Isolation": "",
+            "CpuShares": 0,
+            "Memory": 0,
+            "NanoCpus": 0,
+            "CgroupParent": "",
+            "BlkioWeight": 0,
+            "BlkioWeightDevice": null,
+            "BlkioDeviceReadBps": null,
+            "BlkioDeviceWriteBps": null,
+            "BlkioDeviceReadIOps": null,
+            "BlkioDeviceWriteIOps": null,
+            "CpuPeriod": 0,
+            "CpuQuota": 0,
+            "CpuRealtimePeriod": 0,
+            "CpuRealtimeRuntime": 0,
+            "CpusetCpus": "",
+            "CpusetMems": "",
+            "Devices": [
+                {
+                    "PathOnHost": "/dev/net/tun",
+                    "PathInContainer": "/dev/net/tun",
+                    "CgroupPermissions": "rwm"
+                }
+            ],
+            "DeviceCgroupRules": null,
+            "DeviceRequests": null,
+            "MemoryReservation": 0,
+            "MemorySwap": 0,
+            "MemorySwappiness": null,
+            "OomKillDisable": null,
+            "PidsLimit": null,
+            "Ulimits": null,
+            "CpuCount": 0,
+            "CpuPercent": 0,
+            "IOMaximumIOps": 0,
+            "IOMaximumBandwidth": 0,
+            "MaskedPaths": [
+                "/proc/acpi",
+                "/proc/asound",
+                "/proc/interrupts",
+                "/proc/kcore",
+                "/proc/keys",
+                "/proc/latency_stats",
+                "/proc/sched_debug",
+                "/proc/scsi",
+                "/proc/timer_list",
+                "/proc/timer_stats",
+                "/sys/devices/virtual/powercap",
+                "/sys/firmware"
+            ],
+            "ReadonlyPaths": [
+                "/proc/bus",
+                "/proc/fs",
+                "/proc/irq",
+                "/proc/sys",
+                "/proc/sysrq-trigger"
+            ]
+        },
+        "Storage": {
+            "RootFS": {
+                "Snapshot": {
+                    "Name": "overlayfs"
+                }
+            }
+        },
+        "Mounts": [
+            {
+                "Type": "bind",
+                "Source": "/home/tonywang/OAI/Red_cap_openairinterface5g/ci-scripts/conf_files/nrue_recap/nrue1.uicc.yaml",
+                "Destination": "/opt/oai-nr-ue/etc/nr-ue.yaml",
+                "Mode": "ro",
+                "RW": false,
+                "Propagation": "rprivate"
+            },
+            {
+                "Type": "bind",
+                "Source": "/home/tonywang/OAI/Red_cap_openairinterface5g/ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/scripts/ue_mmtc_entrypoint.sh",
+                "Destination": "/opt/oai-nr-ue/bin/entrypoint.sh",
+                "Mode": "ro",
+                "RW": false,
+                "Propagation": "rprivate"
+            }
+        ],
+        "Config": {
+            "Hostname": "249e2b0ac736",
+            "Domainname": "",
+            "User": "",
+            "AttachStdin": false,
+            "AttachStdout": true,
+            "AttachStderr": true,
+            "Tty": false,
+            "OpenStdin": false,
+            "StdinOnce": false,
+            "Env": [
+                "MMTC_REDCAP_ENABLE=1",
+                "MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK=0",
+                "MMTC_CHANMOD_DL_DS_TDL=",
+                "MMTC_PDCP_TRACE=0",
+                "MMTC_PSM_T3512_TAU_S=0",
+                "MMTC_UE_INDEX=1",
+                "MMTC_RF_FREQ=3630360000",
+                "MMTC_DRX_PROFILE=off",
+                "MMTC_EDRX_PTW_S=0",
+                "MMTC_TEMPLATE_CONFIG=/opt/oai-nr-ue/etc/nr-ue.yaml",
+                "MMTC_N_RB_DL=106",
+                "MMTC_REDCAP_NUM_RX=1",
+                "MMTC_IMSI=001010000000001",
+                "MMTC_PUCCH_COMMON_FALLBACK_BWP0=0",
+                "MMTC_UE_GDB_BT=0",
+                "USE_ADDITIONAL_OPTIONS=-E --rfsim -r 106 --numerology 1 --uicc0.imsi 001010000000001 -C 3630360000 --ssb 144 --rfsimulator.serveraddr 192.168.70.140 --log_config.global_log_options level,nocolor,time --telnetsrv --telnetsrv.listenaddr 192.168.71.150 --telnetsrv.listenport 8091 \n",
+                "MMTC_SEGV_BACKTRACE=0",
+                "MMTC_CGCFG_NOFREE=0",
+                "MMTC_CHANMOD_DL_TYPE=",
+                "MMTC_PSM_T3324_ACTIVE_TIME_S=0",
+                "MMTC_CHANMOD_DL_NOISE_DB=",
+                "MMTC_REDCAP_HALF_DUPLEX=1",
+                "MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER=0",
+                "MMTC_EDRX_CYCLE_S=0",
+                "MMTC_PUSCH_256QAM=0",
+                "MMTC_PDSCH_256QAM=0",
+                "MMTC_CGCFG_DEFER_FREE_SLOTS=0",
+                "MMTC_BAND=78",
+                "MMTC_SSB_START=144",
+                "MMTC_NUMEROLOGY=1",
+                "MMTC_CHANMOD_DL_PLOSS_DB=",
+                "PATH=/opt/oai-nr-ue/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "DEBIAN_FRONTEND=noninteractive",
+                "TZ=Europe/Paris"
+            ],
+            "Cmd": [
+                "/opt/oai-nr-ue/bin/nr-uesoftmodem"
+            ],
+            "Healthcheck": {
+                "Test": [
+                    "CMD-SHELL",
+                    "/bin/bash -c \"pgrep nr-uesoftmodem\""
+                ],
+                "Interval": 10000000000,
+                "Timeout": 5000000000,
+                "StartPeriod": 10000000000,
+                "StartInterval": 500000000,
+                "Retries": 5
+            },
+            "Image": "oaisoftwarealliance/oai-nr-ue:develop",
+            "Volumes": null,
+            "WorkingDir": "/opt/oai-nr-ue",
+            "Entrypoint": [
+                "/tini",
+                "-v",
+                "--",
+                "/opt/oai-nr-ue/bin/entrypoint.sh"
+            ],
+            "Labels": {
+                "com.docker.compose.config-hash": "4051f439e45613b1cf703a08a39524a93bbe9b5c66d642eacb9294e4fbc96806",
+                "com.docker.compose.container-number": "1",
+                "com.docker.compose.depends_on": "oai-gnb:service_started:false",
+                "com.docker.compose.image": "sha256:cbbca520962225724f23ed5905166c486b76ea0dcae37a50dd0b53f2f215b9df",
+                "com.docker.compose.oneoff": "False",
+                "com.docker.compose.project": "5g_rfsimulator_flexric_redcap",
+                "com.docker.compose.project.config_files": "/home/tonywang/OAI/Red_cap_openairinterface5g/ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.yml,/home/tonywang/OAI/Red_cap_openairinterface5g/ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.mmtc.yml",
+                "com.docker.compose.project.environment_file": "/dev/null",
+                "com.docker.compose.project.working_dir": "/home/tonywang/OAI/Red_cap_openairinterface5g/ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap",
+                "com.docker.compose.replace": "rfsim5g-oai-nr-ue1_redcap",
+                "com.docker.compose.service": "oai-nr-ue1",
+                "com.docker.compose.version": "5.1.4",
+                "org.opencontainers.image.ref.name": "ubuntu",
+                "org.opencontainers.image.version": "24.04"
+            }
+        },
+        "NetworkSettings": {
+            "SandboxID": "",
+            "SandboxKey": "",
+            "Ports": {},
+            "Networks": {
+                "oai-cn5g-public-net": {
+                    "IPAMConfig": {
+                        "IPv4Address": "192.168.71.150"
+                    },
+                    "Links": null,
+                    "Aliases": [
+                        "rfsim5g-oai-nr-ue1_redcap",
+                        "oai-nr-ue1"
+                    ],
+                    "DriverOpts": null,
+                    "GwPriority": 0,
+                    "NetworkID": "a2004e8cf307737b7edf2f977c7e9fdfadc2b80885aee93242fb3a881a834783",
+                    "EndpointID": "",
+                    "Gateway": "",
+                    "IPAddress": "",
+                    "MacAddress": "",
+                    "IPPrefixLen": 0,
+                    "IPv6Gateway": "",
+                    "GlobalIPv6Address": "",
+                    "GlobalIPv6PrefixLen": 0,
+                    "DNSNames": [
+                        "rfsim5g-oai-nr-ue1_redcap",
+                        "oai-nr-ue1",
+                        "249e2b0ac736"
+                    ]
+                }
+            }
+        },
+        "ImageManifestDescriptor": {
+            "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
+            "digest": "sha256:76b6220c0ed38bb9e29dcb2d59228a7b7c32dd027b11904ca76933c8d7304127",
+            "size": 3667,
+            "platform": {
+                "architecture": "amd64",
+                "os": "linux"
+            }
+        }
+    }
+]
