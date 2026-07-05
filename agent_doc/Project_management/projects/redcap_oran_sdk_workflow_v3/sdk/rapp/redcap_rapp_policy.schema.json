@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RedCap rApp Policy Package",
+  "type": "object",
+  "required": [
+    "policy_version",
+    "rapp_role",
+    "control_contract",
+    "allowed_runtime_parameters",
+    "decision_policy"
+  ],
+  "properties": {
+    "policy_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "rapp_role": {
+      "type": "string",
+      "const": "long_term_policy"
+    },
+    "control_contract": {
+      "type": "string",
+      "minLength": 1
+    },
+    "allowed_runtime_parameters": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "decision_policy": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,45 @@
+include:
+  - ../local_common_overrides/build_images.yaml
+  - ../local_common_overrides/rebuild_nr_softmodems.yaml
+services:
+  oai-gnb:
+    privileged: true
+    depends_on:
+      rebuild-nr-softmodems: # The outside file position
+        condition: service_completed_successfully
+    volumes: # This is mapping content to contener inside file
+             # left side is from local file , to override the right side contentr content
+      - ../../../cmake_targets/ran_build/build/nr-softmodem:/opt/oai-gnb/bin/nr-softmodem
+      - ../../../cmake_targets/ran_build/build/librfsimulator.so:/usr/local/lib/librfsimulator.so
+      - /usr/local/lib/flexric:/usr/local/lib/flexric
+
+  oai-nr-ue:
+    privileged: true
+    image: ue-local
+    depends_on:
+      build-ran-build:
+        condition: service_completed_successfully
+        restart: true
+      oai-gnb:
+        condition: service_started
+      rebuild-nr-softmodems:
+        condition: service_completed_successfully
+    volumes:
+      - ../../../cmake_targets/ran_build/build/nr-uesoftmodem:/opt/oai-nr-ue/bin/nr-uesoftmodem
+      - ../../../cmake_targets/ran_build/build/librfsimulator.so:/usr/local/lib/librfsimulator.so 
+      - ../../../crashdumps/:/cores/
+
+  #---- The xapps test------
+
+  # xapp-kpm-rc:
+  #   volumes:
+  #   # formate : host role : contener role
+
+  #     - /usr/local/flexric/build/examples/xApp/c/kpm_rc:/usr/local/flexric
+  
+  # xapp-rc-moni:
+  #   volumes:
+  #     - /usr/local/flexric/build/examples/xApp/c/monitor:/usr/local/flexric
+  # xapp-kpm-moni:
+  #   volumes:
+  #     - /usr/local/flexric/build/examples/xApp/c/monitor:/usr/local/flexric

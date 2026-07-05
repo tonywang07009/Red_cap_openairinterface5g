@@ -1,0 +1,79 @@
+version: 1
+case: case_a
+name: redcap_protocol_baseline
+description: >
+  Fixed RFsim baseline for validating T2-1 through T2-4 before enabling
+  dApp, xApp, or rApp dynamic control.
+
+contract_file: /opt/redcap/control/redcap_control_contract.yaml
+policy_version: case_a_static_v1
+
+dynamic_control:
+  enabled: false
+  kpm_observation: false
+  e2sm_rc_control: false
+  custom_sm_control: false
+  dapp_local_api: false
+
+gate_sequence:
+  - gate: 0
+    name: protocol_code_inventory
+    enabled: true
+  - gate: 1
+    name: rrc_release_suspend_to_inactive
+    enabled: true
+  - gate: 2
+    name: rrc_resume_path
+    enabled: true
+  - gate: 3
+    name: configured_grant_cg_sdt
+    enabled: true
+  - gate: 4
+    name: ta_rsrp_threshold_fallback
+    enabled: true
+
+baseline_parameters:
+  inactive_allowed: true
+  suspend_config_enable: true
+  ue_context_retention_ms: 60000
+  pdcp_counter_preserve: true
+  configured_grant_enable: false
+  cg_sdt_enable: false
+  configured_grant_profile_id: 0
+  cg_sdt_rsrp_change_threshold_db: 6
+  cg_sdt_time_alignment_timer: "infinity"
+  sdt_payload_threshold_bytes: 256
+  redcap_ul_prb_cap: 0
+  force_four_step_ra_on_threshold: false
+  drx_profile: "off"
+  edrx_cycle_s: 0
+  edrx_ptw_s: 0
+  psm_t3324_active_time_s: 0
+  psm_t3512_tau_s: 0
+
+gate_overrides:
+  gate_3_configured_grant_cg_sdt:
+    configured_grant_enable: true
+    cg_sdt_enable: true
+    configured_grant_profile_id: 1
+  gate_4_threshold_fallback:
+    force_four_step_ra_on_threshold: true
+
+required_log_markers:
+  - "RRCRelease suspendConfig received"
+  - "RRC_INACTIVE entered"
+  - "RRCResumeRequest received"
+  - "RRCResume sent"
+  - "RRCResume received"
+  - "RRCResumeComplete sent"
+  - "RRC_CONNECTED"
+  - "configuredGrantConfig parsed"
+  - "cg-SDT PUSCH tx"
+  - "cg-SDT PUSCH rx"
+  - "RSRP threshold exceeded"
+  - "4-step RA triggered"
+
+failure_markers:
+  - "exit 139"
+  - "Inactive State not supported"
+  - "configuredGrantConfig not supported"

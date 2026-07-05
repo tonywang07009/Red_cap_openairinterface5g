@@ -1,0 +1,43 @@
+# gNB RedCap SIB1 Broadcast / Runtime Config Evidence
+Generated: 2026-06-04_14-26-30
+Container: rfsim5g-oai-gnb_redcap
+
+## Key Interpretation
+- gNB runtime config has 106PRB DL/UL carrier bandwidth.
+- The same runtime config has RedCap initial DL/UL BWP size 51PRB.
+- gNB log confirms RedCap SIB1-related fields were loaded.
+- UE logs separately confirm SIB1 decoded and successful attach.
+
+## Runtime gNB YAML RedCap / BWP Fields
+47:        dl_carrierBandwidth: 106
+66:        ul_carrierBandwidth: 106
+147:    RedCap:
+149:        cellBarredRedCap1Rx_r17: 1 # The 1 RX ue can into this cell ? 1: yes 0 : no
+150:        cellBarredRedCap2Rx_r17: 1 # The 2 Rx ue can into this cell?  1: yes 0 : no
+151:        halfDuplexRedCapAllowed_r17: 1
+156:        redCapInitialBWP_r17:
+157:          initialDLBWPStart_r17: 0
+158:          initialDLBWPSize_r17: 51
+163:          initialULBWPStart_r17: 0
+164:          initialULBWPSize_r17: 51
+
+## Filtered gNB Docker Log Markers
+### RedCap SIB1/common config loaded
+154:        cellBarredRedCap1Rx_r17: 1 # The 1 RX ue can into this cell ? 1: yes 0 : no
+155:        cellBarredRedCap2Rx_r17: 1 # The 2 Rx ue can into this cell?  1: yes 0 : no
+156:        halfDuplexRedCapAllowed_r17: 1
+301:57070.637158 [GNB_APP] I cellBarredRedCap1Rx_r17 1 cellBarredRedCap2Rx_r17 1 intraFreqReselectionRedCap_r17 0
+
+### Carrier / BWP / SIB1 frequency markers
+305:57070.637841 [RRC]    I Read in ServingCellConfigCommon (PhysCellId 0, ABSFREQSSB 641280, DLBand 78, ABSFREQPOINTA 640752, DLBW 106,RACH_TargetReceivedPower -96
+310:57070.637933 [GNB_APP] I BWP 1, start PRB 0 size 106 locationandbandwidth 28875, scs 1
+331:57070.642637 [NR_MAC] I Command line parameters for OAI UE: -C 3630360000 -r 106 --numerology 1 --band 78 --ssb 144 -E
+338:57070.643769 [NR_RRC] I SIB1 freq: offsetToPointA 24
+463:57073.387482 [PHY]    A Command line parameters for OAI UE: -C 3630360000 -r 106 --numerology 1 --ssb 144 -E
+
+### PDU setup markers
+537:57092.859024 [NR_RRC] I UE 1: received PDU Session Resource Setup Request
+1284:57101.805604 [NR_RRC] I UE 2: received PDU Session Resource Setup Request
+
+### RedCap capability marker if present
+- No explicit gNB RedCap capability marker found in this run; UE2 runtime marker and successful SIB1/PDU evidence are in the UE2 file.

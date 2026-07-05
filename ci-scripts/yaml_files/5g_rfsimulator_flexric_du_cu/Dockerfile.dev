@@ -1,0 +1,52 @@
+ARG FLEXRIC_TAG=develop
+FROM oaisoftwarealliance/oai-flexric:${FLEXRIC_TAG}
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# 2. 安裝依賴 
+RUN apt-get update && apt-get install -y \
+    build-essential cmake git libsctp-dev libpcre2-dev libssl-dev vim gdb wget software-properties-common \
+    automake libtool bison flex \
+    python3 python3-pip python3-dev \
+    && add-apt-repository ppa:ubuntu-toolchain-r/test \
+    && apt-get update \
+    && apt-get install -y gcc-12 g++-12 \
+    && update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-12 100 \
+    && update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-12 100 \
+    && rm -rf /var/lib/apt/lists/*
+
+# 3. 安裝 asn1c )
+WORKDIR /tmp
+RUN mkdir asn1c && cd asn1c && \
+    git init && \
+    git remote add origin https://github.com/mouse07410/asn1c.git && \
+    git fetch --depth 1 origin 940dd5fa9f3917913fd487b13dfddfacd0ded06e && \
+    git checkout FETCH_HEAD && \
+    autoreconf -iv && \
+    ./configure && \
+    make -j$(nproc) && \
+    make install && \
+    ldconfig && \
+    cd /tmp && rm -rf asn1c
+
+# 4. 安裝 swig 4.1 
+RUN cd /tmp && \
+    git clone https://github.com/swig/swig.git && \
+    cd swig && \
+    git checkout release-4.1 && \
+    ./autogen.sh && \
+    ./configure --prefix=/usr && \
+    make -j$(nproc) && \
+    make install && \
+    cd /tmp && rm -rf swig
+
+# 5. 安裝 Python 套件
+RUN pip3 install --no-cache-dir \
+    numpy pandas matplotlib kafka-python influxdb-client scipy
+
+
+# 設定 Python Path (預先指向未來編譯好的位置)
+ENV PYTHONPATH="${PYTHONPATH}:/flexric_src/build-multi/examples/xApp/python3"
+
+# 預設工作目錄
+WORKDIR /flexric_src

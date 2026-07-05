@@ -1,0 +1,299 @@
+<!--
+
+ Licensed to the OpenAirInterface (OAI) Software Alliance under one or more
+ contributor license agreements.  See the NOTICE file distributed with
+ this work for additional information regarding copyright ownership.
+ The OpenAirInterface Software Alliance licenses this file to You under
+ the OAI Public License, Version 1.1  (the "License"); you may not use this file
+ except in compliance with the License.
+ You may obtain a copy of the License at
+
+      http://www.openairinterface.org/?page_id=698
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+
+ For more information about the OpenAirInterface (OAI) Software Alliance:
+      contact@openairinterface.org
+
+-->
+<testCaseList>
+        <htmlTabRef>rfsim-5gnr-flexric-redcap</htmlTabRef>
+        <htmlTabName>Monolithic SA TDD gNB, FlexRIC, and RedCap RFsim</htmlTabName>
+        <htmlTabIcon>wrench</htmlTabIcon>
+        <repeatCount>1</repeatCount>
+        <TestCaseRequestedList>
+ 111110
+ 111111
+ 111112
+ 000001
+ 000002
+ 000003
+ 010000
+ 000004
+ 333331
+ 302001
+ 000005
+ 333332
+ 302002
+ 302003
+ 302004
+ 040001
+ 020005
+ 030001
+ 302005
+ 302006
+ 030002
+ 444444
+ 100002
+ 100006
+ 100007
+ 100008
+ 100009
+ 100001
+ 222221
+ 222222
+        </TestCaseRequestedList>
+        <TestCaseExclusionList></TestCaseExclusionList>
+
+        <testCase id="111110">
+                <class>Pull_Local_Registry</class>
+                <desc>Pull Images from Local Registry</desc>
+                <node>localhost</node>
+                <images>oai-gnb oai-nr-ue</images>
+        </testCase>
+
+        <testCase id="111111">
+                <class>Pull_Local_Registry</class>
+                <desc>Pull Images from Local Registry</desc>
+                <node>localhost</node>
+                <images>oai-flexric</images>
+        </testCase>
+
+        <testCase id="222221">
+                <class>Clean_Test_Server_Images</class>
+                <desc>Clean Test Images on Test Server</desc>
+                <node>localhost</node>
+                <images>oai-gnb oai-nr-ue</images>
+                <always_exec>true</always_exec>
+        </testCase>
+
+        <testCase id="222222">
+                <class>Clean_Test_Server_Images</class>
+                <desc>Clean Test Images on Test Server</desc>
+                <node>localhost</node>
+                <images>oai-flexric</images>
+                <always_exec>true</always_exec>
+        </testCase>
+
+        <testCase id="111112">
+                <class>Custom_Command</class>
+                <desc>Updating CN5G images</desc>
+                <node>localhost</node>
+                <command>docker compose -f ../doc/tutorial_resources/oai-cn5g/docker-compose.yaml pull</command>
+        </testCase>
+
+        <testCase id="000001">
+                <class>Deploy_Object</class>
+                <desc>Deploy OAI 5G CoreNetwork</desc>
+                <node>localhost</node>
+                <yaml_path>doc/tutorial_resources/oai-cn5g</yaml_path>
+                <services>mysql oai-nrf oai-udr oai-udm oai-ausf oai-amf oai-smf oai-upf oai-ext-dn</services>
+        </testCase>
+
+        <testCase id="000002">
+                <class>Deploy_Object</class>
+                <desc>Deploy OAI nearRT-RIC for RedCap RF sim</desc>
+                <node>localhost</node>
+                <yaml_path>ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap</yaml_path>
+                <services>nearRT-RIC</services>
+        </testCase>
+
+        <testCase id="000003">
+                <class>Deploy_Object</class>
+                <desc>Deploy OAI 5G gNB in RedCap RF sim SA</desc>
+                <node>localhost</node>
+                <yaml_path>ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap</yaml_path>
+                <services>oai-gnb</services>
+        </testCase>
+
+        <testCase id="010000">
+                <class>Deploy_Object</class>
+                <desc>Deploy RC monitoring</desc>
+                <node>localhost</node>
+                <yaml_path>ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap</yaml_path>
+                <services>xapp-rc-moni</services>
+        </testCase>
+
+        <testCase id="000004">
+                <class>Custom_Command</class>
+                <desc>Prepare OAI 5G NR-UE1 container in RedCap RF sim SA</desc>
+                <node>localhost</node>
+                <command>docker compose -f yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.yml create oai-nr-ue1</command>
+        </testCase>
+
+        <testCase id="333331">
+                <class>Attach_UE</class>
+                <desc>Attach OAI UE 1</desc>
+                <id>rfsim5g_redcap_ue1</id>
+                <node>carabe</node>
+        </testCase>
+
+        <testCase id="302001">
+                <class>Custom_Command</class>
+                <desc>Verify UE 1 is normal (no RedCap)</desc>
+                <node>localhost</node>
+                <command>[ $(docker logs rfsim5g-oai-nr-ue1_redcap | grep -Ec "Built UE NR capability from nrue_recap YAML|nrue_recap RedCap config|Applying SIB1 RedCap initial (DL|UL) BWP") -eq 0 ]</command>
+        </testCase>
+
+        <testCase id="000005">
+                <class>Custom_Command</class>
+                <desc>Prepare OAI 5G NR-UE2 (RedCap) container in RF sim SA</desc>
+                <node>localhost</node>
+                <command>docker compose -f yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.yml create oai-nr-ue2</command>
+        </testCase>
+
+        <testCase id="333332">
+                <class>Attach_UE</class>
+                <desc>Attach OAI UE 2 (RedCap)</desc>
+                <id>rfsim5g_redcap_ue2</id>
+                <node>carabe</node>
+        </testCase>
+
+        <testCase id="302002">
+                <class>Custom_Command</class>
+                <desc>Verify UE 2 is RedCap</desc>
+                <node>localhost</node>
+                <command>[ $(docker logs rfsim5g-oai-gnb_redcap | grep -m1 -E "UE with RNTI [0-9a-f]{4} is RedCap" | wc -l) -eq 1 ]</command>
+        </testCase>
+
+        <testCase id="302003">
+                <class>Custom_Command</class>
+                <desc>Verify gNB builds RedCap initial DL BWP into SIB1</desc>
+                <node>localhost</node>
+                <command>[ $(docker logs rfsim5g-oai-gnb_redcap | grep -m1 -E "SIB1 RedCap initial DL BWP|redCapInitialBWP_r17:" | wc -l) -eq 1 ]</command>
+        </testCase>
+
+        <testCase id="302004">
+                <class>Custom_Command</class>
+                <desc>Verify gNB builds RedCap initial UL BWP into SIB1</desc>
+                <node>localhost</node>
+                <command>[ $(docker logs rfsim5g-oai-gnb_redcap | grep -m1 -E "SIB1 RedCap initial UL BWP|initialULPUCCH_ResourceCommonRedCap_r17:" | wc -l) -eq 1 ]</command>
+        </testCase>
+
+        <testCase id="040001">
+                <class>IdleSleep</class>
+                <desc>Sleep for RedCap UE2 user-plane stabilization</desc>
+                <idle_sleep_time_in_sec>35</idle_sleep_time_in_sec>
+        </testCase>
+
+        <testCase id="020005">
+                <class>Ping</class>
+                <desc>Ping ext-dn from both UEs</desc>
+                <id>rfsim5g_redcap_ue2 rfsim5g_redcap_ue1</id>
+                <node>carabe</node>
+                <svr_id>oai_ext_dn</svr_id>
+                <svr_node>carabe</svr_node>
+                <ping_args>-c 20</ping_args>
+                <ping_packetloss_threshold>5</ping_packetloss_threshold>
+        </testCase>
+
+        <testCase id="030001">
+                <class>Iperf</class>
+                <desc>Iperf RedCap UE2 (UL/50Mbps/UDP)(30 sec)</desc>
+                <iperf_args>-u -b 50M -t 30</iperf_args>
+                <id>rfsim5g_redcap_ue2</id>
+                <node>carabe</node>
+                <svr_id>oai_ext_dn</svr_id>
+                <svr_node>carabe</svr_node>
+                <iperf_packetloss_threshold>25</iperf_packetloss_threshold>
+                <iperf_bitrate_threshold>85</iperf_bitrate_threshold>
+                <iperf_profile>balanced</iperf_profile>
+        </testCase>
+
+        <testCase id="302005">
+                <class>Custom_Command</class>
+                <desc>Apply RedCap UL PRB cap to UE 2 via FlexRIC RC control</desc>
+                <node>localhost</node>
+                <command>if [ "${REDCAP_E2_AGENT_MODE:-enabled}" = "disabled" ]; then echo "Skipping RedCap UL PRB control in disabled E2 mode"; else REDCAP_UL_PRB_CAP=${REDCAP_UL_PRB_CAP:-32} ./redcap_send_ul_prb_control.sh; fi</command>
+        </testCase>
+
+        <testCase id="302006">
+                <class>Custom_Command</class>
+                <desc>Verify gNB applied RedCap UL PRB cap</desc>
+                <node>localhost</node>
+                <command>if [ "${REDCAP_E2_AGENT_MODE:-enabled}" = "disabled" ]; then echo "Skipping gNB RedCap UL PRB verification in disabled E2 mode"; else ./redcap_verify_ul_prb_control.sh; fi</command>
+        </testCase>
+
+        <testCase id="030002">
+                <class>Iperf</class>
+                <desc>Iperf RedCap UE2 (UL/20Mbps/UDP)(30 sec)</desc>
+                <iperf_args>-u -b 20M -t 30</iperf_args>
+                <id>rfsim5g_redcap_ue2</id>
+                <node>carabe</node>
+                <svr_id>oai_ext_dn</svr_id>
+                <svr_node>carabe</svr_node>
+                <iperf_packetloss_threshold>25</iperf_packetloss_threshold>
+                <iperf_bitrate_threshold>85</iperf_bitrate_threshold>
+                <iperf_profile>balanced</iperf_profile>
+        </testCase>
+
+        <testCase id="444444">
+                <class>Detach_UE</class>
+                <desc>Detach OAI UE 1 and 2</desc>
+                <id>rfsim5g_redcap_ue1 rfsim5g_redcap_ue2</id>
+                <node>carabe</node>
+        </testCase>
+
+        <testCase id="100002">
+                <class>Stop_Object</class>
+                <desc>Stop RC monitoring xApp</desc>
+                <node>localhost</node>
+                <yaml_path>ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap</yaml_path>
+                <services>xapp-rc-moni</services>
+        </testCase>
+
+        <testCase id="100006">
+                <class>Stop_Object</class>
+                <desc>Stop OAI UEs</desc>
+                <node>localhost</node>
+                <yaml_path>ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap</yaml_path>
+                <services>oai-nr-ue1 oai-nr-ue2</services>
+        </testCase>
+
+        <testCase id="100007">
+                <class>Stop_Object</class>
+                <desc>Stop OAI gNB</desc>
+                <node>localhost</node>
+                <yaml_path>ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap</yaml_path>
+                <services>oai-gnb</services>
+        </testCase>
+
+        <testCase id="100008">
+                <class>Stop_Object</class>
+                <desc>Stop nearRT-RIC</desc>
+                <node>localhost</node>
+                <yaml_path>ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap</yaml_path>
+                <services>nearRT-RIC</services>
+        </testCase>
+
+        <testCase id="100009">
+                <class>Undeploy_Object</class>
+                <desc>Undeploy RAN and FlexRIC</desc>
+                <node>localhost</node>
+                <yaml_path>ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap</yaml_path>
+                <always_exec>true</always_exec>
+        </testCase>
+
+        <testCase id="100001">
+                <class>Undeploy_Object</class>
+                <desc>Undeploy Core Network</desc>
+                <node>localhost</node>
+                <yaml_path>doc/tutorial_resources/oai-cn5g</yaml_path>
+                <always_exec>true</always_exec>
+        </testCase>
+
+</testCaseList>

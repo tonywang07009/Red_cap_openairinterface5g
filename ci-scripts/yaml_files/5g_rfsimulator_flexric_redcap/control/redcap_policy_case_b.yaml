@@ -1,0 +1,99 @@
+version: 1
+case: case_b
+name: redcap_oran_dynamic_control
+description: >
+  KPM-driven O-RAN policy/control case. KPM provides observation only; runtime
+  control must pass redcap_control_contract.yaml before apply.
+
+contract_file: /opt/redcap/control/redcap_control_contract.yaml
+policy_version: case_b_oran_control_v1
+requires_case_a_pass: true
+
+dynamic_control:
+  enabled: true
+  kpm_observation: true
+  e2sm_rc_control: true
+  custom_sm_control: false
+  dapp_local_api: false
+
+controller_roles:
+  rapp:
+    role: long_term_policy
+    default_policy: power_saving_priority
+  xapp:
+    role: near_real_time_decision
+    observation_source: E2SM-KPM
+    preferred_control_path: E2SM-RC
+  dapp_gnb_guard:
+    role: local_safety_guard
+    may_reject_updates: true
+
+kpm_inputs:
+  - name: ul_prb_usage
+    required: true
+    availability: "Needs Verification"
+  - name: ue_throughput
+    required: true
+    availability: "Needs Verification"
+  - name: rrc_state_count
+    required: true
+    availability: "Needs Verification"
+  - name: sdt_success_rate
+    required: false
+    availability: "custom metric candidate"
+  - name: rsrp_or_sinr
+    required: false
+    availability: "Needs Verification"
+
+allowed_runtime_parameters:
+  - inactive_allowed
+  - configured_grant_enable
+  - cg_sdt_enable
+  - configured_grant_profile_id
+  - cg_sdt_rsrp_change_threshold_db
+  - sdt_payload_threshold_bytes
+  - redcap_ul_prb_cap
+  - force_four_step_ra_on_threshold
+  - drx_profile
+  - edrx_cycle_s
+  - edrx_ptw_s
+  - psm_t3324_active_time_s
+  - psm_t3512_tau_s
+
+decision_policy:
+  enable_cg_sdt_when:
+    ul_prb_usage_below_percent: 50
+    payload_bytes_at_or_below: 256
+    rrc_state: "RRC_INACTIVE"
+    rsrp_stable: true
+  fallback_to_four_step_ra_when:
+    rsrp_threshold_exceeded: true
+    sdt_failure_rate_above_percent: 10
+  prefer_power_saving_when:
+    rapp_policy: power_saving_priority
+    latency_budget_ms_at_or_above: 100
+  low_power_defaults:
+    drx_profile: power_saving
+    edrx_cycle_s: 0
+    edrx_ptw_s: 0
+    psm_t3324_active_time_s: 0
+    psm_t3512_tau_s: 0
+
+required_control_log:
+  - "KPM snapshot"
+  - "policy_version"
+  - "control_request"
+  - "control_path"
+  - "old_value"
+  - "new_value"
+  - "ACK"
+  - "NACK"
+  - "applied_parameter_snapshot"
+  - "rollback"
+
+case_isolation:
+  must_not_modify:
+    - control/redcap_policy_case_a.yaml
+  promote_final_evidence_to:
+    - redcap_library/library_runtime_probe/
+    - redcap_library/library_reports_summary/

@@ -1,0 +1,51 @@
+# RedCap UE SIB1 / Registration Evidence
+Generated: 2026-06-04_14-26-30
+Container: rfsim5g-oai-nr-ue2_redcap
+Expected role: RedCap UE, RedCap SIB1/common config path
+
+## Key Interpretation
+- UE2 runtime YAML shows support_of_redcap_r17: 1.
+- SIB1 decoded proves UE received and decoded SIB1.
+- No RedCap barred warning means the RedCap SIB1 access checks did not reject the cell.
+- Registration Accept + PDU Session Establishment Accept prove CN attach and data tunnel success.
+
+## Filtered UE2 Docker Log Markers
+4:== Generated mMTC configuration file:
+6:  imsi: 001010000000002
+17:  support_of_redcap_r17: 1
+21:  number_of_rx_redcap_r17: 1
+22:  half_duplex_fdd_type_a_redcap_r17: 1
+60:Error 3: No such process trying to get nice value of thread 376272576 
+134:57101.734211 [NR_RRC] A SIB1 decoded
+151:57101.740941 [NR_RRC] I [UE0][RAPROC] Logical Channel DL-CCCH (SRB0), Received NR_RRCSetup
+154:57101.741115 [NAS]    I Generate Initial NAS Message: Registration Request
+160:57101.772659 [NAS]    I Generate Initial NAS Message: Registration Request
+207:57101.795735 [NAS]    I Received Registration Accept with result 3GPP
+226:57101.811823 [NAS]    I Received PDU Session Establishment Accept, UE IPv4: 10.0.0.3
+
+## UE2 IP Address Snapshot
+1: lo    inet 127.0.0.1/8 scope host lo\       valid_lft forever preferred_lft forever
+2: eth0    inet 192.168.71.151/23 brd 192.168.71.255 scope global eth0\       valid_lft forever preferred_lft forever
+3: oaitun_ue1    inet 10.0.0.3/24 scope global oaitun_ue1\       valid_lft forever preferred_lft forever
+
+## Latest Live Probe Rows
+5:[INFO] Profile: gNB=/home/tonywang/OAI/Red_cap_openairinterface5g/ci-scripts/conf_files/gnb.sa.band78.fr1.106PRB.usrpb210.redcap.yaml, UE -r=106, RF=3630360000, ssb=144, PUCCH_BWP0=1, PUSCH256=0, PDSCH256=0
+69:14:04:44 UE2-RedCap   running    -                RC=1     cap=no       no    no   WAIT   support_of_redcap_r17: 1
+71:14:04:49 UE2-RedCap   running    10.0.0.3         RC=1     cap=no       yes   yes  FLOW   support_of_redcap_r17: 1
+73:14:04:55 UE2-RedCap   running    10.0.0.3         RC=1     cap=no       yes   yes  FLOW   support_of_redcap_r17: 1
+75:14:05:00 UE2-RedCap   running    10.0.0.3         RC=1     cap=no       yes   yes  FLOW   support_of_redcap_r17: 1
+77:14:05:06 UE2-RedCap   running    10.0.0.3         RC=1     cap=no       yes   yes  FLOW   support_of_redcap_r17: 1
+79:14:05:11 UE2-RedCap   running    10.0.0.3         RC=1     cap=no       yes   yes  FLOW   support_of_redcap_r17: 1
+81:14:05:16 UE2-RedCap   running    10.0.0.3         RC=1     cap=no       yes   yes  FLOW   support_of_redcap_r17: 1
+83:14:05:22 UE2-RedCap   running    10.0.0.3         RC=1     cap=no       yes   yes  FLOW   support_of_redcap_r17: 1
+85:14:05:27 UE2-RedCap   running    10.0.0.3         RC=1     cap=no       yes   yes  FLOW   support_of_redcap_r17: 1
+87:14:05:33 UE2-RedCap   running    10.0.0.3         RC=1     cap=no       yes   yes  FLOW   support_of_redcap_r17: 1
+89:14:05:38 UE2-RedCap   running    10.0.0.3         RC=1     cap=no       yes   yes  FLOW   support_of_redcap_r17: 1
+91:14:05:43 UE2-RedCap   running    10.0.0.3         RC=1     cap=no       yes   yes  FLOW   support_of_redcap_r17: 1
+93:14:05:49 UE2-RedCap   running    10.0.0.3         RC=1     cap=no       yes   yes  FLOW   support_of_redcap_r17: 1
+95:14:05:54 UE2-RedCap   running    10.0.0.3         RC=1     cap=no       yes   yes  FLOW   support_of_redcap_r17: 1
+97:14:06:00 UE2-RedCap   running    10.0.0.3         RC=1     cap=no       yes   yes  FLOW   support_of_redcap_r17: 1
+99:14:06:05 UE2-RedCap   running    10.0.0.3         RC=1     cap=no       yes   yes  FLOW   support_of_redcap_r17: 1
+101:14:06:11 UE2-RedCap   running    10.0.0.3         RC=1     cap=no       yes   yes  FLOW   support_of_redcap_r17: 1
+103:14:06:16 UE2-RedCap   running    10.0.0.3         RC=1     cap=no       yes   yes  FLOW   support_of_redcap_r17: 1
+105:[INFO] Decision rule

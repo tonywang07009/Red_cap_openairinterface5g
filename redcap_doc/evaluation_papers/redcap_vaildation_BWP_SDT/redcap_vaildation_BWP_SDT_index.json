@@ -1,0 +1,78 @@
+{
+  "index_name": "redcap_vaildation_BWP_SDT_index",
+  "generated_at": "2026-06-26T05:21:35.754488+00:00",
+  "directory": "/home/tonywang/OAI/Red_cap_openairinterface5g/redcap_doc/evaluation_papers/redcap_vaildation_BWP_SDT",
+  "symdex_repo": "redcap_bwp_sdt_papers",
+  "symdex_status": "skipped",
+  "papers": [
+    {
+      "paper_id": "paper1_BWP_switching",
+      "title": "Impact of Bandwidth Part (BWP) Switching on 5G NR System Performance",
+      "authors": [
+        "Fuad Abinader",
+        "Andrea Marcano",
+        "Karol Schober",
+        "Riikka Nurminen",
+        "Tero Henttonen",
+        "Hisashi Onozawa",
+        "Elena Virtej"
+      ],
+      "year": "2019",
+      "keywords": [
+        "5G NR",
+        "Bandwidth Parts",
+        "BWP adaptation",
+        "BWP inactivity timer",
+        "BWP switch delay"
+      ],
+      "scenario_tags": [
+        "BWP switching",
+        "system-level simulation",
+        "TDD",
+        "FTP3 traffic",
+        "Poisson arrivals"
+      ],
+      "target_technology": "BWP switching with inactivity timer and switch delay",
+      "source_pdf": "paper1_BWP_switching.pdf",
+      "source_pdf_resolved": "Impact_of_Bandwidth_Part_BWP_Switching_on_5G_NR_System_Performance.pdf",
+      "markdown_path": "paper1_BWP_switching.md",
+      "source_pdf_sha256": "311d3d8506c3a7c79a723852aa4a14631b676dc5853723ce47c076b333265a5f",
+      "markdown_sha256": "067f5b4edbc079ef8747adab2f3557cda92144218b1a6c4ae79df654b2388434",
+      "extraction_status": "up_to_date"
+    },
+    {
+      "paper_id": "paper2_SDT_small_data",
+      "title": "Novel Random Access Schemes for Small Data Transmission",
+      "authors": [
+        "Hui Zhou",
+        "Yansha Deng",
+        "Luca Feltrin",
+        "Andreas Hoglund",
+        "Mischa Dohler"
+      ],
+      "year": "2022",
+      "keywords": [
+        "Grant-based",
+        "Grant-free",
+        "4-step RA",
+        "2-step RA",
+        "Small Data Transmission",
+        "RRC Inactive"
+      ],
+      "scenario_tags": [
+        "RA-SDT",
+        "CG-SDT placeholder",
+        "RRC Inactive",
+        "Poisson packet arrival",
+        "PPP devices"
+      ],
+      "target_technology": "4/2-step SDT random access for small data transmission",
+      "source_pdf": "paper2_SDT_small_data.pdf",
+      "source_pdf_resolved": "Novel_Random_Access_Schemes_for_Small_Data_Transmission.pdf",
+      "markdown_path": "paper2_SDT_small_data.md",
+      "source_pdf_sha256": "157877f440e56f697f213fd51edfc8bb6233a33c1d4ea989d31f1780ed0e1b25",
+      "markdown_sha256": "3b0e9fd15658783a1e50fa09a588b3eba3b2b626d173dfd956ff3de3e2036730",
+      "extraction_status": "up_to_date"
+    }
+  ]
+}

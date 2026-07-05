@@ -1,0 +1,1137 @@
+services:
+# --- This is from 5g_rm_flex_ric
+# The reading the tmp db is for xapp register
+    nearRT-RIC:
+        image: ${REGISTRY-oaisoftwarealliance/}oai-flexric:${FLEXRIC_TAG:-develop}
+        container_name: nearRT-RIC
+        networks:
+            public_net:
+                ipv4_address: 192.168.70.180
+        volumes:
+            - ./conf/flexric.conf:/usr/local/etc/flexric/flexric.conf
+        healthcheck:
+            test: /bin/bash -c "pgrep nearRT-RIC"
+            interval: 10s
+            timeout: 5s
+        ports:
+            - "36421:36421/sctp"
+            - "32080:32080/sctp"
+    xapp-rc-moni:
+        image: ${REGISTRY-oaisoftwarealliance/}oai-flexric:${FLEXRIC_TAG:-develop}
+        command: "stdbuf -o0 /usr/local/flexric/xApp/c/monitor/xapp_rc_moni"
+        # The xapp file defalut file role
+        container_name: xapp-rc-moni
+        depends_on:
+            - nearRT-RIC
+            - oai-gnb
+        networks:
+            public_net:
+                ipv4_address: 192.168.70.184
+        volumes:
+            - ./conf/flexric.conf:/usr/local/etc/flexric/flexric.conf
+        healthcheck:
+            test: /bin/bash -c "pgrep xapp_rc_moni"
+            interval: 10s
+            timeout: 5s
+
+    xapp-kpm-moni:
+        image: ${REGISTRY-oaisoftwarealliance/}oai-flexric:${FLEXRIC_TAG:-develop}
+        command: "stdbuf -o0 /usr/local/flexric/xApp/c/monitor/xapp_kpm_moni"
+        container_name: xapp-kpm-moni
+        depends_on:
+            - nearRT-RIC
+            - oai-gnb
+        networks:
+            public_net:
+                ipv4_address: 192.168.70.185
+        volumes:
+            - ./conf/flexric.conf:/usr/local/etc/flexric/flexric.conf
+        healthcheck:
+            test: /bin/bash -c "pgrep xapp_kpm_moni"
+            interval: 10s
+            timeout: 5s
+
+    xapp-kpm-rc:
+        image: ${REGISTRY-oaisoftwarealliance/}oai-flexric:${FLEXRIC_TAG:-develop}
+        command: "stdbuf -o0 /usr/local/flexric/xApp/c/kpm_rc/xapp_kpm_rc"
+        container_name: xapp-kpm-rc
+        depends_on:
+            - nearRT-RIC
+            - oai-gnb
+        networks:
+            public_net:
+                ipv4_address: 192.168.70.186
+        volumes:
+            - ./conf/flexric.conf:/usr/local/etc/flexric/flexric.conf
+        healthcheck:
+            test: /bin/bash -c "pgrep xapp_kpm_rc"
+            interval: 10s
+            timeout: 5s
+
+    xapp-gtp-mac-rlc-pdcp-moni:
+        image: ${REGISTRY-oaisoftwarealliance/}oai-flexric:${FLEXRIC_TAG:-develop}
+        command: "stdbuf -o0 /usr/local/flexric/xApp/c/monitor/xapp_gtp_mac_rlc_pdcp_moni"
+        container_name: xapp-gtp-mac-rlc-pdcp-moni
+        depends_on:
+            - nearRT-RIC
+            - oai-gnb
+        networks:
+            public_net:
+                ipv4_address: 192.168.70.187
+        volumes:
+            - ./conf/flexric.conf:/usr/local/etc/flexric/flexric.conf
+        healthcheck:
+            test: /bin/bash -c "pgrep -f xapp_gtp_mac_rlc_pdcp_moni"
+            interval: 10s
+            timeout: 5s
+#----
+    mysql:
+        container_name: "rfsim5g-mysql"
+        image: mysql:8.0
+        # the fix 1
+        command: --default-authentication-plugin=mysql_native_password
+        #
+        init: true
+        volumes:
+            - ./oai_db.sql:/docker-entrypoint-initdb.d/oai_db.sql
+            - ./mysql-healthcheck.sh:/tmp/mysql-healthcheck.sh
+        environment:
+            - TZ=Europe/Paris
+            - MYSQL_DATABASE=oai_db
+            - MYSQL_USER=test
+            - MYSQL_PASSWORD=test
+            - MYSQL_ROOT_PASSWORD=linux
+        healthcheck:
+            test: /bin/bash -c "/tmp/mysql-healthcheck.sh"
+            start_period: 10s
+            start_interval: 500ms
+            interval: 10s
+            timeout: 5s
+            retries: 30
+        networks:
+            public_net:
+                ipv4_address: 192.168.71.131
+    oai-amf:
+        container_name: "rfsim5g-oai-amf"
+        image: oaisoftwarealliance/oai-amf:v2.1.10
+        environment:
+            - TZ=Europe/paris
+        volumes:
+            - ./mini_nonrf_config.yaml:/openair-amf/etc/config.yaml
+        depends_on:
+            - mysql
+        networks:
+            public_net:
+                ipv4_address: 192.168.71.132
+    oai-smf:
+        container_name: "rfsim5g-oai-smf"
+        image: oaisoftwarealliance/oai-smf:v2.1.10
+        environment:
+            - TZ=Europe/Paris
+        volumes:
+            - ./mini_nonrf_config.yaml:/openair-smf/etc/config.yaml
+        depends_on:
+            - oai-amf
+        networks:
+            public_net:
+                ipv4_address: 192.168.71.133
+    oai-upf:
+        container_name: "rfsim5g-oai-upf"
+        image: oaisoftwarealliance/oai-upf:v2.1.10
+        init: true
+        environment:
+            - TZ=Europe/Paris
+        volumes:
+            - ./mini_nonrf_config.yaml:/openair-upf/etc/config.yaml
+        depends_on:
+            - oai-smf
+        cap_add:
+            - NET_ADMIN
+            - SYS_ADMIN
+        cap_drop:
+            - ALL
+        privileged: true
+        networks:
+            public_net:
+                ipv4_address: 192.168.71.134
+                interface_name: eth0
+            traffic_net:
+                ipv4_address: 192.168.72.134
+                interface_name: eth1
+    oai-ext-dn:
+        privileged: true
+        container_name: rfsim5g-oai-ext-dn
+        image: oaisoftwarealliance/trf-gen-cn5g:focal
+        init: true
+        entrypoint: /bin/bash -c \
+              "iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE;"\
+              "ip route add 12.1.1.0/24 via 192.168.72.134 dev eth0; sleep infinity"
+        depends_on:
+            - oai-upf
+        networks:
+            traffic_net:
+                ipv4_address: 192.168.72.135
+        healthcheck:
+            test: /bin/bash -c "ping -c 2 192.168.72.134"
+            start_period: 10s
+            start_interval: 500ms
+            interval: 10s
+            timeout: 5s
+            retries: 5
+    oai-gnb:
+        image: ${REGISTRY-oaisoftwarealliance/}${GNB_IMG:-oai-gnb}:${TAG:-develop}
+        # this is if the gnb img have a value , used the gnb img
+        # else used the develop contenr
+        container_name: rfsim5g-oai-gnb
+        cap_add:
+            - SYS_NICE
+        cap_drop:
+            - ALL
+        environment:
+            USE_ADDITIONAL_OPTIONS: -E --rfsim --log_config.global_log_level info --log_config.global_log_options level,nocolor,time
+            ASAN_OPTIONS: detect_leaks=0
+        depends_on:
+            - oai-ext-dn
+        networks:
+            public_net:
+                ipv4_address: 192.168.71.140
+        volumes:
+            - ../../conf_files/gnb_yaml/gnb.sa.band78.106prb.rfsim.yaml:/opt/oai-gnb/etc/gnb.yaml
+        healthcheck:
+            test: /bin/bash -c "pgrep nr-softmodem"
+            start_period: 10s
+            start_interval: 500ms
+            interval: 10s
+            timeout: 5s
+            retries: 5
+    oai-nr-ue1:
+        image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+        container_name: rfsim5g-oai-nr-ue1
+        cap_drop:
+            - ALL
+        cap_add:
+            - NET_ADMIN  # for interface bringup
+            - NET_RAW    # for ping
+            - SYS_NICE
+        environment:
+            # The ">" is change line symbol
+            USE_ADDITIONAL_OPTIONS: > 
+                                    -E --rfsim -r 106 --numerology 1 
+                                    --uicc0.imsi 001010000000001 -C 3319680000 
+                                    --rfsimulator.serveraddr 192.168.71.140 --log_config.global_log_options level,nocolor,time
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.150 --telnetsrv.listenport 8091
+        depends_on:
+            - oai-gnb
+        networks:
+            public_net:
+                ipv4_address: 192.168.71.150
+        devices:
+             - /dev/net/tun:/dev/net/tun
+        volumes:
+            - ../../conf_files/nrue/nrue1.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml
+        healthcheck:
+            test: /bin/bash -c "pgrep nr-uesoftmodem"
+            start_period: 10s
+            start_interval: 500ms
+            interval: 10s
+            timeout: 5s
+            retries: 5
+    oai-nr-ue2:
+        image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+        container_name: rfsim5g-oai-nr-ue2
+        cap_drop:
+            - ALL
+        cap_add:
+            - NET_ADMIN  # for interface bringup
+            - NET_RAW    # for ping
+            - SYS_NICE
+        environment:
+            USE_ADDITIONAL_OPTIONS: >
+                                    -E --rfsim -r 106 --numerology 1 
+                                    --uicc0.imsi 001010000000002 -C 3319680000 
+                                    --rfsimulator.serveraddr 192.168.71.140 --log_config.global_log_options level,nocolor,time
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.151 --telnetsrv.listenport 8092
+        depends_on:                 
+            - oai-gnb
+        networks:
+            public_net:
+                ipv4_address: 192.168.71.151
+        devices:
+             - /dev/net/tun:/dev/net/tun
+        volumes:
+            - ../../conf_files/nrue/nrue2.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml
+        healthcheck:
+            test: /bin/bash -c "pgrep nr-uesoftmodem"
+            start_period: 10s
+            start_interval: 500ms
+            interval: 10s
+            timeout: 5s
+            retries: 5
+    oai-nr-ue3:
+        image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+        container_name: rfsim5g-oai-nr-ue3
+        cap_drop:
+            - ALL
+        cap_add:
+            - NET_ADMIN
+            - NET_RAW
+            - SYS_NICE
+        environment:
+            USE_ADDITIONAL_OPTIONS: >
+                                    -E --rfsim -r 106 --numerology 1 
+                                    --uicc0.imsi 001010000000003 -C 3319680000 
+                                    --rfsimulator.serveraddr 192.168.71.140 --log_config.global_log_options level,nocolor,time
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.152 --telnetsrv.listenport 8093
+        depends_on:
+            - oai-gnb
+        networks:
+            public_net:
+                ipv4_address: 192.168.71.152
+        devices:
+             - /dev/net/tun:/dev/net/tun
+        volumes:
+            - ../../conf_files/nrue/nrue3.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml
+        healthcheck:
+            test: /bin/bash -c "pgrep nr-uesoftmodem"
+            start_period: 10s
+            start_interval: 500ms
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+    oai-nr-ue4:
+        image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+        container_name: rfsim5g-oai-nr-ue4
+        cap_drop:
+            - ALL
+        cap_add:
+            - NET_ADMIN
+            - NET_RAW
+            - SYS_NICE
+        environment:
+            USE_ADDITIONAL_OPTIONS: >
+                                    -E --rfsim -r 106 --numerology 1 
+                                    --uicc0.imsi 001010000000004 -C 3319680000 
+                                    --rfsimulator.serveraddr 192.168.71.140 --log_config.global_log_options level,nocolor,time
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.153 --telnetsrv.listenport 8094
+        depends_on:
+            - oai-gnb
+        networks:
+            public_net:
+                ipv4_address: 192.168.71.153
+        devices:
+             - /dev/net/tun:/dev/net/tun
+        volumes:
+            - ../../conf_files/nrue/nrue4.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml
+        healthcheck:
+            test: /bin/bash -c "pgrep nr-uesoftmodem"
+            start_period: 10s
+            start_interval: 500ms
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+    oai-nr-ue5:
+        image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+        container_name: rfsim5g-oai-nr-ue5
+        cap_drop:
+            - ALL
+        cap_add:
+            - NET_ADMIN
+            - NET_RAW
+            - SYS_NICE
+        environment:
+            USE_ADDITIONAL_OPTIONS: >
+                                    -E --rfsim -r 106 --numerology 1 
+                                    --uicc0.imsi 001010000000005 -C 3319680000 
+                                    --rfsimulator.serveraddr 192.168.71.140 --log_config.global_log_options level,nocolor,time
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.154 --telnetsrv.listenport 8095
+        depends_on:
+            - oai-gnb
+        networks:
+            public_net:
+                ipv4_address: 192.168.71.154
+        devices:
+             - /dev/net/tun:/dev/net/tun
+        volumes:
+            - ../../conf_files/nrue/nrue5.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml
+        healthcheck:
+            test: /bin/bash -c "pgrep nr-uesoftmodem"
+            start_period: 10s
+            start_interval: 500ms
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+    oai-nr-ue6:
+        image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+        container_name: rfsim5g-oai-nr-ue6
+        cap_drop:
+            - ALL
+        cap_add:
+            - NET_ADMIN
+            - NET_RAW
+            - SYS_NICE
+        environment:
+            USE_ADDITIONAL_OPTIONS: >
+                                    -E --rfsim -r 106 --numerology 1 
+                                    --uicc0.imsi 001010000000006 -C 3319680000 
+                                    --rfsimulator.serveraddr 192.168.71.140 --log_config.global_log_options level,nocolor,time
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.155 --telnetsrv.listenport 8096
+        depends_on:
+            - oai-gnb
+        networks:
+            public_net:
+                ipv4_address: 192.168.71.155
+        devices:
+             - /dev/net/tun:/dev/net/tun
+        volumes:
+            - ../../conf_files/nrue/nrue6.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml
+        healthcheck:
+            test: /bin/bash -c "pgrep nr-uesoftmodem"
+            start_period: 10s
+            start_interval: 500ms
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+    oai-nr-ue7:
+        image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+        container_name: rfsim5g-oai-nr-ue7
+        cap_drop:
+            - ALL
+        cap_add:
+            - NET_ADMIN
+            - NET_RAW
+            - SYS_NICE
+        environment:
+            USE_ADDITIONAL_OPTIONS: >
+                                    -E --rfsim -r 106 --numerology 1 
+                                    --uicc0.imsi 001010000000007 -C 3319680000 
+                                    --rfsimulator.serveraddr 192.168.71.140 --log_config.global_log_options level,nocolor,time
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.156 --telnetsrv.listenport 8097
+        depends_on:
+            - oai-gnb
+        networks:
+            public_net:
+                ipv4_address: 192.168.71.156
+        devices:
+             - /dev/net/tun:/dev/net/tun
+        volumes:
+            - ../../conf_files/nrue/nrue7.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml
+        healthcheck:
+            test: /bin/bash -c "pgrep nr-uesoftmodem"
+            start_period: 10s
+            start_interval: 500ms
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+    oai-nr-ue8:
+        image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+        container_name: rfsim5g-oai-nr-ue8
+        cap_drop:
+            - ALL
+        cap_add:
+            - NET_ADMIN
+            - NET_RAW
+            - SYS_NICE
+        environment:
+            USE_ADDITIONAL_OPTIONS: >
+                                    -E --rfsim -r 106 --numerology 1 
+                                    --uicc0.imsi 001010000000008 -C 3319680000 
+                                    --rfsimulator.serveraddr 192.168.71.140 --log_config.global_log_options level,nocolor,time
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.157 --telnetsrv.listenport 8098
+        depends_on:
+            - oai-gnb
+        networks:
+            public_net:
+                ipv4_address: 192.168.71.157
+        devices:
+             - /dev/net/tun:/dev/net/tun
+        volumes:
+            - ../../conf_files/nrue/nrue8.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml
+        healthcheck:
+            test: /bin/bash -c "pgrep nr-uesoftmodem"
+            start_period: 10s
+            start_interval: 500ms
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+    oai-nr-ue9:
+        image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+        container_name: rfsim5g-oai-nr-ue9
+        cap_drop:
+            - ALL
+        cap_add:
+            - NET_ADMIN
+            - NET_RAW
+            - SYS_NICE
+        environment:
+            USE_ADDITIONAL_OPTIONS: >
+                                    -E --rfsim -r 106 --numerology 1 
+                                    --uicc0.imsi 001010000000009 -C 3319680000 
+                                    --rfsimulator.serveraddr 192.168.71.140 --log_config.global_log_options level,nocolor,time
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.158 --telnetsrv.listenport 8099
+        depends_on:
+            - oai-gnb
+        networks:
+            public_net:
+                ipv4_address: 192.168.71.158
+        devices:
+             - /dev/net/tun:/dev/net/tun
+        volumes:
+            - ../../conf_files/nrue/nrue9.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml
+        healthcheck:
+            test: /bin/bash -c "pgrep nr-uesoftmodem"
+            start_period: 10s
+            start_interval: 500ms
+            interval: 10s
+            timeout: 5s
+            retries: 5
+    oai-nr-ue10:
+        image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+        container_name: rfsim5g-oai-nr-ue10
+        cap_drop:
+            - ALL
+        cap_add:
+            - NET_ADMIN
+            - NET_RAW
+            - SYS_NICE
+        environment:
+            USE_ADDITIONAL_OPTIONS: >
+                                    -E --rfsim -r 106 --numerology 1 
+                                    --uicc0.imsi 001010000000010 -C 3319680000 
+                                    --rfsimulator.serveraddr 192.168.71.140 --log_config.global_log_options level,nocolor,time
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.159 --telnetsrv.listenport 8100
+        depends_on:
+            - oai-gnb
+        networks:
+            public_net:
+                ipv4_address: 192.168.71.159
+        devices:
+             - /dev/net/tun:/dev/net/tun
+        volumes:
+            - ../../conf_files/nrue/nrue10.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml
+        healthcheck:
+            test: /bin/bash -c "pgrep nr-uesoftmodem"
+            start_period: 10s
+            start_interval: 500ms
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+
+    oai-nr-ue11:
+        image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+        container_name: rfsim5g-oai-nr-ue11
+        cap_drop:
+            - ALL
+        cap_add:
+            - NET_ADMIN
+            - NET_RAW
+            - SYS_NICE
+        environment:
+            USE_ADDITIONAL_OPTIONS: >
+                                    -E --rfsim -r 106 --numerology 1 
+                                    --uicc0.imsi 001010000000011 -C 3319680000 
+                                    --rfsimulator.serveraddr 192.168.71.140 --log_config.global_log_options level,nocolor,time
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.160 --telnetsrv.listenport 8101
+        depends_on:
+            - oai-gnb
+        networks:
+            public_net:
+                ipv4_address: 192.168.71.160
+        devices:
+             - /dev/net/tun:/dev/net/tun
+        volumes:
+            - ../../conf_files/nrue/nrue11.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml
+        healthcheck:
+            test: /bin/bash -c "pgrep nr-uesoftmodem"
+            start_period: 10s
+            start_interval: 500ms
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+
+    oai-nr-ue12:
+        image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+        container_name: rfsim5g-oai-nr-ue12
+        cap_drop:
+            - ALL
+        cap_add:
+            - NET_ADMIN
+            - NET_RAW
+            - SYS_NICE
+        environment:
+            USE_ADDITIONAL_OPTIONS: >
+                                    -E --rfsim -r 106 --numerology 1 
+                                    --uicc0.imsi 001010000000012 -C 3319680000 
+                                    --rfsimulator.serveraddr 192.168.71.140 --log_config.global_log_options level,nocolor,time
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.161 --telnetsrv.listenport 8102
+        depends_on:
+            - oai-gnb
+        networks:
+            public_net:
+                ipv4_address: 192.168.71.161
+        devices:
+             - /dev/net/tun:/dev/net/tun
+        volumes:
+            - ../../conf_files/nrue/nrue12.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml
+        healthcheck:
+            test: /bin/bash -c "pgrep nr-uesoftmodem"
+            start_period: 10s
+            start_interval: 500ms
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+
+    oai-nr-ue13:
+        image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+        container_name: rfsim5g-oai-nr-ue13
+        cap_drop:
+            - ALL
+        cap_add:
+            - NET_ADMIN
+            - NET_RAW
+            - SYS_NICE
+        environment:
+            USE_ADDITIONAL_OPTIONS: >
+                                    -E --rfsim -r 106 --numerology 1 
+                                    --uicc0.imsi 001010000000013 -C 3319680000 
+                                    --rfsimulator.serveraddr 192.168.71.140 --log_config.global_log_options level,nocolor,time
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.162 --telnetsrv.listenport 8103
+        depends_on:
+            - oai-gnb
+        networks:
+            public_net:
+                ipv4_address: 192.168.71.162
+        devices:
+             - /dev/net/tun:/dev/net/tun
+        volumes:
+            - ../../conf_files/nrue/nrue13.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml
+        healthcheck:
+            test: /bin/bash -c "pgrep nr-uesoftmodem"
+            start_period: 10s
+            start_interval: 500ms
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+
+    oai-nr-ue14:
+        image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+        container_name: rfsim5g-oai-nr-ue14
+        cap_drop:
+            - ALL
+        cap_add:
+            - NET_ADMIN
+            - NET_RAW
+            - SYS_NICE
+        environment:
+            USE_ADDITIONAL_OPTIONS: >
+                                    -E --rfsim -r 106 --numerology 1 
+                                    --uicc0.imsi 001010000000014 -C 3319680000 
+                                    --rfsimulator.serveraddr 192.168.71.140 --log_config.global_log_options level,nocolor,time
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.163 --telnetsrv.listenport 8104
+        depends_on:
+            - oai-gnb
+        networks:
+            public_net:
+                ipv4_address: 192.168.71.163
+        devices:
+             - /dev/net/tun:/dev/net/tun
+        volumes:
+            - ../../conf_files/nrue/nrue14.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml
+        healthcheck:
+            test: /bin/bash -c "pgrep nr-uesoftmodem"
+            start_period: 10s
+            start_interval: 500ms
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+
+    oai-nr-ue15:
+        image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+        container_name: rfsim5g-oai-nr-ue15
+        cap_drop:
+            - ALL
+        cap_add:
+            - NET_ADMIN
+            - NET_RAW
+            - SYS_NICE
+        environment:
+            USE_ADDITIONAL_OPTIONS: >
+                                    -E --rfsim -r 106 --numerology 1 
+                                    --uicc0.imsi 001010000000015 -C 3319680000 
+                                    --rfsimulator.serveraddr 192.168.71.140 --log_config.global_log_options level,nocolor,time
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.164 --telnetsrv.listenport 8105
+        depends_on:
+            - oai-gnb
+        networks:
+            public_net:
+                ipv4_address: 192.168.71.164
+        devices:
+             - /dev/net/tun:/dev/net/tun
+        volumes:
+            - ../../conf_files/nrue/nrue15.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml
+        healthcheck:
+            test: /bin/bash -c "pgrep nr-uesoftmodem"
+            start_period: 10s
+            start_interval: 500ms
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+
+    oai-nr-ue16:
+        image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+        container_name: rfsim5g-oai-nr-ue16
+        cap_drop:
+            - ALL
+        cap_add:
+            - NET_ADMIN
+            - NET_RAW
+            - SYS_NICE
+        environment:
+            USE_ADDITIONAL_OPTIONS: >
+                                    -E --rfsim -r 106 --numerology 1 
+                                    --uicc0.imsi 001010000000016 -C 3319680000 
+                                    --rfsimulator.serveraddr 192.168.71.140 --log_config.global_log_options level,nocolor,time
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.165 --telnetsrv.listenport 8106
+        depends_on:
+            - oai-gnb
+        networks:
+            public_net:
+                ipv4_address: 192.168.71.165
+        devices:
+             - /dev/net/tun:/dev/net/tun
+        volumes:
+            - ../../conf_files/nrue/nrue16.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml
+        healthcheck:
+            test: /bin/bash -c "pgrep nr-uesoftmodem"
+            start_period: 10s
+            start_interval: 500ms
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+
+    oai-nr-ue17:
+        image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+        container_name: rfsim5g-oai-nr-ue17
+        cap_drop:
+            - ALL
+        cap_add:
+            - NET_ADMIN
+            - NET_RAW
+            - SYS_NICE
+        environment:
+            USE_ADDITIONAL_OPTIONS: >
+                                    -E --rfsim -r 106 --numerology 1 
+                                    --uicc0.imsi 001010000000017 -C 3319680000 
+                                    --rfsimulator.serveraddr 192.168.71.140 --log_config.global_log_options level,nocolor,time
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.166 --telnetsrv.listenport 8107
+        depends_on:
+            - oai-gnb
+        networks:
+            public_net:
+                ipv4_address: 192.168.71.166
+        devices:
+             - /dev/net/tun:/dev/net/tun
+        volumes:
+            - ../../conf_files/nrue/nrue17.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml
+        healthcheck:
+            test: /bin/bash -c "pgrep nr-uesoftmodem"
+            start_period: 10s
+            start_interval: 500ms
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+
+    oai-nr-ue18:
+        image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+        container_name: rfsim5g-oai-nr-ue18
+        cap_drop:
+            - ALL
+        cap_add:
+            - NET_ADMIN
+            - NET_RAW
+            - SYS_NICE
+        environment:
+            USE_ADDITIONAL_OPTIONS: >
+                                    -E --rfsim -r 106 --numerology 1 
+                                    --uicc0.imsi 001010000000018 -C 3319680000 
+                                    --rfsimulator.serveraddr 192.168.71.140 --log_config.global_log_options level,nocolor,time
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.167 --telnetsrv.listenport 8108
+        depends_on:
+            - oai-gnb
+        networks:
+            public_net:
+                ipv4_address: 192.168.71.167
+        devices:
+             - /dev/net/tun:/dev/net/tun
+        volumes:
+            - ../../conf_files/nrue/nrue18.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml
+        healthcheck:
+            test: /bin/bash -c "pgrep nr-uesoftmodem"
+            start_period: 10s
+            start_interval: 500ms
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+
+    oai-nr-ue19:
+        image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+        container_name: rfsim5g-oai-nr-ue19
+        cap_drop:
+            - ALL
+        cap_add:
+            - NET_ADMIN
+            - NET_RAW
+            - SYS_NICE
+        environment:
+            USE_ADDITIONAL_OPTIONS: >
+                                    -E --rfsim -r 106 --numerology 1 
+                                    --uicc0.imsi 001010000000019 -C 3319680000 
+                                    --rfsimulator.serveraddr 192.168.71.140 --log_config.global_log_options level,nocolor,time
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.168 --telnetsrv.listenport 8109
+        depends_on:
+            - oai-gnb
+        networks:
+            public_net:
+                ipv4_address: 192.168.71.168
+        devices:
+             - /dev/net/tun:/dev/net/tun
+        volumes:
+            - ../../conf_files/nrue/nrue19.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml
+        healthcheck:
+            test: /bin/bash -c "pgrep nr-uesoftmodem"
+            start_period: 10s
+            start_interval: 500ms
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+
+    oai-nr-ue20:
+        image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+        container_name: rfsim5g-oai-nr-ue20
+        cap_drop:
+            - ALL
+        cap_add:
+            - NET_ADMIN
+            - NET_RAW
+            - SYS_NICE
+        environment:
+            USE_ADDITIONAL_OPTIONS: >
+                                    -E --rfsim -r 106 --numerology 1 
+                                    --uicc0.imsi 001010000000020 -C 3319680000 
+                                    --rfsimulator.serveraddr 192.168.71.140 --log_config.global_log_options level,nocolor,time
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.169 --telnetsrv.listenport 8110
+        depends_on:
+            - oai-gnb
+        networks:
+            public_net:
+                ipv4_address: 192.168.71.169
+        devices:
+             - /dev/net/tun:/dev/net/tun
+        volumes:
+            - ../../conf_files/nrue/nrue20.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml
+        healthcheck:
+            test: /bin/bash -c "pgrep nr-uesoftmodem"
+            start_period: 10s
+            start_interval: 500ms
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+
+    oai-nr-ue21:
+        image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+        container_name: rfsim5g-oai-nr-ue21
+        cap_drop:
+            - ALL
+        cap_add:
+            - NET_ADMIN
+            - NET_RAW
+            - SYS_NICE
+        environment:
+            USE_ADDITIONAL_OPTIONS: >
+                                    -E --rfsim -r 106 --numerology 1 
+                                    --uicc0.imsi 001010000000021 -C 3319680000 
+                                    --rfsimulator.serveraddr 192.168.71.140 --log_config.global_log_options level,nocolor,time
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.170 --telnetsrv.listenport 8111
+        depends_on:
+            - oai-gnb
+        networks:
+            public_net:
+                ipv4_address: 192.168.71.170
+        devices:
+             - /dev/net/tun:/dev/net/tun
+        volumes:
+            - ../../conf_files/nrue/nrue21.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml
+        healthcheck:
+            test: /bin/bash -c "pgrep nr-uesoftmodem"
+            start_period: 10s
+            start_interval: 500ms
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+
+    oai-nr-ue22:
+        image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+        container_name: rfsim5g-oai-nr-ue22
+        cap_drop:
+            - ALL
+        cap_add:
+            - NET_ADMIN
+            - NET_RAW
+            - SYS_NICE
+        environment:
+            USE_ADDITIONAL_OPTIONS: >
+                                    -E --rfsim -r 106 --numerology 1 
+                                    --uicc0.imsi 001010000000022 -C 3319680000 
+                                    --rfsimulator.serveraddr 192.168.71.140 --log_config.global_log_options level,nocolor,time
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.171 --telnetsrv.listenport 8112
+        depends_on:
+            - oai-gnb
+        networks:
+            public_net:
+                ipv4_address: 192.168.71.171
+        devices:
+             - /dev/net/tun:/dev/net/tun
+        volumes:
+            - ../../conf_files/nrue/nrue22.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml
+        healthcheck:
+            test: /bin/bash -c "pgrep nr-uesoftmodem"
+            start_period: 10s
+            start_interval: 500ms
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+
+    oai-nr-ue23:
+        image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+        container_name: rfsim5g-oai-nr-ue23
+        cap_drop:
+            - ALL
+        cap_add:
+            - NET_ADMIN
+            - NET_RAW
+            - SYS_NICE
+        environment:
+            USE_ADDITIONAL_OPTIONS: >
+                                    -E --rfsim -r 106 --numerology 1 
+                                    --uicc0.imsi 001010000000023 -C 3319680000 
+                                    --rfsimulator.serveraddr 192.168.71.140 --log_config.global_log_options level,nocolor,time
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.172 --telnetsrv.listenport 8113
+        depends_on:
+            - oai-gnb
+        networks:
+            public_net:
+                ipv4_address: 192.168.71.172
+        devices:
+             - /dev/net/tun:/dev/net/tun
+        volumes:
+            - ../../conf_files/nrue/nrue23.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml
+        healthcheck:
+            test: /bin/bash -c "pgrep nr-uesoftmodem"
+            start_period: 10s
+            start_interval: 500ms
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+
+    oai-nr-ue24:
+        image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+        container_name: rfsim5g-oai-nr-ue24
+        cap_drop:
+            - ALL
+        cap_add:
+            - NET_ADMIN
+            - NET_RAW
+            - SYS_NICE
+        environment:
+            USE_ADDITIONAL_OPTIONS: >
+                                    -E --rfsim -r 106 --numerology 1 
+                                    --uicc0.imsi 001010000000024 -C 3319680000 
+                                    --rfsimulator.serveraddr 192.168.71.140 --log_config.global_log_options level,nocolor,time
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.173 --telnetsrv.listenport 8114
+        depends_on:
+            - oai-gnb
+        networks:
+            public_net:
+                ipv4_address: 192.168.71.173
+        devices:
+             - /dev/net/tun:/dev/net/tun
+        volumes:
+            - ../../conf_files/nrue/nrue24.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml
+        healthcheck:
+            test: /bin/bash -c "pgrep nr-uesoftmodem"
+            start_period: 10s
+            start_interval: 500ms
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+
+    oai-nr-ue25:
+        image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+        container_name: rfsim5g-oai-nr-ue25
+        cap_drop:
+            - ALL
+        cap_add:
+            - NET_ADMIN
+            - NET_RAW
+            - SYS_NICE
+        environment:
+            USE_ADDITIONAL_OPTIONS: >
+                                    -E --rfsim -r 106 --numerology 1 
+                                    --uicc0.imsi 001010000000025 -C 3319680000 
+                                    --rfsimulator.serveraddr 192.168.71.140 --log_config.global_log_options level,nocolor,time
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.174 --telnetsrv.listenport 8115
+        depends_on:
+            - oai-gnb
+        networks:
+            public_net:
+                ipv4_address: 192.168.71.174
+        devices:
+             - /dev/net/tun:/dev/net/tun
+        volumes:
+            - ../../conf_files/nrue/nrue25.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml
+        healthcheck:
+            test: /bin/bash -c "pgrep nr-uesoftmodem"
+            start_period: 10s
+            start_interval: 500ms
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+
+    oai-nr-ue26:
+        image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+        container_name: rfsim5g-oai-nr-ue26
+        cap_drop:
+            - ALL
+        cap_add:
+            - NET_ADMIN
+            - NET_RAW
+            - SYS_NICE
+        environment:
+            USE_ADDITIONAL_OPTIONS: >
+                                    -E --rfsim -r 106 --numerology 1 
+                                    --uicc0.imsi 001010000000026 -C 3319680000 
+                                    --rfsimulator.serveraddr 192.168.71.140 --log_config.global_log_options level,nocolor,time
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.175 --telnetsrv.listenport 8116
+        depends_on:
+            - oai-gnb
+        networks:
+            public_net:
+                ipv4_address: 192.168.71.175
+        devices:
+             - /dev/net/tun:/dev/net/tun
+        volumes:
+            - ../../conf_files/nrue/nrue26.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml
+        healthcheck:
+            test: /bin/bash -c "pgrep nr-uesoftmodem"
+            start_period: 10s
+            start_interval: 500ms
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+
+    oai-nr-ue27:
+        image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+        container_name: rfsim5g-oai-nr-ue27
+        cap_drop:
+            - ALL
+        cap_add:
+            - NET_ADMIN
+            - NET_RAW
+            - SYS_NICE
+        environment:
+            USE_ADDITIONAL_OPTIONS: >
+                                    -E --rfsim -r 106 --numerology 1 
+                                    --uicc0.imsi 001010000000027 -C 3319680000 
+                                    --rfsimulator.serveraddr 192.168.71.140 --log_config.global_log_options level,nocolor,time
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.176 --telnetsrv.listenport 8117
+        depends_on:
+            - oai-gnb
+        networks:
+            public_net:
+                ipv4_address: 192.168.71.176
+        devices:
+             - /dev/net/tun:/dev/net/tun
+        volumes:
+            - ../../conf_files/nrue/nrue27.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml
+        healthcheck:
+            test: /bin/bash -c "pgrep nr-uesoftmodem"
+            start_period: 10s
+            start_interval: 500ms
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+
+    oai-nr-ue28:
+        image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+        container_name: rfsim5g-oai-nr-ue28
+        cap_drop:
+            - ALL
+        cap_add:
+            - NET_ADMIN
+            - NET_RAW
+            - SYS_NICE
+        environment:
+            USE_ADDITIONAL_OPTIONS: >
+                                    -E --rfsim -r 106 --numerology 1 
+                                    --uicc0.imsi 001010000000028 -C 3319680000 
+                                    --rfsimulator.serveraddr 192.168.71.140 --log_config.global_log_options level,nocolor,time
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.177 --telnetsrv.listenport 8118
+        depends_on:
+            - oai-gnb
+        networks:
+            public_net:
+                ipv4_address: 192.168.71.177
+        devices:
+             - /dev/net/tun:/dev/net/tun
+        volumes:
+            - ../../conf_files/nrue/nrue28.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml
+        healthcheck:
+            test: /bin/bash -c "pgrep nr-uesoftmodem"
+            start_period: 10s
+            start_interval: 500ms
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+networks:
+    public_net:
+        driver: bridge
+        name: rfsim5g-oai-public-net
+        ipam:
+            config:
+                - subnet: 192.168.70.0/23
+                 # /32 symbol only 192.168.71.128
+                 # /24 symbol the fornt can use 0~255
+        driver_opts:
+            com.docker.network.bridge.name: "rfsim5g-public"
+    traffic_net:
+        driver: bridge
+        name: rfsim5g-oai-traffic-net
+        ipam:
+            config:
+                - subnet: 192.168.72.0/24
+        driver_opts:
+            com.docker.network.bridge.name: "rfsim5g-traffic"

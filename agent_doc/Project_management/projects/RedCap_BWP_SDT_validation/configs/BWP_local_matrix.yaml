@@ -1,0 +1,111 @@
+project: RedCap_BWP_SDT_validation
+experiment: BWP_switching_with_DRX
+status: runtime_matrix_executed_but_bwp_trigger_crash_blocked
+
+runtime_source:
+  compose_root: ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap
+  compose_files:
+    - docker-compose.yml
+    - docker-compose.mmtc.yml
+  shared_helper: agent_doc/Project_management/projects/RedCap_BWP_SDT_validation/scripts/redcap_runtime_common.sh
+  baseline_gnb_config_env: GNB_REDCAP_CONFIG
+  baseline_ue_config_prefix: NRUE_CONFIG_
+
+paper_reference:
+  pdf: redcap_doc/evaluation_papers/redcap_vaildation_BWP_SDT/Impact_of_Bandwidth_Part_BWP_Switching_on_5G_NR_System_Performance.pdf
+  markdown: redcap_doc/evaluation_papers/redcap_vaildation_BWP_SDT/paper1_BWP_switching.md
+  target_technology: BWP switching with DRX
+  scenario: single-cell RFsim baseline first, paper macro-cell topology deferred
+
+local_rfsim_baseline:
+  carrier_frequency_hz: 3630360000
+  band: 78
+  numerology: 1
+  n_rb_dl: 106
+  ssb_start: 144
+  redcap_enable: 1
+  redcap_num_rx: 1
+  redcap_half_duplex: 1
+  tdd_config: "existing gNB YAML value [Needs Verification]"
+
+paper_parameters:
+  carrier_frequency_ghz: 3.5
+  carrier_bandwidth_mhz: 20
+  subcarrier_spacing_khz: 15
+  duplex: TDD
+  macro_cells: 21
+  ue_calls: 105
+  traffic_model: FTP3 downlink only, Poisson PDU generation
+  pdu_generation_rate_per_second: 20
+  low_load_pdu_kbytes: 10
+  high_load_pdu_kbytes: 320
+  bwp_inactivity_timer_ms:
+    - 8
+    - 80
+  bwp_switch_delay_ms:
+    - 1
+    - 3
+
+local_sweep:
+  traffic_profiles:
+    - name: low_load
+      pdu_kbytes: 10
+      target_rate_mbps_per_ue: 1.6
+    - name: high_load
+      pdu_kbytes: 320
+      target_rate_mbps_per_ue: 51.2
+  drx_profiles:
+    - low_latency
+    - balanced
+    - power_saving
+  bwp_parameters_need_oai_wiring:
+    bwp_inactivity_timer_ms:
+      - 8
+      - 80
+    bwp_switch_delay_ms:
+      - 1
+      - 3
+    default_bwp_size_prb: TBD
+    dedicated_bwp_size_prb: TBD
+  runtime_limitations:
+    - traffic/timer/switch-delay values are runner labels until OAI hooks are implemented
+    - 2026-06-28 BWP 0 telnet trigger crashes gNB in update_cellGroupConfig_for_BWP_switch
+
+runtime_env:
+  MMTC_REDCAP_ENABLE: 1
+  MMTC_UE_INDEX: 2
+  MMTC_IMSI: "001010000000002"
+  MMTC_REDCAP_NUM_RX: 1
+  MMTC_REDCAP_HALF_DUPLEX: 1
+  MMTC_N_RB_DL: 106
+  MMTC_NUMEROLOGY: 1
+  MMTC_RF_FREQ: 3630360000
+  MMTC_SSB_START: 144
+  MMTC_DRX_PROFILE: balanced
+
+metrics:
+  csv: agent_doc/Project_management/projects/RedCap_BWP_SDT_validation/exp_result/BWP_results.csv
+  required_fields:
+    - scenario
+    - metric
+    - paper_value
+    - local_value
+    - diff_absolute
+    - diff_percent
+  target_metrics:
+    - application_layer_throughput
+    - default_bwp_ratio
+    - estimated_power_saving
+    - pdu_scheduling_delay
+
+spec_mapping:
+  - spec: TS 38.523-1
+    clause: 7.1.1.12
+    status: "Needs Verification"
+  - spec: TS 38.321
+    clause: 5.15.1
+    status: "Local BWP operation clause found"
+  - spec: TS 38.321
+    requested_clause: 5.9
+    local_observation: "Local TS 38.321 V18.2.0 maps clause 5.9 to Activation/Deactivation of SCells, not primary BWP operation."
+    status: "Needs Verification"
