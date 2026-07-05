@@ -13,11 +13,11 @@ if timeout 10 bash -lc "until docker logs rfsim5g-oai-gnb_redcap 2>&1 | grep -qE
   exit 0
 fi
 
-# Fallback: the control helper logs a positive ACK only after a successful RC control response.
+# xApp ACK is useful path evidence, but G4 closes only on the gNB apply marker.
 latest_ctrl_log=$(ls -1t "${REPO_ROOT}/test_log/compiler_logs"/redcap_rc_ctrl_xapp_*.log 2>/dev/null | head -n 1 || true)
 if [[ -n "${latest_ctrl_log}" ]] && grep -q "RedCap RC control sent node=" "${latest_ctrl_log}"; then
-  echo "Verified RedCap UL PRB control via xApp ACK log: ${latest_ctrl_log}"
-  exit 0
+  echo "Found xApp ACK log but no live gNB marker yet: ${latest_ctrl_log}" >&2
+  exit 1
 fi
 
 echo "RedCap UL PRB control verification failed (no live gNB marker and no xApp ACK log)" >&2

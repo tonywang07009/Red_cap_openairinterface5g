@@ -18,6 +18,7 @@ BIN_DIR=${REPO_ROOT}/test_log/runtime_bins
 BUILD_LOG=${REPO_ROOT}/test_log/build_logs/redcap_ul_prb_ctrl_xapp_build_${TIMESTAMP}.log
 RUN_LOG=${REPO_ROOT}/test_log/compiler_logs/redcap_rc_ctrl_xapp_${TIMESTAMP}.log
 SRC=${REPO_ROOT}/ci-scripts/redcap_ul_prb_ctrl_xapp.c
+SDK_SRC=${REPO_ROOT}/openair2/E2AP/REDCAP_SDK/xapp/redcap_xapp_sdk.c
 BIN=${BIN_DIR}/redcap_ul_prb_ctrl_xapp
 CC_BIN=${CC:-cc}
 CAP_INPUT=${REDCAP_UL_PRB_CAP:-32}
@@ -134,6 +135,7 @@ build_xapp()
     -DKPM_V3_00
     '-DSERVICE_MODEL_DIR_PATH="/"'
     -DSQLITE3_XAPP
+    -I"${REPO_ROOT}"
     -I"${FLEXRIC_ROOT}/src"
     -g
     -fPIE
@@ -142,6 +144,7 @@ build_xapp()
     -Wextra
     -std=gnu11
     "${SRC}"
+    "${SDK_SRC}"
     -L"${FLEXRIC_BUILD}/src/xApp"
     -Wl,-rpath,"${FLEXRIC_BUILD}/src/xApp"
     -le42_xapp

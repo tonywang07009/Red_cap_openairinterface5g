@@ -9,6 +9,8 @@ The repo already has validated RedCap RFsim gates, FlexRIC/OAI xApp examples, an
 - Create a compact RedCap Workflow 3.0 project scaffold.
 - Use `OpenSpec -> symdex -> rtk -> Ponytail review -> marker validation -> report` as the default work route.
 - Keep SDK v1 bounded to existing OAI/FlexRIC concepts: [rApp policy], [xApp C/C++ KPM/RC adapter], and [dApp/gNB guard].
+- Map the updated `dev_refer/` library before pulling new SDK code.
+- Define OAI-style channel placement before creating any SDK source tree.
 - Add static checks for YAML control contracts and report templates before runtime work.
 - Keep daily progress readable and Gate evidence reproducible.
 
@@ -16,7 +18,7 @@ The repo already has validated RedCap RFsim gates, FlexRIC/OAI xApp examples, an
 
 - Do not implement SLM evaluation tooling in this change.
 - Do not create a GUI, production Non-RT RIC deployment, or broad platform SDK.
-- Do not claim O-RAN clause compliance until references from `../dev_refer/develop_refer_doc` are locally extracted and mapped.
+- Do not claim O-RAN clause compliance until references from `dev_refer/` are locally extracted and mapped.
 - Do not modify OAI runtime behavior in the scaffold-only tasks.
 
 ## Decisions
@@ -26,6 +28,10 @@ The repo already has validated RedCap RFsim gates, FlexRIC/OAI xApp examples, an
 - [rApp] writes policy YAML only. It must not directly mutate OAI runtime state.
 - [xApp] reads KPM/RC context and sends bounded requests. KPM remains observation only.
 - [dApp/gNB guard] validates contract ownership, bounds, ACK/NACK, rollback, and applied-parameter markers.
+- [xApp channel] uses `openair2/E2AP/REDCAP_SDK/` as the OAI-tracked wrapper and compiles against `openair2/E2AP/flexric/`.
+- [dApp channel] starts under `openair2/E3AP/` with a guard SDK skeleton before transport/service-model integration.
+- [rApp channel] is docs-first only until a concrete OAI runtime boundary is selected.
+- [C + Python SDK] each SDK family keeps paired C and Python entry points; rApp remains declarative in both languages.
 - [Static CI Stage 1] uses local files and the Python standard library. Build/CTest and RFsim stay in later stages.
 
 ## Risks / Trade-offs

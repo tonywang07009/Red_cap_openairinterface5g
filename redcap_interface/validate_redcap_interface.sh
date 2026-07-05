@@ -104,6 +104,16 @@ check_file "${LIB_DIR}/fc_rrc_behavior_compare.bash" "RRC behavior comparator im
 check_file "${REPO_ROOT}/ci-scripts/redcap_prepare_runtime_config.py" "runtime config Python helper"
 check_file "${REPO_ROOT}/ci-scripts/redcap_runtime_summary.py" "runtime summary Python helper"
 check_file "${REPO_ROOT}/ci-scripts/redcap_ul_prb_ctrl_xapp.c" "RedCap RC xApp source"
+check_file "${REPO_ROOT}/openair2/E2AP/REDCAP_SDK/xapp/redcap_xapp_sdk.h" "RedCap xApp SDK header"
+check_file "${REPO_ROOT}/openair2/E2AP/REDCAP_SDK/xapp/redcap_xapp_sdk.c" "RedCap xApp SDK source"
+check_file "${REPO_ROOT}/openair2/E2AP/REDCAP_SDK/xapp/redcap_xapp_sdk.py" "RedCap xApp Python SDK"
+check_file "${REPO_ROOT}/openair2/E3AP/sdk/redcap_dapp_sdk.h" "RedCap dApp SDK header"
+check_file "${REPO_ROOT}/openair2/E3AP/sdk/redcap_dapp_sdk.c" "RedCap dApp SDK source"
+check_file "${REPO_ROOT}/openair2/E3AP/sdk/redcap_dapp_sdk.py" "RedCap dApp Python SDK"
+check_file "${REPO_ROOT}/agent_doc/Project_management/projects/redcap_oran_sdk_workflow_v3/sdk/rapp/redcap_rapp_policy.h" "RedCap rApp C SDK header"
+check_file "${REPO_ROOT}/agent_doc/Project_management/projects/redcap_oran_sdk_workflow_v3/sdk/rapp/redcap_rapp_policy.c" "RedCap rApp C SDK source"
+check_file "${REPO_ROOT}/agent_doc/Project_management/projects/redcap_oran_sdk_workflow_v3/sdk/rapp/redcap_rapp_policy.schema.json" "RedCap rApp policy schema"
+check_file "${REPO_ROOT}/agent_doc/Project_management/projects/redcap_oran_sdk_workflow_v3/sdk/rapp/redcap_rapp_policy.py" "RedCap rApp Python SDK"
 check_file "${REPO_ROOT}/ci-scripts/run_locally.sh" "OAI local CI runner"
 
 check_file "${REPO_ROOT}/ci-scripts/conf_files/gnb.sa.band78.fr1.106PRB.usrpb210.redcap.yaml" "106PRB gNB config"
@@ -120,6 +130,9 @@ check_dir "${REPO_ROOT}/test_log" "temporary log root"
 
 check_python_syntax "${SCRIPT_DIR}/iperf_live_panel.py"
 check_python_syntax "${LIB_DIR}/fc_iperf_live_panel.py"
+check_python_syntax "${REPO_ROOT}/openair2/E2AP/REDCAP_SDK/xapp/redcap_xapp_sdk.py"
+check_python_syntax "${REPO_ROOT}/openair2/E3AP/sdk/redcap_dapp_sdk.py"
+check_python_syntax "${REPO_ROOT}/agent_doc/Project_management/projects/redcap_oran_sdk_workflow_v3/sdk/rapp/redcap_rapp_policy.py"
 
 tmp_sql=$(mktemp /tmp/redcap_mmtc_overlay.XXXXXX.sql)
 tmp_yml=$(mktemp /tmp/redcap_mmtc_overlay.XXXXXX.yml)

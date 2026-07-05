@@ -16,6 +16,11 @@
 - [Status]: none / partial / blocked
 - [Reason]:
 
+## [Needs Verification]
+
+- [Spec / clause]:
+- [Local evidence needed]:
+
 ## [Next Pull Item]
 
 - [Pull item]:

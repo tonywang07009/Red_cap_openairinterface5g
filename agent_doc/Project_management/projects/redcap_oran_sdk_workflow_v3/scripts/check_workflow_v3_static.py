@@ -2,6 +2,7 @@
 """Static checks for RedCap O-RAN SDK Workflow 3.0."""
 
 from pathlib import Path
+import json
 import re
 import sys
 
@@ -18,6 +19,10 @@ ROOT = find_repo_root()
 PROJECT = ROOT / "agent_doc/Project_management/projects/redcap_oran_sdk_workflow_v3"
 CHANGE = ROOT / "openspec/changes/redcap-oran-sdk-workflow-v3"
 CONTROL = ROOT / "ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/control"
+XAPP_SDK = ROOT / "openair2/E2AP/REDCAP_SDK"
+DAPP_SDK = ROOT / "openair2/E3AP"
+RAPP_SDK = PROJECT / "sdk/rapp"
+LEGACY_DEV_REFER = "../" + "dev_refer/develop_refer_doc"
 
 
 def read(path: Path) -> str:
@@ -39,12 +44,15 @@ def check_required_files(errors: list[str]) -> None:
         CHANGE / "specs/redcap-workflow-reporting-ci/spec.md",
         PROJECT / "project_plan.md",
         PROJECT / "agent_rules.md",
+        PROJECT / "sdk_channel_layout.md",
         PROJECT / "milestones/G0_workflow_scaffold.md",
         PROJECT / "milestones/G1_sdk_contract.md",
         PROJECT / "milestones/G2_sdk_runtime_v1.md",
         PROJECT / "milestones/G3_reporting_static_ci.md",
         PROJECT / "milestones/G4_rfsim_case_b_marker_validation.md",
         PROJECT / "spec_refs/README.md",
+        PROJECT / "spec_refs/dev_refer_reference_overview.md",
+        PROJECT / "spec_refs/oran_spec_usage_map.md",
         PROJECT / "validation/sdk_seed_inventory.md",
         PROJECT / "validation/daily_report_template.md",
         PROJECT / "validation/gate_report_template.md",
@@ -54,6 +62,20 @@ def check_required_files(errors: list[str]) -> None:
         CONTROL / "redcap_control_contract.yaml",
         CONTROL / "redcap_policy_case_a.yaml",
         CONTROL / "redcap_policy_case_b.yaml",
+        XAPP_SDK / "README.md",
+        XAPP_SDK / "xapp/redcap_xapp_sdk.h",
+        XAPP_SDK / "xapp/redcap_xapp_sdk.c",
+        XAPP_SDK / "xapp/redcap_xapp_sdk.py",
+        DAPP_SDK / "README.md",
+        DAPP_SDK / "sdk/redcap_dapp_sdk.h",
+        DAPP_SDK / "sdk/redcap_dapp_sdk.c",
+        DAPP_SDK / "sdk/redcap_dapp_sdk.py",
+        RAPP_SDK / "README.md",
+        RAPP_SDK / "redcap_rapp_policy.h",
+        RAPP_SDK / "redcap_rapp_policy.c",
+        RAPP_SDK / "redcap_rapp_policy.schema.json",
+        RAPP_SDK / "redcap_rapp_policy_case_b.yaml",
+        RAPP_SDK / "redcap_rapp_policy.py",
     ]
     for path in required:
         require(path.is_file(), f"missing required file: {path.relative_to(ROOT)}", errors)
@@ -70,7 +92,7 @@ def check_openspec_specs(errors: list[str]) -> None:
 def check_report_templates(errors: list[str]) -> None:
     daily = read(PROJECT / "validation/daily_report_template.md")
     gate = read(PROJECT / "validation/gate_report_template.md")
-    for field in ["[Today Done]", "[Evidence Path]", "[Blocked]", "[Next Pull Item]", "[Status]"]:
+    for field in ["[Today Done]", "[Evidence Path]", "[Blocked]", "[Needs Verification]", "[Next Pull Item]", "[Status]"]:
         require(field in daily, f"daily report template missing {field}", errors)
     for field in ["[Gate Scope]", "[3GPP / O-RAN Mapping]", "[Modification Points]", "[Validation Evidence]", "[Overclaim Guard]", "[Next Action]"]:
         require(field in gate, f"gate report template missing {field}", errors)
@@ -121,6 +143,82 @@ def check_slm_scope(errors: list[str]) -> None:
     require("SLM" in text and "out of scope" in text.lower(), "SLM exclusion is not explicit", errors)
 
 
+def check_reference_and_channel_layout(errors: list[str]) -> None:
+    project_docs = [
+        PROJECT / "project_plan.md",
+        PROJECT / "agent_rules.md",
+        PROJECT / "sdk_channel_layout.md",
+        PROJECT / "spec_refs/README.md",
+        PROJECT / "spec_refs/dev_refer_reference_overview.md",
+        PROJECT / "spec_refs/oran_spec_usage_map.md",
+        CHANGE / "proposal.md",
+        CHANGE / "design.md",
+        CHANGE / "specs/redcap-oran-sdk-workflow/spec.md",
+    ]
+    combined = "\n".join(read(path) for path in project_docs)
+    layout = read(PROJECT / "sdk_channel_layout.md")
+    spec_map = read(PROJECT / "spec_refs/oran_spec_usage_map.md")
+    overview = read(PROJECT / "spec_refs/dev_refer_reference_overview.md")
+
+    require(LEGACY_DEV_REFER not in combined,
+            "stale dev_refer path still present in workflow docs", errors)
+    require("dev_refer/" in combined, "workflow docs missing dev_refer root reference", errors)
+    require("dev_refer/develop_refer_doc/xapp/" in spec_map, "spec map missing xApp reference path", errors)
+    require("dev_refer/develop_refer_doc/dapp/" in spec_map, "spec map missing dApp reference path", errors)
+    require("dev_refer/develop_refer_doc/rapp/" in spec_map, "spec map missing rApp reference path", errors)
+    require("dev_refer/xapp_dev_need/" in overview, "reference overview missing xApp SDK input path", errors)
+    require("dev_refer/dapp_dev_need/" in overview, "reference overview missing dApp SDK input path", errors)
+    require("dev_refer/rapp_dev_need/" in overview, "reference overview missing rApp SDK input path", errors)
+    require("openair2/E2AP/REDCAP_SDK/" in layout, "SDK layout missing RedCap xApp wrapper target", errors)
+    require("openair2/E2AP/flexric/" in layout, "SDK layout missing xApp E2AP/flexric target", errors)
+    require("openair2/E3AP/" in layout, "SDK layout missing dApp E3AP target", errors)
+    require("docs-first" in layout.lower(), "SDK layout missing rApp docs-first decision", errors)
+
+
+def check_sdk_scaffold(errors: list[str]) -> None:
+    xapp_h = read(XAPP_SDK / "xapp/redcap_xapp_sdk.h")
+    xapp_c = read(XAPP_SDK / "xapp/redcap_xapp_sdk.c")
+    xapp_py = read(XAPP_SDK / "xapp/redcap_xapp_sdk.py")
+    xapp_cli = read(ROOT / "ci-scripts/redcap_ul_prb_ctrl_xapp.c")
+    dapp_h = read(DAPP_SDK / "sdk/redcap_dapp_sdk.h")
+    dapp_c = read(DAPP_SDK / "sdk/redcap_dapp_sdk.c")
+    dapp_py = read(DAPP_SDK / "sdk/redcap_dapp_sdk.py")
+    rapp_h = read(RAPP_SDK / "redcap_rapp_policy.h")
+    rapp_c = read(RAPP_SDK / "redcap_rapp_policy.c")
+    rapp_example = read(RAPP_SDK / "redcap_rapp_policy_case_b.yaml")
+    rapp_py = read(RAPP_SDK / "redcap_rapp_policy.py")
+
+    require("redcap_xapp_make_ul_prb_ctrl_req" in xapp_h, "xApp SDK missing UL PRB control builder API", errors)
+    require("redcap_xapp_find_rc_ran_func_idx" in xapp_h, "xApp SDK missing RC RAN function lookup API", errors)
+    require("NR_REDCAP_RC_CTRL_ACT_ID_UL_PRB_CAP = 100" in xapp_h, "xApp SDK missing RedCap action ID", errors)
+    require("redcap_xapp_make_ul_prb_ctrl_req" in xapp_c, "xApp SDK source missing builder implementation", errors)
+    require("make_ul_prb_ctrl_request" in xapp_py, "xApp Python SDK missing UL PRB request builder", errors)
+    require("NR_REDCAP_RC_CTRL_ACT_ID_UL_PRB_CAP = 100" in xapp_py, "xApp Python SDK missing RedCap action ID", errors)
+    require("redcap_xapp_make_ul_prb_ctrl_req" in xapp_cli, "xApp CLI does not use the SDK builder", errors)
+    require("openair2/E2AP/REDCAP_SDK/xapp/redcap_xapp_sdk.h" in xapp_cli, "xApp CLI missing SDK include", errors)
+
+    require("redcap_dapp_guard_ul_prb_cap" in dapp_h, "dApp SDK missing guard API", errors)
+    require("REDCAP_DAPP_GUARD_ACK" in dapp_h, "dApp SDK missing ACK decision", errors)
+    require("outside_contract_range" in dapp_c, "dApp SDK missing contract range rejection", errors)
+    require("redcap_dapp_guard_ul_prb_cap" in dapp_py, "dApp Python SDK missing guard API", errors)
+    require("outside_contract_range" in dapp_py, "dApp Python SDK missing contract range rejection", errors)
+
+    try:
+        schema = json.loads(read(RAPP_SDK / "redcap_rapp_policy.schema.json"))
+    except json.JSONDecodeError as exc:
+        errors.append(f"rApp policy schema is invalid JSON: {exc}")
+        return
+    required = schema.get("required", [])
+    for field in ["policy_version", "rapp_role", "control_contract", "allowed_runtime_parameters", "decision_policy"]:
+        require(field in required, f"rApp policy schema missing required field {field}", errors)
+        require(field in rapp_example, f"rApp policy example missing {field}", errors)
+        require(field in rapp_py, f"rApp Python SDK missing field {field}", errors)
+    require("redcap_ul_prb_cap" in rapp_example, "rApp policy example missing redcap_ul_prb_cap", errors)
+    require("redcap_rapp_validate_policy_package" in rapp_h, "rApp C SDK missing validation API", errors)
+    require("redcap_rapp_policy_case_b" in rapp_c, "rApp C SDK missing Case B builder", errors)
+    require("build_case_b_policy" in rapp_py, "rApp Python SDK missing Case B builder", errors)
+
+
 def main() -> int:
     errors: list[str] = []
     check_required_files(errors)
@@ -130,6 +228,8 @@ def main() -> int:
         check_control_contract(errors)
         check_case_policy_boundaries(errors)
         check_slm_scope(errors)
+        check_reference_and_channel_layout(errors)
+        check_sdk_scaffold(errors)
 
     if errors:
         print("[FAIL] RedCap Workflow 3.0 static checks")

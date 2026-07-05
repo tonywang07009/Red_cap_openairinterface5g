@@ -67,6 +67,7 @@ static void apply_redcap_ul_prb_control(const nr_redcap_rc_ul_prb_ctrl_t *redcap
          redcap_ctrl->rnti,
          redcap_ctrl->max_ul_prbs,
          effective_cap);
+  fflush(stdout);
 }
 #endif
 

@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Daily reports shall use a fixed progress template
-The system SHALL provide a Daily Report template with the fields `[Today Done]`, `[Evidence Path]`, `[Blocked]`, `[Next Pull Item]`, and `[Status]`.
+The system SHALL provide a Daily Report template with the fields `[Today Done]`, `[Evidence Path]`, `[Blocked]`, `[Needs Verification]`, `[Next Pull Item]`, and `[Status]`.
 
 #### Scenario: Daily report can be checked
 - **WHEN** a daily report is written for the workflow

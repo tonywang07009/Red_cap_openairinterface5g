@@ -6,6 +6,9 @@ RedCap O-RAN SDK work now needs a concrete workflow that connects OpenSpec plann
 
 - Add a RedCap Workflow 3.0 project for O-RAN SDK planning and execution.
 - Define a minimal SDK v1 contract split across [rApp policy], [xApp C/C++ KPM/RC adapter], and [dApp/gNB guard].
+- Add reference maps for the updated `dev_refer/` library.
+- Add an OAI-style SDK channel layout: RedCap xApp wrapper under `openair2/E2AP/REDCAP_SDK/` compiled against FlexRIC, dApp under `openair2/E3AP/`, and rApp docs-first only.
+- Add paired C and Python SDK entry points for the first xApp, dApp, and rApp slices.
 - Add Daily Report and Gate Report templates for progress and validation evidence.
 - Add a static CI/checker path for OpenSpec artifacts, YAML control contracts, report templates, and overclaim prevention.
 - Keep [SLM evaluation tooling] out of scope until the local SLM environment is available.
