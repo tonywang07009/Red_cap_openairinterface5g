@@ -75,6 +75,6 @@
 
 - [Pending Gates]: `agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/followups/workflow_v3_followups.md`.
 - [Completed Follow-up]: Gate C E3 POSIX loopback and latency check passed with a project-local `tl_expected` shim.
-- [Next Pull Item]: prepare a real 5 PRB BWP RFsim gNB config, rebuild/recreate the gNB with `OAI_REDCAP_DAPP_GATE_D_MARKER=1`, then run Gate D small RFsim marker validation.
-- [Stress Gate]: Gate E 56 UE / 5 PRB BWP stress validation stays blocked until Gate D produces both ULSCH/PUSCH and PUCCH markers with `bwp_prbs 5`.
+- [Next Pull Item]: rebuild local OAI images after the Gate D RedCap RA DCI bit-length source fix, recreate gNB + UE2 with `GNB_REDCAP_CONFIG=../../conf_files/gnb.sa.band78.fr1.106PRB.usrpb210.redcap.5mhz-bwp.yaml` and `OAI_REDCAP_DAPP_GATE_D_MARKER=1`, then rerun Gate D small RFsim marker validation with both gNB and UE logs.
+- [Stress Gate]: Gate E 56 UE / 5 MHz BWP stress validation stays blocked until Gate D produces both ULSCH/PUSCH and PUCCH markers that pass `--require-bwp-mhz 5`.
 - [Boundary]: Workflow v3 remains complete for the narrow `redcap_ul_prb_cap` slice; the dApp/xApp validation project owns the new test gates.

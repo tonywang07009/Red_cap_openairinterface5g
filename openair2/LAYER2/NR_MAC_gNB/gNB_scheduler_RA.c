@@ -1622,7 +1622,8 @@ static void prepare_dl_pdus(gNB_MAC_INST *nr_mac,
 
   const bool redcap_ra_common_nonzero_coreset =
       rnti_type == TYPE_RA_RNTI_ && UE->ra != NULL && UE->ra->is_redcap_msg1 && coresetid != 0;
-  const uint16_t msg2_cset0_bwp_size = redcap_ra_common_nonzero_coreset ? 0 : nr_mac->cset0_bwp_size;
+  const uint16_t msg2_common_dci_bwp_size =
+      redcap_ra_common_nonzero_coreset ? dl_bwp->BWPSize : nr_mac->cset0_bwp_size;
   fill_dci_pdu_rel15(&UE->sc_info,
                      dl_bwp,
                      &UE->current_UL_BWP,
@@ -1633,7 +1634,7 @@ static void prepare_dl_pdus(gNB_MAC_INST *nr_mac,
                      sched_ctrl->search_space,
                      coreset,
                      0, // parameter not needed for DCI 1_0
-                     msg2_cset0_bwp_size);
+                     msg2_common_dci_bwp_size);
 
   if (rnti_type == TYPE_RA_RNTI_) {
     LOG_I(NR_MAC,

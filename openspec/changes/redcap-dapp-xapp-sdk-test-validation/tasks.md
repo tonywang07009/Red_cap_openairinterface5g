@@ -41,8 +41,14 @@
   - Build wiring ready: `CMakeLists.txt` includes `openair2/E3AP/sdk/redcap_dapp_sdk.c` in `MAC_NR_SRC`.
   - Marker switch: `OAI_REDCAP_DAPP_GATE_D_MARKER=1`.
   - Compose env passthrough ready: `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.mmtc.yml` and `scripts/generate_mmtc_overlay.sh`.
+  - 5 MHz BWP profile ready: `ci-scripts/conf_files/gnb.sa.band78.fr1.106PRB.usrpb210.redcap.5mhz-bwp.yaml`.
   - Readiness runner: `agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/gate_d_rfsim_marker_check.py`.
   - Build evidence: `test_log/build_logs/build_nr-softmodem_2026-07-06_gate-d-pucch-marker.log`.
-  - Runtime remains pending until an RFsim gNB log contains both ULSCH/PUSCH and PUCCH Gate D markers with `bwp_prbs 5`.
-  - Current blocker: no ready 5 PRB BWP gNB config was found in the inspected RedCap RFsim config set; existing RedCap configs use 106/51 PRB carrier/BWP settings.
-- [ ] 5.3 Run Gate E 56 UE / 5 PRB BWP stress validation after Gate D passes.
+  - DCI alignment build evidence: `test_log/build_logs/build_nr-softmodem_2026-07-06_17-28-49_gate-d-dci-bits.log` and `test_log/build_logs/build_nr-uesoftmodem_2026-07-06_17-29-03_gate-d-dci-bits.log`.
+  - Runtime evidence: `test_log/runtime_logs/gate_d_5mhz_gnb_2026-07-06_17-16-57.log` and `test_log/runtime_logs/gate_d_5mhz_ue2_2026-07-06_17-16-57.log`.
+  - Runtime observation: gNB and UE2 both show 12 PRB 5 MHz BWP profile application during RA/SIB1.
+  - Root-cause observation: pre-fix runtime logs show gNB `dci_bits 35` and UE `dci_bits 39` for RedCap RA DCI.
+  - Source fix: gNB and UE DCI sizing now use current 12 PRB DL BWP for RedCap Case B RA common DCI.
+  - Runtime remains pending until an RFsim gNB log contains both ULSCH/PUSCH and PUCCH Gate D markers that pass `--require-bwp-mhz 5`.
+  - Current blocker: post-fix Docker image rebuild/RFsim recreate was rejected because workspace credits are unavailable.
+- [ ] 5.3 Run Gate E 56 UE / 5 MHz BWP stress validation after Gate D passes.

@@ -1,10 +1,10 @@
 ## Why
 
-The RedCap O-RAN SDK scaffold now has C and Python entry points, but the next pull item needs a test plan that proves dApp/xApp behavior instead of only proving file existence. The user specifically wants the validation to follow local `dev_refer/` material, cover a 56 UE / 5 PRB BWP scenario, verify SWIG-backed Python/C boundaries, and produce bilingual API documentation.
+The RedCap O-RAN SDK scaffold now has C and Python entry points, but the next pull item needs a test plan that proves dApp/xApp behavior instead of only proving file existence. The user specifically wants the validation to follow local `dev_refer/` material, cover a 56 UE / 5 MHz BWP scenario, verify SWIG-backed Python/C boundaries, and produce bilingual API documentation.
 
 ## What Changes
 
-- Add a staged dApp/xApp SDK validation workflow: SDK unit checks, SWIG checks, E3 loopback, small RFsim marker validation, and 56 UE / 5 PRB BWP stress validation.
+- Add a staged dApp/xApp SDK validation workflow: SDK unit checks, SWIG checks, E3 loopback, small RFsim marker validation, and 56 UE / 5 MHz BWP stress validation.
 - Define a test-facing dApp API contract for I/Q observation input, UE priority hints, PUCCH/PUSCH PRB ratio intent, and apply/reject decisions.
 - Define a test-facing xApp API contract for weighted UE priority computation and E3-facing delivery to dApp.
 - Add local `dev_refer/` reference requirements so dApp/xApp tests cite `libe3`, `dApp-library`, `dApp-openairinterface5g`, and xApp reference material before implementation claims.

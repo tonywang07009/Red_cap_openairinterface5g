@@ -186,6 +186,11 @@ static void config_dci_pdu(NR_UE_MAC_INST_t *mac,
   }
 
   NR_UE_ServingCell_Info_t *sc_info = &mac->sc_info;
+  const bool redcap_ra_common_nonzero_coreset =
+      rnti_type == TYPE_RA_RNTI_ && ss->searchSpaceType->present == NR_SearchSpace__searchSpaceType_PR_common
+      && rel15->coreset.CoreSetType == NFAPI_NR_CSET_CONFIG_PDCCH_CONFIG && current_DL_BWP != NULL;
+  const uint16_t common_dci_bwp_size =
+      redcap_ra_common_nonzero_coreset ? current_DL_BWP->BWPSize : mac->type0_PDCCH_CSS_config.num_rbs;
   // loop over DCI options and configure resource allocation
   // need to configure mac->def_dci_pdu_rel15 for all possible format options
   for (int i = 0; i < temp_num_dci_options; i++) {
@@ -208,7 +213,7 @@ static void config_dci_pdu(NR_UE_MAC_INST_t *mac,
                                rnti_type,
                                coreset,
                                ss->searchSpaceType->present,
-                               mac->type0_PDCCH_CSS_config.num_rbs,
+                               common_dci_bwp_size,
                                0);
       if (dci_format[i] == NR_UL_DCI_FORMAT_0_0)
         alt_size = nr_dci_size(current_DL_BWP,
@@ -220,7 +225,7 @@ static void config_dci_pdu(NR_UE_MAC_INST_t *mac,
                                rnti_type,
                                coreset,
                                ss->searchSpaceType->present,
-                               mac->type0_PDCCH_CSS_config.num_rbs,
+                               common_dci_bwp_size,
                                0);
     }
 
@@ -233,7 +238,7 @@ static void config_dci_pdu(NR_UE_MAC_INST_t *mac,
                                     rnti_type,
                                     coreset,
                                     ss->searchSpaceType->present,
-                                    mac->type0_PDCCH_CSS_config.num_rbs,
+                                    common_dci_bwp_size,
                                     alt_size);
     if (dci_size == 0)
       return;

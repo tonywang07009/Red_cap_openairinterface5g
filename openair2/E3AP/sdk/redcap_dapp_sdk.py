@@ -27,7 +27,9 @@ class RedCapDappGuardResult:
     reason: str
 
 
-REDCAP_DAPP_TEST_BWP_PRBS = 5
+REDCAP_DAPP_TEST_BWP_MHZ = 5
+REDCAP_DAPP_TEST_BWP_PRBS_30KHZ = 12
+REDCAP_DAPP_TEST_BWP_PRBS_30KHZ_COMPAT = 11
 
 
 @dataclass(frozen=True)
@@ -70,6 +72,10 @@ def _ratio_to_prbs(bwp_prbs: int, ratio_permille: int) -> int:
     return (bwp_prbs * ratio_permille + 999) // 1000
 
 
+def _is_5mhz_bwp_profile(bwp_prbs: int) -> bool:
+    return bwp_prbs in {REDCAP_DAPP_TEST_BWP_PRBS_30KHZ, REDCAP_DAPP_TEST_BWP_PRBS_30KHZ_COMPAT}
+
+
 def redcap_dapp_guard_prb_allocation(
     request: RedCapDappPrbAllocationRequest | None,
 ) -> RedCapDappPrbAllocationResult:
@@ -81,9 +87,9 @@ def redcap_dapp_guard_prb_allocation(
         return RedCapDappPrbAllocationResult(
             RedCapDappGuardDecision.NACK, 0, 0, request.priority_weight, "missing_iq_samples", ""
         )
-    if request.bwp_prbs != REDCAP_DAPP_TEST_BWP_PRBS:
+    if not _is_5mhz_bwp_profile(request.bwp_prbs):
         return RedCapDappPrbAllocationResult(
-            RedCapDappGuardDecision.NACK, 0, 0, request.priority_weight, "unsupported_bwp_prbs", ""
+            RedCapDappGuardDecision.NACK, 0, 0, request.priority_weight, "unsupported_5mhz_bwp_profile", ""
         )
     if (
         request.pucch_ratio_permille > 1000
@@ -115,14 +121,14 @@ def _self_check() -> None:
     assert not redcap_dapp_guard_allows_apply(bad)
     assert bad.reason == "outside_contract_range"
     allocation = redcap_dapp_guard_prb_allocation(
-        RedCapDappPrbAllocationRequest(0xE349, REDCAP_DAPP_TEST_BWP_PRBS, 200, 600, 15, True)
+        RedCapDappPrbAllocationRequest(0xE349, REDCAP_DAPP_TEST_BWP_PRBS_30KHZ, 200, 600, 15, True)
     )
     missing_iq = redcap_dapp_guard_prb_allocation(
-        RedCapDappPrbAllocationRequest(0xE349, REDCAP_DAPP_TEST_BWP_PRBS, 200, 600, 15, False)
+        RedCapDappPrbAllocationRequest(0xE349, REDCAP_DAPP_TEST_BWP_PRBS_30KHZ, 200, 600, 15, False)
     )
     assert redcap_dapp_prb_allocation_allows_apply(allocation)
-    assert allocation.pucch_prbs == 1
-    assert allocation.pusch_prbs == 3
+    assert allocation.pucch_prbs == 3
+    assert allocation.pusch_prbs == 8
     assert allocation.marker == "RedCap dApp PRB decision"
     assert not redcap_dapp_prb_allocation_allows_apply(missing_iq)
     assert missing_iq.reason == "missing_iq_samples"

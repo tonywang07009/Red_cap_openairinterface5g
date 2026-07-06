@@ -27,6 +27,11 @@ static uint16_t redcap_dapp_ratio_to_prbs(uint16_t bwp_prbs, uint16_t ratio_perm
   return (uint16_t)((bwp_prbs * ratio_permille + 999u) / 1000u);
 }
 
+static bool redcap_dapp_is_5mhz_bwp_profile(uint16_t bwp_prbs)
+{
+  return bwp_prbs == REDCAP_DAPP_TEST_BWP_PRBS_30KHZ || bwp_prbs == REDCAP_DAPP_TEST_BWP_PRBS_30KHZ_COMPAT;
+}
+
 redcap_dapp_prb_allocation_result_t redcap_dapp_guard_prb_allocation(
     const redcap_dapp_prb_allocation_request_t *request)
 {
@@ -40,9 +45,9 @@ redcap_dapp_prb_allocation_result_t redcap_dapp_guard_prb_allocation(
     return (redcap_dapp_prb_allocation_result_t){REDCAP_DAPP_GUARD_NACK, 0, 0, request->priority_weight,
                                                  "missing_iq_samples", ""};
 
-  if (request->bwp_prbs != REDCAP_DAPP_TEST_BWP_PRBS)
+  if (!redcap_dapp_is_5mhz_bwp_profile(request->bwp_prbs))
     return (redcap_dapp_prb_allocation_result_t){REDCAP_DAPP_GUARD_NACK, 0, 0, request->priority_weight,
-                                                 "unsupported_bwp_prbs", ""};
+                                                 "unsupported_5mhz_bwp_profile", ""};
 
   if (request->pucch_ratio_permille > 1000 || request->pusch_ratio_permille > 1000 ||
       request->pucch_ratio_permille + request->pusch_ratio_permille > 1000)

@@ -40,7 +40,7 @@ def main() -> int:
     allocation = dapp.redcap_dapp_guard_prb_allocation(
         dapp.RedCapDappPrbAllocationRequest(
             rnti=top.rnti,
-            bwp_prbs=dapp.REDCAP_DAPP_TEST_BWP_PRBS,
+            bwp_prbs=dapp.REDCAP_DAPP_TEST_BWP_PRBS_30KHZ,
             pucch_ratio_permille=200,
             pusch_ratio_permille=600,
             priority_weight=top.priority_weight,
@@ -48,25 +48,25 @@ def main() -> int:
         )
     )
     assert dapp.redcap_dapp_prb_allocation_allows_apply(allocation)
-    assert allocation.pucch_prbs == 1
-    assert allocation.pusch_prbs == 3
+    assert allocation.pucch_prbs == 3
+    assert allocation.pusch_prbs == 8
     assert allocation.priority_weight == top.priority_weight
     assert allocation.marker == "RedCap dApp PRB decision"
 
     missing_iq = dapp.redcap_dapp_guard_prb_allocation(
-        dapp.RedCapDappPrbAllocationRequest(top.rnti, dapp.REDCAP_DAPP_TEST_BWP_PRBS, 200, 600, 7, False)
+        dapp.RedCapDappPrbAllocationRequest(top.rnti, dapp.REDCAP_DAPP_TEST_BWP_PRBS_30KHZ, 200, 600, 7, False)
     )
     assert not dapp.redcap_dapp_prb_allocation_allows_apply(missing_iq)
     assert missing_iq.reason == "missing_iq_samples"
 
     bad_bwp = dapp.redcap_dapp_guard_prb_allocation(
-        dapp.RedCapDappPrbAllocationRequest(top.rnti, 6, 200, 600, 7, True)
+        dapp.RedCapDappPrbAllocationRequest(top.rnti, 51, 200, 600, 7, True)
     )
     assert not dapp.redcap_dapp_prb_allocation_allows_apply(bad_bwp)
-    assert bad_bwp.reason == "unsupported_bwp_prbs"
+    assert bad_bwp.reason == "unsupported_5mhz_bwp_profile"
 
     bad_ratio = dapp.redcap_dapp_guard_prb_allocation(
-        dapp.RedCapDappPrbAllocationRequest(top.rnti, dapp.REDCAP_DAPP_TEST_BWP_PRBS, 800, 400, 7, True)
+        dapp.RedCapDappPrbAllocationRequest(top.rnti, dapp.REDCAP_DAPP_TEST_BWP_PRBS_30KHZ, 800, 400, 7, True)
     )
     assert not dapp.redcap_dapp_prb_allocation_allows_apply(bad_ratio)
     assert bad_ratio.reason == "invalid_prb_ratio"

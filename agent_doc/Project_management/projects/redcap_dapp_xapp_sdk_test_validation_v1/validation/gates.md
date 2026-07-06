@@ -60,6 +60,7 @@
   - Build path: `CMakeLists.txt` compiles `openair2/E3AP/sdk/redcap_dapp_sdk.c` into `MAC_NR_SRC`.
   - Runtime switch: `OAI_REDCAP_DAPP_GATE_D_MARKER=1`
   - Runtime env passthrough: `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.mmtc.yml` and `scripts/generate_mmtc_overlay.sh` expose `OAI_REDCAP_DAPP_GATE_D_MARKER` to the gNB container with default `0`.
+  - 5 MHz BWP profile: `ci-scripts/conf_files/gnb.sa.band78.fr1.106PRB.usrpb210.redcap.5mhz-bwp.yaml` keeps the 106 PRB RF carrier and configures BWP1 plus RedCap DL/UL initial BWP as 12 PRBs at 30 kHz SCS `[Needs Verification]`.
   - ULSCH hook point: `post_process_ulsch()` calls the dApp PRB guard after `config_uldci()` and before `fill_dci_pdu_rel15()`.
   - PUCCH hook point: `nr_fill_nfapi_pucch()` calls the dApp PRB guard after `nr_configure_pucch()`.
 - [dev_refer References]:
@@ -71,8 +72,21 @@
   - `python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/gate_d_rfsim_marker_check.py`
 - [Build Evidence]:
   - `test_log/build_logs/build_nr-softmodem_2026-07-06_gate-d-pucch-marker.log`
+  - `test_log/build_logs/build_nr-softmodem_2026-07-06_17-28-49_gate-d-dci-bits.log`
+  - `test_log/build_logs/build_nr-uesoftmodem_2026-07-06_17-29-03_gate-d-dci-bits.log`
 - [Runtime Runner]:
-  - `python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/gate_d_rfsim_marker_check.py --gnb-log <gNB-log-path> --require-runtime --require-bwp-prbs 5`
+  - `cd ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap`
+  - `GNB_REDCAP_CONFIG=../../conf_files/gnb.sa.band78.fr1.106PRB.usrpb210.redcap.5mhz-bwp.yaml MMTC_N_RB_DL=106 OAI_REDCAP_DAPP_GATE_D_MARKER=1 docker compose -f docker-compose.yml -f docker-compose.mmtc.yml up -d oai-gnb oai-nr-ue2`
+  - `python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/gate_d_rfsim_marker_check.py --gnb-log <gNB-log-path> --ue-log <UE-log-path> --require-runtime --require-bwp-mhz 5`
+- [Runtime Evidence 2026-07-06]:
+  - gNB log: `test_log/runtime_logs/gate_d_5mhz_gnb_2026-07-06_17-16-57.log`.
+  - UE2 log: `test_log/runtime_logs/gate_d_5mhz_ue2_2026-07-06_17-16-57.log`.
+  - gNB observed `[RedCap RA][gNB Msg2 BWP selected]` with `dl_bwp_size 12` and `ul_bwp_size 12`.
+  - gNB observed `[RedCap RA][gNB Msg2 DCI]` with `bwp_size 12`.
+  - UE2 observed `SIB1 RedCap initial BWP decision` and applied DL/UL BWP size `12`.
+  - Old-log root cause: gNB RedCap Msg2 DCI used `dci_bits 35`, while UE RedCap RA DCI config expected `dci_bits 39`.
+  - Source fix: `openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_RA.c` and `openair2/LAYER2/NR_MAC_UE/nr_ue_dci_configuration.c` now use current DL BWP size for RedCap Case B RA common DCI sizing.
+  - Gate D checker still exits non-zero because the log lacks `[RedCap dApp Gate D][gNB MAC UL]` and `[RedCap dApp Gate D][gNB MAC PUCCH]`.
 - [Evidence]:
   - UE attach/PDU health.
   - xApp priority hint marker.
@@ -81,12 +95,12 @@
   - gNB-side PUCCH marker: `[RedCap dApp Gate D][gNB MAC PUCCH] gNB-side PUCCH marker`
   - PDCCH command path marker from ULSCH `config_uldci()` / `fill_dci_pdu_rel15()` mapping `[Needs Verification: TS 38.212 Section 7.3.1.1 / TS 38.214 Section 6.1]`.
 - [Limitation]: current hooks prove ULSCH/PUSCH/PDCCH and PUCCH FAPI marker paths. They do not yet implement dApp policy rewrite of PUCCH/PUSCH allocation.
-- [Runtime Blocker]: local RedCap RFsim configs inspected in this pass expose 106/51 PRB carriers and RedCap initial BWP size 51; no ready 5 PRB BWP gNB config was found. Gate D runtime cannot pass the `--require-bwp-prbs 5` check until that config exists and the gNB image/container is rebuilt/recreated with `OAI_REDCAP_DAPP_GATE_D_MARKER=1`.
-- [Status]: source hook readiness and `nr-softmodem` build PASS; RFsim runtime pending.
+- [Runtime Blocker]: post-fix Docker image rebuild/RFsim recreate was rejected because workspace credits are unavailable. The old runtime remains useful only as failure evidence; it must not be treated as post-fix validation.
+- [Status]: source hook readiness, 5 MHz BWP profile readiness, gNB/UE build PASS, and pre-fix 5 MHz RA/SIB1 failure evidence are present; post-fix Gate D dApp marker validation remains pending.
 
-## Gate E: 56 UE / 5 PRB BWP Stress
+## Gate E: 56 UE / 5 MHz BWP Stress
 
-- [Scope]: user-requested 56 RedCap UE scenario with 5 PRB BWP.
+- [Scope]: user-requested 56 RedCap UE scenario with 5 MHz BWP switching/profile validation.
 - [Evidence]:
   - attach/PDU health summary.
   - dApp/xApp marker sequence.

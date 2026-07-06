@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Staged dApp/xApp SDK Validation Gates
-The project SHALL define staged validation gates for RedCap dApp/xApp SDK testing: SDK unit checks, SWIG checks, E3 loopback checks, small RFsim marker validation, and 56 UE / 5 PRB BWP stress validation.
+The project SHALL define staged validation gates for RedCap dApp/xApp SDK testing: SDK unit checks, SWIG checks, E3 loopback checks, small RFsim marker validation, and 56 UE / 5 MHz BWP stress validation.
 
 #### Scenario: Gate list is discoverable
 - **WHEN** the validation project documentation is inspected
@@ -9,7 +9,7 @@ The project SHALL define staged validation gates for RedCap dApp/xApp SDK testin
 
 #### Scenario: 56 UE stress is not used as static proof
 - **WHEN** only static checks have passed
-- **THEN** the project does not claim 56 UE / 5 PRB BWP runtime PASS
+- **THEN** the project does not claim 56 UE / 5 MHz BWP runtime PASS
 
 ### Requirement: dev_refer-First Reference Coverage
 The validation workflow SHALL use local `dev_refer/` content as the primary reference for dApp/xApp SDK tests.
@@ -26,11 +26,11 @@ The validation workflow SHALL use local `dev_refer/` content as the primary refe
 The dApp SDK test contract SHALL model I/Q observation input, UE priority hints, PUCCH/PUSCH PRB ratio intent, and apply/reject decisions.
 
 #### Scenario: dApp contract rejects invalid inputs
-- **WHEN** a dApp allocation request has missing I/Q metadata, invalid RNTI, invalid BWP PRB count, or PUCCH/PUSCH ratios outside the accepted range
+- **WHEN** a dApp allocation request has missing I/Q metadata, invalid RNTI, invalid 5 MHz BWP profile marker, or PUCCH/PUSCH ratios outside the accepted range
 - **THEN** the SDK test helper returns a reject decision with a reason string
 
 #### Scenario: dApp contract accepts a bounded allocation
-- **WHEN** a dApp allocation request has valid RNTI, 5 PRB BWP, bounded PUCCH/PUSCH ratios, and a non-negative UE priority
+- **WHEN** a dApp allocation request has valid RNTI, a 5 MHz BWP profile marker, bounded PUCCH/PUSCH ratios, and a non-negative UE priority
 - **THEN** the SDK test helper returns an apply decision and exposes expected marker fields
 
 ### Requirement: xApp Priority Hint Contract

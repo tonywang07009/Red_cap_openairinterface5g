@@ -27,7 +27,9 @@ typedef struct {
 } redcap_dapp_guard_result_t;
 
 enum {
-  REDCAP_DAPP_TEST_BWP_PRBS = 5,
+  REDCAP_DAPP_TEST_BWP_MHZ = 5,
+  REDCAP_DAPP_TEST_BWP_PRBS_30KHZ = 12,
+  REDCAP_DAPP_TEST_BWP_PRBS_30KHZ_COMPAT = 11,
 };
 
 typedef struct {

@@ -27,6 +27,10 @@ def require_text(path: str, needle: str, errors: list[str]) -> None:
     require(needle in read(path), f"{path} missing text: {needle}", errors)
 
 
+def reject_text(path: str, needle: str, errors: list[str]) -> None:
+    require(needle not in read(path), f"{path} has stale text: {needle}", errors)
+
+
 def check_reference_paths(errors: list[str]) -> None:
     for path in [
         "dev_refer/dapp_dev_need/libe3",
@@ -54,9 +58,14 @@ def check_sdk_symbols(errors: list[str]) -> None:
     require_text("openair2/E2AP/REDCAP_SDK/xapp/redcap_xapp_sdk.py", "RedCapPriorityHint", errors)
     require_text("openair2/E2AP/REDCAP_SDK/xapp/redcap_xapp_sdk.py", "select_top_priority_hint", errors)
     require_text("openair2/E3AP/sdk/redcap_dapp_sdk.h", "redcap_dapp_prb_allocation_request_t", errors)
+    require_text("openair2/E3AP/sdk/redcap_dapp_sdk.h", "REDCAP_DAPP_TEST_BWP_MHZ = 5", errors)
+    require_text("openair2/E3AP/sdk/redcap_dapp_sdk.h", "REDCAP_DAPP_TEST_BWP_PRBS_30KHZ = 12", errors)
     require_text("openair2/E3AP/sdk/redcap_dapp_sdk.c", "redcap_dapp_guard_prb_allocation", errors)
+    require_text("openair2/E3AP/sdk/redcap_dapp_sdk.c", "unsupported_5mhz_bwp_profile", errors)
     require_text("openair2/E3AP/sdk/redcap_dapp_sdk.py", "RedCapDappPrbAllocationRequest", errors)
     require_text("openair2/E3AP/sdk/redcap_dapp_sdk.py", "RedCap dApp PRB decision", errors)
+    require_text("openair2/E3AP/sdk/redcap_dapp_sdk.py", "REDCAP_DAPP_TEST_BWP_MHZ = 5", errors)
+    require_text("openair2/E3AP/sdk/redcap_dapp_sdk.py", "REDCAP_DAPP_TEST_BWP_PRBS_30KHZ = 12", errors)
 
 
 def check_swig_evidence(errors: list[str]) -> list[str]:
@@ -92,6 +101,7 @@ def check_docs(errors: list[str]) -> None:
         "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/README.en.md",
         "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/README.zh-TW.md",
         "agent_doc/Project_management/projects/redcap_oran_sdk_workflow_v3/project_plan.md",
+        "ci-scripts/conf_files/gnb.sa.band78.fr1.106PRB.usrpb210.redcap.5mhz-bwp.yaml",
         "openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_ulsch.c",
         "openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_uci.c",
         "ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.mmtc.yml",
@@ -108,6 +118,10 @@ def check_docs(errors: list[str]) -> None:
             require(needle in text, f"{doc} missing section: {needle}", errors)
         require("runtime PASS" in text and ("do not claim" in text or "不代表" in text),
                 f"{doc} must explicitly avoid runtime PASS overclaim", errors)
+        require("5 MHz BWP" in text and "--require-bwp-mhz 5" in text,
+                f"{doc} missing 5 MHz BWP Gate D command wording", errors)
+        require("gnb.sa.band78.fr1.106PRB.usrpb210.redcap.5mhz-bwp.yaml" in text,
+                f"{doc} missing 5 MHz BWP profile path", errors)
 
     gates = (PROJECT / "validation/gates.md").read_text(encoding="utf-8")
     for gate in ["Gate A", "Gate B", "Gate C", "Gate D", "Gate E"]:
@@ -127,6 +141,35 @@ def check_docs(errors: list[str]) -> None:
                 f"{doc} missing Gate C configure evidence command/blocker", errors)
         require("gate_d_rfsim_marker_check.py" in text and "OAI_REDCAP_DAPP_GATE_D_MARKER" in text,
                 f"{doc} missing Gate D marker checker/env usage", errors)
+
+    five_mhz_profile = read("ci-scripts/conf_files/gnb.sa.band78.fr1.106PRB.usrpb210.redcap.5mhz-bwp.yaml")
+    for needle in [
+        "dl_carrierBandwidth: 106",
+        "ul_carrierBandwidth: 106",
+        "first_active_bwp: 1",
+        "bwpSize: 12",
+        "initialDLBWPSize_r17: 12",
+        "initialULBWPSize_r17: 12",
+        "coreset0_redcap_mode_r17: 1",
+    ]:
+        require(needle in five_mhz_profile, f"5 MHz BWP profile missing text: {needle}", errors)
+
+    for path in [
+        "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/project_plan.md",
+        "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/agent_rules.md",
+        "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/validation/gates.md",
+        "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/followups/workflow_v3_followups.md",
+        "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/README.en.md",
+        "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/README.zh-TW.md",
+        "agent_doc/Project_management/projects/redcap_oran_sdk_workflow_v3/project_plan.md",
+        "openspec/changes/redcap-dapp-xapp-sdk-test-validation/proposal.md",
+        "openspec/changes/redcap-dapp-xapp-sdk-test-validation/design.md",
+        "openspec/changes/redcap-dapp-xapp-sdk-test-validation/specs/redcap-dapp-xapp-sdk-test-validation/spec.md",
+        "openspec/changes/redcap-dapp-xapp-sdk-test-validation/tasks.md",
+    ]:
+        reject_text(path, "5 PRB BWP", errors)
+        reject_text(path, "bwp_prbs 5", errors)
+        reject_text(path, "--require-bwp-prbs 5", errors)
 
     gnb_ulsch = read("openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_ulsch.c")
     require("redcap_dapp_guard_prb_allocation" in gnb_ulsch and "gNB-side apply marker" in gnb_ulsch,
