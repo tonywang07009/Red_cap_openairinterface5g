@@ -1235,6 +1235,7 @@ set (MAC_NR_SRC
   ${NR_GNB_MAC_DIR}/nr_mac_redcap_bwp.c
   ${NR_GNB_MAC_DIR}/nr_mac_sdt_fsm.c
   ${NR_GNB_MAC_DIR}/nr_radio_config.c
+  ${OPENAIR2_DIR}/E3AP/sdk/redcap_dapp_sdk.c
  )
 
 

@@ -27,11 +27,96 @@
  */
 
 #include <softmodem-common.h>
+#include "E3AP/sdk/redcap_dapp_sdk.h"
 #include "NR_MAC_gNB/nr_mac_gNB.h"
 #include "NR_MAC_gNB/mac_proto.h"
 #include "common/ran_context.h"
 #include "common/utils/nr/nr_common.h"
 #include "nfapi/oai_integration/vendor_ext.h"
+#include <stdlib.h>
+#include <string.h>
+
+#define NR_REDCAP_DAPP_GATE_D_MARKER_ENV "OAI_REDCAP_DAPP_GATE_D_MARKER"
+
+static bool nr_redcap_dapp_gate_d_marker_enabled(void)
+{
+  static int cached_enabled = -1;
+  if (cached_enabled >= 0)
+    return cached_enabled == 1;
+
+  const char *env = getenv(NR_REDCAP_DAPP_GATE_D_MARKER_ENV);
+  cached_enabled = env != NULL
+                   && env[0] != '\0'
+                   && strcmp(env, "0") != 0
+                   && strcmp(env, "false") != 0
+                   && strcmp(env, "FALSE") != 0;
+  return cached_enabled == 1;
+}
+
+static uint16_t nr_redcap_dapp_ratio_permille(uint16_t value, uint16_t total)
+{
+  if (total == 0)
+    return 0;
+
+  const uint32_t permille = ((uint32_t)value * 1000u + total - 1u) / total;
+  return (uint16_t)(permille > 1000u ? 1000u : permille);
+}
+
+static void nr_redcap_dapp_note_gate_d_pucch_decision(frame_t frame,
+                                                      slot_t slot,
+                                                      const NR_sched_pucch_t *pucch,
+                                                      const nfapi_nr_pucch_pdu_t *pucch_pdu,
+                                                      const NR_UE_info_t *UE)
+{
+  if (!nr_redcap_dapp_gate_d_marker_enabled()
+      || pucch == NULL
+      || pucch_pdu == NULL
+      || UE == NULL)
+    return;
+
+  redcap_dapp_prb_allocation_request_t request = {
+      .rnti = UE->rnti,
+      .bwp_prbs = pucch_pdu->bwp_size,
+      .pucch_ratio_permille = nr_redcap_dapp_ratio_permille(pucch_pdu->prb_size, pucch_pdu->bwp_size),
+      .pusch_ratio_permille = 0,
+      .priority_weight = 1,
+      .has_iq_samples = true,
+  };
+  const redcap_dapp_prb_allocation_result_t result = redcap_dapp_guard_prb_allocation(&request);
+
+  if (redcap_dapp_prb_allocation_allows_apply(&result)) {
+    LOG_A(NR_MAC,
+          "[RedCap dApp Gate D][gNB MAC PUCCH] gNB-side PUCCH marker RNTI %04x frame.slot %d.%d "
+          "pucch_frame.slot %d.%d bwp_prbs %u prb_start %u prb_size %u pucch_ratio_permille %u "
+          "format %u sr %u harq_bits %u csi_bits %u marker \"%s\"\n",
+          UE->rnti,
+          frame,
+          slot,
+          pucch->frame,
+          pucch->ul_slot,
+          (unsigned)pucch_pdu->bwp_size,
+          (unsigned)pucch_pdu->prb_start,
+          (unsigned)pucch_pdu->prb_size,
+          (unsigned)request.pucch_ratio_permille,
+          (unsigned)pucch_pdu->format_type,
+          (unsigned)pucch_pdu->sr_flag,
+          (unsigned)pucch_pdu->bit_len_harq,
+          (unsigned)pucch_pdu->bit_len_csi_part1,
+          result.marker);
+  } else {
+    LOG_W(NR_MAC,
+          "[RedCap dApp Gate D][gNB MAC PUCCH] dApp PUCCH decision rejected RNTI %04x frame.slot %d.%d "
+          "bwp_prbs %u prb_start %u prb_size %u reason %s\n",
+          UE->rnti,
+          frame,
+          slot,
+          (unsigned)pucch_pdu->bwp_size,
+          (unsigned)pucch_pdu->prb_start,
+          (unsigned)pucch_pdu->prb_size,
+          result.reason);
+  }
+}
+
 static void nr_fill_nfapi_pucch(gNB_MAC_INST *nrmac, frame_t frame, slot_t slot, const NR_sched_pucch_t *pucch, NR_UE_info_t* UE)
 {
 
@@ -96,6 +181,7 @@ static void nr_fill_nfapi_pucch(gNB_MAC_INST *nrmac, frame_t frame, slot_t slot,
                      pucch->sr_flag,
                      pucch->r_pucch,
                      nrmac->beam_info.beam_mode);
+  nr_redcap_dapp_note_gate_d_pucch_decision(frame, slot, pucch, pucch_pdu, UE);
 }
 
 #define MIN_RSRP_VALUE -141
@@ -1359,4 +1445,3 @@ void nr_sr_reporting(gNB_MAC_INST *nrmac, frame_t SFN, slot_t slot)
     }
   }
 }
-

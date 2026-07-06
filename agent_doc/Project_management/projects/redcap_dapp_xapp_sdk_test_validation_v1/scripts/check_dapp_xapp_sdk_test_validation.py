@@ -86,9 +86,19 @@ def check_docs(errors: list[str]) -> None:
         "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/validation/gates.md",
         "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/followups/workflow_v3_followups.md",
         "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/gate_c_e3_loopback_check.py",
+        "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/gate_d_rfsim_marker_check.py",
+        "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/third_party/tl_expected_gate_c_stub/CMakeLists.txt",
+        "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/third_party/tl_expected_gate_c_stub/include/tl/expected.hpp",
         "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/README.en.md",
         "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/README.zh-TW.md",
         "agent_doc/Project_management/projects/redcap_oran_sdk_workflow_v3/project_plan.md",
+        "openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_ulsch.c",
+        "openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_uci.c",
+        "ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.mmtc.yml",
+        "ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/scripts/generate_mmtc_overlay.sh",
+        "dev_refer/dapp_dev_need/E3Controller/README.md",
+        "dev_refer/dapp_dev_need/E3Controller/src/e3sm/iq_pipeline.h",
+        "dev_refer/dapp_dev_need/E3Controller/src/e3sm/slot_iq_pipeline.h",
     ]:
         require_path(path, errors)
 
@@ -104,8 +114,8 @@ def check_docs(errors: list[str]) -> None:
         require(gate in gates, f"validation/gates.md missing {gate}", errors)
     require("gate_c_e3_loopback_check.py" in gates,
             "validation/gates.md missing Gate C runner command", errors)
-    require("tl_expected" in gates and "Configure Evidence" in gates and "workspace credits" in gates,
-            "validation/gates.md missing Gate C configure blocker evidence", errors)
+    require("tl_expected" in gates and "Runtime Evidence" in gates and "183 us" in gates,
+            "validation/gates.md missing Gate C runtime/latency evidence", errors)
 
     workflow_v3_plan = read("agent_doc/Project_management/projects/redcap_oran_sdk_workflow_v3/project_plan.md")
     require("redcap_dapp_xapp_sdk_test_validation_v1/followups/workflow_v3_followups.md" in workflow_v3_plan,
@@ -113,8 +123,33 @@ def check_docs(errors: list[str]) -> None:
 
     for doc in ["Doc/README.en.md", "Doc/README.zh-TW.md"]:
         text = (PROJECT / doc).read_text(encoding="utf-8")
-        require("--try-configure" in text and "--allow-fetch" in text and "tl::expected" in text,
+        require("--try-configure" in text and "--use-local-expected-stub" in text and "183 us" in text,
                 f"{doc} missing Gate C configure evidence command/blocker", errors)
+        require("gate_d_rfsim_marker_check.py" in text and "OAI_REDCAP_DAPP_GATE_D_MARKER" in text,
+                f"{doc} missing Gate D marker checker/env usage", errors)
+
+    gnb_ulsch = read("openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_ulsch.c")
+    require("redcap_dapp_guard_prb_allocation" in gnb_ulsch and "gNB-side apply marker" in gnb_ulsch,
+            "gNB ULSCH missing Gate D dApp PRB guard marker", errors)
+    require("nr_redcap_dapp_note_gate_d_ul_prb_decision(UE, frame, slot" in gnb_ulsch,
+            "gNB ULSCH missing Gate D marker call", errors)
+    gnb_uci = read("openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_uci.c")
+    require("redcap_dapp_guard_prb_allocation" in gnb_uci and "gNB-side PUCCH marker" in gnb_uci,
+            "gNB UCI missing Gate D dApp PUCCH guard marker", errors)
+    require("nr_redcap_dapp_note_gate_d_pucch_decision(frame, slot, pucch, pucch_pdu, UE)" in gnb_uci,
+            "gNB UCI missing Gate D PUCCH marker call", errors)
+    require("redcap_dapp_sdk.c" in read("CMakeLists.txt"),
+            "CMakeLists.txt missing redcap_dapp_sdk.c in build source list", errors)
+    require("OAI_REDCAP_DAPP_GATE_D_MARKER" in read("ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.mmtc.yml"),
+            "docker-compose.mmtc.yml missing Gate D marker env passthrough", errors)
+    require("OAI_REDCAP_DAPP_GATE_D_MARKER" in read("ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/scripts/generate_mmtc_overlay.sh"),
+            "generate_mmtc_overlay.sh missing Gate D marker env passthrough", errors)
+    require("--num-prbs" in read("dev_refer/dapp_dev_need/E3Controller/README.md"),
+            "E3Controller README missing --num-prbs reference for dApp PRB gate", errors)
+    require("DecompressedSample" in read("dev_refer/dapp_dev_need/E3Controller/src/e3sm/iq_pipeline.h"),
+            "E3Controller iq_pipeline.h missing I/Q sample reference", errors)
+    require("SlotSample" in read("dev_refer/dapp_dev_need/E3Controller/src/e3sm/slot_iq_pipeline.h"),
+            "E3Controller slot_iq_pipeline.h missing slot I/Q sample reference", errors)
 
 
 def main() -> int:

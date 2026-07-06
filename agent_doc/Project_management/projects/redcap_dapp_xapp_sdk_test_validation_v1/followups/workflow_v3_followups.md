@@ -9,13 +9,16 @@
 
 | ID | Source Gate | Gap | Next Pull Item | Status |
 |---|---|---|---|---|
-| DXV-FU-001 | Gate C | `tl::expected` target/cache is not available; sandbox fetch cannot resolve GitHub and escalation was rejected due workspace credits | provide local `tl_expected` cache or restore credits/network access, then build `test_role_pair_posix` from `dev_refer/dapp_dev_need/libe3` | [blocked-external-dependency] |
-| DXV-FU-002 | Gate D | dApp/gNB runtime marker not implemented | define exact OAI hook and marker before RFsim | [pending] |
 | DXV-FU-003 | Gate E | 56 UE / 5 PRB BWP not validated | run only after Gate D passes | [pending] |
-| DXV-FU-004 | Gate D/E | PDCCH command path is `[Needs Verification]` | map source hook and 3GPP/O-RAN reference before claim | [pending] |
-| DXV-FU-005 | Gate C | Gate C runner exists but has not produced runtime PASS | rerun `gate_c_e3_loopback_check.py --try-configure --allow-fetch` after network/credits are available, or rerun `--try-configure` after local cache is present | [pending] |
+| DXV-FU-004 | Gate D/E | PDCCH command path still needs runtime and clause verification | validate Gate D RFsim log and verify TS 38.212/38.214 mapping | [pending] |
+| DXV-FU-005 | Gate C | Official `tl_expected` dependency was not fetched; Gate C used local test shim | replace shim with official cache/network dependency before production dependency claims | [pending] |
+| DXV-FU-007 | Gate D/E | dApp policy rewrite of PUCCH/PUSCH allocation not implemented | implement policy apply after Gate D marker runtime passes | [pending] |
+| DXV-FU-008 | Gate D/E | ready 5 PRB BWP RFsim gNB config not found | add or validate a 5 PRB BWP gNB config before requiring `bwp_prbs 5` runtime markers | [pending] |
 
 ## Closed Follow-ups
 
 | ID | Source Gate | Resolution | Evidence |
 |---|---|---|---|
+| DXV-FU-001 | Gate C | E3 POSIX loopback and latency benchmark passed with local `tl_expected` test shim | `test_log/compiler_logs/gate_c_libe3_runtime_test_role_pair_posix_2026-07-06_11-58-08.log`; `test_log/compiler_logs/gate_c_libe3_runtime_test_bench_full_loop_latency_2026-07-06_11-58-23.log` |
+| DXV-FU-002 | Gate D | dApp/gNB source marker hook implemented in the ULSCH/PUSCH/PDCCH path | `openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_ulsch.c`; `agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/gate_d_rfsim_marker_check.py` |
+| DXV-FU-006 | Gate D | PUCCH marker hook mapped and implemented after `nr_configure_pucch()` | `openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_uci.c`; `agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/gate_d_rfsim_marker_check.py` |

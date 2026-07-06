@@ -28,6 +28,10 @@ PREFERRED_BINARY_NAMES = (
 
 DEFAULT_BUILD_DIR = LIBE3 / "build/redcap-gate-c"
 DEFAULT_LOG_DIR = ROOT / "test_log/compiler_logs"
+LOCAL_EXPECTED_STUB = ROOT / (
+    "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/"
+    "third_party/tl_expected_gate_c_stub"
+)
 ASN1C_CANDIDATES = (Path("/opt/asn1c/bin/asn1c"),)
 
 
@@ -95,10 +99,10 @@ def require_source_evidence(errors: list[str]) -> None:
         errors.append(f"{rel(MESSAGES_CMAKE)} missing asn1c requirement evidence")
 
 
-def discover_binaries() -> list[Path]:
+def discover_binaries(search_root: Path = LIBE3) -> list[Path]:
     found: list[Path] = []
     for name in PREFERRED_BINARY_NAMES:
-        for path in LIBE3.rglob(name):
+        for path in search_root.rglob(name):
             if path.is_file() and path.stat().st_mode & 0o111:
                 found.append(path)
     return sorted(set(found), key=lambda p: (PREFERRED_BINARY_NAMES.index(p.name), str(p)))
@@ -145,12 +149,16 @@ def dependency_status() -> tuple[list[str], list[str]]:
     return blockers, warnings
 
 
-def run_binary(binary: Path, timeout_s: int) -> int:
+def run_binary(binary: Path, timeout_s: int, log_dir: Path) -> int:
+    binary = binary.resolve()
     cmd = [str(binary)]
     if binary.name in {"test_bench_full_loop_latency", "bench_full_loop_latency"}:
         cmd.extend(["--link", "posix", "--transport", "ipc", "--encoding", "asn1"])
 
     print(f"[INFO] running Gate C binary: {rel(binary)}")
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_path = log_dir / f"gate_c_libe3_runtime_{binary.name}_{timestamp()}.log"
+    print(f"[INFO] log: {rel(log_path)}")
     completed = subprocess.run(
         cmd,
         cwd=LIBE3,
@@ -160,10 +168,11 @@ def run_binary(binary: Path, timeout_s: int) -> int:
         timeout=timeout_s,
         check=False,
     )
+    log_path.write_text(completed.stdout, encoding="utf-8")
     if completed.stdout:
         print(completed.stdout.rstrip())
     if completed.returncode == 0:
-        print("[PASS] Gate C E3 loopback runtime evidence captured")
+        print(f"[PASS] Gate C E3 loopback runtime evidence captured: {rel(log_path)}")
         return 0
     print(f"[FAIL] Gate C binary exited with code {completed.returncode}")
     return 1
@@ -192,7 +201,7 @@ def run_logged(command: list[str], label: str, log_dir: Path, cwd: Path) -> tupl
     return completed.returncode, log_path
 
 
-def try_configure(build_dir: Path, log_dir: Path, allow_fetch: bool) -> int:
+def try_configure(build_dir: Path, log_dir: Path, allow_fetch: bool, use_local_expected_stub: bool) -> int:
     if not has_command("cmake"):
         print("[BLOCKED] missing command: cmake")
         return 2
@@ -209,7 +218,17 @@ def try_configure(build_dir: Path, log_dir: Path, allow_fetch: bool) -> int:
         "-DLIBE3_BUILD_INTEGRATION_TESTS=ON",
         "-DLIBE3_ENABLE_ZMQ=OFF",
     ]
-    label = "gate_c_libe3_configure_fetch" if allow_fetch else "gate_c_libe3_configure"
+    label = "gate_c_libe3_configure"
+    if use_local_expected_stub:
+        if not LOCAL_EXPECTED_STUB.exists():
+            print(f"[BLOCKED] local tl_expected stub not found: {rel(LOCAL_EXPECTED_STUB)}")
+            return 2
+        command.append(f"-DFETCHCONTENT_SOURCE_DIR_TL_EXPECTED={LOCAL_EXPECTED_STUB}")
+        label = "gate_c_libe3_configure_local_expected"
+        print(f"[WARN] using local Gate C tl_expected stub: {rel(LOCAL_EXPECTED_STUB)}")
+    elif allow_fetch:
+        label = "gate_c_libe3_configure_fetch"
+
     if allow_fetch:
         print("[WARN] network FetchContent is enabled for this configure attempt")
     else:
@@ -220,6 +239,30 @@ def try_configure(build_dir: Path, log_dir: Path, allow_fetch: bool) -> int:
         print(f"[PASS] Gate C libe3 configure completed: {rel(log_path)}")
         return 0
     print(f"[BLOCKED] Gate C libe3 configure failed: {rel(log_path)}")
+    return 2
+
+
+def try_build(build_dir: Path, log_dir: Path) -> int:
+    if not has_command("cmake"):
+        print("[BLOCKED] missing command: cmake")
+        return 2
+    if not (build_dir / "CMakeCache.txt").exists():
+        print(f"[BLOCKED] build directory is not configured: {rel(build_dir)}")
+        return 2
+
+    command = [
+        "cmake",
+        "--build",
+        str(build_dir),
+        "--target",
+        "test_role_pair_posix",
+        "test_bench_full_loop_latency",
+    ]
+    rc, log_path = run_logged(command, "gate_c_libe3_build", log_dir, ROOT)
+    if rc == 0:
+        print(f"[PASS] Gate C libe3 build completed: {rel(log_path)}")
+        return 0
+    print(f"[BLOCKED] Gate C libe3 build failed: {rel(log_path)}")
     return 2
 
 
@@ -237,6 +280,11 @@ def print_build_hint() -> None:
         "gate_c_e3_loopback_check.py --try-configure --allow-fetch"
     )
     print(
+        "  python3 -B "
+        "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/"
+        "gate_c_e3_loopback_check.py --try-configure --use-local-expected-stub"
+    )
+    print(
         "  cmake -S dev_refer/dapp_dev_need/libe3 "
         f"-B {build_dir} "
         "-DLIBE3_BUILD_INTEGRATION_TESTS=ON "
@@ -251,7 +299,10 @@ def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", type=Path, help="existing Gate C binary to run")
     parser.add_argument("--try-configure", action="store_true", help="run CMake configure and save a compiler log")
+    parser.add_argument("--try-build", action="store_true", help="build Gate C libe3 loopback binaries and save a compiler log")
     parser.add_argument("--allow-fetch", action="store_true", help="allow CMake FetchContent network access during configure")
+    parser.add_argument("--use-local-expected-stub", action="store_true",
+                        help="use the project-local tl_expected test shim instead of network FetchContent")
     parser.add_argument("--build-dir", type=Path, default=DEFAULT_BUILD_DIR, help="libe3 build directory for --try-configure")
     parser.add_argument("--log-dir", type=Path, default=DEFAULT_LOG_DIR, help="log directory for --try-configure")
     parser.add_argument("--timeout-s", type=int, default=90, help="runtime timeout for an existing binary")
@@ -271,14 +322,19 @@ def main(argv: list[str]) -> int:
         print(f"[WARN] {warning}")
 
     if args.try_configure:
-        configure_rc = try_configure(args.build_dir, args.log_dir, args.allow_fetch)
+        configure_rc = try_configure(args.build_dir, args.log_dir, args.allow_fetch, args.use_local_expected_stub)
         if configure_rc != 0:
             return configure_rc
 
-    binaries = [args.binary.resolve()] if args.binary else discover_binaries()
+    if args.try_build:
+        build_rc = try_build(args.build_dir, args.log_dir)
+        if build_rc != 0:
+            return build_rc
+
+    binaries = [args.binary.resolve()] if args.binary else discover_binaries(args.build_dir if args.try_build else LIBE3)
     existing_binaries = [path for path in binaries if path.exists() and path.is_file()]
     if existing_binaries:
-        return run_binary(existing_binaries[0], args.timeout_s)
+        return run_binary(existing_binaries[0], args.timeout_s, args.log_dir)
 
     if blockers:
         for blocker in blockers:

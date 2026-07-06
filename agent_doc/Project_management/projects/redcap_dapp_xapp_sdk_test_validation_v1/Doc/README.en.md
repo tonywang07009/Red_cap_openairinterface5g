@@ -69,6 +69,33 @@ python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_valid
 
 Current fetch evidence is saved at `test_log/compiler_logs/gate_c_libe3_configure_fetch_2026-07-05_18-46-35.log`; sandbox DNS could not resolve `github.com`, and escalation was rejected because workspace credits are unavailable.
 
+Run Gate C with the project-local expected shim:
+
+```bash
+python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/gate_c_e3_loopback_check.py --try-configure --use-local-expected-stub --try-build --build-dir dev_refer/dapp_dev_need/libe3/build/redcap-gate-c-local-expected
+```
+
+Current Gate C runtime evidence:
+
+- POSIX IPC/TCP loopback PASS: `test_log/compiler_logs/gate_c_libe3_runtime_test_role_pair_posix_2026-07-06_11-58-08.log`
+- Full-loop latency PASS: `test_log/compiler_logs/gate_c_libe3_runtime_test_bench_full_loop_latency_2026-07-06_11-58-23.log`
+- Total round-trip latency: p99 `183 us`, max `260 us`
+
+Run Gate D source readiness check:
+
+```bash
+python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/gate_d_rfsim_marker_check.py
+```
+
+Run Gate D RFsim marker scan after starting gNB with the marker environment enabled:
+
+```bash
+OAI_REDCAP_DAPP_GATE_D_MARKER=1 <start gNB/UE RFsim command>
+python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/gate_d_rfsim_marker_check.py --gnb-log <gNB-log-path> --require-runtime --require-bwp-prbs 5
+```
+
+Gate D source readiness plus `nr-softmodem` build evidence is saved at `test_log/build_logs/build_nr-softmodem_2026-07-06_gate-d-pucch-marker.log`. It proves that the gNB ULSCH/PUSCH/PDCCH path calls the dApp PRB guard after `config_uldci()`, that the PUCCH FAPI path calls the same guard after `nr_configure_pucch()`, and that the target still builds. It does not claim RFsim runtime PASS.
+
 ## Step-by-step recap
 
 1. Confirm local `dev_refer/` references exist.
@@ -77,7 +104,8 @@ Current fetch evidence is saved at `test_log/compiler_logs/gate_c_libe3_configur
 4. Confirm SWIG definition files exist for `libe3` and I/Q saver.
 5. Run the SDK contract self-test.
 6. Run the Gate C E3 loopback checker.
-7. Treat Gate C-E as pending until runtime evidence exists.
+7. Run the Gate D source readiness checker.
+8. Treat Gate D-E as pending until RFsim runtime evidence exists.
 
 ## Example logic
 
@@ -102,15 +130,23 @@ Current fetch evidence is saved at `test_log/compiler_logs/gate_c_libe3_configur
 
 - `RedCap xApp priority hint`
 - `RedCap dApp PRB decision`
+- `[RedCap dApp Gate D][gNB MAC UL] gNB-side apply marker`
+- `[RedCap dApp Gate D][gNB MAC PUCCH] gNB-side PUCCH marker`
 - Gate C source path: `dev_refer/dapp_dev_need/libe3/tests/integration/test_role_pair_posix.cpp`
-- Future runtime marker: PDCCH command path `[Needs Verification]`
+- Gate D source path: `openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_ulsch.c`
+- Gate D PUCCH source path: `openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_uci.c`
+- Gate D runtime env passthrough: `OAI_REDCAP_DAPP_GATE_D_MARKER` in `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.mmtc.yml`
+- Gate D I/Q reference: `dev_refer/dapp_dev_need/E3Controller/src/e3sm/iq_pipeline.h` and `slot_iq_pipeline.h`
+- PDCCH command path: `config_uldci()` followed by `fill_dci_pdu_rel15()` in the ULSCH path `[Needs Verification: TS 38.212 Section 7.3.1.1 / TS 38.214 Section 6.1]`
 
 ## Limitations
 
 - Gate B currently verifies SWIG definitions, not generated SWIG module runtime.
-- Gate C E3 loopback has a dependency-aware runner, but runtime PASS requires a built `libe3` loopback binary.
-- Gate C configure currently blocks at `tl::expected`; `asn1c` was detected at `/opt/asn1c/bin/asn1c`.
-- Gate C network fetch currently blocks on workspace network/credits; provide local `tl_expected` cache or restore network access.
-- Gate D small RFsim marker validation is pending.
+- Gate C E3 loopback passed with the project-local `tl_expected` test shim.
+- Official `tl_expected` FetchContent remains unavailable; do not use the local shim as production dependency evidence.
+- Gate D source hook readiness and `nr-softmodem` build PASS are present; small RFsim marker validation is pending.
+- Gate D runtime env passthrough is present in the compose overlay; the gNB container has not yet been rebuilt/recreated to produce runtime markers.
+- This pass did not find a ready 5 PRB BWP gNB config; existing RedCap YAML files still use 106/51 PRB carriers and RedCap initial BWP size 51, so `--require-bwp-prbs 5` remains pending.
+- Gate D currently covers the ULSCH/PUSCH/PDCCH and PUCCH marker paths. It does not yet implement dApp policy rewrite of PUCCH/PUSCH allocation.
 - Gate E 56 UE / 5 PRB BWP stress validation is pending.
 - Exact O-RAN and 3GPP clause mapping remains `[Needs Verification]`.

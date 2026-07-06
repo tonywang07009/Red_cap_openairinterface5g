@@ -32,18 +32,100 @@
 #include "LAYER2/NR_MAC_gNB/mac_proto.h"
 #include "executables/softmodem-common.h"
 #include "common/utils/nr/nr_common.h"
+#include "E3AP/sdk/redcap_dapp_sdk.h"
 #include "utils.h"
 #include <openair2/UTIL/OPT/opt.h>
 #include <stdlib.h>
+#include <string.h>
 #include "LAYER2/nr_rlc/nr_rlc_oai_api.h"
 
 //#define SRS_IND_DEBUG
 
 #define NR_REDCAP_SDT_LOG_PATH_ENV "OAI_REDCAP_SDT_LOG"
 #define NR_REDCAP_SDT_LOG_PATH_DEFAULT "nrMAC_redcap_sdt.log"
+#define NR_REDCAP_DAPP_GATE_D_MARKER_ENV "OAI_REDCAP_DAPP_GATE_D_MARKER"
 
 static FILE *nr_redcap_sdt_log_stream;
 static bool nr_redcap_sdt_log_open_failed;
+
+static bool nr_redcap_dapp_gate_d_marker_enabled(void)
+{
+  static int cached_enabled = -1;
+  if (cached_enabled >= 0)
+    return cached_enabled == 1;
+
+  const char *env = getenv(NR_REDCAP_DAPP_GATE_D_MARKER_ENV);
+  cached_enabled = env != NULL
+                   && env[0] != '\0'
+                   && strcmp(env, "0") != 0
+                   && strcmp(env, "false") != 0
+                   && strcmp(env, "FALSE") != 0;
+  return cached_enabled == 1;
+}
+
+static uint16_t nr_redcap_dapp_ratio_permille(uint16_t value, uint16_t total)
+{
+  if (total == 0)
+    return 0;
+
+  const uint32_t permille = ((uint32_t)value * 1000u + total - 1u) / total;
+  return (uint16_t)(permille > 1000u ? 1000u : permille);
+}
+
+static void nr_redcap_dapp_note_gate_d_ul_prb_decision(const NR_UE_info_t *UE,
+                                                       frame_t frame,
+                                                       slot_t slot,
+                                                       const NR_sched_pusch_t *sched_pusch,
+                                                       const nfapi_nr_pusch_pdu_t *pusch_pdu,
+                                                       const dci_pdu_rel15_t *uldci_payload)
+{
+  if (!nr_redcap_dapp_gate_d_marker_enabled()
+      || UE == NULL
+      || sched_pusch == NULL
+      || pusch_pdu == NULL
+      || uldci_payload == NULL)
+    return;
+
+  redcap_dapp_prb_allocation_request_t request = {
+      .rnti = UE->rnti,
+      .bwp_prbs = sched_pusch->bwp_info.bwpSize,
+      .pucch_ratio_permille = 0,
+      .pusch_ratio_permille = nr_redcap_dapp_ratio_permille(sched_pusch->rbSize, sched_pusch->bwp_info.bwpSize),
+      .priority_weight = 1,
+      .has_iq_samples = true,
+  };
+  const redcap_dapp_prb_allocation_result_t result = redcap_dapp_guard_prb_allocation(&request);
+
+  if (redcap_dapp_prb_allocation_allows_apply(&result)) {
+    LOG_A(NR_MAC,
+          "[RedCap dApp Gate D][gNB MAC UL] gNB-side apply marker RNTI %04x frame.slot %d.%d "
+          "pusch_frame.slot %d.%d bwp_prbs %u rbStart %u rbSize %u pusch_ratio_permille %u "
+          "pucch_ratio_permille %u dci_freq %u marker \"%s\"\n",
+          UE->rnti,
+          frame,
+          slot,
+          sched_pusch->frame,
+          sched_pusch->slot,
+          (unsigned)sched_pusch->bwp_info.bwpSize,
+          (unsigned)pusch_pdu->rb_start,
+          (unsigned)pusch_pdu->rb_size,
+          (unsigned)request.pusch_ratio_permille,
+          (unsigned)request.pucch_ratio_permille,
+          (unsigned)uldci_payload->frequency_domain_assignment.val,
+          result.marker);
+  } else {
+    LOG_W(NR_MAC,
+          "[RedCap dApp Gate D][gNB MAC UL] dApp PRB decision rejected RNTI %04x frame.slot %d.%d "
+          "bwp_prbs %u rbStart %u rbSize %u reason %s\n",
+          UE->rnti,
+          frame,
+          slot,
+          (unsigned)sched_pusch->bwp_info.bwpSize,
+          (unsigned)pusch_pdu->rb_start,
+          (unsigned)pusch_pdu->rb_size,
+          result.reason);
+  }
+}
 
 /**
  * @brief Return the RedCap SDT transition log stream used by the runtime scheduler path.
@@ -2834,6 +2916,7 @@ void post_process_ulsch(gNB_MAC_INST *nr_mac, post_process_pusch_t *pusch, NR_UE
                cur_harq->ndi,
                current_BWP,
                ss->searchSpaceType->present);
+  nr_redcap_dapp_note_gate_d_ul_prb_decision(UE, frame, slot, sched_pusch, pusch_pdu, &uldci_payload);
 
   // Reset TPC to 0 dB to not request new gain multiple times before computing new value for SNR
   UE->UE_sched_ctrl.tpc0 = 1;
