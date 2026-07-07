@@ -71,6 +71,78 @@ def main() -> int:
     assert not dapp.redcap_dapp_prb_allocation_allows_apply(bad_ratio)
     assert bad_ratio.reason == "invalid_prb_ratio"
 
+    low_pressure = dapp.redcap_dapp_access_pressure_policy(
+        dapp.RedCapDappAccessPressureRequest(
+            rnti=top.rnti,
+            bwp_prbs=dapp.REDCAP_DAPP_TEST_BWP_PRBS_30KHZ,
+            priority_weight=top.priority_weight,
+            has_iq_samples=True,
+            previous_pressure_permille=0,
+            ra_retry_count=0,
+            msg3_failure_count=0,
+            pucch_resource_reject_count=0,
+            crc_discard_count=0,
+        )
+    )
+    assert dapp.redcap_dapp_access_pressure_allows_apply(low_pressure)
+    assert low_pressure.pressure_level == "low"
+    assert low_pressure.pucch_ratio_permille == 200
+    assert low_pressure.pusch_ratio_permille == 600
+    assert low_pressure.allocation.pucch_prbs == 3
+    assert low_pressure.allocation.pusch_prbs == 8
+
+    medium_pressure = dapp.redcap_dapp_access_pressure_policy(
+        dapp.RedCapDappAccessPressureRequest(
+            rnti=top.rnti,
+            bwp_prbs=dapp.REDCAP_DAPP_TEST_BWP_PRBS_30KHZ,
+            priority_weight=top.priority_weight,
+            has_iq_samples=True,
+            previous_pressure_permille=300,
+            ra_retry_count=2,
+            msg3_failure_count=1,
+            pucch_resource_reject_count=1,
+            crc_discard_count=0,
+        )
+    )
+    assert dapp.redcap_dapp_access_pressure_allows_apply(medium_pressure)
+    assert medium_pressure.pressure_level == "medium"
+    assert medium_pressure.pucch_ratio_permille == 300
+    assert medium_pressure.pusch_ratio_permille == 500
+
+    high_pressure = dapp.redcap_dapp_access_pressure_policy(
+        dapp.RedCapDappAccessPressureRequest(
+            rnti=top.rnti,
+            bwp_prbs=dapp.REDCAP_DAPP_TEST_BWP_PRBS_30KHZ,
+            priority_weight=top.priority_weight,
+            has_iq_samples=True,
+            previous_pressure_permille=900,
+            ra_retry_count=0,
+            msg3_failure_count=2,
+            pucch_resource_reject_count=4,
+            crc_discard_count=0,
+        )
+    )
+    assert dapp.redcap_dapp_access_pressure_allows_apply(high_pressure)
+    assert high_pressure.pressure_level == "high"
+    assert high_pressure.pucch_ratio_permille == 400
+    assert high_pressure.pusch_ratio_permille == 400
+
+    missing_iq_pressure = dapp.redcap_dapp_access_pressure_policy(
+        dapp.RedCapDappAccessPressureRequest(
+            rnti=top.rnti,
+            bwp_prbs=dapp.REDCAP_DAPP_TEST_BWP_PRBS_30KHZ,
+            priority_weight=top.priority_weight,
+            has_iq_samples=False,
+            previous_pressure_permille=900,
+            ra_retry_count=0,
+            msg3_failure_count=2,
+            pucch_resource_reject_count=4,
+            crc_discard_count=0,
+        )
+    )
+    assert not dapp.redcap_dapp_access_pressure_allows_apply(missing_iq_pressure)
+    assert missing_iq_pressure.allocation.reason == "missing_iq_samples"
+
     print("[PASS] dApp/xApp SDK contract self-test")
     return 0
 

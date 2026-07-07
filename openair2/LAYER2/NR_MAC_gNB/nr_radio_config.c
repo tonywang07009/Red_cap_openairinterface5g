@@ -300,6 +300,41 @@ static NR_SetupRelease_PDSCH_ConfigCommon_t *clone_pdsch_configcommon(const NR_S
   return clone;
 }
 
+static void rebuild_redcap_dl_tda_list(const NR_ServingCellConfigCommon_t *scc,
+                                       const nr_redcap_config_t *redcap_config,
+                                       NR_SetupRelease_PDSCH_ConfigCommon_t *pdsch_config_common)
+{
+  if (pdsch_config_common == NULL || pdsch_config_common->present != NR_SetupRelease_PDSCH_ConfigCommon_PR_setup)
+    return;
+
+  NR_PDSCH_ConfigCommon_t *pdsch_config = pdsch_config_common->choice.setup;
+  if (pdsch_config->pdsch_TimeDomainAllocationList != NULL)
+    ASN_STRUCT_FREE(asn_DEF_NR_PDSCH_TimeDomainResourceAllocationList, pdsch_config->pdsch_TimeDomainAllocationList);
+
+  pdsch_config->pdsch_TimeDomainAllocationList = calloc_or_fail(1, sizeof(*pdsch_config->pdsch_TimeDomainAllocationList));
+  frame_type_t frame_type =
+      get_frame_type((int)*scc->downlinkConfigCommon->frequencyInfoDL->frequencyBandList.list.array[0], *scc->ssbSubcarrierSpacing);
+  nr_rrc_config_dl_tda(pdsch_config->pdsch_TimeDomainAllocationList,
+                       frame_type,
+                       scc->tdd_UL_DL_ConfigurationCommon,
+                       redcap_config->initial_dl_bwp.bwp_size);
+
+  int start_symbol = 0;
+  int n_symbols = 0;
+  if (pdsch_config->pdsch_TimeDomainAllocationList->list.count > 0) {
+    const long sliv = pdsch_config->pdsch_TimeDomainAllocationList->list.array[0]->startSymbolAndLength;
+    SLIV2SL(sliv, &start_symbol, &n_symbols);
+  }
+  LOG_I(NR_MAC,
+        "[RedCap RA][gNB DL TDA] rebuilt RedCap initial DL BWP TDA list: bwp_start %d bwp_size %d "
+        "entries %d first_start_symbol %d first_n_symbols %d\n",
+        redcap_config->initial_dl_bwp.bwp_start,
+        redcap_config->initial_dl_bwp.bwp_size,
+        pdsch_config->pdsch_TimeDomainAllocationList->list.count,
+        start_symbol,
+        n_symbols);
+}
+
 /**
  * @brief Convert a RedCap initial DL BWP to Case B commonControlResourceSet mode.
  *
@@ -342,6 +377,7 @@ static NR_BWP_DownlinkCommon_t *clone_redcap_downlink_bwp(const NR_ServingCellCo
   bwp->genericParameters.subcarrierSpacing = redcap_config->initial_dl_bwp.scs;
   bwp->pdcch_ConfigCommon = clone_pdcch_configcommon(scc->downlinkConfigCommon->initialDownlinkBWP->pdcch_ConfigCommon);
   bwp->pdsch_ConfigCommon = clone_pdsch_configcommon(scc->downlinkConfigCommon->initialDownlinkBWP->pdsch_ConfigCommon);
+  rebuild_redcap_dl_tda_list(scc, redcap_config, bwp->pdsch_ConfigCommon);
 
   if (bwp->pdcch_ConfigCommon && bwp->pdcch_ConfigCommon->present == NR_SetupRelease_PDCCH_ConfigCommon_PR_setup) {
     NR_PDCCH_ConfigCommon_t *pdcch_cc = bwp->pdcch_ConfigCommon->choice.setup;
@@ -459,6 +495,27 @@ static int get_nb_pucch2_per_slot(const NR_ServingCellConfigCommon_t *scc, int b
           nb_pucch2);
   }
   return nb_pucch2;
+}
+
+static int get_pucch_reservation_uid(const NR_ServingCellConfigCommon_t *scc, int bwp_size, int uid, const char *context)
+{
+  const int max_supported_ues = get_max_supported_ues_for_pucch(scc, bwp_size);
+  if (max_supported_ues <= 0)
+    return uid;
+
+  if (uid < max_supported_ues)
+    return uid;
+
+  const int reservation_uid = uid % max_supported_ues;
+  LOG_W(NR_RRC,
+        "[RedCap dApp Gate E][PUCCH pressure] UID %d exceeds PUCCH budget for %s BWP with %d PRBs "
+        "(max supported UEs %d), reusing reservation index %d\n",
+        uid,
+        context,
+        bwp_size,
+        max_supported_ues,
+        reservation_uid);
+  return reservation_uid;
 }
 
 NR_SearchSpace_t *rrc_searchspace_config(bool is_common,
@@ -2079,6 +2136,7 @@ static NR_BWP_Uplink_t *config_uplinkBWP(bool is_SA,
   }
 
   int curr_bwp = NRRIV2BW(ubwp->bwp_Common->genericParameters.locationAndBandwidth,MAX_BWP_SIZE);
+  int pucch_uid = get_pucch_reservation_uid(scc, curr_bwp, uid, "active");
   ubwp->bwp_Common->rach_ConfigCommon  = is_SA ? NULL : clone_rach_configcommon(scc->uplinkConfigCommon->initialUplinkBWP->rach_ConfigCommon);
   ubwp->bwp_Common->pusch_ConfigCommon = clone_pusch_configcommon(scc->uplinkConfigCommon->initialUplinkBWP->pusch_ConfigCommon);
   ubwp->bwp_Common->pucch_ConfigCommon = CALLOC(1,sizeof(struct NR_SetupRelease_PUCCH_ConfigCommon));
@@ -2103,8 +2161,8 @@ static NR_BWP_Uplink_t *config_uplinkBWP(bool is_SA,
   pucch_Config->resourceToAddModList = calloc(1,sizeof(*pucch_Config->resourceToAddModList));
   pucch_Config->resourceToReleaseList = NULL;
   int num_pucch2 = get_nb_pucch2_per_slot(scc, curr_bwp);
-  config_pucch_resset0(pucch_Config, uid, curr_bwp, num_pucch2, uecap);
-  config_pucch_resset1(pucch_Config, uid, num_pucch2, uecap);
+  config_pucch_resset0(pucch_Config, pucch_uid, curr_bwp, num_pucch2, uecap);
+  config_pucch_resset1(pucch_Config, pucch_uid, num_pucch2, uecap);
   set_pucch_power_config(pucch_Config, configuration->do_CSIRS);
   scheduling_request_config(scc, pucch_Config, ubwp->bwp_Common->genericParameters.subcarrierSpacing);
   set_dl_DataToUL_ACK(pucch_Config, configuration->minRXTXTIME, ubwp->bwp_Common->genericParameters.subcarrierSpacing);
@@ -3625,10 +3683,7 @@ static NR_BWP_UplinkDedicated_t *configure_initial_ul_bwp(const NR_ServingCellCo
   NR_BWP_UplinkDedicated_t *initialUplinkBWP = calloc(1, sizeof(*initialUplinkBWP));
   NR_BWP_t *genericParameters = &scc->downlinkConfigCommon->initialDownlinkBWP->genericParameters;
   int curr_bwp = NRRIV2BW(genericParameters->locationAndBandwidth, MAX_BWP_SIZE);
-  int pucch_id = id;
-  const int max_supported_ues = get_max_supported_ues_for_pucch(scc, curr_bwp);
-  if (max_supported_ues > 0 && id >= max_supported_ues)
-    pucch_id = id % max_supported_ues;
+  int pucch_id = get_pucch_reservation_uid(scc, curr_bwp, id, "initial");
   initialUplinkBWP->pucch_Config = calloc(1, sizeof(*initialUplinkBWP->pucch_Config));
   initialUplinkBWP->pucch_Config->present = NR_SetupRelease_PUCCH_Config_PR_setup;
   NR_PUCCH_Config_t *pucch_Config = calloc(1, sizeof(*pucch_Config));

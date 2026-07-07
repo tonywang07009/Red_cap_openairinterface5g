@@ -50,11 +50,36 @@ typedef struct {
   const char *marker;
 } redcap_dapp_prb_allocation_result_t;
 
+typedef struct {
+  uint16_t rnti;
+  uint16_t bwp_prbs;
+  uint16_t priority_weight;
+  bool has_iq_samples;
+  uint16_t previous_pressure_permille;
+  uint16_t ra_retry_count;
+  uint16_t msg3_failure_count;
+  uint16_t pucch_resource_reject_count;
+  uint16_t crc_discard_count;
+} redcap_dapp_access_pressure_request_t;
+
+typedef struct {
+  redcap_dapp_prb_allocation_result_t allocation;
+  uint16_t current_pressure_permille;
+  uint16_t ewma_pressure_permille;
+  uint16_t pucch_ratio_permille;
+  uint16_t pusch_ratio_permille;
+  const char *pressure_level;
+  const char *marker;
+} redcap_dapp_access_pressure_result_t;
+
 redcap_dapp_guard_result_t redcap_dapp_guard_ul_prb_cap(const redcap_dapp_ul_prb_request_t *request);
 bool redcap_dapp_guard_allows_apply(const redcap_dapp_guard_result_t *result);
 redcap_dapp_prb_allocation_result_t redcap_dapp_guard_prb_allocation(
     const redcap_dapp_prb_allocation_request_t *request);
 bool redcap_dapp_prb_allocation_allows_apply(const redcap_dapp_prb_allocation_result_t *result);
+redcap_dapp_access_pressure_result_t redcap_dapp_access_pressure_policy(
+    const redcap_dapp_access_pressure_request_t *request);
+bool redcap_dapp_access_pressure_allows_apply(const redcap_dapp_access_pressure_result_t *result);
 
 #ifdef __cplusplus
 }

@@ -2676,6 +2676,74 @@ static void create_ul_harq_list(NR_UE_sched_ctrl_t *sched_ctrl, const NR_UE_Serv
   }
 }
 
+static void apply_redcap_initial_bwp_if_needed(gNB_MAC_INST *nr_mac,
+                                               const NR_ServingCellConfigCommon_t *scc,
+                                               NR_UE_info_t *UE)
+{
+  if (nr_mac->radio_config.redcap == NULL || !UE->is_redcap)
+    return;
+
+  NR_UE_ServingCell_Info_t *sc_info = &UE->sc_info;
+  NR_UE_DL_BWP_t *DL_BWP = &UE->current_DL_BWP;
+  NR_UE_UL_BWP_t *UL_BWP = &UE->current_UL_BWP;
+  const uint16_t old_initial_dl_size = sc_info->initial_dl_BWPSize;
+  const uint16_t old_initial_ul_size = sc_info->initial_ul_BWPSize;
+
+  const NR_BWP_DownlinkCommon_t *redcap_dl_bwp = scc->downlinkConfigCommon->ext1
+                                                     ? scc->downlinkConfigCommon->ext1->initialDownlinkBWP_RedCap_r17
+                                                     : NULL;
+  if (redcap_dl_bwp != NULL) {
+    const uint16_t bwp_size = NRRIV2BW(redcap_dl_bwp->genericParameters.locationAndBandwidth, MAX_BWP_SIZE);
+    const uint16_t bwp_start = NRRIV2PRBOFFSET(redcap_dl_bwp->genericParameters.locationAndBandwidth, MAX_BWP_SIZE);
+    sc_info->initial_dl_BWPSize = bwp_size;
+    sc_info->initial_dl_BWPStart = bwp_start;
+    if (DL_BWP->bwp_id == 0) {
+      DL_BWP->BWPSize = bwp_size;
+      DL_BWP->BWPStart = bwp_start;
+      DL_BWP->scs = redcap_dl_bwp->genericParameters.subcarrierSpacing;
+      DL_BWP->cyclicprefix = redcap_dl_bwp->genericParameters.cyclicPrefix;
+      if (redcap_dl_bwp->pdsch_ConfigCommon
+          && redcap_dl_bwp->pdsch_ConfigCommon->present == NR_SetupRelease_PDSCH_ConfigCommon_PR_setup)
+        DL_BWP->tdaList_Common = redcap_dl_bwp->pdsch_ConfigCommon->choice.setup->pdsch_TimeDomainAllocationList;
+    }
+  }
+
+  const NR_BWP_UplinkCommon_t *redcap_ul_bwp = scc->ext2 && scc->ext2->uplinkConfigCommon_v1700
+                                                   ? scc->ext2->uplinkConfigCommon_v1700->initialUplinkBWP_RedCap_r17
+                                                   : NULL;
+  if (redcap_ul_bwp != NULL) {
+    const uint16_t bwp_size = NRRIV2BW(redcap_ul_bwp->genericParameters.locationAndBandwidth, MAX_BWP_SIZE);
+    const uint16_t bwp_start = NRRIV2PRBOFFSET(redcap_ul_bwp->genericParameters.locationAndBandwidth, MAX_BWP_SIZE);
+    sc_info->initial_ul_BWPSize = bwp_size;
+    sc_info->initial_ul_BWPStart = bwp_start;
+    if (UL_BWP->bwp_id == 0) {
+      UL_BWP->BWPSize = bwp_size;
+      UL_BWP->BWPStart = bwp_start;
+      UL_BWP->scs = redcap_ul_bwp->genericParameters.subcarrierSpacing;
+      UL_BWP->cyclicprefix = redcap_ul_bwp->genericParameters.cyclicPrefix;
+      if (redcap_ul_bwp->pusch_ConfigCommon
+          && redcap_ul_bwp->pusch_ConfigCommon->present == NR_SetupRelease_PUSCH_ConfigCommon_PR_setup)
+        UL_BWP->tdaList_Common = redcap_ul_bwp->pusch_ConfigCommon->choice.setup->pusch_TimeDomainAllocationList;
+      if (redcap_ul_bwp->pucch_ConfigCommon)
+        UL_BWP->pucch_ConfigCommon = redcap_ul_bwp->pucch_ConfigCommon->choice.setup;
+      if (redcap_ul_bwp->rach_ConfigCommon)
+        UL_BWP->rach_ConfigCommon = redcap_ul_bwp->rach_ConfigCommon->choice.setup;
+    }
+  }
+
+  if (old_initial_dl_size != sc_info->initial_dl_BWPSize || old_initial_ul_size != sc_info->initial_ul_BWPSize)
+    LOG_I(NR_MAC,
+          "[RedCap RA][gNB DCI BWP] preserving RedCap initial BWP for connected DCI: RNTI %04x "
+          "dl_start %u dl_size %u ul_start %u ul_size %u old_dl_size %u old_ul_size %u\n",
+          UE->rnti,
+          sc_info->initial_dl_BWPStart,
+          sc_info->initial_dl_BWPSize,
+          sc_info->initial_ul_BWPStart,
+          sc_info->initial_ul_BWPSize,
+          old_initial_dl_size,
+          old_initial_ul_size);
+}
+
 // main function to configure parameters of current BWP
 void configure_UE_BWP(gNB_MAC_INST *nr_mac,
                       NR_ServingCellConfigCommon_t *scc,
@@ -2793,9 +2861,6 @@ void configure_UE_BWP(gNB_MAC_INST *nr_mac,
   sc_info->initial_ul_BWPStart =
       NRRIV2PRBOFFSET(scc->uplinkConfigCommon->initialUplinkBWP->genericParameters.locationAndBandwidth, MAX_BWP_SIZE);
 
-  sc_info->dl_bw_tbslbrm = get_dlbw_tbslbrm(sc_info->initial_dl_BWPSize, servingCellConfig);
-  sc_info->ul_bw_tbslbrm = get_ulbw_tbslbrm(sc_info->initial_ul_BWPSize, servingCellConfig);
-
   if (UL_BWP->bwp_id > 0) {
     UL_BWP->pucch_ConfigCommon = ul_bwp->bwp_Common->pucch_ConfigCommon ? ul_bwp->bwp_Common->pucch_ConfigCommon->choice.setup : NULL;
     UL_BWP->rach_ConfigCommon = ul_bwp->bwp_Common->rach_ConfigCommon ? ul_bwp->bwp_Common->rach_ConfigCommon->choice.setup : NULL;
@@ -2803,6 +2868,10 @@ void configure_UE_BWP(gNB_MAC_INST *nr_mac,
     UL_BWP->pucch_ConfigCommon = scc->uplinkConfigCommon->initialUplinkBWP->pucch_ConfigCommon->choice.setup;
     UL_BWP->rach_ConfigCommon = scc->uplinkConfigCommon->initialUplinkBWP->rach_ConfigCommon->choice.setup;
   }
+
+  apply_redcap_initial_bwp_if_needed(nr_mac, scc, UE);
+  sc_info->dl_bw_tbslbrm = get_dlbw_tbslbrm(sc_info->initial_dl_BWPSize, servingCellConfig);
+  sc_info->ul_bw_tbslbrm = get_ulbw_tbslbrm(sc_info->initial_ul_BWPSize, servingCellConfig);
 
   // if PRACH occasions are not configured for the active UL BWP
   // switch the active UL BWP to BWP indicated by initialUplinkBWP

@@ -1362,3 +1362,2348 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  oai-nr-ue30:
+    image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+    container_name: rfsim5g-oai-nr-ue30_redcap
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    environment:
+      MMTC_UE_INDEX: "30"
+      MMTC_IMSI: "001010000000030"
+      MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
+      MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
+      MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
+      MMTC_PDSCH_256QAM: ${MMTC_PDSCH_256QAM:-0}
+      MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
+      MMTC_BAND: ${MMTC_BAND:-78}
+      MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
+      MMTC_NUMEROLOGY: ${MMTC_NUMEROLOGY:-1}
+      MMTC_N_RB_DL: ${MMTC_N_RB_DL:-106}
+      MMTC_SSB_START: ${MMTC_SSB_START:-144}
+      MMTC_CGCFG_NOFREE: ${MMTC_CGCFG_NOFREE:-0}
+      MMTC_CGCFG_DEFER_FREE_SLOTS: ${MMTC_CGCFG_DEFER_FREE_SLOTS:-0}
+      MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
+      MMTC_DRX_PROFILE: ${MMTC_DRX_PROFILE:-off}
+      MMTC_EDRX_CYCLE_S: ${MMTC_EDRX_CYCLE_S:-0}
+      MMTC_EDRX_PTW_S: ${MMTC_EDRX_PTW_S:-0}
+      MMTC_PSM_T3324_ACTIVE_TIME_S: ${MMTC_PSM_T3324_ACTIVE_TIME_S:-0}
+      MMTC_PSM_T3512_TAU_S: ${MMTC_PSM_T3512_TAU_S:-0}
+      MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
+      MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER: ${MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER:-0}
+      MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK: ${MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK:-0}
+      MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
+      USE_ADDITIONAL_OPTIONS: >
+        -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
+        --uicc0.imsi 001010000000030
+        -C ${MMTC_RF_FREQ:-3630360000}
+        --ssb ${MMTC_SSB_START:-144}
+        --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
+        --log_config.global_log_options level,nocolor,time
+        --telnetsrv --telnetsrv.listenaddr 192.168.71.179 --telnetsrv.listenport 8120
+        ${MMTC_UE_EXTRA_OPTIONS:-}
+    depends_on:
+      - oai-gnb
+    networks:
+      public_net:
+        ipv4_address: 192.168.71.179
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - ../../conf_files/nrue_recap/nrue30.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
+      - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
+    healthcheck:
+      test: /bin/bash -c "pgrep nr-uesoftmodem"
+      start_period: 10s
+      start_interval: 500ms
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  oai-nr-ue31:
+    image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+    container_name: rfsim5g-oai-nr-ue31_redcap
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    environment:
+      MMTC_UE_INDEX: "31"
+      MMTC_IMSI: "001010000000031"
+      MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
+      MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
+      MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
+      MMTC_PDSCH_256QAM: ${MMTC_PDSCH_256QAM:-0}
+      MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
+      MMTC_BAND: ${MMTC_BAND:-78}
+      MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
+      MMTC_NUMEROLOGY: ${MMTC_NUMEROLOGY:-1}
+      MMTC_N_RB_DL: ${MMTC_N_RB_DL:-106}
+      MMTC_SSB_START: ${MMTC_SSB_START:-144}
+      MMTC_CGCFG_NOFREE: ${MMTC_CGCFG_NOFREE:-0}
+      MMTC_CGCFG_DEFER_FREE_SLOTS: ${MMTC_CGCFG_DEFER_FREE_SLOTS:-0}
+      MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
+      MMTC_DRX_PROFILE: ${MMTC_DRX_PROFILE:-off}
+      MMTC_EDRX_CYCLE_S: ${MMTC_EDRX_CYCLE_S:-0}
+      MMTC_EDRX_PTW_S: ${MMTC_EDRX_PTW_S:-0}
+      MMTC_PSM_T3324_ACTIVE_TIME_S: ${MMTC_PSM_T3324_ACTIVE_TIME_S:-0}
+      MMTC_PSM_T3512_TAU_S: ${MMTC_PSM_T3512_TAU_S:-0}
+      MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
+      MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER: ${MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER:-0}
+      MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK: ${MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK:-0}
+      MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
+      USE_ADDITIONAL_OPTIONS: >
+        -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
+        --uicc0.imsi 001010000000031
+        -C ${MMTC_RF_FREQ:-3630360000}
+        --ssb ${MMTC_SSB_START:-144}
+        --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
+        --log_config.global_log_options level,nocolor,time
+        --telnetsrv --telnetsrv.listenaddr 192.168.71.180 --telnetsrv.listenport 8121
+        ${MMTC_UE_EXTRA_OPTIONS:-}
+    depends_on:
+      - oai-gnb
+    networks:
+      public_net:
+        ipv4_address: 192.168.71.180
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - ../../conf_files/nrue_recap/nrue31.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
+      - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
+    healthcheck:
+      test: /bin/bash -c "pgrep nr-uesoftmodem"
+      start_period: 10s
+      start_interval: 500ms
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  oai-nr-ue32:
+    image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+    container_name: rfsim5g-oai-nr-ue32_redcap
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    environment:
+      MMTC_UE_INDEX: "32"
+      MMTC_IMSI: "001010000000032"
+      MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
+      MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
+      MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
+      MMTC_PDSCH_256QAM: ${MMTC_PDSCH_256QAM:-0}
+      MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
+      MMTC_BAND: ${MMTC_BAND:-78}
+      MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
+      MMTC_NUMEROLOGY: ${MMTC_NUMEROLOGY:-1}
+      MMTC_N_RB_DL: ${MMTC_N_RB_DL:-106}
+      MMTC_SSB_START: ${MMTC_SSB_START:-144}
+      MMTC_CGCFG_NOFREE: ${MMTC_CGCFG_NOFREE:-0}
+      MMTC_CGCFG_DEFER_FREE_SLOTS: ${MMTC_CGCFG_DEFER_FREE_SLOTS:-0}
+      MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
+      MMTC_DRX_PROFILE: ${MMTC_DRX_PROFILE:-off}
+      MMTC_EDRX_CYCLE_S: ${MMTC_EDRX_CYCLE_S:-0}
+      MMTC_EDRX_PTW_S: ${MMTC_EDRX_PTW_S:-0}
+      MMTC_PSM_T3324_ACTIVE_TIME_S: ${MMTC_PSM_T3324_ACTIVE_TIME_S:-0}
+      MMTC_PSM_T3512_TAU_S: ${MMTC_PSM_T3512_TAU_S:-0}
+      MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
+      MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER: ${MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER:-0}
+      MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK: ${MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK:-0}
+      MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
+      USE_ADDITIONAL_OPTIONS: >
+        -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
+        --uicc0.imsi 001010000000032
+        -C ${MMTC_RF_FREQ:-3630360000}
+        --ssb ${MMTC_SSB_START:-144}
+        --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
+        --log_config.global_log_options level,nocolor,time
+        --telnetsrv --telnetsrv.listenaddr 192.168.71.181 --telnetsrv.listenport 8122
+        ${MMTC_UE_EXTRA_OPTIONS:-}
+    depends_on:
+      - oai-gnb
+    networks:
+      public_net:
+        ipv4_address: 192.168.71.181
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - ../../conf_files/nrue_recap/nrue32.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
+      - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
+    healthcheck:
+      test: /bin/bash -c "pgrep nr-uesoftmodem"
+      start_period: 10s
+      start_interval: 500ms
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  oai-nr-ue33:
+    image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+    container_name: rfsim5g-oai-nr-ue33_redcap
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    environment:
+      MMTC_UE_INDEX: "33"
+      MMTC_IMSI: "001010000000033"
+      MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
+      MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
+      MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
+      MMTC_PDSCH_256QAM: ${MMTC_PDSCH_256QAM:-0}
+      MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
+      MMTC_BAND: ${MMTC_BAND:-78}
+      MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
+      MMTC_NUMEROLOGY: ${MMTC_NUMEROLOGY:-1}
+      MMTC_N_RB_DL: ${MMTC_N_RB_DL:-106}
+      MMTC_SSB_START: ${MMTC_SSB_START:-144}
+      MMTC_CGCFG_NOFREE: ${MMTC_CGCFG_NOFREE:-0}
+      MMTC_CGCFG_DEFER_FREE_SLOTS: ${MMTC_CGCFG_DEFER_FREE_SLOTS:-0}
+      MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
+      MMTC_DRX_PROFILE: ${MMTC_DRX_PROFILE:-off}
+      MMTC_EDRX_CYCLE_S: ${MMTC_EDRX_CYCLE_S:-0}
+      MMTC_EDRX_PTW_S: ${MMTC_EDRX_PTW_S:-0}
+      MMTC_PSM_T3324_ACTIVE_TIME_S: ${MMTC_PSM_T3324_ACTIVE_TIME_S:-0}
+      MMTC_PSM_T3512_TAU_S: ${MMTC_PSM_T3512_TAU_S:-0}
+      MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
+      MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER: ${MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER:-0}
+      MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK: ${MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK:-0}
+      MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
+      USE_ADDITIONAL_OPTIONS: >
+        -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
+        --uicc0.imsi 001010000000033
+        -C ${MMTC_RF_FREQ:-3630360000}
+        --ssb ${MMTC_SSB_START:-144}
+        --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
+        --log_config.global_log_options level,nocolor,time
+        --telnetsrv --telnetsrv.listenaddr 192.168.71.182 --telnetsrv.listenport 8123
+        ${MMTC_UE_EXTRA_OPTIONS:-}
+    depends_on:
+      - oai-gnb
+    networks:
+      public_net:
+        ipv4_address: 192.168.71.182
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - ../../conf_files/nrue_recap/nrue33.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
+      - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
+    healthcheck:
+      test: /bin/bash -c "pgrep nr-uesoftmodem"
+      start_period: 10s
+      start_interval: 500ms
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  oai-nr-ue34:
+    image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+    container_name: rfsim5g-oai-nr-ue34_redcap
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    environment:
+      MMTC_UE_INDEX: "34"
+      MMTC_IMSI: "001010000000034"
+      MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
+      MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
+      MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
+      MMTC_PDSCH_256QAM: ${MMTC_PDSCH_256QAM:-0}
+      MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
+      MMTC_BAND: ${MMTC_BAND:-78}
+      MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
+      MMTC_NUMEROLOGY: ${MMTC_NUMEROLOGY:-1}
+      MMTC_N_RB_DL: ${MMTC_N_RB_DL:-106}
+      MMTC_SSB_START: ${MMTC_SSB_START:-144}
+      MMTC_CGCFG_NOFREE: ${MMTC_CGCFG_NOFREE:-0}
+      MMTC_CGCFG_DEFER_FREE_SLOTS: ${MMTC_CGCFG_DEFER_FREE_SLOTS:-0}
+      MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
+      MMTC_DRX_PROFILE: ${MMTC_DRX_PROFILE:-off}
+      MMTC_EDRX_CYCLE_S: ${MMTC_EDRX_CYCLE_S:-0}
+      MMTC_EDRX_PTW_S: ${MMTC_EDRX_PTW_S:-0}
+      MMTC_PSM_T3324_ACTIVE_TIME_S: ${MMTC_PSM_T3324_ACTIVE_TIME_S:-0}
+      MMTC_PSM_T3512_TAU_S: ${MMTC_PSM_T3512_TAU_S:-0}
+      MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
+      MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER: ${MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER:-0}
+      MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK: ${MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK:-0}
+      MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
+      USE_ADDITIONAL_OPTIONS: >
+        -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
+        --uicc0.imsi 001010000000034
+        -C ${MMTC_RF_FREQ:-3630360000}
+        --ssb ${MMTC_SSB_START:-144}
+        --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
+        --log_config.global_log_options level,nocolor,time
+        --telnetsrv --telnetsrv.listenaddr 192.168.71.183 --telnetsrv.listenport 8124
+        ${MMTC_UE_EXTRA_OPTIONS:-}
+    depends_on:
+      - oai-gnb
+    networks:
+      public_net:
+        ipv4_address: 192.168.71.183
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - ../../conf_files/nrue_recap/nrue34.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
+      - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
+    healthcheck:
+      test: /bin/bash -c "pgrep nr-uesoftmodem"
+      start_period: 10s
+      start_interval: 500ms
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  oai-nr-ue35:
+    image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+    container_name: rfsim5g-oai-nr-ue35_redcap
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    environment:
+      MMTC_UE_INDEX: "35"
+      MMTC_IMSI: "001010000000035"
+      MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
+      MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
+      MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
+      MMTC_PDSCH_256QAM: ${MMTC_PDSCH_256QAM:-0}
+      MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
+      MMTC_BAND: ${MMTC_BAND:-78}
+      MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
+      MMTC_NUMEROLOGY: ${MMTC_NUMEROLOGY:-1}
+      MMTC_N_RB_DL: ${MMTC_N_RB_DL:-106}
+      MMTC_SSB_START: ${MMTC_SSB_START:-144}
+      MMTC_CGCFG_NOFREE: ${MMTC_CGCFG_NOFREE:-0}
+      MMTC_CGCFG_DEFER_FREE_SLOTS: ${MMTC_CGCFG_DEFER_FREE_SLOTS:-0}
+      MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
+      MMTC_DRX_PROFILE: ${MMTC_DRX_PROFILE:-off}
+      MMTC_EDRX_CYCLE_S: ${MMTC_EDRX_CYCLE_S:-0}
+      MMTC_EDRX_PTW_S: ${MMTC_EDRX_PTW_S:-0}
+      MMTC_PSM_T3324_ACTIVE_TIME_S: ${MMTC_PSM_T3324_ACTIVE_TIME_S:-0}
+      MMTC_PSM_T3512_TAU_S: ${MMTC_PSM_T3512_TAU_S:-0}
+      MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
+      MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER: ${MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER:-0}
+      MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK: ${MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK:-0}
+      MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
+      USE_ADDITIONAL_OPTIONS: >
+        -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
+        --uicc0.imsi 001010000000035
+        -C ${MMTC_RF_FREQ:-3630360000}
+        --ssb ${MMTC_SSB_START:-144}
+        --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
+        --log_config.global_log_options level,nocolor,time
+        --telnetsrv --telnetsrv.listenaddr 192.168.71.184 --telnetsrv.listenport 8125
+        ${MMTC_UE_EXTRA_OPTIONS:-}
+    depends_on:
+      - oai-gnb
+    networks:
+      public_net:
+        ipv4_address: 192.168.71.184
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - ../../conf_files/nrue_recap/nrue35.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
+      - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
+    healthcheck:
+      test: /bin/bash -c "pgrep nr-uesoftmodem"
+      start_period: 10s
+      start_interval: 500ms
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  oai-nr-ue36:
+    image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+    container_name: rfsim5g-oai-nr-ue36_redcap
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    environment:
+      MMTC_UE_INDEX: "36"
+      MMTC_IMSI: "001010000000036"
+      MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
+      MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
+      MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
+      MMTC_PDSCH_256QAM: ${MMTC_PDSCH_256QAM:-0}
+      MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
+      MMTC_BAND: ${MMTC_BAND:-78}
+      MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
+      MMTC_NUMEROLOGY: ${MMTC_NUMEROLOGY:-1}
+      MMTC_N_RB_DL: ${MMTC_N_RB_DL:-106}
+      MMTC_SSB_START: ${MMTC_SSB_START:-144}
+      MMTC_CGCFG_NOFREE: ${MMTC_CGCFG_NOFREE:-0}
+      MMTC_CGCFG_DEFER_FREE_SLOTS: ${MMTC_CGCFG_DEFER_FREE_SLOTS:-0}
+      MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
+      MMTC_DRX_PROFILE: ${MMTC_DRX_PROFILE:-off}
+      MMTC_EDRX_CYCLE_S: ${MMTC_EDRX_CYCLE_S:-0}
+      MMTC_EDRX_PTW_S: ${MMTC_EDRX_PTW_S:-0}
+      MMTC_PSM_T3324_ACTIVE_TIME_S: ${MMTC_PSM_T3324_ACTIVE_TIME_S:-0}
+      MMTC_PSM_T3512_TAU_S: ${MMTC_PSM_T3512_TAU_S:-0}
+      MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
+      MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER: ${MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER:-0}
+      MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK: ${MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK:-0}
+      MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
+      USE_ADDITIONAL_OPTIONS: >
+        -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
+        --uicc0.imsi 001010000000036
+        -C ${MMTC_RF_FREQ:-3630360000}
+        --ssb ${MMTC_SSB_START:-144}
+        --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
+        --log_config.global_log_options level,nocolor,time
+        --telnetsrv --telnetsrv.listenaddr 192.168.71.185 --telnetsrv.listenport 8126
+        ${MMTC_UE_EXTRA_OPTIONS:-}
+    depends_on:
+      - oai-gnb
+    networks:
+      public_net:
+        ipv4_address: 192.168.71.185
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - ../../conf_files/nrue_recap/nrue36.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
+      - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
+    healthcheck:
+      test: /bin/bash -c "pgrep nr-uesoftmodem"
+      start_period: 10s
+      start_interval: 500ms
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  oai-nr-ue37:
+    image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+    container_name: rfsim5g-oai-nr-ue37_redcap
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    environment:
+      MMTC_UE_INDEX: "37"
+      MMTC_IMSI: "001010000000037"
+      MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
+      MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
+      MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
+      MMTC_PDSCH_256QAM: ${MMTC_PDSCH_256QAM:-0}
+      MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
+      MMTC_BAND: ${MMTC_BAND:-78}
+      MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
+      MMTC_NUMEROLOGY: ${MMTC_NUMEROLOGY:-1}
+      MMTC_N_RB_DL: ${MMTC_N_RB_DL:-106}
+      MMTC_SSB_START: ${MMTC_SSB_START:-144}
+      MMTC_CGCFG_NOFREE: ${MMTC_CGCFG_NOFREE:-0}
+      MMTC_CGCFG_DEFER_FREE_SLOTS: ${MMTC_CGCFG_DEFER_FREE_SLOTS:-0}
+      MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
+      MMTC_DRX_PROFILE: ${MMTC_DRX_PROFILE:-off}
+      MMTC_EDRX_CYCLE_S: ${MMTC_EDRX_CYCLE_S:-0}
+      MMTC_EDRX_PTW_S: ${MMTC_EDRX_PTW_S:-0}
+      MMTC_PSM_T3324_ACTIVE_TIME_S: ${MMTC_PSM_T3324_ACTIVE_TIME_S:-0}
+      MMTC_PSM_T3512_TAU_S: ${MMTC_PSM_T3512_TAU_S:-0}
+      MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
+      MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER: ${MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER:-0}
+      MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK: ${MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK:-0}
+      MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
+      USE_ADDITIONAL_OPTIONS: >
+        -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
+        --uicc0.imsi 001010000000037
+        -C ${MMTC_RF_FREQ:-3630360000}
+        --ssb ${MMTC_SSB_START:-144}
+        --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
+        --log_config.global_log_options level,nocolor,time
+        --telnetsrv --telnetsrv.listenaddr 192.168.71.186 --telnetsrv.listenport 8127
+        ${MMTC_UE_EXTRA_OPTIONS:-}
+    depends_on:
+      - oai-gnb
+    networks:
+      public_net:
+        ipv4_address: 192.168.71.186
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - ../../conf_files/nrue_recap/nrue37.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
+      - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
+    healthcheck:
+      test: /bin/bash -c "pgrep nr-uesoftmodem"
+      start_period: 10s
+      start_interval: 500ms
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  oai-nr-ue38:
+    image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+    container_name: rfsim5g-oai-nr-ue38_redcap
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    environment:
+      MMTC_UE_INDEX: "38"
+      MMTC_IMSI: "001010000000038"
+      MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
+      MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
+      MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
+      MMTC_PDSCH_256QAM: ${MMTC_PDSCH_256QAM:-0}
+      MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
+      MMTC_BAND: ${MMTC_BAND:-78}
+      MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
+      MMTC_NUMEROLOGY: ${MMTC_NUMEROLOGY:-1}
+      MMTC_N_RB_DL: ${MMTC_N_RB_DL:-106}
+      MMTC_SSB_START: ${MMTC_SSB_START:-144}
+      MMTC_CGCFG_NOFREE: ${MMTC_CGCFG_NOFREE:-0}
+      MMTC_CGCFG_DEFER_FREE_SLOTS: ${MMTC_CGCFG_DEFER_FREE_SLOTS:-0}
+      MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
+      MMTC_DRX_PROFILE: ${MMTC_DRX_PROFILE:-off}
+      MMTC_EDRX_CYCLE_S: ${MMTC_EDRX_CYCLE_S:-0}
+      MMTC_EDRX_PTW_S: ${MMTC_EDRX_PTW_S:-0}
+      MMTC_PSM_T3324_ACTIVE_TIME_S: ${MMTC_PSM_T3324_ACTIVE_TIME_S:-0}
+      MMTC_PSM_T3512_TAU_S: ${MMTC_PSM_T3512_TAU_S:-0}
+      MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
+      MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER: ${MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER:-0}
+      MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK: ${MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK:-0}
+      MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
+      USE_ADDITIONAL_OPTIONS: >
+        -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
+        --uicc0.imsi 001010000000038
+        -C ${MMTC_RF_FREQ:-3630360000}
+        --ssb ${MMTC_SSB_START:-144}
+        --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
+        --log_config.global_log_options level,nocolor,time
+        --telnetsrv --telnetsrv.listenaddr 192.168.71.187 --telnetsrv.listenport 8128
+        ${MMTC_UE_EXTRA_OPTIONS:-}
+    depends_on:
+      - oai-gnb
+    networks:
+      public_net:
+        ipv4_address: 192.168.71.187
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - ../../conf_files/nrue_recap/nrue38.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
+      - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
+    healthcheck:
+      test: /bin/bash -c "pgrep nr-uesoftmodem"
+      start_period: 10s
+      start_interval: 500ms
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  oai-nr-ue39:
+    image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+    container_name: rfsim5g-oai-nr-ue39_redcap
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    environment:
+      MMTC_UE_INDEX: "39"
+      MMTC_IMSI: "001010000000039"
+      MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
+      MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
+      MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
+      MMTC_PDSCH_256QAM: ${MMTC_PDSCH_256QAM:-0}
+      MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
+      MMTC_BAND: ${MMTC_BAND:-78}
+      MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
+      MMTC_NUMEROLOGY: ${MMTC_NUMEROLOGY:-1}
+      MMTC_N_RB_DL: ${MMTC_N_RB_DL:-106}
+      MMTC_SSB_START: ${MMTC_SSB_START:-144}
+      MMTC_CGCFG_NOFREE: ${MMTC_CGCFG_NOFREE:-0}
+      MMTC_CGCFG_DEFER_FREE_SLOTS: ${MMTC_CGCFG_DEFER_FREE_SLOTS:-0}
+      MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
+      MMTC_DRX_PROFILE: ${MMTC_DRX_PROFILE:-off}
+      MMTC_EDRX_CYCLE_S: ${MMTC_EDRX_CYCLE_S:-0}
+      MMTC_EDRX_PTW_S: ${MMTC_EDRX_PTW_S:-0}
+      MMTC_PSM_T3324_ACTIVE_TIME_S: ${MMTC_PSM_T3324_ACTIVE_TIME_S:-0}
+      MMTC_PSM_T3512_TAU_S: ${MMTC_PSM_T3512_TAU_S:-0}
+      MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
+      MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER: ${MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER:-0}
+      MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK: ${MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK:-0}
+      MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
+      USE_ADDITIONAL_OPTIONS: >
+        -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
+        --uicc0.imsi 001010000000039
+        -C ${MMTC_RF_FREQ:-3630360000}
+        --ssb ${MMTC_SSB_START:-144}
+        --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
+        --log_config.global_log_options level,nocolor,time
+        --telnetsrv --telnetsrv.listenaddr 192.168.71.188 --telnetsrv.listenport 8129
+        ${MMTC_UE_EXTRA_OPTIONS:-}
+    depends_on:
+      - oai-gnb
+    networks:
+      public_net:
+        ipv4_address: 192.168.71.188
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - ../../conf_files/nrue_recap/nrue39.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
+      - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
+    healthcheck:
+      test: /bin/bash -c "pgrep nr-uesoftmodem"
+      start_period: 10s
+      start_interval: 500ms
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  oai-nr-ue40:
+    image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+    container_name: rfsim5g-oai-nr-ue40_redcap
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    environment:
+      MMTC_UE_INDEX: "40"
+      MMTC_IMSI: "001010000000040"
+      MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
+      MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
+      MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
+      MMTC_PDSCH_256QAM: ${MMTC_PDSCH_256QAM:-0}
+      MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
+      MMTC_BAND: ${MMTC_BAND:-78}
+      MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
+      MMTC_NUMEROLOGY: ${MMTC_NUMEROLOGY:-1}
+      MMTC_N_RB_DL: ${MMTC_N_RB_DL:-106}
+      MMTC_SSB_START: ${MMTC_SSB_START:-144}
+      MMTC_CGCFG_NOFREE: ${MMTC_CGCFG_NOFREE:-0}
+      MMTC_CGCFG_DEFER_FREE_SLOTS: ${MMTC_CGCFG_DEFER_FREE_SLOTS:-0}
+      MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
+      MMTC_DRX_PROFILE: ${MMTC_DRX_PROFILE:-off}
+      MMTC_EDRX_CYCLE_S: ${MMTC_EDRX_CYCLE_S:-0}
+      MMTC_EDRX_PTW_S: ${MMTC_EDRX_PTW_S:-0}
+      MMTC_PSM_T3324_ACTIVE_TIME_S: ${MMTC_PSM_T3324_ACTIVE_TIME_S:-0}
+      MMTC_PSM_T3512_TAU_S: ${MMTC_PSM_T3512_TAU_S:-0}
+      MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
+      MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER: ${MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER:-0}
+      MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK: ${MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK:-0}
+      MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
+      USE_ADDITIONAL_OPTIONS: >
+        -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
+        --uicc0.imsi 001010000000040
+        -C ${MMTC_RF_FREQ:-3630360000}
+        --ssb ${MMTC_SSB_START:-144}
+        --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
+        --log_config.global_log_options level,nocolor,time
+        --telnetsrv --telnetsrv.listenaddr 192.168.71.189 --telnetsrv.listenport 8130
+        ${MMTC_UE_EXTRA_OPTIONS:-}
+    depends_on:
+      - oai-gnb
+    networks:
+      public_net:
+        ipv4_address: 192.168.71.189
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - ../../conf_files/nrue_recap/nrue40.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
+      - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
+    healthcheck:
+      test: /bin/bash -c "pgrep nr-uesoftmodem"
+      start_period: 10s
+      start_interval: 500ms
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  oai-nr-ue41:
+    image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+    container_name: rfsim5g-oai-nr-ue41_redcap
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    environment:
+      MMTC_UE_INDEX: "41"
+      MMTC_IMSI: "001010000000041"
+      MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
+      MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
+      MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
+      MMTC_PDSCH_256QAM: ${MMTC_PDSCH_256QAM:-0}
+      MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
+      MMTC_BAND: ${MMTC_BAND:-78}
+      MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
+      MMTC_NUMEROLOGY: ${MMTC_NUMEROLOGY:-1}
+      MMTC_N_RB_DL: ${MMTC_N_RB_DL:-106}
+      MMTC_SSB_START: ${MMTC_SSB_START:-144}
+      MMTC_CGCFG_NOFREE: ${MMTC_CGCFG_NOFREE:-0}
+      MMTC_CGCFG_DEFER_FREE_SLOTS: ${MMTC_CGCFG_DEFER_FREE_SLOTS:-0}
+      MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
+      MMTC_DRX_PROFILE: ${MMTC_DRX_PROFILE:-off}
+      MMTC_EDRX_CYCLE_S: ${MMTC_EDRX_CYCLE_S:-0}
+      MMTC_EDRX_PTW_S: ${MMTC_EDRX_PTW_S:-0}
+      MMTC_PSM_T3324_ACTIVE_TIME_S: ${MMTC_PSM_T3324_ACTIVE_TIME_S:-0}
+      MMTC_PSM_T3512_TAU_S: ${MMTC_PSM_T3512_TAU_S:-0}
+      MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
+      MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER: ${MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER:-0}
+      MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK: ${MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK:-0}
+      MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
+      USE_ADDITIONAL_OPTIONS: >
+        -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
+        --uicc0.imsi 001010000000041
+        -C ${MMTC_RF_FREQ:-3630360000}
+        --ssb ${MMTC_SSB_START:-144}
+        --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
+        --log_config.global_log_options level,nocolor,time
+        --telnetsrv --telnetsrv.listenaddr 192.168.71.190 --telnetsrv.listenport 8131
+        ${MMTC_UE_EXTRA_OPTIONS:-}
+    depends_on:
+      - oai-gnb
+    networks:
+      public_net:
+        ipv4_address: 192.168.71.190
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - ../../conf_files/nrue_recap/nrue41.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
+      - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
+    healthcheck:
+      test: /bin/bash -c "pgrep nr-uesoftmodem"
+      start_period: 10s
+      start_interval: 500ms
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  oai-nr-ue42:
+    image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+    container_name: rfsim5g-oai-nr-ue42_redcap
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    environment:
+      MMTC_UE_INDEX: "42"
+      MMTC_IMSI: "001010000000042"
+      MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
+      MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
+      MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
+      MMTC_PDSCH_256QAM: ${MMTC_PDSCH_256QAM:-0}
+      MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
+      MMTC_BAND: ${MMTC_BAND:-78}
+      MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
+      MMTC_NUMEROLOGY: ${MMTC_NUMEROLOGY:-1}
+      MMTC_N_RB_DL: ${MMTC_N_RB_DL:-106}
+      MMTC_SSB_START: ${MMTC_SSB_START:-144}
+      MMTC_CGCFG_NOFREE: ${MMTC_CGCFG_NOFREE:-0}
+      MMTC_CGCFG_DEFER_FREE_SLOTS: ${MMTC_CGCFG_DEFER_FREE_SLOTS:-0}
+      MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
+      MMTC_DRX_PROFILE: ${MMTC_DRX_PROFILE:-off}
+      MMTC_EDRX_CYCLE_S: ${MMTC_EDRX_CYCLE_S:-0}
+      MMTC_EDRX_PTW_S: ${MMTC_EDRX_PTW_S:-0}
+      MMTC_PSM_T3324_ACTIVE_TIME_S: ${MMTC_PSM_T3324_ACTIVE_TIME_S:-0}
+      MMTC_PSM_T3512_TAU_S: ${MMTC_PSM_T3512_TAU_S:-0}
+      MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
+      MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER: ${MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER:-0}
+      MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK: ${MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK:-0}
+      MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
+      USE_ADDITIONAL_OPTIONS: >
+        -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
+        --uicc0.imsi 001010000000042
+        -C ${MMTC_RF_FREQ:-3630360000}
+        --ssb ${MMTC_SSB_START:-144}
+        --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
+        --log_config.global_log_options level,nocolor,time
+        --telnetsrv --telnetsrv.listenaddr 192.168.71.191 --telnetsrv.listenport 8132
+        ${MMTC_UE_EXTRA_OPTIONS:-}
+    depends_on:
+      - oai-gnb
+    networks:
+      public_net:
+        ipv4_address: 192.168.71.191
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - ../../conf_files/nrue_recap/nrue42.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
+      - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
+    healthcheck:
+      test: /bin/bash -c "pgrep nr-uesoftmodem"
+      start_period: 10s
+      start_interval: 500ms
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  oai-nr-ue43:
+    image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+    container_name: rfsim5g-oai-nr-ue43_redcap
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    environment:
+      MMTC_UE_INDEX: "43"
+      MMTC_IMSI: "001010000000043"
+      MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
+      MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
+      MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
+      MMTC_PDSCH_256QAM: ${MMTC_PDSCH_256QAM:-0}
+      MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
+      MMTC_BAND: ${MMTC_BAND:-78}
+      MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
+      MMTC_NUMEROLOGY: ${MMTC_NUMEROLOGY:-1}
+      MMTC_N_RB_DL: ${MMTC_N_RB_DL:-106}
+      MMTC_SSB_START: ${MMTC_SSB_START:-144}
+      MMTC_CGCFG_NOFREE: ${MMTC_CGCFG_NOFREE:-0}
+      MMTC_CGCFG_DEFER_FREE_SLOTS: ${MMTC_CGCFG_DEFER_FREE_SLOTS:-0}
+      MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
+      MMTC_DRX_PROFILE: ${MMTC_DRX_PROFILE:-off}
+      MMTC_EDRX_CYCLE_S: ${MMTC_EDRX_CYCLE_S:-0}
+      MMTC_EDRX_PTW_S: ${MMTC_EDRX_PTW_S:-0}
+      MMTC_PSM_T3324_ACTIVE_TIME_S: ${MMTC_PSM_T3324_ACTIVE_TIME_S:-0}
+      MMTC_PSM_T3512_TAU_S: ${MMTC_PSM_T3512_TAU_S:-0}
+      MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
+      MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER: ${MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER:-0}
+      MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK: ${MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK:-0}
+      MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
+      USE_ADDITIONAL_OPTIONS: >
+        -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
+        --uicc0.imsi 001010000000043
+        -C ${MMTC_RF_FREQ:-3630360000}
+        --ssb ${MMTC_SSB_START:-144}
+        --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
+        --log_config.global_log_options level,nocolor,time
+        --telnetsrv --telnetsrv.listenaddr 192.168.71.192 --telnetsrv.listenport 8133
+        ${MMTC_UE_EXTRA_OPTIONS:-}
+    depends_on:
+      - oai-gnb
+    networks:
+      public_net:
+        ipv4_address: 192.168.71.192
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - ../../conf_files/nrue_recap/nrue43.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
+      - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
+    healthcheck:
+      test: /bin/bash -c "pgrep nr-uesoftmodem"
+      start_period: 10s
+      start_interval: 500ms
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  oai-nr-ue44:
+    image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+    container_name: rfsim5g-oai-nr-ue44_redcap
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    environment:
+      MMTC_UE_INDEX: "44"
+      MMTC_IMSI: "001010000000044"
+      MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
+      MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
+      MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
+      MMTC_PDSCH_256QAM: ${MMTC_PDSCH_256QAM:-0}
+      MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
+      MMTC_BAND: ${MMTC_BAND:-78}
+      MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
+      MMTC_NUMEROLOGY: ${MMTC_NUMEROLOGY:-1}
+      MMTC_N_RB_DL: ${MMTC_N_RB_DL:-106}
+      MMTC_SSB_START: ${MMTC_SSB_START:-144}
+      MMTC_CGCFG_NOFREE: ${MMTC_CGCFG_NOFREE:-0}
+      MMTC_CGCFG_DEFER_FREE_SLOTS: ${MMTC_CGCFG_DEFER_FREE_SLOTS:-0}
+      MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
+      MMTC_DRX_PROFILE: ${MMTC_DRX_PROFILE:-off}
+      MMTC_EDRX_CYCLE_S: ${MMTC_EDRX_CYCLE_S:-0}
+      MMTC_EDRX_PTW_S: ${MMTC_EDRX_PTW_S:-0}
+      MMTC_PSM_T3324_ACTIVE_TIME_S: ${MMTC_PSM_T3324_ACTIVE_TIME_S:-0}
+      MMTC_PSM_T3512_TAU_S: ${MMTC_PSM_T3512_TAU_S:-0}
+      MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
+      MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER: ${MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER:-0}
+      MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK: ${MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK:-0}
+      MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
+      USE_ADDITIONAL_OPTIONS: >
+        -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
+        --uicc0.imsi 001010000000044
+        -C ${MMTC_RF_FREQ:-3630360000}
+        --ssb ${MMTC_SSB_START:-144}
+        --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
+        --log_config.global_log_options level,nocolor,time
+        --telnetsrv --telnetsrv.listenaddr 192.168.71.193 --telnetsrv.listenport 8134
+        ${MMTC_UE_EXTRA_OPTIONS:-}
+    depends_on:
+      - oai-gnb
+    networks:
+      public_net:
+        ipv4_address: 192.168.71.193
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - ../../conf_files/nrue_recap/nrue44.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
+      - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
+    healthcheck:
+      test: /bin/bash -c "pgrep nr-uesoftmodem"
+      start_period: 10s
+      start_interval: 500ms
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  oai-nr-ue45:
+    image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+    container_name: rfsim5g-oai-nr-ue45_redcap
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    environment:
+      MMTC_UE_INDEX: "45"
+      MMTC_IMSI: "001010000000045"
+      MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
+      MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
+      MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
+      MMTC_PDSCH_256QAM: ${MMTC_PDSCH_256QAM:-0}
+      MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
+      MMTC_BAND: ${MMTC_BAND:-78}
+      MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
+      MMTC_NUMEROLOGY: ${MMTC_NUMEROLOGY:-1}
+      MMTC_N_RB_DL: ${MMTC_N_RB_DL:-106}
+      MMTC_SSB_START: ${MMTC_SSB_START:-144}
+      MMTC_CGCFG_NOFREE: ${MMTC_CGCFG_NOFREE:-0}
+      MMTC_CGCFG_DEFER_FREE_SLOTS: ${MMTC_CGCFG_DEFER_FREE_SLOTS:-0}
+      MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
+      MMTC_DRX_PROFILE: ${MMTC_DRX_PROFILE:-off}
+      MMTC_EDRX_CYCLE_S: ${MMTC_EDRX_CYCLE_S:-0}
+      MMTC_EDRX_PTW_S: ${MMTC_EDRX_PTW_S:-0}
+      MMTC_PSM_T3324_ACTIVE_TIME_S: ${MMTC_PSM_T3324_ACTIVE_TIME_S:-0}
+      MMTC_PSM_T3512_TAU_S: ${MMTC_PSM_T3512_TAU_S:-0}
+      MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
+      MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER: ${MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER:-0}
+      MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK: ${MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK:-0}
+      MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
+      USE_ADDITIONAL_OPTIONS: >
+        -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
+        --uicc0.imsi 001010000000045
+        -C ${MMTC_RF_FREQ:-3630360000}
+        --ssb ${MMTC_SSB_START:-144}
+        --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
+        --log_config.global_log_options level,nocolor,time
+        --telnetsrv --telnetsrv.listenaddr 192.168.71.194 --telnetsrv.listenport 8135
+        ${MMTC_UE_EXTRA_OPTIONS:-}
+    depends_on:
+      - oai-gnb
+    networks:
+      public_net:
+        ipv4_address: 192.168.71.194
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - ../../conf_files/nrue_recap/nrue45.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
+      - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
+    healthcheck:
+      test: /bin/bash -c "pgrep nr-uesoftmodem"
+      start_period: 10s
+      start_interval: 500ms
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  oai-nr-ue46:
+    image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+    container_name: rfsim5g-oai-nr-ue46_redcap
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    environment:
+      MMTC_UE_INDEX: "46"
+      MMTC_IMSI: "001010000000046"
+      MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
+      MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
+      MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
+      MMTC_PDSCH_256QAM: ${MMTC_PDSCH_256QAM:-0}
+      MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
+      MMTC_BAND: ${MMTC_BAND:-78}
+      MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
+      MMTC_NUMEROLOGY: ${MMTC_NUMEROLOGY:-1}
+      MMTC_N_RB_DL: ${MMTC_N_RB_DL:-106}
+      MMTC_SSB_START: ${MMTC_SSB_START:-144}
+      MMTC_CGCFG_NOFREE: ${MMTC_CGCFG_NOFREE:-0}
+      MMTC_CGCFG_DEFER_FREE_SLOTS: ${MMTC_CGCFG_DEFER_FREE_SLOTS:-0}
+      MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
+      MMTC_DRX_PROFILE: ${MMTC_DRX_PROFILE:-off}
+      MMTC_EDRX_CYCLE_S: ${MMTC_EDRX_CYCLE_S:-0}
+      MMTC_EDRX_PTW_S: ${MMTC_EDRX_PTW_S:-0}
+      MMTC_PSM_T3324_ACTIVE_TIME_S: ${MMTC_PSM_T3324_ACTIVE_TIME_S:-0}
+      MMTC_PSM_T3512_TAU_S: ${MMTC_PSM_T3512_TAU_S:-0}
+      MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
+      MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER: ${MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER:-0}
+      MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK: ${MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK:-0}
+      MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
+      USE_ADDITIONAL_OPTIONS: >
+        -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
+        --uicc0.imsi 001010000000046
+        -C ${MMTC_RF_FREQ:-3630360000}
+        --ssb ${MMTC_SSB_START:-144}
+        --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
+        --log_config.global_log_options level,nocolor,time
+        --telnetsrv --telnetsrv.listenaddr 192.168.71.195 --telnetsrv.listenport 8136
+        ${MMTC_UE_EXTRA_OPTIONS:-}
+    depends_on:
+      - oai-gnb
+    networks:
+      public_net:
+        ipv4_address: 192.168.71.195
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - ../../conf_files/nrue_recap/nrue46.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
+      - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
+    healthcheck:
+      test: /bin/bash -c "pgrep nr-uesoftmodem"
+      start_period: 10s
+      start_interval: 500ms
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  oai-nr-ue47:
+    image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+    container_name: rfsim5g-oai-nr-ue47_redcap
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    environment:
+      MMTC_UE_INDEX: "47"
+      MMTC_IMSI: "001010000000047"
+      MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
+      MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
+      MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
+      MMTC_PDSCH_256QAM: ${MMTC_PDSCH_256QAM:-0}
+      MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
+      MMTC_BAND: ${MMTC_BAND:-78}
+      MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
+      MMTC_NUMEROLOGY: ${MMTC_NUMEROLOGY:-1}
+      MMTC_N_RB_DL: ${MMTC_N_RB_DL:-106}
+      MMTC_SSB_START: ${MMTC_SSB_START:-144}
+      MMTC_CGCFG_NOFREE: ${MMTC_CGCFG_NOFREE:-0}
+      MMTC_CGCFG_DEFER_FREE_SLOTS: ${MMTC_CGCFG_DEFER_FREE_SLOTS:-0}
+      MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
+      MMTC_DRX_PROFILE: ${MMTC_DRX_PROFILE:-off}
+      MMTC_EDRX_CYCLE_S: ${MMTC_EDRX_CYCLE_S:-0}
+      MMTC_EDRX_PTW_S: ${MMTC_EDRX_PTW_S:-0}
+      MMTC_PSM_T3324_ACTIVE_TIME_S: ${MMTC_PSM_T3324_ACTIVE_TIME_S:-0}
+      MMTC_PSM_T3512_TAU_S: ${MMTC_PSM_T3512_TAU_S:-0}
+      MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
+      MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER: ${MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER:-0}
+      MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK: ${MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK:-0}
+      MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
+      USE_ADDITIONAL_OPTIONS: >
+        -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
+        --uicc0.imsi 001010000000047
+        -C ${MMTC_RF_FREQ:-3630360000}
+        --ssb ${MMTC_SSB_START:-144}
+        --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
+        --log_config.global_log_options level,nocolor,time
+        --telnetsrv --telnetsrv.listenaddr 192.168.71.196 --telnetsrv.listenport 8137
+        ${MMTC_UE_EXTRA_OPTIONS:-}
+    depends_on:
+      - oai-gnb
+    networks:
+      public_net:
+        ipv4_address: 192.168.71.196
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - ../../conf_files/nrue_recap/nrue47.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
+      - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
+    healthcheck:
+      test: /bin/bash -c "pgrep nr-uesoftmodem"
+      start_period: 10s
+      start_interval: 500ms
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  oai-nr-ue48:
+    image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+    container_name: rfsim5g-oai-nr-ue48_redcap
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    environment:
+      MMTC_UE_INDEX: "48"
+      MMTC_IMSI: "001010000000048"
+      MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
+      MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
+      MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
+      MMTC_PDSCH_256QAM: ${MMTC_PDSCH_256QAM:-0}
+      MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
+      MMTC_BAND: ${MMTC_BAND:-78}
+      MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
+      MMTC_NUMEROLOGY: ${MMTC_NUMEROLOGY:-1}
+      MMTC_N_RB_DL: ${MMTC_N_RB_DL:-106}
+      MMTC_SSB_START: ${MMTC_SSB_START:-144}
+      MMTC_CGCFG_NOFREE: ${MMTC_CGCFG_NOFREE:-0}
+      MMTC_CGCFG_DEFER_FREE_SLOTS: ${MMTC_CGCFG_DEFER_FREE_SLOTS:-0}
+      MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
+      MMTC_DRX_PROFILE: ${MMTC_DRX_PROFILE:-off}
+      MMTC_EDRX_CYCLE_S: ${MMTC_EDRX_CYCLE_S:-0}
+      MMTC_EDRX_PTW_S: ${MMTC_EDRX_PTW_S:-0}
+      MMTC_PSM_T3324_ACTIVE_TIME_S: ${MMTC_PSM_T3324_ACTIVE_TIME_S:-0}
+      MMTC_PSM_T3512_TAU_S: ${MMTC_PSM_T3512_TAU_S:-0}
+      MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
+      MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER: ${MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER:-0}
+      MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK: ${MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK:-0}
+      MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
+      USE_ADDITIONAL_OPTIONS: >
+        -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
+        --uicc0.imsi 001010000000048
+        -C ${MMTC_RF_FREQ:-3630360000}
+        --ssb ${MMTC_SSB_START:-144}
+        --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
+        --log_config.global_log_options level,nocolor,time
+        --telnetsrv --telnetsrv.listenaddr 192.168.71.197 --telnetsrv.listenport 8138
+        ${MMTC_UE_EXTRA_OPTIONS:-}
+    depends_on:
+      - oai-gnb
+    networks:
+      public_net:
+        ipv4_address: 192.168.71.197
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - ../../conf_files/nrue_recap/nrue48.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
+      - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
+    healthcheck:
+      test: /bin/bash -c "pgrep nr-uesoftmodem"
+      start_period: 10s
+      start_interval: 500ms
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  oai-nr-ue49:
+    image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+    container_name: rfsim5g-oai-nr-ue49_redcap
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    environment:
+      MMTC_UE_INDEX: "49"
+      MMTC_IMSI: "001010000000049"
+      MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
+      MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
+      MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
+      MMTC_PDSCH_256QAM: ${MMTC_PDSCH_256QAM:-0}
+      MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
+      MMTC_BAND: ${MMTC_BAND:-78}
+      MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
+      MMTC_NUMEROLOGY: ${MMTC_NUMEROLOGY:-1}
+      MMTC_N_RB_DL: ${MMTC_N_RB_DL:-106}
+      MMTC_SSB_START: ${MMTC_SSB_START:-144}
+      MMTC_CGCFG_NOFREE: ${MMTC_CGCFG_NOFREE:-0}
+      MMTC_CGCFG_DEFER_FREE_SLOTS: ${MMTC_CGCFG_DEFER_FREE_SLOTS:-0}
+      MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
+      MMTC_DRX_PROFILE: ${MMTC_DRX_PROFILE:-off}
+      MMTC_EDRX_CYCLE_S: ${MMTC_EDRX_CYCLE_S:-0}
+      MMTC_EDRX_PTW_S: ${MMTC_EDRX_PTW_S:-0}
+      MMTC_PSM_T3324_ACTIVE_TIME_S: ${MMTC_PSM_T3324_ACTIVE_TIME_S:-0}
+      MMTC_PSM_T3512_TAU_S: ${MMTC_PSM_T3512_TAU_S:-0}
+      MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
+      MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER: ${MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER:-0}
+      MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK: ${MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK:-0}
+      MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
+      USE_ADDITIONAL_OPTIONS: >
+        -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
+        --uicc0.imsi 001010000000049
+        -C ${MMTC_RF_FREQ:-3630360000}
+        --ssb ${MMTC_SSB_START:-144}
+        --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
+        --log_config.global_log_options level,nocolor,time
+        --telnetsrv --telnetsrv.listenaddr 192.168.71.198 --telnetsrv.listenport 8139
+        ${MMTC_UE_EXTRA_OPTIONS:-}
+    depends_on:
+      - oai-gnb
+    networks:
+      public_net:
+        ipv4_address: 192.168.71.198
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - ../../conf_files/nrue_recap/nrue49.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
+      - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
+    healthcheck:
+      test: /bin/bash -c "pgrep nr-uesoftmodem"
+      start_period: 10s
+      start_interval: 500ms
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  oai-nr-ue50:
+    image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+    container_name: rfsim5g-oai-nr-ue50_redcap
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    environment:
+      MMTC_UE_INDEX: "50"
+      MMTC_IMSI: "001010000000050"
+      MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
+      MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
+      MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
+      MMTC_PDSCH_256QAM: ${MMTC_PDSCH_256QAM:-0}
+      MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
+      MMTC_BAND: ${MMTC_BAND:-78}
+      MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
+      MMTC_NUMEROLOGY: ${MMTC_NUMEROLOGY:-1}
+      MMTC_N_RB_DL: ${MMTC_N_RB_DL:-106}
+      MMTC_SSB_START: ${MMTC_SSB_START:-144}
+      MMTC_CGCFG_NOFREE: ${MMTC_CGCFG_NOFREE:-0}
+      MMTC_CGCFG_DEFER_FREE_SLOTS: ${MMTC_CGCFG_DEFER_FREE_SLOTS:-0}
+      MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
+      MMTC_DRX_PROFILE: ${MMTC_DRX_PROFILE:-off}
+      MMTC_EDRX_CYCLE_S: ${MMTC_EDRX_CYCLE_S:-0}
+      MMTC_EDRX_PTW_S: ${MMTC_EDRX_PTW_S:-0}
+      MMTC_PSM_T3324_ACTIVE_TIME_S: ${MMTC_PSM_T3324_ACTIVE_TIME_S:-0}
+      MMTC_PSM_T3512_TAU_S: ${MMTC_PSM_T3512_TAU_S:-0}
+      MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
+      MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER: ${MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER:-0}
+      MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK: ${MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK:-0}
+      MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
+      USE_ADDITIONAL_OPTIONS: >
+        -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
+        --uicc0.imsi 001010000000050
+        -C ${MMTC_RF_FREQ:-3630360000}
+        --ssb ${MMTC_SSB_START:-144}
+        --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
+        --log_config.global_log_options level,nocolor,time
+        --telnetsrv --telnetsrv.listenaddr 192.168.71.199 --telnetsrv.listenport 8140
+        ${MMTC_UE_EXTRA_OPTIONS:-}
+    depends_on:
+      - oai-gnb
+    networks:
+      public_net:
+        ipv4_address: 192.168.71.199
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - ../../conf_files/nrue_recap/nrue50.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
+      - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
+    healthcheck:
+      test: /bin/bash -c "pgrep nr-uesoftmodem"
+      start_period: 10s
+      start_interval: 500ms
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  oai-nr-ue51:
+    image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+    container_name: rfsim5g-oai-nr-ue51_redcap
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    environment:
+      MMTC_UE_INDEX: "51"
+      MMTC_IMSI: "001010000000051"
+      MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
+      MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
+      MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
+      MMTC_PDSCH_256QAM: ${MMTC_PDSCH_256QAM:-0}
+      MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
+      MMTC_BAND: ${MMTC_BAND:-78}
+      MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
+      MMTC_NUMEROLOGY: ${MMTC_NUMEROLOGY:-1}
+      MMTC_N_RB_DL: ${MMTC_N_RB_DL:-106}
+      MMTC_SSB_START: ${MMTC_SSB_START:-144}
+      MMTC_CGCFG_NOFREE: ${MMTC_CGCFG_NOFREE:-0}
+      MMTC_CGCFG_DEFER_FREE_SLOTS: ${MMTC_CGCFG_DEFER_FREE_SLOTS:-0}
+      MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
+      MMTC_DRX_PROFILE: ${MMTC_DRX_PROFILE:-off}
+      MMTC_EDRX_CYCLE_S: ${MMTC_EDRX_CYCLE_S:-0}
+      MMTC_EDRX_PTW_S: ${MMTC_EDRX_PTW_S:-0}
+      MMTC_PSM_T3324_ACTIVE_TIME_S: ${MMTC_PSM_T3324_ACTIVE_TIME_S:-0}
+      MMTC_PSM_T3512_TAU_S: ${MMTC_PSM_T3512_TAU_S:-0}
+      MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
+      MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER: ${MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER:-0}
+      MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK: ${MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK:-0}
+      MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
+      USE_ADDITIONAL_OPTIONS: >
+        -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
+        --uicc0.imsi 001010000000051
+        -C ${MMTC_RF_FREQ:-3630360000}
+        --ssb ${MMTC_SSB_START:-144}
+        --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
+        --log_config.global_log_options level,nocolor,time
+        --telnetsrv --telnetsrv.listenaddr 192.168.71.200 --telnetsrv.listenport 8141
+        ${MMTC_UE_EXTRA_OPTIONS:-}
+    depends_on:
+      - oai-gnb
+    networks:
+      public_net:
+        ipv4_address: 192.168.71.200
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - ../../conf_files/nrue_recap/nrue51.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
+      - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
+    healthcheck:
+      test: /bin/bash -c "pgrep nr-uesoftmodem"
+      start_period: 10s
+      start_interval: 500ms
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  oai-nr-ue52:
+    image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+    container_name: rfsim5g-oai-nr-ue52_redcap
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    environment:
+      MMTC_UE_INDEX: "52"
+      MMTC_IMSI: "001010000000052"
+      MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
+      MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
+      MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
+      MMTC_PDSCH_256QAM: ${MMTC_PDSCH_256QAM:-0}
+      MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
+      MMTC_BAND: ${MMTC_BAND:-78}
+      MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
+      MMTC_NUMEROLOGY: ${MMTC_NUMEROLOGY:-1}
+      MMTC_N_RB_DL: ${MMTC_N_RB_DL:-106}
+      MMTC_SSB_START: ${MMTC_SSB_START:-144}
+      MMTC_CGCFG_NOFREE: ${MMTC_CGCFG_NOFREE:-0}
+      MMTC_CGCFG_DEFER_FREE_SLOTS: ${MMTC_CGCFG_DEFER_FREE_SLOTS:-0}
+      MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
+      MMTC_DRX_PROFILE: ${MMTC_DRX_PROFILE:-off}
+      MMTC_EDRX_CYCLE_S: ${MMTC_EDRX_CYCLE_S:-0}
+      MMTC_EDRX_PTW_S: ${MMTC_EDRX_PTW_S:-0}
+      MMTC_PSM_T3324_ACTIVE_TIME_S: ${MMTC_PSM_T3324_ACTIVE_TIME_S:-0}
+      MMTC_PSM_T3512_TAU_S: ${MMTC_PSM_T3512_TAU_S:-0}
+      MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
+      MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER: ${MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER:-0}
+      MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK: ${MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK:-0}
+      MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
+      USE_ADDITIONAL_OPTIONS: >
+        -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
+        --uicc0.imsi 001010000000052
+        -C ${MMTC_RF_FREQ:-3630360000}
+        --ssb ${MMTC_SSB_START:-144}
+        --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
+        --log_config.global_log_options level,nocolor,time
+        --telnetsrv --telnetsrv.listenaddr 192.168.71.201 --telnetsrv.listenport 8142
+        ${MMTC_UE_EXTRA_OPTIONS:-}
+    depends_on:
+      - oai-gnb
+    networks:
+      public_net:
+        ipv4_address: 192.168.71.201
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - ../../conf_files/nrue_recap/nrue52.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
+      - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
+    healthcheck:
+      test: /bin/bash -c "pgrep nr-uesoftmodem"
+      start_period: 10s
+      start_interval: 500ms
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  oai-nr-ue53:
+    image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+    container_name: rfsim5g-oai-nr-ue53_redcap
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    environment:
+      MMTC_UE_INDEX: "53"
+      MMTC_IMSI: "001010000000053"
+      MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
+      MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
+      MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
+      MMTC_PDSCH_256QAM: ${MMTC_PDSCH_256QAM:-0}
+      MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
+      MMTC_BAND: ${MMTC_BAND:-78}
+      MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
+      MMTC_NUMEROLOGY: ${MMTC_NUMEROLOGY:-1}
+      MMTC_N_RB_DL: ${MMTC_N_RB_DL:-106}
+      MMTC_SSB_START: ${MMTC_SSB_START:-144}
+      MMTC_CGCFG_NOFREE: ${MMTC_CGCFG_NOFREE:-0}
+      MMTC_CGCFG_DEFER_FREE_SLOTS: ${MMTC_CGCFG_DEFER_FREE_SLOTS:-0}
+      MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
+      MMTC_DRX_PROFILE: ${MMTC_DRX_PROFILE:-off}
+      MMTC_EDRX_CYCLE_S: ${MMTC_EDRX_CYCLE_S:-0}
+      MMTC_EDRX_PTW_S: ${MMTC_EDRX_PTW_S:-0}
+      MMTC_PSM_T3324_ACTIVE_TIME_S: ${MMTC_PSM_T3324_ACTIVE_TIME_S:-0}
+      MMTC_PSM_T3512_TAU_S: ${MMTC_PSM_T3512_TAU_S:-0}
+      MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
+      MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER: ${MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER:-0}
+      MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK: ${MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK:-0}
+      MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
+      USE_ADDITIONAL_OPTIONS: >
+        -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
+        --uicc0.imsi 001010000000053
+        -C ${MMTC_RF_FREQ:-3630360000}
+        --ssb ${MMTC_SSB_START:-144}
+        --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
+        --log_config.global_log_options level,nocolor,time
+        --telnetsrv --telnetsrv.listenaddr 192.168.71.202 --telnetsrv.listenport 8143
+        ${MMTC_UE_EXTRA_OPTIONS:-}
+    depends_on:
+      - oai-gnb
+    networks:
+      public_net:
+        ipv4_address: 192.168.71.202
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - ../../conf_files/nrue_recap/nrue53.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
+      - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
+    healthcheck:
+      test: /bin/bash -c "pgrep nr-uesoftmodem"
+      start_period: 10s
+      start_interval: 500ms
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  oai-nr-ue54:
+    image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+    container_name: rfsim5g-oai-nr-ue54_redcap
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    environment:
+      MMTC_UE_INDEX: "54"
+      MMTC_IMSI: "001010000000054"
+      MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
+      MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
+      MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
+      MMTC_PDSCH_256QAM: ${MMTC_PDSCH_256QAM:-0}
+      MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
+      MMTC_BAND: ${MMTC_BAND:-78}
+      MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
+      MMTC_NUMEROLOGY: ${MMTC_NUMEROLOGY:-1}
+      MMTC_N_RB_DL: ${MMTC_N_RB_DL:-106}
+      MMTC_SSB_START: ${MMTC_SSB_START:-144}
+      MMTC_CGCFG_NOFREE: ${MMTC_CGCFG_NOFREE:-0}
+      MMTC_CGCFG_DEFER_FREE_SLOTS: ${MMTC_CGCFG_DEFER_FREE_SLOTS:-0}
+      MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
+      MMTC_DRX_PROFILE: ${MMTC_DRX_PROFILE:-off}
+      MMTC_EDRX_CYCLE_S: ${MMTC_EDRX_CYCLE_S:-0}
+      MMTC_EDRX_PTW_S: ${MMTC_EDRX_PTW_S:-0}
+      MMTC_PSM_T3324_ACTIVE_TIME_S: ${MMTC_PSM_T3324_ACTIVE_TIME_S:-0}
+      MMTC_PSM_T3512_TAU_S: ${MMTC_PSM_T3512_TAU_S:-0}
+      MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
+      MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER: ${MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER:-0}
+      MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK: ${MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK:-0}
+      MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
+      USE_ADDITIONAL_OPTIONS: >
+        -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
+        --uicc0.imsi 001010000000054
+        -C ${MMTC_RF_FREQ:-3630360000}
+        --ssb ${MMTC_SSB_START:-144}
+        --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
+        --log_config.global_log_options level,nocolor,time
+        --telnetsrv --telnetsrv.listenaddr 192.168.71.203 --telnetsrv.listenport 8144
+        ${MMTC_UE_EXTRA_OPTIONS:-}
+    depends_on:
+      - oai-gnb
+    networks:
+      public_net:
+        ipv4_address: 192.168.71.203
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - ../../conf_files/nrue_recap/nrue54.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
+      - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
+    healthcheck:
+      test: /bin/bash -c "pgrep nr-uesoftmodem"
+      start_period: 10s
+      start_interval: 500ms
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  oai-nr-ue55:
+    image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+    container_name: rfsim5g-oai-nr-ue55_redcap
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    environment:
+      MMTC_UE_INDEX: "55"
+      MMTC_IMSI: "001010000000055"
+      MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
+      MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
+      MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
+      MMTC_PDSCH_256QAM: ${MMTC_PDSCH_256QAM:-0}
+      MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
+      MMTC_BAND: ${MMTC_BAND:-78}
+      MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
+      MMTC_NUMEROLOGY: ${MMTC_NUMEROLOGY:-1}
+      MMTC_N_RB_DL: ${MMTC_N_RB_DL:-106}
+      MMTC_SSB_START: ${MMTC_SSB_START:-144}
+      MMTC_CGCFG_NOFREE: ${MMTC_CGCFG_NOFREE:-0}
+      MMTC_CGCFG_DEFER_FREE_SLOTS: ${MMTC_CGCFG_DEFER_FREE_SLOTS:-0}
+      MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
+      MMTC_DRX_PROFILE: ${MMTC_DRX_PROFILE:-off}
+      MMTC_EDRX_CYCLE_S: ${MMTC_EDRX_CYCLE_S:-0}
+      MMTC_EDRX_PTW_S: ${MMTC_EDRX_PTW_S:-0}
+      MMTC_PSM_T3324_ACTIVE_TIME_S: ${MMTC_PSM_T3324_ACTIVE_TIME_S:-0}
+      MMTC_PSM_T3512_TAU_S: ${MMTC_PSM_T3512_TAU_S:-0}
+      MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
+      MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER: ${MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER:-0}
+      MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK: ${MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK:-0}
+      MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
+      USE_ADDITIONAL_OPTIONS: >
+        -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
+        --uicc0.imsi 001010000000055
+        -C ${MMTC_RF_FREQ:-3630360000}
+        --ssb ${MMTC_SSB_START:-144}
+        --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
+        --log_config.global_log_options level,nocolor,time
+        --telnetsrv --telnetsrv.listenaddr 192.168.71.204 --telnetsrv.listenport 8145
+        ${MMTC_UE_EXTRA_OPTIONS:-}
+    depends_on:
+      - oai-gnb
+    networks:
+      public_net:
+        ipv4_address: 192.168.71.204
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - ../../conf_files/nrue_recap/nrue55.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
+      - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
+    healthcheck:
+      test: /bin/bash -c "pgrep nr-uesoftmodem"
+      start_period: 10s
+      start_interval: 500ms
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  oai-nr-ue56:
+    image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+    container_name: rfsim5g-oai-nr-ue56_redcap
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    environment:
+      MMTC_UE_INDEX: "56"
+      MMTC_IMSI: "001010000000056"
+      MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
+      MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
+      MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
+      MMTC_PDSCH_256QAM: ${MMTC_PDSCH_256QAM:-0}
+      MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
+      MMTC_BAND: ${MMTC_BAND:-78}
+      MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
+      MMTC_NUMEROLOGY: ${MMTC_NUMEROLOGY:-1}
+      MMTC_N_RB_DL: ${MMTC_N_RB_DL:-106}
+      MMTC_SSB_START: ${MMTC_SSB_START:-144}
+      MMTC_CGCFG_NOFREE: ${MMTC_CGCFG_NOFREE:-0}
+      MMTC_CGCFG_DEFER_FREE_SLOTS: ${MMTC_CGCFG_DEFER_FREE_SLOTS:-0}
+      MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
+      MMTC_DRX_PROFILE: ${MMTC_DRX_PROFILE:-off}
+      MMTC_EDRX_CYCLE_S: ${MMTC_EDRX_CYCLE_S:-0}
+      MMTC_EDRX_PTW_S: ${MMTC_EDRX_PTW_S:-0}
+      MMTC_PSM_T3324_ACTIVE_TIME_S: ${MMTC_PSM_T3324_ACTIVE_TIME_S:-0}
+      MMTC_PSM_T3512_TAU_S: ${MMTC_PSM_T3512_TAU_S:-0}
+      MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
+      MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER: ${MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER:-0}
+      MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK: ${MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK:-0}
+      MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
+      USE_ADDITIONAL_OPTIONS: >
+        -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
+        --uicc0.imsi 001010000000056
+        -C ${MMTC_RF_FREQ:-3630360000}
+        --ssb ${MMTC_SSB_START:-144}
+        --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
+        --log_config.global_log_options level,nocolor,time
+        --telnetsrv --telnetsrv.listenaddr 192.168.71.205 --telnetsrv.listenport 8146
+        ${MMTC_UE_EXTRA_OPTIONS:-}
+    depends_on:
+      - oai-gnb
+    networks:
+      public_net:
+        ipv4_address: 192.168.71.205
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - ../../conf_files/nrue_recap/nrue56.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
+      - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
+    healthcheck:
+      test: /bin/bash -c "pgrep nr-uesoftmodem"
+      start_period: 10s
+      start_interval: 500ms
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  oai-nr-ue57:
+    image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+    container_name: rfsim5g-oai-nr-ue57_redcap
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    environment:
+      MMTC_UE_INDEX: "57"
+      MMTC_IMSI: "001010000000057"
+      MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
+      MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
+      MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
+      MMTC_PDSCH_256QAM: ${MMTC_PDSCH_256QAM:-0}
+      MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
+      MMTC_BAND: ${MMTC_BAND:-78}
+      MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
+      MMTC_NUMEROLOGY: ${MMTC_NUMEROLOGY:-1}
+      MMTC_N_RB_DL: ${MMTC_N_RB_DL:-106}
+      MMTC_SSB_START: ${MMTC_SSB_START:-144}
+      MMTC_CGCFG_NOFREE: ${MMTC_CGCFG_NOFREE:-0}
+      MMTC_CGCFG_DEFER_FREE_SLOTS: ${MMTC_CGCFG_DEFER_FREE_SLOTS:-0}
+      MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
+      MMTC_DRX_PROFILE: ${MMTC_DRX_PROFILE:-off}
+      MMTC_EDRX_CYCLE_S: ${MMTC_EDRX_CYCLE_S:-0}
+      MMTC_EDRX_PTW_S: ${MMTC_EDRX_PTW_S:-0}
+      MMTC_PSM_T3324_ACTIVE_TIME_S: ${MMTC_PSM_T3324_ACTIVE_TIME_S:-0}
+      MMTC_PSM_T3512_TAU_S: ${MMTC_PSM_T3512_TAU_S:-0}
+      MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
+      MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER: ${MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER:-0}
+      MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK: ${MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK:-0}
+      MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
+      USE_ADDITIONAL_OPTIONS: >
+        -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
+        --uicc0.imsi 001010000000057
+        -C ${MMTC_RF_FREQ:-3630360000}
+        --ssb ${MMTC_SSB_START:-144}
+        --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
+        --log_config.global_log_options level,nocolor,time
+        --telnetsrv --telnetsrv.listenaddr 192.168.71.206 --telnetsrv.listenport 8147
+        ${MMTC_UE_EXTRA_OPTIONS:-}
+    depends_on:
+      - oai-gnb
+    networks:
+      public_net:
+        ipv4_address: 192.168.71.206
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - ../../conf_files/nrue_recap/nrue57.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
+      - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
+    healthcheck:
+      test: /bin/bash -c "pgrep nr-uesoftmodem"
+      start_period: 10s
+      start_interval: 500ms
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  oai-nr-ue58:
+    image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+    container_name: rfsim5g-oai-nr-ue58_redcap
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    environment:
+      MMTC_UE_INDEX: "58"
+      MMTC_IMSI: "001010000000058"
+      MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
+      MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
+      MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
+      MMTC_PDSCH_256QAM: ${MMTC_PDSCH_256QAM:-0}
+      MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
+      MMTC_BAND: ${MMTC_BAND:-78}
+      MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
+      MMTC_NUMEROLOGY: ${MMTC_NUMEROLOGY:-1}
+      MMTC_N_RB_DL: ${MMTC_N_RB_DL:-106}
+      MMTC_SSB_START: ${MMTC_SSB_START:-144}
+      MMTC_CGCFG_NOFREE: ${MMTC_CGCFG_NOFREE:-0}
+      MMTC_CGCFG_DEFER_FREE_SLOTS: ${MMTC_CGCFG_DEFER_FREE_SLOTS:-0}
+      MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
+      MMTC_DRX_PROFILE: ${MMTC_DRX_PROFILE:-off}
+      MMTC_EDRX_CYCLE_S: ${MMTC_EDRX_CYCLE_S:-0}
+      MMTC_EDRX_PTW_S: ${MMTC_EDRX_PTW_S:-0}
+      MMTC_PSM_T3324_ACTIVE_TIME_S: ${MMTC_PSM_T3324_ACTIVE_TIME_S:-0}
+      MMTC_PSM_T3512_TAU_S: ${MMTC_PSM_T3512_TAU_S:-0}
+      MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
+      MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER: ${MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER:-0}
+      MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK: ${MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK:-0}
+      MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
+      USE_ADDITIONAL_OPTIONS: >
+        -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
+        --uicc0.imsi 001010000000058
+        -C ${MMTC_RF_FREQ:-3630360000}
+        --ssb ${MMTC_SSB_START:-144}
+        --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
+        --log_config.global_log_options level,nocolor,time
+        --telnetsrv --telnetsrv.listenaddr 192.168.71.207 --telnetsrv.listenport 8148
+        ${MMTC_UE_EXTRA_OPTIONS:-}
+    depends_on:
+      - oai-gnb
+    networks:
+      public_net:
+        ipv4_address: 192.168.71.207
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - ../../conf_files/nrue_recap/nrue58.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
+      - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
+    healthcheck:
+      test: /bin/bash -c "pgrep nr-uesoftmodem"
+      start_period: 10s
+      start_interval: 500ms
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  oai-nr-ue59:
+    image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+    container_name: rfsim5g-oai-nr-ue59_redcap
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    environment:
+      MMTC_UE_INDEX: "59"
+      MMTC_IMSI: "001010000000059"
+      MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
+      MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
+      MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
+      MMTC_PDSCH_256QAM: ${MMTC_PDSCH_256QAM:-0}
+      MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
+      MMTC_BAND: ${MMTC_BAND:-78}
+      MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
+      MMTC_NUMEROLOGY: ${MMTC_NUMEROLOGY:-1}
+      MMTC_N_RB_DL: ${MMTC_N_RB_DL:-106}
+      MMTC_SSB_START: ${MMTC_SSB_START:-144}
+      MMTC_CGCFG_NOFREE: ${MMTC_CGCFG_NOFREE:-0}
+      MMTC_CGCFG_DEFER_FREE_SLOTS: ${MMTC_CGCFG_DEFER_FREE_SLOTS:-0}
+      MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
+      MMTC_DRX_PROFILE: ${MMTC_DRX_PROFILE:-off}
+      MMTC_EDRX_CYCLE_S: ${MMTC_EDRX_CYCLE_S:-0}
+      MMTC_EDRX_PTW_S: ${MMTC_EDRX_PTW_S:-0}
+      MMTC_PSM_T3324_ACTIVE_TIME_S: ${MMTC_PSM_T3324_ACTIVE_TIME_S:-0}
+      MMTC_PSM_T3512_TAU_S: ${MMTC_PSM_T3512_TAU_S:-0}
+      MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
+      MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER: ${MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER:-0}
+      MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK: ${MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK:-0}
+      MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
+      USE_ADDITIONAL_OPTIONS: >
+        -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
+        --uicc0.imsi 001010000000059
+        -C ${MMTC_RF_FREQ:-3630360000}
+        --ssb ${MMTC_SSB_START:-144}
+        --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
+        --log_config.global_log_options level,nocolor,time
+        --telnetsrv --telnetsrv.listenaddr 192.168.71.208 --telnetsrv.listenport 8149
+        ${MMTC_UE_EXTRA_OPTIONS:-}
+    depends_on:
+      - oai-gnb
+    networks:
+      public_net:
+        ipv4_address: 192.168.71.208
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - ../../conf_files/nrue_recap/nrue59.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
+      - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
+    healthcheck:
+      test: /bin/bash -c "pgrep nr-uesoftmodem"
+      start_period: 10s
+      start_interval: 500ms
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  oai-nr-ue60:
+    image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+    container_name: rfsim5g-oai-nr-ue60_redcap
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    environment:
+      MMTC_UE_INDEX: "60"
+      MMTC_IMSI: "001010000000060"
+      MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
+      MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
+      MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
+      MMTC_PDSCH_256QAM: ${MMTC_PDSCH_256QAM:-0}
+      MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
+      MMTC_BAND: ${MMTC_BAND:-78}
+      MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
+      MMTC_NUMEROLOGY: ${MMTC_NUMEROLOGY:-1}
+      MMTC_N_RB_DL: ${MMTC_N_RB_DL:-106}
+      MMTC_SSB_START: ${MMTC_SSB_START:-144}
+      MMTC_CGCFG_NOFREE: ${MMTC_CGCFG_NOFREE:-0}
+      MMTC_CGCFG_DEFER_FREE_SLOTS: ${MMTC_CGCFG_DEFER_FREE_SLOTS:-0}
+      MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
+      MMTC_DRX_PROFILE: ${MMTC_DRX_PROFILE:-off}
+      MMTC_EDRX_CYCLE_S: ${MMTC_EDRX_CYCLE_S:-0}
+      MMTC_EDRX_PTW_S: ${MMTC_EDRX_PTW_S:-0}
+      MMTC_PSM_T3324_ACTIVE_TIME_S: ${MMTC_PSM_T3324_ACTIVE_TIME_S:-0}
+      MMTC_PSM_T3512_TAU_S: ${MMTC_PSM_T3512_TAU_S:-0}
+      MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
+      MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER: ${MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER:-0}
+      MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK: ${MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK:-0}
+      MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
+      USE_ADDITIONAL_OPTIONS: >
+        -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
+        --uicc0.imsi 001010000000060
+        -C ${MMTC_RF_FREQ:-3630360000}
+        --ssb ${MMTC_SSB_START:-144}
+        --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
+        --log_config.global_log_options level,nocolor,time
+        --telnetsrv --telnetsrv.listenaddr 192.168.71.209 --telnetsrv.listenport 8150
+        ${MMTC_UE_EXTRA_OPTIONS:-}
+    depends_on:
+      - oai-gnb
+    networks:
+      public_net:
+        ipv4_address: 192.168.71.209
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - ../../conf_files/nrue_recap/nrue60.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
+      - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
+    healthcheck:
+      test: /bin/bash -c "pgrep nr-uesoftmodem"
+      start_period: 10s
+      start_interval: 500ms
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  oai-nr-ue61:
+    image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+    container_name: rfsim5g-oai-nr-ue61_redcap
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    environment:
+      MMTC_UE_INDEX: "61"
+      MMTC_IMSI: "001010000000061"
+      MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
+      MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
+      MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
+      MMTC_PDSCH_256QAM: ${MMTC_PDSCH_256QAM:-0}
+      MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
+      MMTC_BAND: ${MMTC_BAND:-78}
+      MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
+      MMTC_NUMEROLOGY: ${MMTC_NUMEROLOGY:-1}
+      MMTC_N_RB_DL: ${MMTC_N_RB_DL:-106}
+      MMTC_SSB_START: ${MMTC_SSB_START:-144}
+      MMTC_CGCFG_NOFREE: ${MMTC_CGCFG_NOFREE:-0}
+      MMTC_CGCFG_DEFER_FREE_SLOTS: ${MMTC_CGCFG_DEFER_FREE_SLOTS:-0}
+      MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
+      MMTC_DRX_PROFILE: ${MMTC_DRX_PROFILE:-off}
+      MMTC_EDRX_CYCLE_S: ${MMTC_EDRX_CYCLE_S:-0}
+      MMTC_EDRX_PTW_S: ${MMTC_EDRX_PTW_S:-0}
+      MMTC_PSM_T3324_ACTIVE_TIME_S: ${MMTC_PSM_T3324_ACTIVE_TIME_S:-0}
+      MMTC_PSM_T3512_TAU_S: ${MMTC_PSM_T3512_TAU_S:-0}
+      MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
+      MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER: ${MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER:-0}
+      MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK: ${MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK:-0}
+      MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
+      USE_ADDITIONAL_OPTIONS: >
+        -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
+        --uicc0.imsi 001010000000061
+        -C ${MMTC_RF_FREQ:-3630360000}
+        --ssb ${MMTC_SSB_START:-144}
+        --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
+        --log_config.global_log_options level,nocolor,time
+        --telnetsrv --telnetsrv.listenaddr 192.168.71.210 --telnetsrv.listenport 8151
+        ${MMTC_UE_EXTRA_OPTIONS:-}
+    depends_on:
+      - oai-gnb
+    networks:
+      public_net:
+        ipv4_address: 192.168.71.210
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - ../../conf_files/nrue_recap/nrue61.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
+      - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
+    healthcheck:
+      test: /bin/bash -c "pgrep nr-uesoftmodem"
+      start_period: 10s
+      start_interval: 500ms
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  oai-nr-ue62:
+    image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+    container_name: rfsim5g-oai-nr-ue62_redcap
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    environment:
+      MMTC_UE_INDEX: "62"
+      MMTC_IMSI: "001010000000062"
+      MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
+      MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
+      MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
+      MMTC_PDSCH_256QAM: ${MMTC_PDSCH_256QAM:-0}
+      MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
+      MMTC_BAND: ${MMTC_BAND:-78}
+      MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
+      MMTC_NUMEROLOGY: ${MMTC_NUMEROLOGY:-1}
+      MMTC_N_RB_DL: ${MMTC_N_RB_DL:-106}
+      MMTC_SSB_START: ${MMTC_SSB_START:-144}
+      MMTC_CGCFG_NOFREE: ${MMTC_CGCFG_NOFREE:-0}
+      MMTC_CGCFG_DEFER_FREE_SLOTS: ${MMTC_CGCFG_DEFER_FREE_SLOTS:-0}
+      MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
+      MMTC_DRX_PROFILE: ${MMTC_DRX_PROFILE:-off}
+      MMTC_EDRX_CYCLE_S: ${MMTC_EDRX_CYCLE_S:-0}
+      MMTC_EDRX_PTW_S: ${MMTC_EDRX_PTW_S:-0}
+      MMTC_PSM_T3324_ACTIVE_TIME_S: ${MMTC_PSM_T3324_ACTIVE_TIME_S:-0}
+      MMTC_PSM_T3512_TAU_S: ${MMTC_PSM_T3512_TAU_S:-0}
+      MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
+      MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER: ${MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER:-0}
+      MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK: ${MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK:-0}
+      MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
+      USE_ADDITIONAL_OPTIONS: >
+        -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
+        --uicc0.imsi 001010000000062
+        -C ${MMTC_RF_FREQ:-3630360000}
+        --ssb ${MMTC_SSB_START:-144}
+        --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
+        --log_config.global_log_options level,nocolor,time
+        --telnetsrv --telnetsrv.listenaddr 192.168.71.211 --telnetsrv.listenport 8152
+        ${MMTC_UE_EXTRA_OPTIONS:-}
+    depends_on:
+      - oai-gnb
+    networks:
+      public_net:
+        ipv4_address: 192.168.71.211
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - ../../conf_files/nrue_recap/nrue62.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
+      - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
+    healthcheck:
+      test: /bin/bash -c "pgrep nr-uesoftmodem"
+      start_period: 10s
+      start_interval: 500ms
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  oai-nr-ue63:
+    image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+    container_name: rfsim5g-oai-nr-ue63_redcap
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    environment:
+      MMTC_UE_INDEX: "63"
+      MMTC_IMSI: "001010000000063"
+      MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
+      MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
+      MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
+      MMTC_PDSCH_256QAM: ${MMTC_PDSCH_256QAM:-0}
+      MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
+      MMTC_BAND: ${MMTC_BAND:-78}
+      MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
+      MMTC_NUMEROLOGY: ${MMTC_NUMEROLOGY:-1}
+      MMTC_N_RB_DL: ${MMTC_N_RB_DL:-106}
+      MMTC_SSB_START: ${MMTC_SSB_START:-144}
+      MMTC_CGCFG_NOFREE: ${MMTC_CGCFG_NOFREE:-0}
+      MMTC_CGCFG_DEFER_FREE_SLOTS: ${MMTC_CGCFG_DEFER_FREE_SLOTS:-0}
+      MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
+      MMTC_DRX_PROFILE: ${MMTC_DRX_PROFILE:-off}
+      MMTC_EDRX_CYCLE_S: ${MMTC_EDRX_CYCLE_S:-0}
+      MMTC_EDRX_PTW_S: ${MMTC_EDRX_PTW_S:-0}
+      MMTC_PSM_T3324_ACTIVE_TIME_S: ${MMTC_PSM_T3324_ACTIVE_TIME_S:-0}
+      MMTC_PSM_T3512_TAU_S: ${MMTC_PSM_T3512_TAU_S:-0}
+      MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
+      MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER: ${MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER:-0}
+      MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK: ${MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK:-0}
+      MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
+      USE_ADDITIONAL_OPTIONS: >
+        -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
+        --uicc0.imsi 001010000000063
+        -C ${MMTC_RF_FREQ:-3630360000}
+        --ssb ${MMTC_SSB_START:-144}
+        --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
+        --log_config.global_log_options level,nocolor,time
+        --telnetsrv --telnetsrv.listenaddr 192.168.71.212 --telnetsrv.listenport 8153
+        ${MMTC_UE_EXTRA_OPTIONS:-}
+    depends_on:
+      - oai-gnb
+    networks:
+      public_net:
+        ipv4_address: 192.168.71.212
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - ../../conf_files/nrue_recap/nrue63.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
+      - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
+    healthcheck:
+      test: /bin/bash -c "pgrep nr-uesoftmodem"
+      start_period: 10s
+      start_interval: 500ms
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  oai-nr-ue64:
+    image: ${REGISTRY-oaisoftwarealliance/}${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
+    container_name: rfsim5g-oai-nr-ue64_redcap
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    environment:
+      MMTC_UE_INDEX: "64"
+      MMTC_IMSI: "001010000000064"
+      MMTC_REDCAP_ENABLE: ${MMTC_REDCAP_ENABLE:-1}
+      MMTC_REDCAP_NUM_RX: ${MMTC_REDCAP_NUM_RX:-1}
+      MMTC_REDCAP_HALF_DUPLEX: ${MMTC_REDCAP_HALF_DUPLEX:-1}
+      MMTC_PUSCH_256QAM: ${MMTC_PUSCH_256QAM:-0}
+      MMTC_PDSCH_256QAM: ${MMTC_PDSCH_256QAM:-0}
+      MMTC_TEMPLATE_CONFIG: /opt/oai-nr-ue/etc/nr-ue.yaml
+      MMTC_BAND: ${MMTC_BAND:-78}
+      MMTC_RF_FREQ: ${MMTC_RF_FREQ:-3630360000}
+      MMTC_NUMEROLOGY: ${MMTC_NUMEROLOGY:-1}
+      MMTC_N_RB_DL: ${MMTC_N_RB_DL:-106}
+      MMTC_SSB_START: ${MMTC_SSB_START:-144}
+      MMTC_CGCFG_NOFREE: ${MMTC_CGCFG_NOFREE:-0}
+      MMTC_CGCFG_DEFER_FREE_SLOTS: ${MMTC_CGCFG_DEFER_FREE_SLOTS:-0}
+      MMTC_PUCCH_COMMON_FALLBACK_BWP0: ${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-0}
+      MMTC_DRX_PROFILE: ${MMTC_DRX_PROFILE:-off}
+      MMTC_EDRX_CYCLE_S: ${MMTC_EDRX_CYCLE_S:-0}
+      MMTC_EDRX_PTW_S: ${MMTC_EDRX_PTW_S:-0}
+      MMTC_PSM_T3324_ACTIVE_TIME_S: ${MMTC_PSM_T3324_ACTIVE_TIME_S:-0}
+      MMTC_PSM_T3512_TAU_S: ${MMTC_PSM_T3512_TAU_S:-0}
+      MMTC_SEGV_BACKTRACE: ${MMTC_SEGV_BACKTRACE:-0}
+      MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER: ${MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER:-0}
+      MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK: ${MMTC_RRC_INACTIVE_GATE4_FORCE_FALLBACK:-0}
+      MMTC_PDCP_TRACE: ${MMTC_PDCP_TRACE:-0}
+      MMTC_UE_GDB_BT: ${MMTC_UE_GDB_BT:-0}
+      MMTC_CHANMOD_DL_TYPE: ${MMTC_CHANMOD_DL_TYPE:-}
+      MMTC_CHANMOD_DL_PLOSS_DB: ${MMTC_CHANMOD_DL_PLOSS_DB:-}
+      MMTC_CHANMOD_DL_NOISE_DB: ${MMTC_CHANMOD_DL_NOISE_DB:-}
+      MMTC_CHANMOD_DL_DS_TDL: ${MMTC_CHANMOD_DL_DS_TDL:-}
+      USE_ADDITIONAL_OPTIONS: >
+        -E --rfsim -r ${MMTC_N_RB_DL:-106} --numerology ${MMTC_NUMEROLOGY:-1}
+        --uicc0.imsi 001010000000064
+        -C ${MMTC_RF_FREQ:-3630360000}
+        --ssb ${MMTC_SSB_START:-144}
+        --rfsimulator.serveraddr ${MMTC_GNB_ADDR:-192.168.70.140}
+        --log_config.global_log_options level,nocolor,time
+        --telnetsrv --telnetsrv.listenaddr 192.168.71.213 --telnetsrv.listenport 8154
+        ${MMTC_UE_EXTRA_OPTIONS:-}
+    depends_on:
+      - oai-gnb
+    networks:
+      public_net:
+        ipv4_address: 192.168.71.213
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - ../../conf_files/nrue_recap/nrue64.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
+      - ./scripts/ue_mmtc_entrypoint.sh:/opt/oai-nr-ue/bin/entrypoint.sh:ro
+    healthcheck:
+      test: /bin/bash -c "pgrep nr-uesoftmodem"
+      start_period: 10s
+      start_interval: 500ms
+      interval: 10s
+      timeout: 5s
+      retries: 5

@@ -19,7 +19,7 @@
 ## Reporting Rules
 
 - [MUST] Keep Gate A/B static evidence separate from Gate C/D/E runtime evidence.
-- [MUST NOT] claim [56 UE / 5 MHz BWP runtime PASS] from static checks.
+- [MUST NOT] claim [64 UE / 5 MHz-to-20 MHz BWP runtime PASS] from static checks.
 - [MUST] Record missing hooks, failed markers, and runtime blockers in `followups/workflow_v3_followups.md`.
 - [MUST] Keep English and Traditional Chinese docs paired.
 

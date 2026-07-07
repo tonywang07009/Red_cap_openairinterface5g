@@ -75,6 +75,13 @@
 
 - [Pending Gates]: `agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/followups/workflow_v3_followups.md`.
 - [Completed Follow-up]: Gate C E3 POSIX loopback and latency check passed with a project-local `tl_expected` shim.
-- [Next Pull Item]: rebuild local OAI images after the Gate D RedCap RA DCI bit-length source fix, recreate gNB + UE2 with `GNB_REDCAP_CONFIG=../../conf_files/gnb.sa.band78.fr1.106PRB.usrpb210.redcap.5mhz-bwp.yaml` and `OAI_REDCAP_DAPP_GATE_D_MARKER=1`, then rerun Gate D small RFsim marker validation with both gNB and UE logs.
-- [Stress Gate]: Gate E 56 UE / 5 MHz BWP stress validation stays blocked until Gate D produces both ULSCH/PUSCH and PUCCH markers that pass `--require-bwp-mhz 5`.
+- [Completed Follow-up]: Gate D small RFsim marker validation passed with local rebuilt images, 5 MHz BWP, and the no-CSI/SRS runtime workaround; evidence is in `test_log/runtime_logs/gate_d_access_pressure_gnb_2026-07-07_00-47_local_no_csirs_srs.log`.
+- [Prepared Follow-up]: Gate E static preflight is ready: 64 UE mMTC overlay, 64 UE CN DB overlay, 5 MHz/12 PRB first-stage profile, and 51 PRB 20 MHz proxy profile `[Needs Verification]` are checked by `gate_e_64ue_stage_check.py`.
+- [Runtime Follow-up]: Gate E first32 post-DCI-BWP rerun passed the 5 MHz stage with `sample=32`, `running=32`, `attach=32`, `pdu=32`, `tun=32`, `forward_ping_ok=32`, `gnb_restart=0`, and `failures=0`.
+- [Runtime Follow-up]: gNB evidence includes `128` `[RedCap RA][gNB DCI BWP]` markers, `32` `Received RRCSetupComplete`, `32` `Received RRCReconfigurationComplete`, and `32` `PDU Session Setup: ID=10`; UE logs no longer contain `TDA index from DCI 12`.
+- [Runtime Follow-up]: xApp/RIC Docker logs for the 23:18 rerun show E42 setup, two RC subscriptions, `5` RC Indications, and E2 setup with RAN function 3 `ORAN-E2SM-RC`; no RIC Control request/ACK marker was observed.
+- [Runtime Follow-up]: Gate E full64 20 MHz proxy attempt at 2026-07-07 23:39 failed before synchronization: summary `sample=64 running=64 attach=0 pdu=0 tun=0 gnb_restart=0 failures=64`; gNB expected UE `-C 3617640000 -r 51 --ssb 238`, but UE used `-C 3630360000 --ssb 144`.
+- [Source Follow-up]: `redcap_interface/bash_library/fc_mmtc_smoke_validation.sh` now auto-applies 51PRB RF/SSB defaults when `MMTC_N_RB_DL=51` or `GNB_REDCAP_CONFIG` contains `51PRB`; prepare-only evidence is `test_log/compiler_logs/mmtc_smoke_prepare_only_2026-07-07_51prb_rf_defaults.log`.
+- [Next Pull Item]: after Docker escalation is available, run one-UE 51PRB RF/SSB alignment smoke first; if it reaches sync/attach/PDU/TUN, run the full 64 UE / 20 MHz proxy stage and collect expansion/control evidence plus collision-load before/after access-pressure evidence.
+- [Stress Gate]: Gate E 64 UE staged 5 MHz-to-20 MHz BWP stress validation remains pending until full 64 UE attach/control evidence and collision-load access-pressure evidence exist.
 - [Boundary]: Workflow v3 remains complete for the narrow `redcap_ul_prb_cap` slice; the dApp/xApp validation project owns the new test gates.

@@ -1,15 +1,29 @@
 ## ADDED Requirements
 
 ### Requirement: Staged dApp/xApp SDK Validation Gates
-The project SHALL define staged validation gates for RedCap dApp/xApp SDK testing: SDK unit checks, SWIG checks, E3 loopback checks, small RFsim marker validation, and 56 UE / 5 MHz BWP stress validation.
+The project SHALL define staged validation gates for RedCap dApp/xApp SDK testing: SDK unit checks, SWIG checks, E3 loopback checks, small RFsim marker validation, and 64 UE / staged 5 MHz-to-20 MHz BWP stress validation.
 
 #### Scenario: Gate list is discoverable
 - **WHEN** the validation project documentation is inspected
 - **THEN** it lists Gate A through Gate E with purpose, acceptance evidence, and limitation notes
 
-#### Scenario: 56 UE stress is not used as static proof
+#### Scenario: 64 UE stress is not used as static proof
 - **WHEN** only static checks have passed
-- **THEN** the project does not claim 56 UE / 5 MHz BWP runtime PASS
+- **THEN** the project does not claim 64 UE / 5 MHz-to-20 MHz BWP runtime PASS
+
+#### Scenario: Runtime PASS requires stage summary metrics
+- **WHEN** a Gate E runtime log is evaluated
+- **THEN** the checker requires both the gNB runtime log and the `mmtc_stage_scan` summary log
+- **AND** the summary must show the required sampled UE count with attach, PDU, TUN, zero gNB restarts, and zero failures
+
+#### Scenario: Runtime blocker evidence is preserved
+- **WHEN** a Gate E runtime attempt improves one lower-layer blocker but still fails attach/PDU/TUN
+- **THEN** the project documentation records the successful marker change, the remaining failure metrics, and the next pull item without marking Gate E complete
+
+#### Scenario: Source-only Gate E fixes do not satisfy runtime acceptance
+- **WHEN** a Gate E source fix builds but Docker image rebuild or RFsim rerun is blocked
+- **THEN** the project records the source marker, build evidence, Docker/runtime boundary, and next rerun command
+- **AND** Gate E remains incomplete until post-fix runtime logs contain the expected marker and attach/PDU/TUN summary evidence
 
 ### Requirement: dev_refer-First Reference Coverage
 The validation workflow SHALL use local `dev_refer/` content as the primary reference for dApp/xApp SDK tests.
@@ -32,6 +46,17 @@ The dApp SDK test contract SHALL model I/Q observation input, UE priority hints,
 #### Scenario: dApp contract accepts a bounded allocation
 - **WHEN** a dApp allocation request has valid RNTI, a 5 MHz BWP profile marker, bounded PUCCH/PUSCH ratios, and a non-negative UE priority
 - **THEN** the SDK test helper returns an apply decision and exposes expected marker fields
+
+### Requirement: dApp Access-Pressure Policy
+The dApp SDK test contract SHALL provide an access-pressure policy that computes bounded PUCCH/PUSCH ratio intent from RA/PUCCH collision proxy counters and I/Q availability.
+
+#### Scenario: Access pressure maps to deterministic ratios
+- **WHEN** the access-pressure helper receives low, medium, and high pressure inputs
+- **THEN** it returns deterministic PUCCH/PUSCH ratio intent for each pressure level and still routes the decision through the dApp allocation guard
+
+#### Scenario: Access pressure keeps guard rejection behavior
+- **WHEN** the access-pressure helper receives missing I/Q metadata or an unsupported BWP marker
+- **THEN** the helper returns a reject decision from the underlying dApp allocation guard
 
 ### Requirement: xApp Priority Hint Contract
 The xApp SDK test contract SHALL compute UE priority hints and deliver them to the dApp-facing contract instead of directly scheduling PUCCH/PUSCH.

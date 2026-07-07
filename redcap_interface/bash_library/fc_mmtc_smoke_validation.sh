@@ -81,6 +81,38 @@ declare -a PING_LOG_FILES=()
 declare -a REVERSE_PING_LOG_FILES=()
 declare -a IPERF_SAMPLE_UES=()
 
+apply_radio_profile_defaults()
+{
+  local n_rb="${MMTC_N_RB_DL:-}"
+  local gnb_config="${GNB_REDCAP_CONFIG:-}"
+  local expected_rf=""
+  local expected_ssb=""
+  local profile=""
+
+  if [ "${n_rb}" = "51" ] || [[ "${gnb_config}" == *"51PRB"* ]]; then
+    profile="51prb"
+    expected_rf="3617640000"
+    expected_ssb="238"
+  fi
+
+  if [ -z "${profile}" ]; then
+    return 0
+  fi
+
+  if [ -z "${MMTC_RF_FREQ+x}" ]; then
+    export MMTC_RF_FREQ="${expected_rf}"
+    echo "[INFO] RF profile ${profile}: default MMTC_RF_FREQ=${MMTC_RF_FREQ}"
+  fi
+  if [ -z "${MMTC_SSB_START+x}" ]; then
+    export MMTC_SSB_START="${expected_ssb}"
+    echo "[INFO] RF profile ${profile}: default MMTC_SSB_START=${MMTC_SSB_START}"
+  fi
+
+  if [ "${MMTC_RF_FREQ}" != "${expected_rf}" ] || [ "${MMTC_SSB_START}" != "${expected_ssb}" ]; then
+    echo "[WARN] RF profile ${profile}: expected RF/SSB ${expected_rf}/${expected_ssb}, using ${MMTC_RF_FREQ}/${MMTC_SSB_START}"
+  fi
+}
+
 compose_with_images()
 {
   REGISTRY="${IMAGE_REGISTRY}" \
@@ -712,6 +744,8 @@ if [ ! -f "${CN_COMPOSE}" ]; then
   exit 1
 fi
 
+apply_radio_profile_defaults
+
 "${OVERLAY_GENERATOR}" "${TOTAL_UES}" "${OVERLAY_COMPOSE}"
 
 CN_DB_SQL="${RUNTIME_CONFIG_DIR}/oai_db_mmtc_${TOTAL_UES}.sql"
@@ -750,6 +784,7 @@ echo "[INFO] forward ping mode   : ${FORWARD_PING_MODE}"
 echo "[INFO] reverse ping        : ${RUN_REVERSE_PING}"
 echo "[INFO] UL iperf3           : enable=${IPERF_ENABLE} sample=${IPERF_SAMPLE_UES_RAW} udp=${IPERF_UDP} rate=${IPERF_RATE} duration=${IPERF_DURATION}s quiesce=${IPERF_QUIESCE_NON_SELECTED}/${IPERF_QUIESCE_ACTION}"
 echo "[INFO] UE PUCCH fallback   : bwp0_common=${MMTC_PUCCH_COMMON_FALLBACK_BWP0}"
+echo "[INFO] RF profile          : n_rb=${MMTC_N_RB_DL:-default} rf=${MMTC_RF_FREQ:-default} ssb=${MMTC_SSB_START:-default}"
 echo "[INFO] image selection     : REGISTRY='${IMAGE_REGISTRY}' TAG='${IMAGE_TAG}' GNB='${GNB_IMAGE_NAME}' NRUE='${NRUE_IMAGE_NAME}'"
 echo "[INFO] recovery config     : restart_on_gnb_restart=${AUTO_RECOVER_AFTER_GNB_RESTART} recover_missing_ues=${AUTO_RECOVER_MISSING_UES} recover_after_precheck_restart=${RECOVER_ON_PRECHECK_GNB_RESTART} settle=${RECOVERY_SETTLE}s gap=${RECOVERY_UE_GAP}s precheck_gentle_settle=${PRECHECK_RECOVERY_SETTLE}s precheck_gentle_gap=${PRECHECK_RECOVERY_UE_GAP}s fail_on_gnb_restart=${FAIL_ON_GNB_RESTART}"
 echo "[INFO] adaptive burst      : on_zero_gap=${ADAPTIVE_BURST_ON_ZERO_GAP} threshold=${UE_START_BURST_THRESHOLD} burst_size=${UE_START_BURST_SIZE} pause=${UE_START_BURST_PAUSE}s"

@@ -9,6 +9,11 @@
 - [Expected Markers]:
   - `RedCap xApp priority hint`
   - `RedCap dApp PRB decision`
+  - `RedCap dApp access pressure policy`
+- [Access-Pressure Evidence]:
+  - `redcap_dapp_access_pressure_policy` computes low/medium/high pressure ratio intent.
+  - The helper routes decisions through `redcap_dapp_guard_prb_allocation`.
+  - Python SDK self-check, dApp/xApp contract self-test, and C syntax check cover the helper.
 
 ## Gate B: SWIG Evidence Boundary
 
@@ -76,7 +81,7 @@
   - `test_log/build_logs/build_nr-uesoftmodem_2026-07-06_17-29-03_gate-d-dci-bits.log`
 - [Runtime Runner]:
   - `cd ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap`
-  - `GNB_REDCAP_CONFIG=../../conf_files/gnb.sa.band78.fr1.106PRB.usrpb210.redcap.5mhz-bwp.yaml MMTC_N_RB_DL=106 OAI_REDCAP_DAPP_GATE_D_MARKER=1 docker compose -f docker-compose.yml -f docker-compose.mmtc.yml up -d oai-gnb oai-nr-ue2`
+  - `REGISTRY= TAG=latest GNB_IMG=oai-gnb NRUE_IMG=oai-nr-ue GNB_REDCAP_CONFIG=../../conf_files/gnb.sa.band78.fr1.106PRB.usrpb210.redcap.5mhz-bwp.yaml MMTC_N_RB_DL=106 OAI_REDCAP_DAPP_GATE_D_MARKER=1 MMTC_GNB_EXTRA_OPTIONS="--gNBs.[0].do_CSIRS 0 --gNBs.[0].do_SRS 0" docker compose -f docker-compose.yml -f docker-compose.mmtc.yml up -d --force-recreate oai-gnb oai-nr-ue2`
   - `python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/gate_d_rfsim_marker_check.py --gnb-log <gNB-log-path> --ue-log <UE-log-path> --require-runtime --require-bwp-mhz 5`
 - [Runtime Evidence 2026-07-06]:
   - gNB log: `test_log/runtime_logs/gate_d_5mhz_gnb_2026-07-06_17-16-57.log`.
@@ -87,6 +92,19 @@
   - Old-log root cause: gNB RedCap Msg2 DCI used `dci_bits 35`, while UE RedCap RA DCI config expected `dci_bits 39`.
   - Source fix: `openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_RA.c` and `openair2/LAYER2/NR_MAC_UE/nr_ue_dci_configuration.c` now use current DL BWP size for RedCap Case B RA common DCI sizing.
   - Gate D checker still exits non-zero because the log lacks `[RedCap dApp Gate D][gNB MAC UL]` and `[RedCap dApp Gate D][gNB MAC PUCCH]`.
+- [Runtime Evidence 2026-07-07]:
+  - Rebuild log: `test_log/build_logs/rebuild_local_oai_images_2026-07-07_00-35-33_dapp_access_pressure_policy.log`.
+  - Baseline local-image failure log: `test_log/runtime_logs/gate_d_access_pressure_gnb_2026-07-07_00-45_local.log`.
+  - Baseline failure: with CSI-RS/SRS enabled, gNB reached RA/RAR/Msg3 and then asserted in `encode_cellGroupConfig()` on `nzp-CSI-RS-ResourceToAddModList`; UE2 then reported RFsim socket loss.
+  - PASS gNB log: `test_log/runtime_logs/gate_d_access_pressure_gnb_2026-07-07_00-47_local_no_csirs_srs.log`.
+  - PASS UE2 log: `test_log/runtime_logs/gate_d_access_pressure_ue2_2026-07-07_00-47_local_no_csirs_srs.log`.
+  - Runtime workaround: the PASS run used local images and `MMTC_GNB_EXTRA_OPTIONS="--gNBs.[0].do_CSIRS 0 --gNBs.[0].do_SRS 0"`.
+  - gNB confirms override with `CSI-RS 0, SRS 0`.
+  - gNB confirms 12 PRB RedCap RA DCI with `dci_bits 35`.
+  - UE2 confirms `SIB1 RedCap initial BWP decision` and 12 PRB RedCap RA DCI with `dci_bits 35`.
+  - gNB confirms `[RedCap dApp Gate D][gNB MAC PUCCH] gNB-side PUCCH marker` and marker `"RedCap dApp PRB decision"` on `bwp_prbs 12`.
+  - gNB confirms `[RedCap dApp Gate D][gNB MAC UL] gNB-side apply marker` for RNTI `50f6` on `bwp_prbs 12`.
+  - Gate D checker PASS: `gate_d_rfsim_marker_check.py --require-runtime --require-bwp-mhz 5`.
 - [Evidence]:
   - UE attach/PDU health.
   - xApp priority hint marker.
@@ -94,17 +112,86 @@
   - gNB-side apply marker: `[RedCap dApp Gate D][gNB MAC UL] gNB-side apply marker`
   - gNB-side PUCCH marker: `[RedCap dApp Gate D][gNB MAC PUCCH] gNB-side PUCCH marker`
   - PDCCH command path marker from ULSCH `config_uldci()` / `fill_dci_pdu_rel15()` mapping `[Needs Verification: TS 38.212 Section 7.3.1.1 / TS 38.214 Section 6.1]`.
-- [Limitation]: current hooks prove ULSCH/PUSCH/PDCCH and PUCCH FAPI marker paths. They do not yet implement dApp policy rewrite of PUCCH/PUSCH allocation.
-- [Runtime Blocker]: post-fix Docker image rebuild/RFsim recreate was rejected because workspace credits are unavailable. The old runtime remains useful only as failure evidence; it must not be treated as post-fix validation.
-- [Status]: source hook readiness, 5 MHz BWP profile readiness, gNB/UE build PASS, and pre-fix 5 MHz RA/SIB1 failure evidence are present; post-fix Gate D dApp marker validation remains pending.
+- [Limitation]: current hooks prove ULSCH/PUSCH/PDCCH and PUCCH FAPI marker paths. They do not yet prove access-pressure policy effectiveness under collision load.
+- [Runtime Blocker]: CSI-RS/SRS enabled Gate D still fails before connected scheduling; keep this as a follow-up before Gate E production-style stress claims.
+- [Status]: PASS for small RFsim marker validation with local rebuilt images, 5 MHz BWP, and the no-CSI/SRS runtime workaround.
 
-## Gate E: 56 UE / 5 MHz BWP Stress
+## Gate E: 64 UE Staged 5 MHz-to-20 MHz BWP Stress
 
-- [Scope]: user-requested 56 RedCap UE scenario with 5 MHz BWP switching/profile validation.
+- [Scope]: user-requested 64 RedCap UE scenario with 32 UE initially attached to 5 MHz BWP, dApp access-pressure mitigation, and later xApp-guided 20 MHz expansion.
 - [Evidence]:
-  - attach/PDU health summary.
-  - dApp/xApp marker sequence.
+  - first 32 UE attach/PDU health summary on 5 MHz BWP.
+  - dApp access-pressure policy marker and before/after collision proxy summary.
+  - xApp adapter receive marker and 20 MHz expansion control marker for later UE.
   - no gNB restart.
   - bounded control latency.
-- [Limitation]: PUCCH resource exhaustion is a scheduler/config failure until proven otherwise.
-- [Status]: pending Gate D PASS.
+- [Preflight Evidence]:
+  - `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/scripts/generate_mmtc_overlay.sh 64` generated `docker-compose.mmtc.yml` with UE1..UE64 services.
+  - `docker compose ... config --services` confirms 64 `oai-nr-ue*` services after merging base compose plus mMTC overlay.
+  - `ci-scripts/conf_files/nrue_recap/` contains UE1..UE64 RedCap UICC configs with unique IMSIs.
+  - The RFsim test topology is based on `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.yml` plus `docker-compose.mmtc.yml`.
+  - The CN/AMF topology is based on `/home/tonywang/OAI/oai-cn5g/docker-compose.yaml`; its service list includes `oai-amf`, `mysql`, `oai-smf`, and `oai-upf`.
+  - `redcap_interface/generate_mmtc_cn_db_overlay.sh 64` generated `test_log/runtime_configs/oai_db_mmtc_64.sql` and `test_log/runtime_configs/oai-cn5g_mmtc_64.override.yml`.
+  - `docker compose -f /home/tonywang/OAI/oai-cn5g/docker-compose.yaml -f test_log/runtime_configs/oai-cn5g_mmtc_64.override.yml config --services` lists `oai-amf`, and the RFsim RedCap compose merge lists 64 UE services.
+  - `gate_e_64ue_stage_check.py` confirms the 5 MHz / 12 PRB first-stage profile, the 51 PRB 20 MHz proxy profile `[Needs Verification]`, the generated CN DB overlay, and prior Gate D marker evidence.
+- [Preflight Command]:
+  - `python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/gate_e_64ue_stage_check.py`
+- [Runtime Evidence Check Command]:
+  - `python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/gate_e_64ue_stage_check.py --stage first32 --gnb-log test_log/compiler_logs/mmtc_smoke_2026-07-07_11-11-52_gnb.log --summary-log test_log/compiler_logs/mmtc_stage_scan_2026-07-07_11-11-52_summary.log`
+- [Runtime Attempt: 2026-07-07 11:11:52 +08:00]:
+  - Command scope: local rebuilt `oai-gnb:latest` / `oai-nr-ue:latest`, 64 UE overlay, sampled UE1..UE32, 5 MHz / 12 PRB profile, xApp enabled, no-CSI/SRS RFsim workaround.
+  - Summary: `sample=32 running=32 attach=0 pdu=0 tun=0 forward_ping_ok=0 reverse_ping_ok=0 gnb_restart=0 failures=32`.
+  - gNB evidence: `260` `[RedCap dApp Gate E][PUCCH pressure]` markers and no `Assertion`, `assert`, `Not enough resources`, `event_asio_agent`, `Aborted`, or `Segmentation` marker.
+  - xApp/RIC evidence: saved Docker logs contain E42 setup, two RC subscription requests/responses, and four `RC Indication Message received` entries.
+  - Control boundary: no RIC Control request/ACK marker was observed in the xApp or nearRT-RIC Docker logs.
+  - Failure evidence: `693` Msg4 failure markers across `RA Procedure failed at Msg4` and `Msg4 vrb_map fail`; AMF log only reached gNB NG setup and did not show UE registration/PDU-session progress.
+- [Runtime Attempt: 2026-07-07 12:14:11 +08:00]:
+  - Source fix: `openair2/LAYER2/NR_MAC_gNB/nr_radio_config.c` rebuilds the RedCap initial DL BWP PDSCH TDA list for the 12 PRB BWP.
+  - Build evidence: `test_log/build_logs/build_nr-softmodem_2026-07-07_11-38-37_gate-e-redcap-tda.log`.
+  - Local image rebuild evidence: `test_log/build_logs/rebuild_local_oai_images_2026-07-07_11-39-43_gate-e-redcap-tda.log`.
+  - Summary: `sample=32 running=32 attach=0 pdu=0 tun=0 forward_ping_ok=0 reverse_ping_ok=0 gnb_restart=0 failures=32`.
+  - gNB evidence: `2` `[RedCap RA][gNB DL TDA]` markers with `first_start_symbol 2`, `0` `Msg4 vrb_map fail` markers, `32` Msg4 ACK markers, and no assert/abort/segfault marker.
+  - UE evidence: UE1..UE32 each generated `RRCSetupComplete` once.
+  - xApp/RIC evidence: live Docker logs contain E42 setup, two RC subscriptions, and RC Indications; no RIC Control request/ACK marker was observed. The stage script did not persist 12:14 xApp/RIC logs as files.
+  - Failure evidence: no UE registration, PDU-session, or TUN interface evidence was produced.
+- [Source Fix Attempt: 2026-07-07 12:42 +08:00]:
+  - Root cause narrowed: connected common-search-space UL DCI used the regular 51 PRB initial UL BWP RIV width after Msg4 ACK while the UE had applied the 12 PRB RedCap SIB1 initial UL BWP.
+  - Source fix: `openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_primitives.c` preserves RedCap initial DL/UL BWP start/size for connected DCI through `apply_redcap_initial_bwp_if_needed()`.
+  - Expected runtime marker: `[RedCap RA][gNB DCI BWP] preserving RedCap initial BWP for connected DCI`.
+  - Source build evidence: `test_log/build_logs/build_nr-softmodem_2026-07-07_12-42-09_gate-e-redcap-dci-bwp_retry.log`.
+  - Docker image rebuild boundary: `test_log/build_logs/rebuild_local_oai_images_2026-07-07_12-42-46_gate-e-redcap-dci-bwp.log` failed with Docker socket permission denial, and escalation was rejected because workspace credits were exhausted.
+  - Runtime evidence boundary at that time: no post-fix Docker image or RFsim first32 rerun existed yet. This boundary is superseded by the 23:18 runtime attempt below.
+- [Runtime Attempt: 2026-07-07 23:18:49 +08:00]:
+  - Report: `agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/report/gate_e_first32_2026-07-07.md`.
+  - Docker image rebuild evidence: `test_log/build_logs/rebuild_local_oai_images_2026-07-07_23-05-19_gate-e-redcap-dci-bwp_retry2_escalated.log`.
+  - Summary log: `test_log/compiler_logs/mmtc_stage_scan_2026-07-07_23-18-49_summary.log`.
+  - gNB log: `test_log/compiler_logs/mmtc_smoke_2026-07-07_23-18-49_gnb.log`.
+  - xApp log: `test_log/compiler_logs/mmtc_smoke_2026-07-07_23-18-49_xapp-rc-moni.log`.
+  - nearRT-RIC log: `test_log/compiler_logs/mmtc_smoke_2026-07-07_23-18-49_nearRT-RIC.log`.
+  - Summary: `sample=32 running=32 attach=32 pdu=32 tun=32 forward_ping_ok=32 reverse_ping_ok=0 iperf_ul_ok=0 iperf_ul_run=0 gnb_restart=0 failures=0`.
+  - gNB evidence: `128` `[RedCap RA][gNB DCI BWP]` markers, `32` `Received RRCSetupComplete`, `32` `Received RRCReconfigurationComplete`, and `32` `PDU Session Setup: ID=10`.
+  - dApp evidence: `34291` `[RedCap dApp Gate D][gNB MAC UL]` apply markers and `28` `[RedCap dApp Gate E][PUCCH pressure]` markers.
+  - Retry boundary: `1` transient `[RedCap RA][gNB Msg4 vrb_map fail]` and `90` compact-fallback markers remain, but no `RA Procedure failed at Msg4` marker appears and final stage failures are zero.
+  - UE evidence: UE1..UE32 each generated `RRCSetupComplete`; no UE Docker log contains `TDA index from DCI 12`.
+  - xApp/RIC evidence: xApp Docker log contains E42 setup, two RC subscriptions, `5` RC Indications, `RRC Setup Complete`, `RRC connected`, subscription delete, and `Test xApp run SUCCESSFULLY`; nearRT-RIC log contains E2 setup and `ORAN-E2SM-RC` RAN function acceptance.
+  - Control boundary: no RIC Control request/ACK marker was observed in xApp or nearRT-RIC Docker logs.
+  - Checker: `gate_e_64ue_stage_check.py --stage first32 --gnb-log test_log/compiler_logs/mmtc_smoke_2026-07-07_23-18-49_gnb.log --summary-log test_log/compiler_logs/mmtc_stage_scan_2026-07-07_23-18-49_summary.log` PASS.
+- [Runtime Attempt: 2026-07-07 23:39:18 +08:00]:
+  - Report: `agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/report/gate_e_full64_20mhz_proxy_2026-07-07.md`.
+  - Command scope: local rebuilt images, 64 sampled UE, 51 PRB / 20 MHz proxy profile `[Needs Verification]`, xApp enabled, and no-CSI/SRS RFsim workaround.
+  - Summary log: `test_log/compiler_logs/mmtc_stage_scan_2026-07-07_23-39-18_summary.log`.
+  - gNB log: `test_log/compiler_logs/mmtc_smoke_2026-07-07_23-39-18_gnb.log`.
+  - xApp log: `test_log/compiler_logs/mmtc_smoke_2026-07-07_23-39-18_xapp-rc-moni.log`.
+  - nearRT-RIC log: `test_log/compiler_logs/mmtc_smoke_2026-07-07_23-39-18_nearRT-RIC.log`.
+  - Summary: `sample=64 running=64 attach=0 pdu=0 tun=0 forward_ping_ok=0 reverse_ping_ok=0 iperf_ul_ok=0 iperf_ul_run=0 gnb_restart=0 failures=64`.
+  - gNB evidence: gNB loaded `DLBW 51`, RedCap initial DL/UL BWP size `51`, and generated the UE hint `-C 3617640000 -r 51 --numerology 1 --ssb 238 -E`.
+  - UE evidence: UE1 runtime config used `N_RB_DL: 51`, but the UE command still used `-C 3630360000 --ssb 144`; all 64 UE Docker logs contain `synch Failed`, and no UE log contains `Generating RRCSetupComplete`.
+  - xApp/RIC evidence: nearRT-RIC accepted E2 setup and `ORAN-E2SM-RC`; xApp completed E42 setup and two RC subscriptions. No RIC Indication or RIC Control marker was observed because no UE reached RRC.
+  - Failure classification: the run failed before synchronization because the 51 PRB gNB profile and UE RF/SSB defaults were mismatched. It does not exercise collision-load mitigation or the 20 MHz expansion control path.
+- [Source Fix: 2026-07-07 51PRB RF/SSB defaults]:
+  - Fix path: `redcap_interface/bash_library/fc_mmtc_smoke_validation.sh`.
+  - Behavior: when `MMTC_N_RB_DL=51` or `GNB_REDCAP_CONFIG` contains `51PRB`, the smoke wrapper defaults `MMTC_RF_FREQ=3617640000` and `MMTC_SSB_START=238` unless the user explicitly overrides them.
+  - Prepare-only evidence: `test_log/compiler_logs/mmtc_smoke_prepare_only_2026-07-07_51prb_rf_defaults.log`.
+  - Runtime boundary: a post-fix Docker smoke was rejected because workspace credits were exhausted, so this is source/prepare-only evidence until Docker escalation is restored.
+- [Limitation]: first32 5 MHz runtime PASS does not prove the full 64 UE / 20 MHz proxy stage or collision-load access-pressure effectiveness.
+- [Status]: first32 5 MHz stage PASS; full Gate E 64 UE staged 5 MHz-to-20 MHz BWP stress remains pending.
