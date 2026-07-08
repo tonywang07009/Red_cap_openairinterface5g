@@ -34,6 +34,10 @@
 - Current work does not claim [dApp access-pressure policy effectiveness under collision load].
 - Current Gate E runtime evidence proves the first32 5 MHz stage reaches `attach=32`, `pdu=32`, `tun=32`, `forward_ping_ok=32`, and `gnb_restart=0` after the connected DCI BWP fix. It does not prove the 64 UE / 20 MHz proxy expansion or collision-load access-pressure effectiveness.
 - Current full64 20 MHz proxy evidence proves the 51 PRB gNB profile was loaded, but the 2026-07-07 23:39:18 run failed before synchronization because UE RF/SSB defaults remained `3630360000/144` while the gNB 51 PRB profile expected `3617640000/238`.
+- Current 2026-07-08 one-UE 51PRB smoke evidence proves the RF/SSB wrapper defaults now reach sync, attach, PDU, TUN, and `gnb_restart=0`; the following full64 run reached 51PRB dApp markers but failed with `sample=64 running=15 attach=59 pdu=59 tun=11 gnb_restart=1 failures=55`.
+- Current source fix for the 2026-07-08 UE48 full64 abort makes CSI measurement periodicity use the reused PUCCH reservation UID. Docker image rebuild later succeeded, and the next full64 attempt passed the prior UE48 CSI crash zone but failed with `sample=64 running=0 attach=62 pdu=62 tun=0 failures=65`.
+- Current runtime guard fixes for E2 `epoll_wait(EINTR)`, UE invalid CCCH MAC length, and missing `masterCellGroup` RRCSetup input build locally and are in rebuilt images; the post-guard one-UE 51PRB smoke passes with `attach=1`, `pdu=1`, `tun=1`, and `gnb_restart=0`.
+- Current post-guard full64 rerun is blocked by workspace credits, so Gate E still does not claim full64, xApp influence, or before/after collision-load effectiveness.
 - Current SDK additions are test-facing helpers for priority hints, PRB allocation decisions, and dApp access-pressure policy decisions.
 - The dApp remains the local apply/reject boundary; xApp only emits UE priority hints.
 
@@ -120,5 +124,29 @@ openspec validate redcap-dapp-xapp-sdk-test-validation --strict
   - Source fix: `redcap_interface/bash_library/fc_mmtc_smoke_validation.sh` now auto-applies 51PRB RF defaults when `MMTC_N_RB_DL=51` or `GNB_REDCAP_CONFIG` contains `51PRB`.
   - Prepare-only evidence: `test_log/compiler_logs/mmtc_smoke_prepare_only_2026-07-07_51prb_rf_defaults.log` confirms `MMTC_RF_FREQ=3617640000`, `MMTC_SSB_START=238`, and the 64 UE overlay without starting Docker.
   - Runtime boundary: post-fix Docker rerun was rejected because workspace credits were exhausted.
-- Next pull: after Docker escalation is available, run a one-UE 51 PRB smoke with the wrapper RF/SSB defaults; if sync/attach/PDU/TUN passes, run the full 64 UE / 20 MHz proxy stage and collect collision-load before/after access-pressure evidence before closing Gate E task 5.3.
+- Gate E one-UE 51PRB RF/SSB alignment smoke after wrapper/default and image rebuild:
+  - gNB log: `test_log/compiler_logs/mmtc_smoke_2026-07-08_12-05-16_gnb.log`.
+  - UE log: `test_log/compiler_logs/mmtc_smoke_2026-07-08_12-05-16_ue1_docker.log`.
+  - gNB state log: `test_log/compiler_logs/mmtc_smoke_2026-07-08_12-05-16_gnb_state.log`.
+  - Result: `sample=1 running=1 attach=1 pdu=1 tun=1 forward_ping_ok=1 reverse_ping_ok=1 gnb_restart=0 failures=0`.
+  - Evidence: UE reached `Initial sync successful`, registration attach, PDU session accept, and `oaitun_ue1`; gNB loaded `DLBW 51`; no repeated `synch Failed`, RF/SSB mismatch, or assert/abort marker was observed.
+  - dApp evidence: 51PRB PUCCH and UL apply markers appeared without `unsupported_bwp_profile` reject markers.
+- Gate E full64 20 MHz proxy runtime attempt after one-UE PASS:
+  - Summary log: `test_log/compiler_logs/mmtc_stage_scan_2026-07-08_12-07-24_summary.log`.
+  - Stage log: `test_log/compiler_logs/mmtc_stage_scan_2026-07-08_12-07-24_ue64.log`.
+  - gNB log: `test_log/compiler_logs/mmtc_smoke_2026-07-08_12-07-24_gnb.log`.
+  - Result: `sample=64 running=15 attach=59 pdu=59 tun=11 forward_ping_ok=11 reverse_ping_ok=0 iperf_ul_ok=0 iperf_ul_run=0 gnb_restart=1 failures=55 mode=parallel`.
+  - Root cause evidence: gNB aborted around UE48 in `set_csi_meas_periodicity()` with `Assertion (offset < 320) failed!` and `event_asio_agent: Assertion '0' failed`; Docker then restarted the gNB container.
+  - Source fix: `openair2/LAYER2/NR_MAC_gNB/nr_radio_config.c` now calculates CSI report offset from `get_pucch_reservation_uid(scc, curr_bwp, uid, "CSI reporting")`, matching the existing PUCCH reservation reuse used by `verify_radio_configuration()`.
+  - Local validation: `gate_e_64ue_stage_check.py` static preflight PASS, `check_dapp_xapp_sdk_test_validation.py` PASS, `git diff --check -- openair2/LAYER2/NR_MAC_gNB/nr_radio_config.c` PASS, and `cmake --build --preset default --target nr-softmodem` PASS.
+  - CSI/Pucch UID image rebuild evidence: `test_log/build_logs/rebuild_local_oai_images_2026-07-08_17-11-54_gate-e-csi-pucch-uid_retry.log`.
+  - Post-CSI-fix one-UE smoke evidence: `test_log/compiler_logs/mmtc_smoke_2026-07-08_17-21-13_gnb.log`, `test_log/compiler_logs/mmtc_smoke_2026-07-08_17-21-13_ue1_docker.log`, and `test_log/compiler_logs/mmtc_smoke_2026-07-08_17-21-13_gnb_state.log`.
+  - Post-CSI-fix full64 evidence: `test_log/compiler_logs/mmtc_stage_scan_2026-07-08_17-24-06_summary.log` reports `sample=64 running=0 attach=62 pdu=62 tun=0 forward_ping_ok=0 reverse_ping_ok=0 iperf_ul_ok=0 iperf_ul_run=0 gnb_restart=0 failures=65 mode=parallel`.
+  - Post-CSI-fix diagnosis: the prior UE48 CSI offset crash no longer appears, but all UE containers exit, UE24/UE45/UE60 abort on invalid CCCH MAC SDU length, the gNB log shows heavy SR/CSI PUCCH pressure, and direct post-run inspection showed a gNB restart after the script's early state sample.
+  - Runtime guard source fixes: `openair2/E2AP/flexric/src/agent/asio_agent.c`, `openair2/LAYER2/NR_MAC_UE/nr_ue_procedures.c`, `openair2/RRC/NR/MESSAGES/asn1_msg.c`, and `openair2/RRC/NR/rrc_gNB.c`.
+  - Runtime guard build evidence: `test_log/build_logs/build_gate_e_runtime_guards_2026-07-08_17-46-58.log`.
+  - Runtime guard image rebuild evidence: `test_log/build_logs/rebuild_local_oai_images_2026-07-08_17-47-31_gate-e-runtime-guards.log`.
+  - Runtime guard one-UE 51PRB smoke evidence: `test_log/compiler_logs/mmtc_smoke_2026-07-08_18-00-40_gnb.log`, `test_log/compiler_logs/mmtc_smoke_2026-07-08_18-00-40_ue1_docker.log`, and `test_log/compiler_logs/mmtc_smoke_2026-07-08_18-00-40_gnb_state.log` report `sample=1 running=1 attach=1 pdu=1 tun=1 forward_ping_ok=1 reverse_ping_ok=1 gnb_restart=0 failures=0`.
+  - Runtime boundary: the post-guard full64 rerun was rejected because workspace credits were exhausted, so no post-guard full64 RFsim evidence exists yet.
+- Next pull: after Docker escalation/credits are available, rerun the full 64 UE / 20 MHz proxy stage from the already rebuilt post-guard images, then collect xApp control plus collision-load before/after access-pressure evidence before closing Gate E task 5.3.
 - Keep the no-CSI/SRS RFsim workaround explicit until the CSI-RS/SRS enabled blocker is fixed or accepted as out-of-scope for Gate E.

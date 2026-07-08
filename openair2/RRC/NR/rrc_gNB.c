@@ -534,6 +534,8 @@ void activate_srb(gNB_RRC_UE_t *UE, int srb_id)
   freeSRBlist(list);
 }
 
+static void rrc_gNB_generate_RRCReject(gNB_RRC_INST *rrc, rrc_gNB_ue_context_t *const ue_context_pP);
+
 //-----------------------------------------------------------------------------
 static void rrc_gNB_generate_RRCSetup(instance_t instance,
                                       rnti_t rnti,
@@ -546,6 +548,14 @@ static void rrc_gNB_generate_RRCSetup(instance_t instance,
 
   gNB_RRC_UE_t *ue_p = &ue_context_pP->ue_context;
   gNB_RRC_INST *rrc = RC.nrrrc[instance];
+  if (!masterCellGroup || masterCellGroup_len <= 0) {
+    LOG_W(NR_RRC,
+          "[RedCap Gate E][RRC Setup guard] Rejecting RNTI %04x: missing masterCellGroup len %d\n",
+          rnti,
+          masterCellGroup_len);
+    rrc_gNB_generate_RRCReject(rrc, ue_context_pP);
+    return;
+  }
   unsigned char buf[1024];
   uint8_t xid = rrc_gNB_get_next_transaction_identifier(instance);
   ue_p->xids[xid] = RRC_SETUP;

@@ -62,10 +62,12 @@ def check_sdk_symbols(errors: list[str]) -> None:
     require_text("openair2/E3AP/sdk/redcap_dapp_sdk.h", "redcap_dapp_access_pressure_policy", errors)
     require_text("openair2/E3AP/sdk/redcap_dapp_sdk.h", "REDCAP_DAPP_TEST_BWP_MHZ = 5", errors)
     require_text("openair2/E3AP/sdk/redcap_dapp_sdk.h", "REDCAP_DAPP_TEST_BWP_PRBS_30KHZ = 12", errors)
+    require_text("openair2/E3AP/sdk/redcap_dapp_sdk.h", "REDCAP_DAPP_PROXY_BWP_MHZ = 20", errors)
+    require_text("openair2/E3AP/sdk/redcap_dapp_sdk.h", "REDCAP_DAPP_PROXY_BWP_PRBS_30KHZ = 51", errors)
     require_text("openair2/E3AP/sdk/redcap_dapp_sdk.c", "redcap_dapp_guard_prb_allocation", errors)
     require_text("openair2/E3AP/sdk/redcap_dapp_sdk.c", "redcap_dapp_access_pressure_policy", errors)
     require_text("openair2/E3AP/sdk/redcap_dapp_sdk.c", "RedCap dApp access pressure policy", errors)
-    require_text("openair2/E3AP/sdk/redcap_dapp_sdk.c", "unsupported_5mhz_bwp_profile", errors)
+    require_text("openair2/E3AP/sdk/redcap_dapp_sdk.c", "unsupported_bwp_profile", errors)
     require_text("openair2/E3AP/sdk/redcap_dapp_sdk.py", "RedCapDappPrbAllocationRequest", errors)
     require_text("openair2/E3AP/sdk/redcap_dapp_sdk.py", "RedCapDappAccessPressureRequest", errors)
     require_text("openair2/E3AP/sdk/redcap_dapp_sdk.py", "redcap_dapp_access_pressure_policy", errors)
@@ -73,6 +75,8 @@ def check_sdk_symbols(errors: list[str]) -> None:
     require_text("openair2/E3AP/sdk/redcap_dapp_sdk.py", "RedCap dApp PRB decision", errors)
     require_text("openair2/E3AP/sdk/redcap_dapp_sdk.py", "REDCAP_DAPP_TEST_BWP_MHZ = 5", errors)
     require_text("openair2/E3AP/sdk/redcap_dapp_sdk.py", "REDCAP_DAPP_TEST_BWP_PRBS_30KHZ = 12", errors)
+    require_text("openair2/E3AP/sdk/redcap_dapp_sdk.py", "REDCAP_DAPP_PROXY_BWP_MHZ = 20", errors)
+    require_text("openair2/E3AP/sdk/redcap_dapp_sdk.py", "REDCAP_DAPP_PROXY_BWP_PRBS_30KHZ = 51", errors)
 
 
 def check_swig_evidence(errors: list[str]) -> list[str]:

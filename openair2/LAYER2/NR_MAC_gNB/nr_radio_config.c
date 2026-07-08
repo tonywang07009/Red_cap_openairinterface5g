@@ -2202,7 +2202,8 @@ static void set_csi_meas_periodicity(const NR_ServingCellConfigCommon_t *scc,
 {
   const int ideal_period = set_ideal_period(true);
   const int num_pucch2 = get_nb_pucch2_per_slot(scc, curr_bwp);
-  const int idx = (uid * 2 / num_pucch2) + is_rsrp;
+  const int pucch_uid = get_pucch_reservation_uid(scc, curr_bwp, uid, "CSI reporting");
+  const int idx = (pucch_uid * 2 / num_pucch2) + is_rsrp;
   frame_structure_t *fs = &RC.nrmac[0]->frame_structure;
   int offset = get_ul_slot_offset(fs, idx, true);
   LOG_D(NR_MAC, "set_csi_meas_periodicity: uid = %d, offset = %d, ideal_period = %d", uid, offset, ideal_period);

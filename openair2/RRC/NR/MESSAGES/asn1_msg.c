@@ -351,7 +351,12 @@ int do_RRCSetup(uint8_t *const buffer,
   ie->radioBearerConfig.securityConfig = NULL;
 
   /****************************** masterCellGroup ******************************/
-  DevAssert(masterCellGroup && masterCellGroup_len > 0);
+  if (!masterCellGroup || masterCellGroup_len <= 0) {
+    LOG_E(NR_RRC, "Cannot encode RRCSetup: missing masterCellGroup len %d\n", masterCellGroup_len);
+    ie->radioBearerConfig.srb_ToAddModList = NULL;
+    ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_NR_DL_CCCH_Message, &dl_ccch_msg);
+    return -1;
+  }
   ie->masterCellGroup.buf = malloc(masterCellGroup_len);
   AssertFatal(ie->masterCellGroup.buf != NULL, "could not allocate memory for masterCellGroup\n");
   memcpy(ie->masterCellGroup.buf, masterCellGroup, masterCellGroup_len);

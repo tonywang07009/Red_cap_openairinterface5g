@@ -53,6 +53,21 @@ def main() -> int:
     assert allocation.priority_weight == top.priority_weight
     assert allocation.marker == "RedCap dApp PRB decision"
 
+    proxy_allocation = dapp.redcap_dapp_guard_prb_allocation(
+        dapp.RedCapDappPrbAllocationRequest(
+            rnti=top.rnti,
+            bwp_prbs=dapp.REDCAP_DAPP_PROXY_BWP_PRBS_30KHZ,
+            pucch_ratio_permille=200,
+            pusch_ratio_permille=600,
+            priority_weight=top.priority_weight,
+            has_iq_samples=True,
+        )
+    )
+    assert dapp.redcap_dapp_prb_allocation_allows_apply(proxy_allocation)
+    assert proxy_allocation.pucch_prbs == 11
+    assert proxy_allocation.pusch_prbs == 31
+    assert proxy_allocation.marker == "RedCap dApp PRB decision"
+
     missing_iq = dapp.redcap_dapp_guard_prb_allocation(
         dapp.RedCapDappPrbAllocationRequest(top.rnti, dapp.REDCAP_DAPP_TEST_BWP_PRBS_30KHZ, 200, 600, 7, False)
     )
@@ -60,10 +75,10 @@ def main() -> int:
     assert missing_iq.reason == "missing_iq_samples"
 
     bad_bwp = dapp.redcap_dapp_guard_prb_allocation(
-        dapp.RedCapDappPrbAllocationRequest(top.rnti, 51, 200, 600, 7, True)
+        dapp.RedCapDappPrbAllocationRequest(top.rnti, 106, 200, 600, 7, True)
     )
     assert not dapp.redcap_dapp_prb_allocation_allows_apply(bad_bwp)
-    assert bad_bwp.reason == "unsupported_5mhz_bwp_profile"
+    assert bad_bwp.reason == "unsupported_bwp_profile"
 
     bad_ratio = dapp.redcap_dapp_guard_prb_allocation(
         dapp.RedCapDappPrbAllocationRequest(top.rnti, dapp.REDCAP_DAPP_TEST_BWP_PRBS_30KHZ, 800, 400, 7, True)

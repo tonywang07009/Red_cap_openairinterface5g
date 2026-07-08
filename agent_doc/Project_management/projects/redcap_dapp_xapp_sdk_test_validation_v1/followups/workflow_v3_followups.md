@@ -14,7 +14,7 @@
 | DXV-FU-005 | Gate C | Official `tl_expected` dependency was not fetched; Gate C used local test shim | replace shim with official cache/network dependency before production dependency claims | [pending] |
 | DXV-FU-007 | Gate D/E | dApp access-pressure policy helper is implemented, but runtime application to connected scheduling is not validated | apply the policy after Gate D marker runtime passes and compare collision proxy before/after | [pending] |
 | DXV-FU-010 | Gate D/E | CSI-RS/SRS enabled 5 MHz run asserts in `encode_cellGroupConfig()` on `nzp-CSI-RS-ResourceToAddModList` | decide whether Gate E uses the no-CSI/SRS RFsim workaround or fixes CSI-RS/SRS first | [pending] |
-| DXV-FU-014 | Gate E | 51 PRB / 20 MHz proxy full64 run used 106PRB UE RF/SSB defaults and failed before synchronization | rerun one-UE 51PRB smoke after the wrapper RF/SSB default fix, then rerun full64 if sync/attach/PDU/TUN passes | [pending Docker credits] |
+| DXV-FU-016 | Gate E | post-CSI/Pucch UID full64 reaches 62 attach/PDU but all sampled UEs exit and no TUN remains; follow-up guards for E2 EINTR, RRCSetup missing masterCellGroup, and UE invalid CCCH MAC length are rebuilt but not full64-tested | rerun full64 after workspace credits are restored, then collect xApp/control and before/after collision-load evidence | [pending Docker credits] |
 
 ## Closed Follow-ups
 
@@ -28,3 +28,5 @@
 | DXV-FU-011 | Gate E | RedCap DL TDA rebuild removed the previous Msg4 VRB overlap marker in first32 | `openair2/LAYER2/NR_MAC_gNB/nr_radio_config.c`; `test_log/compiler_logs/mmtc_smoke_2026-07-07_12-14-11_gnb.log` |
 | DXV-FU-012 | Gate E | Connected DCI BWP source fix received runtime proof: first32 reached attach/PDU/TUN and removed UE-side `TDA index from DCI 12` | `test_log/compiler_logs/mmtc_stage_scan_2026-07-07_23-18-49_summary.log`; `test_log/compiler_logs/mmtc_smoke_2026-07-07_23-18-49_gnb.log` |
 | DXV-FU-013 | Gate E | Docker image rebuild for the connected DCI BWP fix completed after escalation was available | `test_log/build_logs/rebuild_local_oai_images_2026-07-07_23-05-19_gate-e-redcap-dci-bwp_retry2_escalated.log` |
+| DXV-FU-014 | Gate E | 51PRB RF/SSB wrapper default mismatch resolved; one-UE 51PRB smoke passed sync, attach, PDU, TUN, and no gNB restart after local image rebuild | `test_log/compiler_logs/mmtc_smoke_2026-07-08_12-05-16_gnb.log`; `test_log/compiler_logs/mmtc_smoke_2026-07-08_12-05-16_ue1_docker.log`; `test_log/compiler_logs/mmtc_smoke_2026-07-08_12-05-16_gnb_state.log` |
+| DXV-FU-015 | Gate E | CSI report periodicity now uses the reused PUCCH reservation UID; local images were rebuilt and the next full64 run passed the prior UE48 CSI offset crash point before exposing later runtime-pressure blockers | `openair2/LAYER2/NR_MAC_gNB/nr_radio_config.c`; `test_log/build_logs/rebuild_local_oai_images_2026-07-08_17-11-54_gate-e-csi-pucch-uid_retry.log`; `test_log/compiler_logs/mmtc_stage_scan_2026-07-08_17-24-06_summary.log` |

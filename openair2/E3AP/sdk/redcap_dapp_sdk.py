@@ -30,6 +30,8 @@ class RedCapDappGuardResult:
 REDCAP_DAPP_TEST_BWP_MHZ = 5
 REDCAP_DAPP_TEST_BWP_PRBS_30KHZ = 12
 REDCAP_DAPP_TEST_BWP_PRBS_30KHZ_COMPAT = 11
+REDCAP_DAPP_PROXY_BWP_MHZ = 20
+REDCAP_DAPP_PROXY_BWP_PRBS_30KHZ = 51
 
 
 @dataclass(frozen=True)
@@ -96,8 +98,12 @@ def _ratio_to_prbs(bwp_prbs: int, ratio_permille: int) -> int:
     return (bwp_prbs * ratio_permille + 999) // 1000
 
 
-def _is_5mhz_bwp_profile(bwp_prbs: int) -> bool:
-    return bwp_prbs in {REDCAP_DAPP_TEST_BWP_PRBS_30KHZ, REDCAP_DAPP_TEST_BWP_PRBS_30KHZ_COMPAT}
+def _is_supported_bwp_profile(bwp_prbs: int) -> bool:
+    return bwp_prbs in {
+        REDCAP_DAPP_TEST_BWP_PRBS_30KHZ,
+        REDCAP_DAPP_TEST_BWP_PRBS_30KHZ_COMPAT,
+        REDCAP_DAPP_PROXY_BWP_PRBS_30KHZ,
+    }
 
 
 def redcap_dapp_guard_prb_allocation(
@@ -111,9 +117,9 @@ def redcap_dapp_guard_prb_allocation(
         return RedCapDappPrbAllocationResult(
             RedCapDappGuardDecision.NACK, 0, 0, request.priority_weight, "missing_iq_samples", ""
         )
-    if not _is_5mhz_bwp_profile(request.bwp_prbs):
+    if not _is_supported_bwp_profile(request.bwp_prbs):
         return RedCapDappPrbAllocationResult(
-            RedCapDappGuardDecision.NACK, 0, 0, request.priority_weight, "unsupported_5mhz_bwp_profile", ""
+            RedCapDappGuardDecision.NACK, 0, 0, request.priority_weight, "unsupported_bwp_profile", ""
         )
     if (
         request.pucch_ratio_permille > 1000
@@ -226,6 +232,12 @@ def _self_check() -> None:
     assert allocation.marker == "RedCap dApp PRB decision"
     assert not redcap_dapp_prb_allocation_allows_apply(missing_iq)
     assert missing_iq.reason == "missing_iq_samples"
+    proxy_allocation = redcap_dapp_guard_prb_allocation(
+        RedCapDappPrbAllocationRequest(0xE349, REDCAP_DAPP_PROXY_BWP_PRBS_30KHZ, 200, 600, 15, True)
+    )
+    assert redcap_dapp_prb_allocation_allows_apply(proxy_allocation)
+    assert proxy_allocation.pucch_prbs == 11
+    assert proxy_allocation.pusch_prbs == 31
 
     low = redcap_dapp_access_pressure_policy(
         RedCapDappAccessPressureRequest(0xE349, REDCAP_DAPP_TEST_BWP_PRBS_30KHZ, 15, True, 0, 0, 0, 0, 0)
