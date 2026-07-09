@@ -33,6 +33,8 @@ MMTC_IPERF_SERVER_IP=${MMTC_IPERF_SERVER_IP:-}
 MMTC_IPERF_TCP_MIN_MBIT=${MMTC_IPERF_TCP_MIN_MBIT:-}
 MMTC_IPERF_QUIESCE_NON_SELECTED=${MMTC_IPERF_QUIESCE_NON_SELECTED:-0}
 MMTC_IPERF_QUIESCE_ACTION=${MMTC_IPERF_QUIESCE_ACTION:-pause}
+MMTC_IPERF_RETRIES=${MMTC_IPERF_RETRIES:-2}
+MMTC_IPERF_SERVER_SETTLE=${MMTC_IPERF_SERVER_SETTLE:-1}
 MMTC_IPERF_PROFILE=${MMTC_IPERF_PROFILE:-}
 REBUILD_IMAGES_BEFORE_SCAN=${MMTC_REBUILD_IMAGES_BEFORE_SCAN:-1}
 REBUILD_SCRIPT="${REPO_ROOT}/redcap_interface/redcap_rebuild_local_oai_images.sh"
@@ -89,7 +91,7 @@ SUMMARY_LOG="${LOG_DIR}/mmtc_stage_scan_${TIMESTAMP}_summary.log"
   echo "# total_ues_target=${TOTAL_UES_TARGET}"
   echo "# stages=${STAGES[*]}"
   echo "# forward_ping_mode=${FORWARD_PING_MODE} reverse_ping=${RUN_REVERSE_PING}"
-  echo "# iperf_profile=${MMTC_IPERF_PROFILE:-manual} iperf_enable=${MMTC_IPERF_ENABLE} iperf_sample_ues=${MMTC_IPERF_SAMPLE_UES} iperf_rate=${MMTC_IPERF_RATE} iperf_duration=${MMTC_IPERF_DURATION} iperf_udp=${MMTC_IPERF_UDP} iperf_tcp_min_mbit=${MMTC_IPERF_TCP_MIN_MBIT:-auto} iperf_quiesce_non_selected=${MMTC_IPERF_QUIESCE_NON_SELECTED} iperf_quiesce_action=${MMTC_IPERF_QUIESCE_ACTION} iperf_server_ip=${MMTC_IPERF_SERVER_IP:-auto}"
+  echo "# iperf_profile=${MMTC_IPERF_PROFILE:-manual} iperf_enable=${MMTC_IPERF_ENABLE} iperf_sample_ues=${MMTC_IPERF_SAMPLE_UES} iperf_rate=${MMTC_IPERF_RATE} iperf_duration=${MMTC_IPERF_DURATION} iperf_udp=${MMTC_IPERF_UDP} iperf_tcp_min_mbit=${MMTC_IPERF_TCP_MIN_MBIT:-auto} iperf_quiesce_non_selected=${MMTC_IPERF_QUIESCE_NON_SELECTED} iperf_quiesce_action=${MMTC_IPERF_QUIESCE_ACTION} iperf_retries=${MMTC_IPERF_RETRIES} iperf_server_settle=${MMTC_IPERF_SERVER_SETTLE} iperf_server_ip=${MMTC_IPERF_SERVER_IP:-auto}"
   echo "# cgcfg_nofree=${MMTC_CGCFG_NOFREE} cgcfg_defer_free_slots=${MMTC_CGCFG_DEFER_FREE_SLOTS}"
 } > "${SUMMARY_LOG}"
 
@@ -130,6 +132,8 @@ for stage in "${STAGES[@]}"; do
     MMTC_IPERF_TCP_MIN_MBIT="${MMTC_IPERF_TCP_MIN_MBIT}" \
     MMTC_IPERF_QUIESCE_NON_SELECTED="${MMTC_IPERF_QUIESCE_NON_SELECTED}" \
     MMTC_IPERF_QUIESCE_ACTION="${MMTC_IPERF_QUIESCE_ACTION}" \
+    MMTC_IPERF_RETRIES="${MMTC_IPERF_RETRIES}" \
+    MMTC_IPERF_SERVER_SETTLE="${MMTC_IPERF_SERVER_SETTLE}" \
     MMTC_IPERF_SERVER_IP="${MMTC_IPERF_SERVER_IP}" \
     bash "${SMOKE_SCRIPT}" 2>&1 | tee "${run_log}"
   rc=${PIPESTATUS[0]}

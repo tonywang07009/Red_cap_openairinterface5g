@@ -46,6 +46,8 @@ IPERF_SERVER_IP=${MMTC_IPERF_SERVER_IP:-}
 IPERF_TCP_MIN_MBIT=${MMTC_IPERF_TCP_MIN_MBIT:-}
 IPERF_QUIESCE_NON_SELECTED=${MMTC_IPERF_QUIESCE_NON_SELECTED:-0}
 IPERF_QUIESCE_ACTION=${MMTC_IPERF_QUIESCE_ACTION:-pause}
+IPERF_RETRIES=${MMTC_IPERF_RETRIES:-2}
+IPERF_SERVER_SETTLE=${MMTC_IPERF_SERVER_SETTLE:-1}
 USE_EXISTING_CN_DB=${MMTC_USE_EXISTING_CN_DB:-1}
 MMTC_PUCCH_COMMON_FALLBACK_BWP0=${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-1}
 export MMTC_PUCCH_COMMON_FALLBACK_BWP0
@@ -80,6 +82,14 @@ declare -a PING_UE_IPV4S=()
 declare -a PING_LOG_FILES=()
 declare -a REVERSE_PING_LOG_FILES=()
 declare -a IPERF_SAMPLE_UES=()
+declare -A UE_LAUNCH_EPOCH_MS=()
+
+LATENCY_CSV="${LOG_DIR}/mmtc_smoke_${TIMESTAMP}_access_latency.csv"
+
+epoch_ms()
+{
+  date +%s%3N
+}
 
 apply_radio_profile_defaults()
 {
@@ -251,6 +261,9 @@ start_iperf_server()
   } > "${server_log}" 2>&1
   local rc=$?
   set -e
+  if [ "${rc}" -eq 0 ] && [ "${IPERF_SERVER_SETTLE}" -gt 0 ]; then
+    sleep "${IPERF_SERVER_SETTLE}"
+  fi
   return "${rc}"
 }
 
@@ -472,11 +485,32 @@ run_iperf_for_selected_ues()
       echo "# container=${container_name}"
       echo "# target=${target_ip}"
       echo "# ue_ipv4=${ue_ipv4}"
+      echo "# attempt=0"
       echo "# command: docker exec ${container_name} ${iperf_args[*]}"
       docker exec "${container_name}" "${iperf_args[@]}"
     } > "${iperf_log}" 2>&1
     local iperf_rc=$?
     set -e
+
+    local retry_idx=1
+    while [ "${iperf_rc}" -ne 0 ] && [ "${retry_idx}" -le "${IPERF_RETRIES}" ]; do
+      echo "[WARN] ${container_name} UL iperf3 failed; retry ${retry_idx}/${IPERF_RETRIES}; log=${iperf_log}"
+      if ! start_iperf_server "${server_log}"; then
+        echo "[WARN] Failed to restart iperf3 server before UE${ue_idx} retry ${retry_idx}; log=${server_log}"
+        break
+      fi
+      set +e
+      {
+        echo
+        echo "# retry_collected_at=$(date --iso-8601=seconds)"
+        echo "# attempt=${retry_idx}"
+        echo "# command: docker exec ${container_name} ${iperf_args[*]}"
+        docker exec "${container_name}" "${iperf_args[@]}"
+      } >> "${iperf_log}" 2>&1
+      iperf_rc=$?
+      set -e
+      retry_idx=$((retry_idx + 1))
+    done
 
     if [ "${iperf_rc}" -ne 0 ]; then
       if [ "${IPERF_UDP}" = "1" ] && iperf_udp_sender_completed "${iperf_log}"; then
@@ -604,6 +638,7 @@ start_sample_ues()
   for idx in "${!SAMPLE_UES[@]}"; do
     local service_name="oai-nr-ue${SAMPLE_UES[$idx]}"
     echo "[INFO] Starting sampled UE service: ${service_name}"
+    UE_LAUNCH_EPOCH_MS["${SAMPLE_UES[$idx]}"]=$(epoch_ms)
     compose_with_images "${compose_args[@]}" up -d "${service_name}"
 
     if [ "${UE_START_GAP}" -gt 0 ] && [ $((idx + 1)) -lt "${sample_count}" ]; then
@@ -782,7 +817,7 @@ echo "[INFO] gNB warmup          : ${GNB_WARMUP}s"
 echo "[INFO] UE start gap        : ${UE_START_GAP}s"
 echo "[INFO] forward ping mode   : ${FORWARD_PING_MODE}"
 echo "[INFO] reverse ping        : ${RUN_REVERSE_PING}"
-echo "[INFO] UL iperf3           : enable=${IPERF_ENABLE} sample=${IPERF_SAMPLE_UES_RAW} udp=${IPERF_UDP} rate=${IPERF_RATE} duration=${IPERF_DURATION}s quiesce=${IPERF_QUIESCE_NON_SELECTED}/${IPERF_QUIESCE_ACTION}"
+echo "[INFO] UL iperf3           : enable=${IPERF_ENABLE} sample=${IPERF_SAMPLE_UES_RAW} udp=${IPERF_UDP} rate=${IPERF_RATE} duration=${IPERF_DURATION}s quiesce=${IPERF_QUIESCE_NON_SELECTED}/${IPERF_QUIESCE_ACTION} retries=${IPERF_RETRIES} server_settle=${IPERF_SERVER_SETTLE}s"
 echo "[INFO] UE PUCCH fallback   : bwp0_common=${MMTC_PUCCH_COMMON_FALLBACK_BWP0}"
 echo "[INFO] RF profile          : n_rb=${MMTC_N_RB_DL:-default} rf=${MMTC_RF_FREQ:-default} ssb=${MMTC_SSB_START:-default}"
 echo "[INFO] image selection     : REGISTRY='${IMAGE_REGISTRY}' TAG='${IMAGE_TAG}' GNB='${GNB_IMAGE_NAME}' NRUE='${NRUE_IMAGE_NAME}'"
@@ -914,6 +949,8 @@ SELECT ueid FROM SessionManagementSubscriptionData WHERE ueid = '${imsi}';
   done
 } > "${MYSQL_LOG}"
 
+echo "ue,imsi,launch_epoch_ms,tun_observed_epoch_ms,launch_to_tun_ms,status" > "${LATENCY_CSV}"
+
 for ue_idx in "${SAMPLE_UES[@]}"; do
   imsi=$(printf '001010%09d' "${ue_idx}")
   container_name="rfsim5g-oai-nr-ue${ue_idx}_redcap"
@@ -958,6 +995,8 @@ for ue_idx in "${SAMPLE_UES[@]}"; do
 
   echo "[INFO] Checking ${container_name} TUN interface"
   if ! docker exec "${container_name}" ip a show dev oaitun_ue1 | tee "${tun_log}"; then
+    launch_ms="${UE_LAUNCH_EPOCH_MS[${ue_idx}]:-}"
+    printf '%s,%s,%s,,,%s\n' "${ue_idx}" "${imsi}" "${launch_ms}" "no_tun" >> "${LATENCY_CSV}"
     echo "[WARN] ${container_name} has no oaitun_ue1 (IMSI ${imsi})"
     echo "[WARN] UE log markers: ${ue_markers}"
     echo "[WARN] UE state log: ${ue_state}"
@@ -965,6 +1004,13 @@ for ue_idx in "${SAMPLE_UES[@]}"; do
     continue
   fi
   UE_TUN_COUNT=$((UE_TUN_COUNT + 1))
+  tun_observed_ms=$(epoch_ms)
+  launch_ms="${UE_LAUNCH_EPOCH_MS[${ue_idx}]:-}"
+  launch_to_tun_ms=""
+  if [[ "${launch_ms}" =~ ^[0-9]+$ ]]; then
+    launch_to_tun_ms=$((tun_observed_ms - launch_ms))
+  fi
+  printf '%s,%s,%s,%s,%s,%s\n' "${ue_idx}" "${imsi}" "${launch_ms}" "${tun_observed_ms}" "${launch_to_tun_ms}" "tun" >> "${LATENCY_CSV}"
 
   ue_tun_ipv4=$(extract_tun_ipv4 "${tun_log}")
   derived_ext_dn_ip=$(derive_subnet_peer_ipv4 "${ue_tun_ipv4}")
@@ -1040,6 +1086,7 @@ fi
 run_iperf_for_selected_ues
 
 echo "[SUMMARY] sample=${#SAMPLE_UES[@]} running=${UE_RUNNING_COUNT} attach=${UE_ATTACH_COUNT} pdu=${UE_PDU_ACCEPT_COUNT} tun=${UE_TUN_COUNT} forward_ping_ok=${UE_FORWARD_PING_OK_COUNT} reverse_ping_ok=${UE_REVERSE_PING_OK_COUNT} iperf_ul_ok=${UE_IPERF_OK_COUNT} iperf_ul_run=${UE_IPERF_RUN_COUNT} gnb_restart=${GNB_RESTART_COUNT} failures=${FAILURES} mode=${FORWARD_PING_MODE}"
+echo "[INFO] Access latency CSV: ${LATENCY_CSV}"
 echo "[INFO] Smoke validation completed"
 echo "[INFO] Logs stored under ${LOG_DIR}"
 

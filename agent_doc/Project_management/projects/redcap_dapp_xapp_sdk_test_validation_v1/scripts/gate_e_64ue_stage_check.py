@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Gate E preflight and runtime checker for the 64 UE staged dApp/xApp test."""
+"""Gate E preflight and runtime checker for RedCap dApp/xApp two-tier tests."""
 
 from __future__ import annotations
 
 import argparse
+import csv
 import re
 from pathlib import Path
 
@@ -18,14 +19,16 @@ GNB_5MHZ_PROFILE = ROOT / "ci-scripts/conf_files/gnb.sa.band78.fr1.106PRB.usrpb2
 GNB_20MHZ_PROXY_PROFILE = ROOT / "ci-scripts/conf_files/gnb.sa.band78.fr1.51PRB.usrpb210.redcap.yaml"
 GATE_D_GNB_LOG = ROOT / "test_log/runtime_logs/gate_d_access_pressure_gnb_2026-07-07_00-47_local_no_csirs_srs.log"
 GATE_D_UE_LOG = ROOT / "test_log/runtime_logs/gate_d_access_pressure_ue2_2026-07-07_00-47_local_no_csirs_srs.log"
+GATE_E_FIRST32_GNB_LOG = ROOT / "test_log/compiler_logs/mmtc_smoke_2026-07-07_23-18-49_gnb.log"
+GATE_E_FIRST32_SUMMARY_LOG = ROOT / "test_log/compiler_logs/mmtc_stage_scan_2026-07-07_23-18-49_summary.log"
 CN_DB_GENERATOR = ROOT / "redcap_interface/generate_mmtc_cn_db_overlay.sh"
 CN_DB_IMPL = ROOT / "redcap_interface/bash_library/fc_generate_mmtc_cn_db_overlay.sh"
 SMOKE_WRAPPER = ROOT / "redcap_interface/bash_library/fc_mmtc_smoke_validation.sh"
-CN_DB_SQL = ROOT / "test_log/runtime_configs/oai_db_mmtc_64.sql"
-CN_DB_COMPOSE = ROOT / "test_log/runtime_configs/oai-cn5g_mmtc_64.override.yml"
 EXPECTED_UE_COUNT = 64
+CORE_UE_COUNT = 56
 FIRST_STAGE_UE_COUNT = 32
 STAGE_EXPECTED_UE_COUNT = {
+    "core56-ab": CORE_UE_COUNT,
     "first32": FIRST_STAGE_UE_COUNT,
     "full64": EXPECTED_UE_COUNT,
 }
@@ -36,6 +39,14 @@ def rel(path: Path) -> str:
         return str(path.resolve().relative_to(ROOT))
     except ValueError:
         return str(path)
+
+
+def cn_db_sql_path(ue_count: int) -> Path:
+    return ROOT / f"test_log/runtime_configs/oai_db_mmtc_{ue_count}.sql"
+
+
+def cn_db_compose_path(ue_count: int) -> Path:
+    return ROOT / f"test_log/runtime_configs/oai-cn5g_mmtc_{ue_count}.override.yml"
 
 
 def read(path: Path) -> str:
@@ -74,6 +85,15 @@ def parse_summary_metrics(text: str) -> dict[str, int]:
     return {key: int(value) for key, value in matches}
 
 
+def has_xapp_control_success(text: str) -> bool:
+    gnb_apply_marker = re.search(
+        r"RedCap UL PRB control RNTI [0-9A-Fa-f]{4} requested [0-9]+ effective [0-9]+",
+        text,
+    )
+    xapp_ack_marker = re.search(r"\bCONTROL ACK(?:NOWLEDGE)? rx\b", text)
+    return bool(gnb_apply_marker or xapp_ack_marker or "CONTROL ACKNOWLEDGE rx" in text)
+
+
 def check_stage_summary(summary_log_path: Path, required_ue_count: int, errors: list[str]) -> None:
     if not summary_log_path.exists():
         errors.append(f"missing Gate E stage summary log: {rel(summary_log_path)}")
@@ -101,7 +121,62 @@ def check_stage_summary(summary_log_path: Path, required_ue_count: int, errors: 
             f"Gate E stage summary failures={metrics.get('failures', 'missing')}, expected 0", errors)
 
 
-def check_static_preflight(errors: list[str]) -> None:
+def latency_success_count(latency_log_path: Path, required_ue_count: int, errors: list[str], label: str) -> int:
+    if not latency_log_path.exists():
+        errors.append(f"missing Gate E {label} latency log: {rel(latency_log_path)}")
+        return 0
+
+    with latency_log_path.open(newline="", encoding="utf-8", errors="replace") as handle:
+        rows = list(csv.DictReader(handle))
+    success_rows = [
+        row for row in rows
+        if row.get("status") == "tun" and row.get("launch_to_tun_ms", "").isdigit()
+    ]
+    require(len(rows) >= required_ue_count,
+            f"Gate E {label} latency rows={len(rows)}, expected at least {required_ue_count}", errors)
+    require(len(success_rows) >= required_ue_count,
+            f"Gate E {label} latency success rows={len(success_rows)}, expected at least {required_ue_count}", errors)
+    return len(success_rows)
+
+
+def check_core56_ab(args: argparse.Namespace, errors: list[str]) -> None:
+    required_paths = [
+        ("baseline summary", args.baseline_summary_log),
+        ("dApp summary", args.dapp_summary_log),
+        ("baseline latency", args.baseline_latency_log),
+        ("dApp latency", args.dapp_latency_log),
+        ("dApp gNB log", args.dapp_gnb_log),
+    ]
+    for label, path in required_paths:
+        if path is None:
+            errors.append(f"Gate E core56-ab requires --{label.replace(' ', '-').lower()}")
+            return
+        if not path.exists():
+            errors.append(f"missing Gate E core56-ab {label}: {rel(path)}")
+            return
+
+    check_stage_summary(args.baseline_summary_log, CORE_UE_COUNT, errors)
+    check_stage_summary(args.dapp_summary_log, CORE_UE_COUNT, errors)
+    baseline_success = latency_success_count(args.baseline_latency_log, CORE_UE_COUNT, errors, "baseline")
+    dapp_success = latency_success_count(args.dapp_latency_log, CORE_UE_COUNT, errors, "dApp")
+    require(baseline_success == dapp_success,
+            f"Gate E core56-ab latency success counts differ: baseline={baseline_success}, dApp={dapp_success}", errors)
+
+    dapp_log = read(args.dapp_gnb_log)
+    require(any(marker in dapp_log for marker in [
+                "RedCap dApp access pressure policy",
+                "access-pressure policy",
+                "[RedCap dApp Gate E][PUCCH pressure]",
+                "RedCap dApp PRB decision",
+            ]),
+            "Gate E core56-ab dApp gNB log missing dApp decision/pressure marker", errors)
+    require("Aborted" not in dapp_log and "Assertion" not in dapp_log,
+            "Gate E core56-ab dApp gNB log contains abort/assert evidence", errors)
+
+
+def check_static_preflight(errors: list[str], expected_ue_count: int) -> None:
+    cn_db_sql = cn_db_sql_path(expected_ue_count)
+    cn_db_compose = cn_db_compose_path(expected_ue_count)
     for path in [
         COMPOSE_OVERLAY,
         OVERLAY_GENERATOR,
@@ -112,8 +187,8 @@ def check_static_preflight(errors: list[str]) -> None:
         CN_DB_GENERATOR,
         CN_DB_IMPL,
         SMOKE_WRAPPER,
-        CN_DB_SQL,
-        CN_DB_COMPOSE,
+        cn_db_sql,
+        cn_db_compose,
         GATE_D_GNB_LOG,
         GATE_D_UE_LOG,
     ]:
@@ -122,17 +197,19 @@ def check_static_preflight(errors: list[str]) -> None:
     if COMPOSE_OVERLAY.exists():
         overlay = read(COMPOSE_OVERLAY)
         indices = ue_indices_from_compose(overlay)
-        expected = set(range(1, EXPECTED_UE_COUNT + 1))
+        expected = set(range(1, expected_ue_count + 1))
         missing = sorted(expected - indices)
         extra = sorted(index for index in indices if index > EXPECTED_UE_COUNT)
-        require(len(indices) >= EXPECTED_UE_COUNT,
-                f"mMTC overlay exposes {len(indices)} UE services, expected at least {EXPECTED_UE_COUNT}", errors)
+        require(len(indices) >= expected_ue_count,
+                f"mMTC overlay exposes {len(indices)} UE services, expected at least {expected_ue_count}", errors)
         require(not missing, f"mMTC overlay missing UE services: {missing}", errors)
         require(not extra, f"mMTC overlay has unexpected UE services above 64: {extra}", errors)
-        require("oai-nr-ue64:" in overlay, "mMTC overlay missing oai-nr-ue64 service", errors)
-        require('MMTC_UE_INDEX: "64"' in overlay, "mMTC overlay missing UE64 MMTC_UE_INDEX", errors)
-        require("nrue64.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro" in overlay,
-                "mMTC overlay missing UE64 RedCap config mount", errors)
+        require(f"oai-nr-ue{expected_ue_count}:" in overlay,
+                f"mMTC overlay missing oai-nr-ue{expected_ue_count} service", errors)
+        require(f'MMTC_UE_INDEX: "{expected_ue_count}"' in overlay,
+                f"mMTC overlay missing UE{expected_ue_count} MMTC_UE_INDEX", errors)
+        require(f"nrue{expected_ue_count}.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro" in overlay,
+                f"mMTC overlay missing UE{expected_ue_count} RedCap config mount", errors)
         require("OAI_REDCAP_DAPP_GATE_D_MARKER" in overlay,
                 "mMTC overlay missing dApp marker env passthrough", errors)
 
@@ -149,7 +226,7 @@ def check_static_preflight(errors: list[str]) -> None:
 
     missing_configs: list[int] = []
     imsis: list[str] = []
-    for idx in range(1, EXPECTED_UE_COUNT + 1):
+    for idx in range(1, expected_ue_count + 1):
         config = NRUE_RECAP_DIR / f"nrue{idx}.uicc.yaml"
         if not config.exists():
             missing_configs.append(idx)
@@ -159,8 +236,8 @@ def check_static_preflight(errors: list[str]) -> None:
         if imsi is not None:
             imsis.append(imsi)
     require(not missing_configs, f"missing RedCap UE configs: {missing_configs}", errors)
-    require(len(set(imsis)) == EXPECTED_UE_COUNT,
-            f"expected {EXPECTED_UE_COUNT} unique IMSIs, found {len(set(imsis))}", errors)
+    require(len(set(imsis)) == expected_ue_count,
+            f"expected {expected_ue_count} unique IMSIs, found {len(set(imsis))}", errors)
 
     if GNB_5MHZ_PROFILE.exists():
         five_mhz = read(GNB_5MHZ_PROFILE)
@@ -193,17 +270,19 @@ def check_static_preflight(errors: list[str]) -> None:
         ]:
             require(needle in cn_generator, f"CN DB generator missing text: {needle}", errors)
 
-    if CN_DB_SQL.exists():
-        cn_sql = read(CN_DB_SQL)
+    if cn_db_sql.exists():
+        cn_sql = read(cn_db_sql)
         cn_imsis = set(re.findall(r"001010[0-9]{9}", cn_sql))
-        require(len(cn_imsis) == EXPECTED_UE_COUNT,
-                f"CN DB SQL has {len(cn_imsis)} unique UE IMSIs, expected {EXPECTED_UE_COUNT}", errors)
-        require("001010000000064" in cn_imsis, "CN DB SQL missing UE64 IMSI", errors)
+        require(len(cn_imsis) == expected_ue_count,
+                f"CN DB SQL has {len(cn_imsis)} unique UE IMSIs, expected {expected_ue_count}", errors)
+        last_imsi = f"001010{expected_ue_count:09d}"
+        require(last_imsi in cn_imsis, f"CN DB SQL missing UE{expected_ue_count} IMSI", errors)
 
-    if CN_DB_COMPOSE.exists():
-        cn_compose = read(CN_DB_COMPOSE)
+    if cn_db_compose.exists():
+        cn_compose = read(cn_db_compose)
         require("zz_oai_db_mmtc.sql" in cn_compose, "CN compose overlay missing DB init mount", errors)
-        require("oai_db_mmtc_64.sql" in cn_compose, "CN compose overlay missing 64 UE SQL path", errors)
+        require(f"oai_db_mmtc_{expected_ue_count}.sql" in cn_compose,
+                f"CN compose overlay missing {expected_ue_count} UE SQL path", errors)
 
     if SMOKE_WRAPPER.exists():
         smoke_wrapper = read(SMOKE_WRAPPER)
@@ -226,7 +305,13 @@ def check_static_preflight(errors: list[str]) -> None:
         require("bwp_prbs 12" in gate_d_log, "Gate E preflight requires prior 12 PRB Gate D evidence", errors)
 
 
-def check_runtime_log(gnb_log_path: Path, stage: str, required_ue_count: int, errors: list[str]) -> None:
+def check_runtime_log(
+    gnb_log_path: Path,
+    stage: str,
+    required_ue_count: int,
+    errors: list[str],
+    control_log_paths: list[Path] | None = None,
+) -> None:
     if not gnb_log_path.exists():
         errors.append(f"missing Gate E gNB runtime log: {rel(gnb_log_path)}")
         return
@@ -235,12 +320,17 @@ def check_runtime_log(gnb_log_path: Path, stage: str, required_ue_count: int, er
     rntis = redcap_rntis(log)
     require(len(rntis) >= required_ue_count,
             f"Gate E runtime has {len(rntis)} unique RedCap RNTIs, expected at least {required_ue_count}", errors)
-    require(any(marker in log for marker in ["bwp_prbs 12", "dl_bwp_size 12", "ul_bwp_size 12"]),
-            "Gate E runtime missing first-stage 5 MHz / 12 PRB evidence", errors)
+    if stage != "full64":
+        require(any(marker in log for marker in ["bwp_prbs 12", "dl_bwp_size 12", "ul_bwp_size 12"]),
+                "Gate E runtime missing first-stage 5 MHz / 12 PRB evidence", errors)
     if stage == "full64":
         require(any(marker in log for marker in ["BWP 1, start PRB 0 size 51", "bwp_size 51", "20 MHz"]),
                 "Gate E runtime missing later-stage 20 MHz / 51 PRB expansion evidence", errors)
-        require("RedCap UL PRB control" in log or "CONTROL ACK rx" in log,
+        control_text = log
+        for path in control_log_paths or []:
+            if path.exists():
+                control_text += "\n" + read(path)
+        require(has_xapp_control_success(control_text),
                 "Gate E runtime missing xApp control or ACK marker", errors)
     require(any(marker in log for marker in [
                 "RedCap dApp access pressure policy",
@@ -263,9 +353,20 @@ def print_next_commands() -> None:
     print("[INFO] Gate E runtime evidence check command shape:")
     print("  python3 -B "
           "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/"
-          "gate_e_64ue_stage_check.py --stage first32 \\")
+          "gate_e_64ue_stage_check.py --stage full64 \\")
     print("    --gnb-log test_log/compiler_logs/mmtc_smoke_<timestamp>_gnb.log \\")
-    print("    --summary-log test_log/compiler_logs/mmtc_stage_scan_<timestamp>_summary.log")
+    print("    --summary-log test_log/compiler_logs/mmtc_stage_scan_<timestamp>_summary.log \\")
+    print("    --xapp-log test_log/compiler_logs/mmtc_smoke_<timestamp>_xapp-rc-moni.log \\")
+    print("    --ric-log test_log/compiler_logs/mmtc_smoke_<timestamp>_nearRT-RIC.log")
+    print("[INFO] Gate E-Core 56 UE A/B latency evidence check command shape:")
+    print("  python3 -B "
+          "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/"
+          "gate_e_64ue_stage_check.py --stage core56-ab \\")
+    print("    --baseline-summary-log test_log/compiler_logs/mmtc_stage_scan_<baseline>_summary.log \\")
+    print("    --dapp-summary-log test_log/compiler_logs/mmtc_stage_scan_<dapp>_summary.log \\")
+    print("    --baseline-latency-log test_log/compiler_logs/mmtc_smoke_<baseline>_access_latency.csv \\")
+    print("    --dapp-latency-log test_log/compiler_logs/mmtc_smoke_<dapp>_access_latency.csv \\")
+    print("    --dapp-gnb-log test_log/compiler_logs/mmtc_smoke_<dapp>_gnb.log")
     print("[INFO] regenerate 64 UE overlay:")
     print("  bash ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/scripts/generate_mmtc_overlay.sh 64")
     print("[INFO] regenerate 64 UE CN DB overlay:")
@@ -296,20 +397,37 @@ def main() -> int:
     parser.add_argument("--stage", choices=sorted(STAGE_EXPECTED_UE_COUNT), default="full64")
     parser.add_argument("--gnb-log", type=Path, help="Gate E gNB runtime log to scan")
     parser.add_argument("--summary-log", type=Path, help="Gate E stage summary log to scan")
+    parser.add_argument("--first-stage-gnb-log", type=Path, default=GATE_E_FIRST32_GNB_LOG)
+    parser.add_argument("--first-stage-summary-log", type=Path, default=GATE_E_FIRST32_SUMMARY_LOG)
+    parser.add_argument("--xapp-log", type=Path, help="optional xApp log to scan for control/ACK evidence")
+    parser.add_argument("--ric-log", type=Path, help="optional nearRT-RIC log to scan for control/ACK evidence")
+    parser.add_argument("--baseline-summary-log", type=Path, help="Gate E-Core baseline stage summary log")
+    parser.add_argument("--dapp-summary-log", type=Path, help="Gate E-Core dApp-enabled stage summary log")
+    parser.add_argument("--baseline-latency-log", type=Path, help="Gate E-Core baseline Launch-to-TUN latency CSV")
+    parser.add_argument("--dapp-latency-log", type=Path, help="Gate E-Core dApp-enabled Launch-to-TUN latency CSV")
+    parser.add_argument("--dapp-gnb-log", type=Path, help="Gate E-Core dApp-enabled gNB log")
     parser.add_argument("--require-runtime", action="store_true", help="fail when --gnb-log is not provided")
     parser.add_argument("--required-ue-count", type=int)
     args = parser.parse_args()
 
     errors: list[str] = []
-    check_static_preflight(errors)
-
     required_ue_count = args.required_ue_count or STAGE_EXPECTED_UE_COUNT[args.stage]
-    if args.gnb_log is not None:
+    has_runtime_evidence = args.gnb_log is not None or args.baseline_summary_log is not None
+    static_ue_count = EXPECTED_UE_COUNT if has_runtime_evidence and args.stage == "full64" else CORE_UE_COUNT
+    check_static_preflight(errors, static_ue_count)
+
+    if args.stage == "core56-ab":
+        check_core56_ab(args, errors)
+    elif args.gnb_log is not None:
         if args.summary_log is None:
             errors.append("Gate E runtime validation requires --summary-log with attach/PDU/TUN metrics")
         else:
             check_stage_summary(args.summary_log, required_ue_count, errors)
-        check_runtime_log(args.gnb_log, args.stage, required_ue_count, errors)
+        if args.stage == "full64":
+            check_stage_summary(args.first_stage_summary_log, FIRST_STAGE_UE_COUNT, errors)
+            check_runtime_log(args.first_stage_gnb_log, "first32", FIRST_STAGE_UE_COUNT, errors)
+        control_logs = [path for path in [args.xapp_log, args.ric_log] if path is not None]
+        check_runtime_log(args.gnb_log, args.stage, required_ue_count, errors, control_logs)
     elif args.require_runtime:
         print("[BLOCKED] Gate E runtime log was not provided")
         print_next_commands()
@@ -321,9 +439,11 @@ def main() -> int:
         print_next_commands()
         return 1
 
-    if args.gnb_log is None:
-        print("[PASS] Gate E static preflight is ready for 64 UE staged RFsim")
-        print("[INFO] Gate E runtime PASS is still pending")
+    if args.stage == "core56-ab" and args.baseline_summary_log is not None:
+        print("[PASS] Gate E-Core 56 UE A/B latency evidence found")
+    elif args.gnb_log is None:
+        print("[PASS] Gate E static preflight is ready for two-tier RFsim validation")
+        print("[INFO] Runtime evidence checks require --stage plus log/CSV arguments")
         print_next_commands()
     else:
         print(f"[PASS] Gate E {args.stage} runtime evidence found in {rel(args.gnb_log)}")

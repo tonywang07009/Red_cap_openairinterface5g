@@ -51,6 +51,16 @@ normalize_integer()
 
 extract_redcap_rnti()
 {
+  local rnti
+
+  rnti=$(docker logs rfsim5g-oai-gnb_redcap 2>&1 | \
+    sed -nE 's/.*gNB-side (apply|PUCCH) marker RNTI ([0-9a-fA-F]{4}).*/0x\2/p' | \
+    tail -n 1)
+  if [[ -n "${rnti}" ]]; then
+    printf '%s\n' "${rnti}"
+    return 0
+  fi
+
   docker logs rfsim5g-oai-gnb_redcap 2>&1 | sed -nE 's/.*UE with RNTI ([0-9a-fA-F]{4}) is RedCap.*/0x\1/p' | tail -n 1
 }
 

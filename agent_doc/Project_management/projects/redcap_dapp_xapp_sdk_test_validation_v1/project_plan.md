@@ -6,7 +6,7 @@
 - [OpenSpec Change]: `openspec/changes/redcap-dapp-xapp-sdk-test-validation/`
 - [Primary References]: `dev_refer/`
 - [Related Workflow]: `agent_doc/Project_management/projects/redcap_oran_sdk_workflow_v3/`
-- [Objective]: validate the next RedCap dApp/xApp SDK slice through staged tests before claiming 64 UE / staged 5 MHz-to-20 MHz BWP runtime behavior.
+- [Objective]: validate the next RedCap dApp/xApp SDK slice through a two-tier Gate E model before making broader 64 UE stress claims.
 
 ## Reference Priority
 
@@ -25,11 +25,17 @@
 | Gate B | SWIG evidence boundary | SWIG interface files verified; generated module status reported | [~] definition check only |
 | Gate C | E3 loopback | RAN-role and DAPP-role E3 agents exchange indication/control | [x] PASS with local expected shim |
 | Gate D | small RFsim marker | 1-2 UE dApp/xApp markers plus gNB-side apply marker | [x] PASS with local image and no-CSI/SRS runtime workaround |
-| Gate E | 64 UE staged 5 MHz-to-20 MHz BWP stress | first 32 UE on 5 MHz, dApp access-pressure marker, xApp 20 MHz expansion, no gNB restart, bounded latency | [~] first32 5 MHz PASS; full 64/20 MHz pending |
+| Gate E-Core | 56 UE dApp A/B access-latency gate | baseline-vs-dApp 56 UE health plus Launch-to-TUN latency comparison | [x] PASS |
+| Gate E-Stretch | 64 UE strict upper-bound stress | full64 attach/PDU/TUN/ping/control evidence without gNB restart | [~] non-blocking stretch |
 
 ## Current Boundary
 
 - Current static work does not claim [64 UE / 5 MHz-to-20 MHz BWP runtime PASS].
+- Gate E is now split into [Gate E-Core] and [Gate E-Stretch]. Gate E-Core is the SDK v1 engineering completion gate; Gate E-Stretch remains a non-blocking upper-bound validation.
+- Gate E-Core uses a 56 UE baseline-vs-dApp A/B test on the current 51 PRB expanded-bandwidth proxy. The primary metric is [Launch-to-TUN] access latency: per-UE launch timestamp to first observed `oaitun_ue1`.
+- Gate E-Core requires both baseline and dApp-enabled runs to reach `sample=56`, `running=56`, `attach=56`, `pdu=56`, `tun=56`, and `gnb_restart=0`. It also requires per-UE latency CSV evidence, median/p95/max comparison in the report, dApp decision/PRB/PUCCH-pressure markers in the dApp run, and no assert/abort/segfault marker.
+- Gate E-Core does not require the dApp-enabled run to be faster as a hard PASS condition in v1. A valid A/B comparison is the required engineering deliverable.
+- Gate E-Stretch keeps strict 64 UE validation as research-grade stress evidence only. The latest `attach/pdu/tun=62/64` result is a Stretch blocker, not a Core blocker.
 - Current work claims [Gate D small RFsim marker PASS] only under the documented no-CSI/SRS runtime workaround.
 - Current work does not claim [dApp access-pressure policy effectiveness under collision load].
 - Current Gate E runtime evidence proves the first32 5 MHz stage reaches `attach=32`, `pdu=32`, `tun=32`, `forward_ping_ok=32`, and `gnb_restart=0` after the connected DCI BWP fix. It does not prove the 64 UE / 20 MHz proxy expansion or collision-load access-pressure effectiveness.
@@ -37,7 +43,15 @@
 - Current 2026-07-08 one-UE 51PRB smoke evidence proves the RF/SSB wrapper defaults now reach sync, attach, PDU, TUN, and `gnb_restart=0`; the following full64 run reached 51PRB dApp markers but failed with `sample=64 running=15 attach=59 pdu=59 tun=11 gnb_restart=1 failures=55`.
 - Current source fix for the 2026-07-08 UE48 full64 abort makes CSI measurement periodicity use the reused PUCCH reservation UID. Docker image rebuild later succeeded, and the next full64 attempt passed the prior UE48 CSI crash zone but failed with `sample=64 running=0 attach=62 pdu=62 tun=0 failures=65`.
 - Current runtime guard fixes for E2 `epoll_wait(EINTR)`, UE invalid CCCH MAC length, and missing `masterCellGroup` RRCSetup input build locally and are in rebuilt images; the post-guard one-UE 51PRB smoke passes with `attach=1`, `pdu=1`, `tun=1`, and `gnb_restart=0`.
-- Current post-guard full64 rerun is blocked by workspace credits, so Gate E still does not claim full64, xApp influence, or before/after collision-load effectiveness.
+- Earlier post-guard full64 runtime reached `sample=64`, `running=64`, `attach=64`, `pdu=64`, `tun=64`, and `gnb_restart=0`, but stayed open because `failures=2`, sampled UL iperf timed out for UE1/UE25, and no xApp control/ACK marker was observed in the monitor logs.
+- Current RC control attempt exposed a gNB assert on an unknown/stale RNTI in the RedCap RC write path. The RC write path now rejects malformed or unknown-RNTI control requests instead of aborting, the RNTI selector prefers live dApp MAC markers, the full64 wrapper adds iperf retry support, and local images were rebuilt from these fixes.
+- Current RC-control-guard image inspection is no longer blocked. `test_log/compiler_logs/gnb_image_inspect_2026-07-09_rc_control_guard.log` confirms the local `oai-gnb:latest` image contains FlexRIC libraries and the PUCCH budget marker.
+- Current post-RC-control-guard one-UE 51PRB smoke evidence shows RF/SSB alignment, sync, PDU session accept, `oaitun_ue1`, and `gnb_restart=0` in `test_log/compiler_logs/mmtc_smoke_2026-07-08_23-29-28_*`.
+- Current post-RC-control-guard full64 rerun reached `sample=64`, `running=64`, `attach=62`, `pdu=62`, `tun=62`, `forward_ping_ok=54`, `iperf_ul_ok=1`, `iperf_ul_run=3`, `gnb_restart=0`, and `failures=12`. UE62 and UE64 stayed running/healthy but did not create `oaitun_ue1`; UE8/UE23/UE42/UE44/UE54/UE56/UE59/UE60 failed forward ping; UE25 and UE50 failed all UL iperf retries.
+- Current live xApp control path is verified for one selected RNTI after the failed full64 run: `redcap_rc_ctrl_xapp_2026-07-09_00-00-46.log` contains `CONTROL ACK rx`, `redcap_rc_ctrl_xapp_2026-07-09_00-00-46_nearRT-RIC_live_postcontrol.log` contains `CONTROL ACKNOWLEDGE rx`, and `redcap_rc_ctrl_xapp_2026-07-09_00-00-46_gnb_live_postcontrol.log` contains `RedCap UL PRB control RNTI fc38 requested 32 effective 32`.
+- Current Gate E-Core runtime evidence proves the 56 UE baseline-vs-dApp Launch-to-TUN comparison: both runs reached `sample=56`, `running=56`, `attach=56`, `pdu=56`, `tun=56`, `gnb_restart=0`, and `failures=0`.
+- Gate E-Core latency evidence: baseline median/p95/max `436318/703145/722926 ms`; dApp median/p95/max `441487/708146/728189 ms`; dApp-minus-baseline delta `+5169/+5001/+5263 ms`. This is a valid A/B comparison, not a latency-improvement claim.
+- Gate E-Core dApp marker evidence: `test_log/compiler_logs/mmtc_smoke_2026-07-09_10-42-43_gnb.log` contains `RedCap dApp PRB decision` markers and no assert/abort/segfault marker was found by the checker.
 - Current SDK additions are test-facing helpers for priority hints, PRB allocation decisions, and dApp access-pressure policy decisions.
 - The dApp remains the local apply/reject boundary; xApp only emits UE priority hints.
 
@@ -51,12 +65,17 @@ python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_valid
 python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/gate_c_e3_loopback_check.py --try-configure --allow-fetch
 python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/gate_d_rfsim_marker_check.py
 python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/gate_e_64ue_stage_check.py
+python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/gate_e_64ue_stage_check.py --stage core56-ab --baseline-summary-log <baseline-summary> --dapp-summary-log <dapp-summary> --baseline-latency-log <baseline-latency.csv> --dapp-latency-log <dapp-latency.csv> --dapp-gnb-log <dapp-gnb-log>
 python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/gate_e_64ue_stage_check.py --stage first32 --gnb-log test_log/compiler_logs/mmtc_smoke_<timestamp>_gnb.log --summary-log test_log/compiler_logs/mmtc_stage_scan_<timestamp>_summary.log
 openspec validate redcap-dapp-xapp-sdk-test-validation --strict
 ```
 
 ## Next Runtime Pull
 
+- Gate E-Core 56 UE A/B access-latency comparison is complete; return to 64 UE Stretch work only when strict upper-bound evidence is explicitly needed.
+- Baseline profile: `MMTC_TOTAL_UES_TARGET=56`, `MMTC_STAGE_LIST=56`, `MMTC_START_XAPP=0`, `OAI_REDCAP_DAPP_GATE_D_MARKER=0`, `MMTC_N_RB_DL=51`, `MMTC_IPERF_ENABLE=0`, and the no-CSI/SRS RFsim workaround.
+- dApp profile: same RF/CN/UE profile, with `MMTC_START_XAPP=1` and `OAI_REDCAP_DAPP_GATE_D_MARKER=1`.
+- Gate E-Core evidence: baseline summary `test_log/compiler_logs/mmtc_stage_scan_2026-07-09_10-27-10_summary.log`, dApp summary `test_log/compiler_logs/mmtc_stage_scan_2026-07-09_10-42-43_summary.log`, baseline latency `test_log/compiler_logs/mmtc_smoke_2026-07-09_10-27-10_access_latency.csv`, dApp latency `test_log/compiler_logs/mmtc_smoke_2026-07-09_10-42-43_access_latency.csv`, dApp gNB marker log `test_log/compiler_logs/mmtc_smoke_2026-07-09_10-42-43_gnb.log`, and report `agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/report/gate_e_core56_ab_latency_2026-07-09.md`.
 - Replace the Gate C local `tl_expected` shim with official `tl_expected` cache/network access before treating the libe3 build as production dependency evidence.
 - Use `ci-scripts/conf_files/gnb.sa.band78.fr1.106PRB.usrpb210.redcap.5mhz-bwp.yaml` for the 5 MHz BWP run. It keeps the 106 PRB RF carrier stable and makes BWP1 plus RedCap DL/UL initial BWP 12 PRBs at 30 kHz SCS `[Needs Verification]`.
 - Latest Gate D 5 MHz RFsim run evidence:
@@ -123,7 +142,7 @@ openspec validate redcap-dapp-xapp-sdk-test-validation --strict
   - Root cause: the 51 PRB gNB profile and UE RF/SSB defaults were mismatched before synchronization, so this run does not test RA collision mitigation, dApp policy effectiveness, CN attach, PDU, or TUN behavior.
   - Source fix: `redcap_interface/bash_library/fc_mmtc_smoke_validation.sh` now auto-applies 51PRB RF defaults when `MMTC_N_RB_DL=51` or `GNB_REDCAP_CONFIG` contains `51PRB`.
   - Prepare-only evidence: `test_log/compiler_logs/mmtc_smoke_prepare_only_2026-07-07_51prb_rf_defaults.log` confirms `MMTC_RF_FREQ=3617640000`, `MMTC_SSB_START=238`, and the 64 UE overlay without starting Docker.
-  - Runtime boundary: post-fix Docker rerun was rejected because workspace credits were exhausted.
+  - Runtime boundary at that time: post-fix Docker rerun was rejected because workspace credits were exhausted. This is superseded by the later one-UE and full64 runtime attempts below.
 - Gate E one-UE 51PRB RF/SSB alignment smoke after wrapper/default and image rebuild:
   - gNB log: `test_log/compiler_logs/mmtc_smoke_2026-07-08_12-05-16_gnb.log`.
   - UE log: `test_log/compiler_logs/mmtc_smoke_2026-07-08_12-05-16_ue1_docker.log`.
@@ -147,6 +166,18 @@ openspec validate redcap-dapp-xapp-sdk-test-validation --strict
   - Runtime guard build evidence: `test_log/build_logs/build_gate_e_runtime_guards_2026-07-08_17-46-58.log`.
   - Runtime guard image rebuild evidence: `test_log/build_logs/rebuild_local_oai_images_2026-07-08_17-47-31_gate-e-runtime-guards.log`.
   - Runtime guard one-UE 51PRB smoke evidence: `test_log/compiler_logs/mmtc_smoke_2026-07-08_18-00-40_gnb.log`, `test_log/compiler_logs/mmtc_smoke_2026-07-08_18-00-40_ue1_docker.log`, and `test_log/compiler_logs/mmtc_smoke_2026-07-08_18-00-40_gnb_state.log` report `sample=1 running=1 attach=1 pdu=1 tun=1 forward_ping_ok=1 reverse_ping_ok=1 gnb_restart=0 failures=0`.
-  - Runtime boundary: the post-guard full64 rerun was rejected because workspace credits were exhausted, so no post-guard full64 RFsim evidence exists yet.
-- Next pull: after Docker escalation/credits are available, rerun the full 64 UE / 20 MHz proxy stage from the already rebuilt post-guard images, then collect xApp control plus collision-load before/after access-pressure evidence before closing Gate E task 5.3.
+  - Post-runtime-guard full64 evidence: `test_log/compiler_logs/mmtc_stage_scan_2026-07-08_22-24-50_summary.log` reports `sample=64 running=64 attach=64 pdu=64 tun=64 forward_ping_ok=64 reverse_ping_ok=0 iperf_ul_ok=1 iperf_ul_run=3 gnb_restart=0 failures=2 mode=parallel`.
+  - Post-runtime-guard full64 limitation: UE1 and UE25 sampled UL iperf clients timed out, UE50 sampled UL iperf passed, the xApp monitor completed E42/RC subscription setup without a control/ACK marker, and Gate E still lacks before/after collision-load evidence.
+  - RC control failure evidence: `test_log/compiler_logs/redcap_rc_ctrl_xapp_2026-07-08_22-52-46.log` timed out after sending a live control request, and the corresponding gNB live log showed `apply_redcap_ul_prb_control` aborting on `RedCap UL PRB control targeted unknown RNTI`.
+  - RC control guard source fixes: `openair2/E2AP/RAN_FUNCTION/O-RAN/ran_func_rc.c` now rejects malformed, no-MAC-instance, and unknown-RNTI RedCap UL PRB control requests without aborting; `redcap_interface/bash_library/fc_send_ul_prb_control.sh` now prefers live dApp MAC marker RNTIs; `redcap_interface/bash_library/fc_mmtc_smoke_validation.sh` and `fc_mmtc_stage_scan.sh` now include sampled iperf retries and server-settle delay.
+  - RC control guard local validation: `rtk bash -n` PASS for the touched wrappers, `rtk python3 -m py_compile gate_e_64ue_stage_check.py` PASS, `gate_e_64ue_stage_check.py` static preflight PASS, `git diff --check` PASS for the touched files, and local CMake builds PASS.
+  - Runtime checker boundary: the 2026-07-08 22:24:50 full64 logs intentionally remain FAIL in `gate_e_64ue_stage_check.py --stage full64` because `failures=2` and no xApp control/ACK marker exist.
+  - RC control guard image rebuild evidence: `test_log/build_logs/rebuild_local_oai_images_2026-07-08_22-58-43_gate-e-rc-control-guard.log` rebuilt local runtime images from the guarded source tree.
+  - RC-control-guard image inspection evidence: `test_log/compiler_logs/gnb_image_inspect_2026-07-09_rc_control_guard.log` confirms `oai-gnb:latest` includes FlexRIC libraries and the PUCCH budget marker.
+  - Post-RC-control-guard one-UE evidence: `test_log/compiler_logs/mmtc_smoke_2026-07-08_23-29-28_ue1_docker.log` shows 51PRB RF/SSB alignment and initial sync; `..._ue1_tun.log` shows `oaitun_ue1`; `..._smf.log` shows PDU Session ID 10 active; `..._gnb_state.log` shows restart count 0.
+  - Post-RC-control-guard full64 evidence: `test_log/compiler_logs/mmtc_stage_scan_2026-07-08_23-31-13_summary.log` reports `sample=64 running=64 attach=62 pdu=62 tun=62 forward_ping_ok=54 reverse_ping_ok=0 iperf_ul_ok=1 iperf_ul_run=3 gnb_restart=0 failures=12 mode=parallel`.
+  - Post-RC-control-guard full64 blockers: UE62 and UE64 did not create `oaitun_ue1`; UE8/UE23/UE42/UE44/UE54/UE56/UE59/UE60 failed forward ping; UE25 and UE50 UL iperf clients timed out after retries even though the containers stayed running/healthy.
+  - xApp control evidence: `test_log/compiler_logs/redcap_rc_ctrl_xapp_2026-07-09_00-00-46.log` has `CONTROL ACK rx`, `test_log/compiler_logs/redcap_rc_ctrl_xapp_2026-07-09_00-00-46_nearRT-RIC_live_postcontrol.log` has `CONTROL ACKNOWLEDGE rx`, and `test_log/compiler_logs/redcap_rc_ctrl_xapp_2026-07-09_00-00-46_gnb_live_postcontrol.log` has the gNB apply marker.
+  - Runtime checker boundary: the post-control full64 evidence still fails `gate_e_64ue_stage_check.py --stage full64` only on summary metrics (`attach=62`, `pdu=62`, `tun=62`, `failures=12`), so it remains Gate E-Stretch context.
+- Gate E-Core is closed by the 2026-07-09 56 UE baseline-vs-dApp Launch-to-TUN comparison. The full64 UE62/UE64 PDU/TUN, ping loss, and sampled UL iperf timeout issues remain non-blocking Gate E-Stretch work.
 - Keep the no-CSI/SRS RFsim workaround explicit until the CSI-RS/SRS enabled blocker is fixed or accepted as out-of-scope for Gate E.

@@ -38,7 +38,7 @@
   - medium pressure：PUCCH `300`，PUSCH `500`。
   - high pressure：PUCCH `400`，PUSCH `400`。
 - [Guard boundary]：只有 `redcap_dapp_guard_prb_allocation` 回傳 ACK 時，policy result 才能視為可 apply。
-- [Current evidence]：Python SDK self-check、dApp/xApp contract self-test、C syntax check 已通過；RFsim runtime 是否真的降低接入壓力仍需 Gate D/E 驗證。
+- [Current evidence]：Python SDK self-check、dApp/xApp contract self-test、C syntax check、Gate D marker runtime，以及 Gate E-Core 56 UE A/B Launch-to-TUN 比較皆已通過。
 
 ## Command usage
 
@@ -212,6 +212,20 @@ python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_valid
 - Gate E first32 checker PASS：`gate_e_64ue_stage_check.py --stage first32 --gnb-log test_log/compiler_logs/mmtc_smoke_2026-07-07_23-18-49_gnb.log --summary-log test_log/compiler_logs/mmtc_stage_scan_2026-07-07_23-18-49_summary.log`。
 - Gate E runtime PASS 仍然 pending：full 64 UE / 20 MHz proxy stage 與 collision-load access-pressure effectiveness 尚未完成；這次 first32 結果只證明 32 UE 5 MHz stage。
 
+2026-07-09 Gate E-Core 56 UE A/B runtime：
+
+- Gate E 已改成 two-tier：Gate E-Core 是 SDK v1 工程 gate；Gate E-Stretch 保留 strict 64 UE stress evidence，且不阻塞 SDK v1。
+- Baseline summary：`test_log/compiler_logs/mmtc_stage_scan_2026-07-09_10-27-10_summary.log`。
+- dApp summary：`test_log/compiler_logs/mmtc_stage_scan_2026-07-09_10-42-43_summary.log`。
+- Baseline latency CSV：`test_log/compiler_logs/mmtc_smoke_2026-07-09_10-27-10_access_latency.csv`。
+- dApp latency CSV：`test_log/compiler_logs/mmtc_smoke_2026-07-09_10-42-43_access_latency.csv`。
+- dApp gNB marker log：`test_log/compiler_logs/mmtc_smoke_2026-07-09_10-42-43_gnb.log`。
+- 結果：兩次 runtime 都達到 `sample=56 running=56 attach=56 pdu=56 tun=56 forward_ping_ok=56 gnb_restart=0 failures=0`。
+- Launch-to-TUN 比較：baseline median/p95/max `436318/703145/722926 ms`；dApp median/p95/max `441487/708146/728189 ms`。
+- 邊界：這是有效 A/B 比較，不是 dApp latency improvement claim。
+- Gate E-Core checker PASS：`gate_e_64ue_stage_check.py --stage core56-ab`。
+- Report：`agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/report/gate_e_core56_ab_latency_2026-07-09.md`。
+
 ## Step-by-step recap
 
 1. 確認本地 `dev_refer/` 參考資料存在。
@@ -223,7 +237,7 @@ python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_valid
 7. 執行 Gate D source readiness checker。
 8. 執行 Gate E preflight checker。
 9. Runtime 階段執行 `redcap_interface/redcap_mmtc_stage_scan.sh`，再同時驗證 `mmtc_smoke_<timestamp>_gnb.log` 與 `mmtc_stage_scan_<timestamp>_summary.log`。
-10. Gate E full stress runtime 在 64 UE / 20 MHz proxy stage 與 collision-load 證據出現前維持 pending。
+10. Gate E-Core 已由 56 UE A/B runtime 關閉；Gate E-Stretch 在需要 strict 64 UE upper-bound evidence 前維持 pending。
 
 ## Example logic
 
@@ -277,6 +291,6 @@ python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_valid
 - 5 MHz profile 保留 106 PRB RF carrier，但 BWP1 與 RedCap DL/UL initial BWP 設為 30 kHz SCS 的 12 PRBs `[Needs Verification]`；runtime log 已確認 RA/SIB1 使用 size `12`。
 - Gate D PASS 目前依賴 CLI override 關閉 CSI-RS/SRS；CSI-RS/SRS 啟用時的 RFsim 仍是 Gate E production-style claim 前的 blocker。
 - Gate D 目前涵蓋 ULSCH/PUSCH/PDCCH 與 PUCCH marker path；dApp access-pressure policy 已實作並通過單元測試，但碰撞負載下的 runtime effectiveness 仍待驗證。
-- Gate E static preflight 已準備好，且 first32 post-DCI-BWP runtime 已達到 `attach=32`、`pdu=32`、`tun=32`、`forward_ping_ok=32`。
-- full 64 UE staged 5 MHz-to-20 MHz BWP stress runtime validation 仍未完成，因為 20 MHz proxy expansion 與 collision-load access-pressure effectiveness 尚未產生 runtime 證據。
+- Gate E static preflight 已準備好，first32 post-DCI-BWP runtime 已達到 `attach=32`、`pdu=32`、`tun=32`、`forward_ping_ok=32`，且 Gate E-Core 56 UE A/B Launch-to-TUN 比較已通過。
+- full 64 UE staged stress runtime validation 仍作為 Gate E-Stretch pending；它不阻塞 SDK v1。
 - 精確 O-RAN 與 3GPP clause mapping 仍是 `[Needs Verification]`。

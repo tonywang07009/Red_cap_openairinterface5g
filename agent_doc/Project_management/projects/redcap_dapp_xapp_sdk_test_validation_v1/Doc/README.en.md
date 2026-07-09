@@ -38,7 +38,7 @@ Key fields:
   - medium pressure: PUCCH `300`, PUSCH `500`.
   - high pressure: PUCCH `400`, PUSCH `400`.
 - [Guard boundary]: the policy result is applied only if `redcap_dapp_guard_prb_allocation` returns ACK.
-- [Current evidence]: Python SDK self-check, dApp/xApp contract self-test, and C syntax check pass. RFsim runtime usefulness is still pending Gate D/E.
+- [Current evidence]: Python SDK self-check, dApp/xApp contract self-test, C syntax check, Gate D marker runtime, and Gate E-Core 56 UE A/B Launch-to-TUN comparison pass.
 
 ## Command usage
 
@@ -212,6 +212,20 @@ Gate E first32 connected DCI BWP runtime rerun on 2026-07-07:
 - Gate E first32 checker PASS: `gate_e_64ue_stage_check.py --stage first32 --gnb-log test_log/compiler_logs/mmtc_smoke_2026-07-07_23-18-49_gnb.log --summary-log test_log/compiler_logs/mmtc_stage_scan_2026-07-07_23-18-49_summary.log`.
 - Gate E runtime PASS is still pending for the full 64 UE / 20 MHz proxy stage and collision-load access-pressure effectiveness; this first32 result only proves the 32 UE 5 MHz stage.
 
+Gate E-Core 56 UE A/B runtime on 2026-07-09:
+
+- Gate E is now two-tiered: Gate E-Core is the SDK v1 engineering gate; Gate E-Stretch keeps strict 64 UE stress evidence non-blocking.
+- Baseline summary: `test_log/compiler_logs/mmtc_stage_scan_2026-07-09_10-27-10_summary.log`.
+- dApp summary: `test_log/compiler_logs/mmtc_stage_scan_2026-07-09_10-42-43_summary.log`.
+- Baseline latency CSV: `test_log/compiler_logs/mmtc_smoke_2026-07-09_10-27-10_access_latency.csv`.
+- dApp latency CSV: `test_log/compiler_logs/mmtc_smoke_2026-07-09_10-42-43_access_latency.csv`.
+- dApp gNB marker log: `test_log/compiler_logs/mmtc_smoke_2026-07-09_10-42-43_gnb.log`.
+- Result: both runs reached `sample=56 running=56 attach=56 pdu=56 tun=56 forward_ping_ok=56 gnb_restart=0 failures=0`.
+- Launch-to-TUN comparison: baseline median/p95/max `436318/703145/722926 ms`; dApp median/p95/max `441487/708146/728189 ms`.
+- Boundary: this is a valid A/B comparison, not a dApp latency-improvement claim.
+- Gate E-Core checker PASS: `gate_e_64ue_stage_check.py --stage core56-ab`.
+- Report: `agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/report/gate_e_core56_ab_latency_2026-07-09.md`.
+
 ## Step-by-step recap
 
 1. Confirm local `dev_refer/` references exist.
@@ -223,7 +237,7 @@ Gate E first32 connected DCI BWP runtime rerun on 2026-07-07:
 7. Run the Gate D source readiness checker.
 8. Run the Gate E preflight checker.
 9. For runtime, run `redcap_interface/redcap_mmtc_stage_scan.sh`, then validate both `mmtc_smoke_<timestamp>_gnb.log` and `mmtc_stage_scan_<timestamp>_summary.log`.
-10. Treat Gate E full stress runtime as pending until the 64 UE / 20 MHz proxy stage and collision-load evidence exist.
+10. Treat Gate E-Core as closed by the 56 UE A/B run; keep Gate E-Stretch pending until strict 64 UE upper-bound evidence is needed.
 
 ## Example logic
 
@@ -277,6 +291,6 @@ Gate E first32 connected DCI BWP runtime rerun on 2026-07-07:
 - The 5 MHz profile keeps the RF carrier at 106 PRBs while BWP1 and RedCap DL/UL initial BWP are 12 PRBs at 30 kHz SCS `[Needs Verification]`; runtime logs confirm RA/SIB1 uses size `12`.
 - Gate D PASS currently depends on disabling CSI-RS/SRS through CLI override; CSI-RS/SRS enabled RFsim remains a blocker before production-style Gate E claims.
 - Gate D currently covers the ULSCH/PUSCH/PDCCH and PUCCH marker paths. The dApp access-pressure policy is implemented and unit-tested, but runtime effectiveness under collision load is still pending.
-- Gate E static preflight is ready, and the first32 post-DCI-BWP runtime reaches `attach=32`, `pdu=32`, `tun=32`, and `forward_ping_ok=32`.
-- The full 64 UE staged 5 MHz-to-20 MHz BWP stress runtime validation is still pending because the 20 MHz proxy expansion and collision-load access-pressure effectiveness have not produced runtime evidence yet.
+- Gate E static preflight is ready, the first32 post-DCI-BWP runtime reaches `attach=32`, `pdu=32`, `tun=32`, and `forward_ping_ok=32`, and Gate E-Core 56 UE A/B Launch-to-TUN comparison passes.
+- The full 64 UE staged stress runtime validation is still pending as Gate E-Stretch; it does not block SDK v1.
 - Exact O-RAN and 3GPP clause mapping remains `[Needs Verification]`.

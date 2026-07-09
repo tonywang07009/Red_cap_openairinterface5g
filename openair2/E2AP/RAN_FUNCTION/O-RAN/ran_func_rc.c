@@ -52,14 +52,27 @@ static pthread_mutex_t rc_mutex = PTHREAD_MUTEX_INITIALIZER;
  *
  * @param[in] redcap_ctrl Parsed RedCap UL PRB control message.
  */
-static void apply_redcap_ul_prb_control(const nr_redcap_rc_ul_prb_ctrl_t *redcap_ctrl)
+static bool apply_redcap_ul_prb_control(const nr_redcap_rc_ul_prb_ctrl_t *redcap_ctrl)
 {
-  assert(redcap_ctrl != NULL && "Expected parsed RedCap UL PRB control message");
-  assert(RC.nrmac[0] != NULL && "Expected active gNB MAC instance for RedCap UL PRB control");
+  if (redcap_ctrl == NULL) {
+    printf("RedCap UL PRB control rejected: malformed request\n");
+    fflush(stdout);
+    return false;
+  }
+
+  if (RC.nrmac[0] == NULL) {
+    printf("RedCap UL PRB control RNTI %04x rejected: no active gNB MAC instance\n", redcap_ctrl->rnti);
+    fflush(stdout);
+    return false;
+  }
 
   gNB_MAC_INST *nrmac = RC.nrmac[0];
   NR_UE_info_t *UE = find_nr_UE(&nrmac->UE_info, redcap_ctrl->rnti);
-  assert(UE != NULL && "RedCap UL PRB control targeted unknown RNTI");
+  if (UE == NULL) {
+    printf("RedCap UL PRB control RNTI %04x rejected: unknown RNTI\n", redcap_ctrl->rnti);
+    fflush(stdout);
+    return false;
+  }
 
   const uint16_t effective_cap = nr_redcap_sanitize_ul_prb_cap(redcap_ctrl->max_ul_prbs, nrmac->min_grant_prb);
   UE->UE_sched_ctrl.redcap_ul_prb_cap = effective_cap;
@@ -68,6 +81,7 @@ static void apply_redcap_ul_prb_control(const nr_redcap_rc_ul_prb_ctrl_t *redcap
          redcap_ctrl->max_ul_prbs,
          effective_cap);
   fflush(stdout);
+  return true;
 }
 #endif
 
@@ -987,9 +1001,12 @@ sm_ag_if_ans_t write_ctrl_rc_sm(void const* data)
     printf("qfi = %ld, dir %ld \n", qfi, dir);
   } else if (ctrl_act_id == NR_REDCAP_RC_CTRL_ACT_ID_UL_PRB_CAP) {
     nr_redcap_rc_ul_prb_ctrl_t redcap_ctrl = {0};
-    assert(nr_redcap_parse_ul_prb_ctrl_message(&ctrl->msg.frmt_1, &redcap_ctrl) && "Malformed RedCap UL PRB control message");
+    if (!nr_redcap_parse_ul_prb_ctrl_message(&ctrl->msg.frmt_1, &redcap_ctrl)) {
+      printf("RedCap UL PRB control rejected: malformed RC control message\n");
+      goto rc_control_done;
+    }
 #if defined(NGRAN_GNB_DU)
-    apply_redcap_ul_prb_control(&redcap_ctrl);
+    (void)apply_redcap_ul_prb_control(&redcap_ctrl);
 #else
     assert(false && "RedCap UL PRB control is not supported for CU-UP-only RC agent builds");
 #endif
@@ -997,7 +1014,7 @@ sm_ag_if_ans_t write_ctrl_rc_sm(void const* data)
     assert(false && "Unsupported RIC control action");
   }
 
-
+rc_control_done:
   sm_ag_if_ans_t ans = {.type = CTRL_OUTCOME_SM_AG_IF_ANS_V0};
   ans.ctrl_out.type = RAN_CTRL_V1_3_AGENT_IF_CTRL_ANS_V0;
   return ans;

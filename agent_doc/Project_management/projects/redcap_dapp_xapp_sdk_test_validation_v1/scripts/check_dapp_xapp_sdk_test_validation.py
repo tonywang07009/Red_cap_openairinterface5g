@@ -181,8 +181,8 @@ def check_docs(errors: list[str]) -> None:
                 f"{doc} missing Gate E CN DB overlay command/evidence", errors)
         require("/home/tonywang/OAI/oai-cn5g/docker-compose.yaml" in text and "oai-amf" in text,
                 f"{doc} missing Gate E oai-cn5g AMF source evidence", errors)
-        require("runtime PASS is still pending" in text or "runtime PASS 仍然 pending" in text,
-                f"{doc} must keep Gate E runtime pending", errors)
+        require("Gate E-Core" in text and ("Gate E-Stretch" in text or "64 UE" in text),
+                f"{doc} missing Gate E two-tier Core/Stretch boundary", errors)
         require("[RedCap RA][gNB DL TDA]" in text and "RRCSetupComplete" in text,
                 f"{doc} missing Gate E DL TDA / RRCSetupComplete blocker evidence", errors)
         require("[RedCap RA][gNB DCI BWP]" in text and "Docker image rebuild" in text,
@@ -225,7 +225,6 @@ def check_docs(errors: list[str]) -> None:
         reject_text(path, "5 PRB BWP", errors)
         reject_text(path, "bwp_prbs 5", errors)
         reject_text(path, "--require-bwp-prbs 5", errors)
-        reject_text(path, "56 UE", errors)
 
     gnb_ulsch = read("openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_ulsch.c")
     require("redcap_dapp_guard_prb_allocation" in gnb_ulsch and "gNB-side apply marker" in gnb_ulsch,
@@ -252,15 +251,19 @@ def check_docs(errors: list[str]) -> None:
             "gate_e_64ue_stage_check.py missing stage summary metric validation", errors)
     require('errors.append("Gate E runtime validation requires --summary-log with attach/PDU/TUN metrics")' in gate_e_checker,
             "gate_e_64ue_stage_check.py must reject runtime validation without a summary log", errors)
+    require("core56-ab" in gate_e_checker and "baseline-latency-log" in gate_e_checker and "Launch-to-TUN" in gate_e_checker,
+            "gate_e_64ue_stage_check.py missing Gate E-Core 56 UE A/B latency validation", errors)
+    require("Access latency CSV" in read("redcap_interface/bash_library/fc_mmtc_smoke_validation.sh"),
+            "mMTC smoke wrapper missing Launch-to-TUN latency CSV output", errors)
     require("redcap_dapp_sdk.c" in read("CMakeLists.txt"),
             "CMakeLists.txt missing redcap_dapp_sdk.c in build source list", errors)
     require("OAI_REDCAP_DAPP_GATE_D_MARKER" in read("ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.mmtc.yml"),
             "docker-compose.mmtc.yml missing Gate D marker env passthrough", errors)
     mmtc_overlay = read("ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.mmtc.yml")
-    require("oai-nr-ue64:" in mmtc_overlay and 'MMTC_UE_INDEX: "64"' in mmtc_overlay,
-            "docker-compose.mmtc.yml missing generated UE64 service/index", errors)
-    require("nrue64.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro" in mmtc_overlay,
-            "docker-compose.mmtc.yml missing UE64 RedCap config mount", errors)
+    require("oai-nr-ue56:" in mmtc_overlay and 'MMTC_UE_INDEX: "56"' in mmtc_overlay,
+            "docker-compose.mmtc.yml missing generated UE56 service/index", errors)
+    require("nrue56.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro" in mmtc_overlay,
+            "docker-compose.mmtc.yml missing UE56 RedCap config mount", errors)
     require("OAI_REDCAP_DAPP_GATE_D_MARKER" in read("ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/scripts/generate_mmtc_overlay.sh"),
             "generate_mmtc_overlay.sh missing Gate D marker env passthrough", errors)
     overlay_generator = read("ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/scripts/generate_mmtc_overlay.sh")

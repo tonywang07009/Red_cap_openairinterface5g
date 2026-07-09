@@ -13,6 +13,14 @@ if timeout 10 bash -lc "until docker logs rfsim5g-oai-gnb_redcap 2>&1 | grep -qE
   exit 0
 fi
 
+# Large full64 docker logs can exceed the short live grep window. Fall back to
+# the latest captured post-control gNB log before reporting a missing marker.
+latest_gnb_log=$(ls -1t "${REPO_ROOT}/test_log/compiler_logs"/redcap_rc_ctrl_xapp_*_gnb_live_postcontrol.log 2>/dev/null | head -n 1 || true)
+if [[ -n "${latest_gnb_log}" ]] && grep -qE "${LIVE_PATTERN}" "${latest_gnb_log}"; then
+  echo "Verified RedCap UL PRB control marker in captured gNB log: ${latest_gnb_log}"
+  exit 0
+fi
+
 # xApp ACK is useful path evidence, but G4 closes only on the gNB apply marker.
 latest_ctrl_log=$(ls -1t "${REPO_ROOT}/test_log/compiler_logs"/redcap_rc_ctrl_xapp_*.log 2>/dev/null | head -n 1 || true)
 if [[ -n "${latest_ctrl_log}" ]] && grep -q "RedCap RC control sent node=" "${latest_ctrl_log}"; then
