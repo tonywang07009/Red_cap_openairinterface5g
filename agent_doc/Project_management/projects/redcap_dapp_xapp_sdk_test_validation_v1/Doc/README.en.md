@@ -6,6 +6,15 @@
 - Primary references are under `dev_refer/`.
 - Static checks do not claim 64 UE / staged 5 MHz-to-20 MHz BWP runtime PASS.
 
+## SDK routes
+
+| Need | File |
+|---|---|
+| Scenario, API behavior, developer notes, and current evidence | [README.en.md](./README.en.md) |
+| SDK development workflow | [sdk_development_guide.en.md](./sdk_development_guide.en.md) |
+| 56 UE Gate E-Core manual reproduction | [gate_e_core56_manual_reproduction.en.md](./gate_e_core56_manual_reproduction.en.md) |
+| Final Gate E-Core accepted report | [gate_e_core56_ab_latency_2026-07-09.md](../report/gate_e_core56_ab_latency_2026-07-09.md) |
+
 ## API / config behavior
 
 | API | Language | Purpose | Current evidence |

@@ -6,6 +6,15 @@
 - 主要參考來源是 `dev_refer/`。
 - 靜態檢查不代表 64 UE / staged 5 MHz-to-20 MHz BWP runtime PASS。
 
+## SDK routes
+
+| 需求 | 檔案 |
+|---|---|
+| 場景、API 行為、開發注意事項與目前證據 | [README.zh-TW.md](./README.zh-TW.md) |
+| SDK 開發流程 | [sdk_development_guide.zh-TW.md](./sdk_development_guide.zh-TW.md) |
+| 56 UE Gate E-Core 手動復現 | [gate_e_core56_manual_reproduction.zh-TW.md](./gate_e_core56_manual_reproduction.zh-TW.md) |
+| 最終 Gate E-Core accepted report | [gate_e_core56_ab_latency_2026-07-09.md](../report/gate_e_core56_ab_latency_2026-07-09.md) |
+
 ## API / config behavior
 
 | API | 語言 | 功能 | 目前證據 |

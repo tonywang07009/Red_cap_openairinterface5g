@@ -17,6 +17,7 @@ This repository is an OpenAirInterface5G-based research workspace for RedCap, mM
 | Run daily RedCap/mMTC operations | [RedCap interface docs](./redcap_interface/Doc/README.en.md) |
 | Read stable RedCap documentation | [RedCap stable docs](./redcap_doc/Doc/README.en.md) |
 | Find curated evidence and reusable assets | [RedCap library docs](./redcap_library/Doc/README.en.md) |
+| Study dApp/xApp SDK and reproduce Gate E-Core | [SDK scenario](./agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/README.en.md), [developer guide](./agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/sdk_development_guide.en.md), and [manual reproduction](./agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/gate_e_core56_manual_reproduction.en.md) |
 
 ## Quick Commands
 
@@ -42,6 +43,7 @@ bash redcap_interface/mmtc.display.bash
 | Stable RedCap docs | Specs, papers, manuals, checklists, and function references | [redcap_doc/Doc/README.en.md](./redcap_doc/Doc/README.en.md) |
 | Curated reusable evidence | Final configs, CN5G overlays, runtime probes, and accepted reports | [redcap_library/Doc/README.en.md](./redcap_library/Doc/README.en.md) |
 | Active project management | Milestones, validation plans, and analysis records | [agent_doc/Project_management/](./agent_doc/Project_management/) |
+| dApp/xApp SDK | SDK scenario, API behavior, developer guide, and 56 UE Gate E-Core manual reproduction | [agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/README.en.md](./agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/README.en.md) |
 
 ## Build and Test
 

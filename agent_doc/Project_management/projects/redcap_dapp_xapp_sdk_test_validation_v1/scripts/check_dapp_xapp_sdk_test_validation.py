@@ -113,6 +113,10 @@ def check_docs(errors: list[str]) -> None:
         "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/third_party/tl_expected_gate_c_stub/include/tl/expected.hpp",
         "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/README.en.md",
         "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/README.zh-TW.md",
+        "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/sdk_development_guide.en.md",
+        "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/sdk_development_guide.zh-TW.md",
+        "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/gate_e_core56_manual_reproduction.en.md",
+        "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/gate_e_core56_manual_reproduction.zh-TW.md",
         "agent_doc/Project_management/projects/redcap_oran_sdk_workflow_v3/project_plan.md",
         "ci-scripts/conf_files/gnb.sa.band78.fr1.106PRB.usrpb210.redcap.5mhz-bwp.yaml",
         "ci-scripts/conf_files/gnb.sa.band78.fr1.51PRB.usrpb210.redcap.yaml",
@@ -134,6 +138,9 @@ def check_docs(errors: list[str]) -> None:
         text = (PROJECT / doc).read_text(encoding="utf-8")
         for needle in ["API / config behavior", "Command usage", "Step-by-step recap", "Expected markers", "Limitations"]:
             require(needle in text, f"{doc} missing section: {needle}", errors)
+        require("sdk_development_guide" in text and "gate_e_core56_manual_reproduction" in text
+                and "gate_e_core56_ab_latency_2026-07-09.md" in text,
+                f"{doc} missing Gate E-Core manual/report route", errors)
         require("runtime PASS" in text and ("do not claim" in text or "不代表" in text),
                 f"{doc} must explicitly avoid runtime PASS overclaim", errors)
         require("Access-pressure policy" in text or "access-pressure policy" in text,
@@ -187,6 +194,66 @@ def check_docs(errors: list[str]) -> None:
                 f"{doc} missing Gate E DL TDA / RRCSetupComplete blocker evidence", errors)
         require("[RedCap RA][gNB DCI BWP]" in text and "Docker image rebuild" in text,
                 f"{doc} missing Gate E DCI BWP source-build/runtime boundary evidence", errors)
+
+    for path in [
+        "README.md",
+        "README.en.md",
+        "README.zh-TW.md",
+    ]:
+        text = read(path)
+        require("redcap_dapp_xapp_sdk_test_validation_v1/Doc/README" in text,
+                f"{path} missing dApp/xApp SDK Doc README route", errors)
+
+    require("gate_e_core56_manual_reproduction.en.md" in read("README.en.md"),
+            "README.en.md missing Gate E-Core manual reproduction route", errors)
+    require("gate_e_core56_manual_reproduction.zh-TW.md" in read("README.zh-TW.md"),
+            "README.zh-TW.md missing Gate E-Core manual reproduction route", errors)
+    require("sdk_development_guide.en.md" in read("README.md") and "sdk_development_guide.zh-TW.md" in read("README.md"),
+            "README.md missing SDK development guide routes", errors)
+    require("sdk_development_guide.en.md" in read("README.en.md"),
+            "README.en.md missing SDK development guide route", errors)
+    require("sdk_development_guide.zh-TW.md" in read("README.zh-TW.md"),
+            "README.zh-TW.md missing SDK development guide route", errors)
+
+    for path in [
+        "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/sdk_development_guide.en.md",
+        "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/sdk_development_guide.zh-TW.md",
+    ]:
+        text = read(path)
+        for needle in [
+            "redcap_xapp_sdk",
+            "redcap_dapp_sdk",
+            "redcap_dapp_guard_prb_allocation",
+            "dapp_xapp_sdk_contract_selftest.py",
+            "check_dapp_xapp_sdk_test_validation.py",
+            "openspec validate redcap-dapp-xapp-sdk-test-validation --strict",
+            "gate_e_core56_manual_reproduction",
+            "SWIG",
+            "Gate E-Core",
+        ]:
+            require(needle in text, f"{path} missing SDK development guide text: {needle}", errors)
+        require("rtk " not in text, f"{path} user-facing commands must not use rtk", errors)
+
+    for path in [
+        "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/gate_e_core56_manual_reproduction.en.md",
+        "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/gate_e_core56_manual_reproduction.zh-TW.md",
+    ]:
+        text = read(path)
+        for needle in [
+            "MMTC_TOTAL_UES_TARGET=56",
+            "MMTC_START_XAPP=0",
+            "MMTC_START_XAPP=1",
+            "OAI_REDCAP_DAPP_GATE_D_MARKER=1",
+            "MMTC_N_RB_DL=51",
+            "gate_e_64ue_stage_check.py",
+            "--stage core56-ab",
+            "mmtc_stage_scan_2026-07-09_10-27-10_summary.log",
+            "mmtc_stage_scan_2026-07-09_10-42-43_summary.log",
+            "RedCap dApp PRB decision",
+            "Gate E-Stretch",
+        ]:
+            require(needle in text, f"{path} missing Gate E-Core manual text: {needle}", errors)
+        require("rtk " not in text, f"{path} user-facing commands must not use rtk", errors)
 
     five_mhz_profile = read("ci-scripts/conf_files/gnb.sa.band78.fr1.106PRB.usrpb210.redcap.5mhz-bwp.yaml")
     for needle in [

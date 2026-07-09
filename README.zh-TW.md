@@ -17,6 +17,7 @@
 | 執行日常 RedCap/mMTC 操作 | [RedCap 介面文件](./redcap_interface/Doc/README.zh-TW.md) |
 | 閱讀穩定 RedCap 文件 | [RedCap 穩定文件](./redcap_doc/Doc/README.zh-TW.md) |
 | 查找可重用 evidence 與設定 | [RedCap library 文件](./redcap_library/Doc/README.zh-TW.md) |
+| 學習 dApp/xApp SDK 並復現 Gate E-Core | [SDK 場景](./agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/README.zh-TW.md)、[開發指南](./agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/sdk_development_guide.zh-TW.md) 與 [手動復現](./agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/gate_e_core56_manual_reproduction.zh-TW.md) |
 
 ## 快速指令
 
@@ -42,6 +43,7 @@ bash redcap_interface/mmtc.display.bash
 | 穩定 RedCap 文件 | specs、papers、manuals、checklists、function references | [redcap_doc/Doc/README.zh-TW.md](./redcap_doc/Doc/README.zh-TW.md) |
 | 可重用 evidence | final configs、CN5G overlays、runtime probes、accepted reports | [redcap_library/Doc/README.zh-TW.md](./redcap_library/Doc/README.zh-TW.md) |
 | 專案管理 | milestones、validation plans、analysis records | [agent_doc/Project_management/](./agent_doc/Project_management/) |
+| dApp/xApp SDK | SDK 場景、API 行為、開發指南、56 UE Gate E-Core 手動復現 | [agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/README.zh-TW.md](./agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/README.zh-TW.md) |
 
 ## 編譯與測試
 
