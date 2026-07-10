@@ -1188,8 +1188,6 @@ void nr_ue_dl_scheduler(NR_UE_MAC_INST_t *mac, nr_downlink_indication_t *dl_info
 
   if (connected_drx_active) {
     ue_dci_configuration(mac, dl_config, rx_frame, rx_slot);
-    if (dl_config->number_pdus > 0 && mac->state == UE_CONNECTED)
-      nr_ue_drx_note_activity(mac, rx_frame, rx_slot);
   }
 
   if (mac->ul_time_alignment.ta_apply != no_ta)
@@ -1887,7 +1885,10 @@ void nr_ue_ul_scheduler(NR_UE_MAC_INST_t *mac, nr_uplink_indication_t *ul_info)
                   TBS_bytes,
                   pdu->rb_start,
                   pdu->rb_size);
-          nr_ue_drx_note_activity(mac, frame_tx, slot_tx);
+          nr_ue_drx_on_ul_harq_transmission(mac,
+                                            frame_tx,
+                                            slot_tx,
+                                            pdu->pusch_data.harq_process_id);
           pdu->tx_request_body.fapiTxPdu = ulsch_input_buffer;
           pdu->tx_request_body.pdu_length = TBS_bytes;
           number_of_pdus++;

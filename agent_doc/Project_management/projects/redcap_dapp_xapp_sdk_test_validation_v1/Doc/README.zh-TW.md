@@ -12,6 +12,7 @@
 |---|---|
 | 場景、API 行為、開發注意事項與目前證據 | [README.zh-TW.md](./README.zh-TW.md) |
 | SDK 開發流程 | [sdk_development_guide.zh-TW.md](./sdk_development_guide.zh-TW.md) |
+| 36 UE zero-gap pressure gate | `MMTC_STAGE_PROFILE=core36_pressure` 搭配 `gate_e_64ue_stage_check.py --stage core36-pressure` |
 | 56 UE Gate E-Core 手動復現 | [gate_e_core56_manual_reproduction.zh-TW.md](./gate_e_core56_manual_reproduction.zh-TW.md) |
 | 最終 Gate E-Core accepted report | [gate_e_core56_ab_latency_2026-07-09.md](../report/gate_e_core56_ab_latency_2026-07-09.md) |
 
@@ -27,6 +28,7 @@
 | `redcap_dapp_guard_prb_allocation` | Python | dApp allocation guard 的 Python 對應版本 | self-test |
 | `redcap_dapp_access_pressure_policy` | C | 將 RA/PUCCH collision proxy counter 轉成受限的 PUCCH/PUSCH ratio intent，並呼叫 dApp allocation guard | 語法檢查目標 |
 | `redcap_dapp_access_pressure_policy` | Python | access-pressure policy 的 Python 對應版本 | self-test |
+| `redcap_dapp_select_ra_pressure_priority` | C / Python | 先選出 RA retry count 最高的 UE，再用 pressure/priority/RNTI tie-break | self-test |
 
 重要欄位：
 
@@ -40,14 +42,15 @@
 
 - [Purpose]：先針對 32 UE / 5 MHz BWP 接入壓力做緩解，再讓 xApp 引導後續 UE 擴充到 20 MHz。
 - [Inputs]：RA retry count、Msg3 failure count、PUCCH resource reject count、CRC/discard count、previous pressure EWMA、BWP PRB marker、priority weight、I/Q availability。
-- [Pressure score]：`50 * ra_retry + 120 * msg3_failure + 160 * pucch_resource_reject + 40 * crc_discard`，上限 clamp 到 `1000`。
+- [Pressure score]：`100 * ra_retry + 120 * msg3_failure + 160 * pucch_resource_reject + 40 * crc_discard`，上限 clamp 到 `1000`。
+- [Priority selector]：`redcap_dapp_select_ra_pressure_priority` 先選 [RA retry count] 最高的 UE；同分再看 pressure score、priority weight、較小 RNTI。
 - [EWMA]：`0.7 * previous + 0.3 * current`，目前用整數運算實作。
 - [Ratio mapping]：
   - low pressure：PUCCH `200`，PUSCH `600`。
   - medium pressure：PUCCH `300`，PUSCH `500`。
   - high pressure：PUCCH `400`，PUSCH `400`。
 - [Guard boundary]：只有 `redcap_dapp_guard_prb_allocation` 回傳 ACK 時，policy result 才能視為可 apply。
-- [Current evidence]：Python SDK self-check、dApp/xApp contract self-test、C syntax check、Gate D marker runtime，以及 Gate E-Core 56 UE A/B Launch-to-TUN 比較皆已通過。
+- [Current evidence]：Python SDK self-check、dApp/xApp contract self-test、C syntax check、Gate D marker runtime，以及 Gate E-Core 56 UE A/B Launch-to-TUN 比較皆已通過。Core36 true batch-start A/B evidence 已取得，但沒有顯示 mitigation improvement。
 
 ## Command usage
 
@@ -146,6 +149,56 @@ Gate D source readiness 與 `nr-softmodem` build 證據位於 `test_log/build_lo
 - gNB log 確認 `CSI-RS 0, SRS 0`、12 PRB RedCap RA DCI、`[RedCap dApp Gate D][gNB MAC PUCCH]` 與 `[RedCap dApp Gate D][gNB MAC UL]` marker `"RedCap dApp PRB decision"`。
 - Gate D checker PASS：`gate_d_rfsim_marker_check.py --require-runtime --require-bwp-mhz 5`。
 - 這不代表 64 UE runtime PASS，也不代表 access-pressure mitigation 已在碰撞負載下有效。
+
+執行 36 UE zero-gap pressure profile：
+
+```bash
+MMTC_STAGE_PROFILE=core36_pressure \
+MMTC_START_XAPP=0 \
+MMTC_USE_EXISTING_CN_DB=0 \
+MMTC_N_RB_DL=51 \
+GNB_REDCAP_CONFIG=../../conf_files/gnb.sa.band78.fr1.51PRB.usrpb210.redcap.yaml \
+MMTC_GNB_EXTRA_OPTIONS="--gNBs.[0].do_CSIRS 0 --gNBs.[0].do_SRS 0" \
+bash redcap_interface/redcap_mmtc_stage_scan.sh
+```
+
+從 baseline 證據選出 dApp priority UE list：
+
+```bash
+python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/select_core36_pressure_priority.py \
+  --summary-log test_log/compiler_logs/mmtc_stage_scan_<baseline>_summary.log
+```
+
+使用選出的 list 執行 dApp profile：
+
+```bash
+PRIORITY_UES=$(python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/select_core36_pressure_priority.py \
+  --summary-log test_log/compiler_logs/mmtc_stage_scan_<baseline>_summary.log \
+  --emit-env-only)
+
+MMTC_STAGE_PROFILE=core36_pressure \
+MMTC_START_XAPP=1 \
+MMTC_USE_EXISTING_CN_DB=0 \
+MMTC_N_RB_DL=51 \
+GNB_REDCAP_CONFIG=../../conf_files/gnb.sa.band78.fr1.51PRB.usrpb210.redcap.yaml \
+OAI_REDCAP_DAPP_GATE_D_MARKER=1 \
+MMTC_DAPP_STOP_NON_PRIORITY=1 \
+MMTC_DAPP_PRIORITY_UES="${PRIORITY_UES}" \
+MMTC_GNB_EXTRA_OPTIONS="--gNBs.[0].do_CSIRS 0 --gNBs.[0].do_SRS 0" \
+bash redcap_interface/redcap_mmtc_stage_scan.sh
+```
+
+驗證 36 UE pressure comparison：
+
+```bash
+python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/gate_e_64ue_stage_check.py \
+  --stage core36-pressure \
+  --baseline-summary-log test_log/compiler_logs/mmtc_stage_scan_<baseline>_summary.log \
+  --dapp-summary-log test_log/compiler_logs/mmtc_stage_scan_<dapp>_summary.log \
+  --baseline-latency-log test_log/compiler_logs/mmtc_smoke_<baseline>_access_latency.csv \
+  --dapp-latency-log test_log/compiler_logs/mmtc_smoke_<dapp>_access_latency.csv \
+  --dapp-gnb-log test_log/compiler_logs/mmtc_smoke_<dapp>_gnb.log
+```
 
 準備 Gate E 64 UE preflight：
 

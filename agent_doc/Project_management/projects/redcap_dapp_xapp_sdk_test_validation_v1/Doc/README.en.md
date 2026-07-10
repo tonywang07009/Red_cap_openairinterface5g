@@ -12,6 +12,7 @@
 |---|---|
 | Scenario, API behavior, developer notes, and current evidence | [README.en.md](./README.en.md) |
 | SDK development workflow | [sdk_development_guide.en.md](./sdk_development_guide.en.md) |
+| 36 UE zero-gap pressure gate | `MMTC_STAGE_PROFILE=core36_pressure` with `gate_e_64ue_stage_check.py --stage core36-pressure` |
 | 56 UE Gate E-Core manual reproduction | [gate_e_core56_manual_reproduction.en.md](./gate_e_core56_manual_reproduction.en.md) |
 | Final Gate E-Core accepted report | [gate_e_core56_ab_latency_2026-07-09.md](../report/gate_e_core56_ab_latency_2026-07-09.md) |
 
@@ -27,6 +28,7 @@
 | `redcap_dapp_guard_prb_allocation` | Python | Python equivalent of the dApp allocation guard | self-test |
 | `redcap_dapp_access_pressure_policy` | C | Convert RA/PUCCH collision proxy counters into bounded PUCCH/PUSCH ratio intent, then call the dApp allocation guard | syntax check target |
 | `redcap_dapp_access_pressure_policy` | Python | Python equivalent of the access-pressure policy | self-test |
+| `redcap_dapp_select_ra_pressure_priority` | C / Python | Select the UE with the highest RA retry count before tie-breaking by pressure and priority | self-test |
 
 Key fields:
 
@@ -40,14 +42,15 @@ Key fields:
 
 - [Purpose]: mitigate access pressure for the first 32 UE on 5 MHz BWP before xApp-guided expansion to 20 MHz for the later UE group.
 - [Inputs]: RA retry count, Msg3 failure count, PUCCH resource reject count, CRC/discard count, previous pressure EWMA, BWP PRB marker, priority weight, and I/Q availability.
-- [Pressure score]: `50 * ra_retry + 120 * msg3_failure + 160 * pucch_resource_reject + 40 * crc_discard`, clamped to `1000`.
+- [Pressure score]: `100 * ra_retry + 120 * msg3_failure + 160 * pucch_resource_reject + 40 * crc_discard`, clamped to `1000`.
+- [Priority selector]: `redcap_dapp_select_ra_pressure_priority` selects the UE with the highest [RA retry count] first; ties use pressure score, priority weight, then lower RNTI.
 - [EWMA]: `0.7 * previous + 0.3 * current`, implemented as integer arithmetic.
 - [Ratio mapping]:
   - low pressure: PUCCH `200`, PUSCH `600`.
   - medium pressure: PUCCH `300`, PUSCH `500`.
   - high pressure: PUCCH `400`, PUSCH `400`.
 - [Guard boundary]: the policy result is applied only if `redcap_dapp_guard_prb_allocation` returns ACK.
-- [Current evidence]: Python SDK self-check, dApp/xApp contract self-test, C syntax check, Gate D marker runtime, and Gate E-Core 56 UE A/B Launch-to-TUN comparison pass.
+- [Current evidence]: Python SDK self-check, dApp/xApp contract self-test, C syntax check, Gate D marker runtime, and Gate E-Core 56 UE A/B Launch-to-TUN comparison pass. Core36 true batch-start A/B evidence is captured, but it does not show mitigation improvement.
 
 ## Command usage
 
@@ -146,6 +149,56 @@ Current Gate D 5 MHz RFsim evidence:
 - gNB confirms `CSI-RS 0, SRS 0`, 12 PRB RedCap RA DCI, `[RedCap dApp Gate D][gNB MAC PUCCH]`, and `[RedCap dApp Gate D][gNB MAC UL]` with marker `"RedCap dApp PRB decision"`.
 - Gate D checker PASS: `gate_d_rfsim_marker_check.py --require-runtime --require-bwp-mhz 5`.
 - Do not claim 64 UE runtime PASS or access-pressure mitigation effectiveness from this Gate D run.
+
+Run the 36 UE zero-gap pressure profile:
+
+```bash
+MMTC_STAGE_PROFILE=core36_pressure \
+MMTC_START_XAPP=0 \
+MMTC_USE_EXISTING_CN_DB=0 \
+MMTC_N_RB_DL=51 \
+GNB_REDCAP_CONFIG=../../conf_files/gnb.sa.band78.fr1.51PRB.usrpb210.redcap.yaml \
+MMTC_GNB_EXTRA_OPTIONS="--gNBs.[0].do_CSIRS 0 --gNBs.[0].do_SRS 0" \
+bash redcap_interface/redcap_mmtc_stage_scan.sh
+```
+
+Select the dApp priority UE list from the baseline evidence:
+
+```bash
+python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/select_core36_pressure_priority.py \
+  --summary-log test_log/compiler_logs/mmtc_stage_scan_<baseline>_summary.log
+```
+
+Run the dApp profile with the selected list:
+
+```bash
+PRIORITY_UES=$(python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/select_core36_pressure_priority.py \
+  --summary-log test_log/compiler_logs/mmtc_stage_scan_<baseline>_summary.log \
+  --emit-env-only)
+
+MMTC_STAGE_PROFILE=core36_pressure \
+MMTC_START_XAPP=1 \
+MMTC_USE_EXISTING_CN_DB=0 \
+MMTC_N_RB_DL=51 \
+GNB_REDCAP_CONFIG=../../conf_files/gnb.sa.band78.fr1.51PRB.usrpb210.redcap.yaml \
+OAI_REDCAP_DAPP_GATE_D_MARKER=1 \
+MMTC_DAPP_STOP_NON_PRIORITY=1 \
+MMTC_DAPP_PRIORITY_UES="${PRIORITY_UES}" \
+MMTC_GNB_EXTRA_OPTIONS="--gNBs.[0].do_CSIRS 0 --gNBs.[0].do_SRS 0" \
+bash redcap_interface/redcap_mmtc_stage_scan.sh
+```
+
+Validate the 36 UE pressure comparison:
+
+```bash
+python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/gate_e_64ue_stage_check.py \
+  --stage core36-pressure \
+  --baseline-summary-log test_log/compiler_logs/mmtc_stage_scan_<baseline>_summary.log \
+  --dapp-summary-log test_log/compiler_logs/mmtc_stage_scan_<dapp>_summary.log \
+  --baseline-latency-log test_log/compiler_logs/mmtc_smoke_<baseline>_access_latency.csv \
+  --dapp-latency-log test_log/compiler_logs/mmtc_smoke_<dapp>_access_latency.csv \
+  --dapp-gnb-log test_log/compiler_logs/mmtc_smoke_<dapp>_gnb.log
+```
 
 Prepare Gate E 64 UE preflight:
 

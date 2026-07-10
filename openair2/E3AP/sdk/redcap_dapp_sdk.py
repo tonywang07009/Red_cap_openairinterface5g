@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import IntEnum
 
@@ -78,6 +79,16 @@ class RedCapDappAccessPressureResult:
     marker: str
 
 
+@dataclass(frozen=True)
+class RedCapDappAccessPressureSelection:
+    found: bool
+    selected_index: int
+    selected_rnti: int
+    selected_ra_retry_count: int
+    pressure: RedCapDappAccessPressureResult
+    marker: str = "RedCap dApp RA pressure priority"
+
+
 def redcap_dapp_guard_ul_prb_cap(request: RedCapDappUlPrbRequest | None) -> RedCapDappGuardResult:
     if request is None:
         return RedCapDappGuardResult(RedCapDappGuardDecision.NACK, 0, "missing_request")
@@ -149,7 +160,7 @@ def _clamp_permille(value: int) -> int:
 
 def _access_pressure_current(request: RedCapDappAccessPressureRequest) -> int:
     pressure = (
-        request.ra_retry_count * 50
+        request.ra_retry_count * 100
         + request.msg3_failure_count * 120
         + request.pucch_resource_reject_count * 160
         + request.crc_discard_count * 40
@@ -213,6 +224,34 @@ def redcap_dapp_access_pressure_allows_apply(result: RedCapDappAccessPressureRes
     return result is not None and redcap_dapp_prb_allocation_allows_apply(result.allocation)
 
 
+def _ra_pressure_sort_key(request: RedCapDappAccessPressureRequest) -> tuple[int, int, int, int]:
+    return (
+        request.ra_retry_count,
+        _access_pressure_current(request),
+        request.priority_weight,
+        -request.rnti,
+    )
+
+
+def redcap_dapp_select_ra_pressure_priority(
+    requests: Sequence[RedCapDappAccessPressureRequest] | None,
+) -> RedCapDappAccessPressureSelection:
+    marker = "RedCap dApp RA pressure priority"
+    valid = [(idx, request) for idx, request in enumerate(requests or []) if request.rnti != 0]
+    if not valid:
+        return RedCapDappAccessPressureSelection(False, 0, 0, 0, redcap_dapp_access_pressure_policy(None), marker)
+
+    selected_index, selected_request = max(valid, key=lambda item: _ra_pressure_sort_key(item[1]))
+    return RedCapDappAccessPressureSelection(
+        True,
+        selected_index,
+        selected_request.rnti,
+        selected_request.ra_retry_count,
+        redcap_dapp_access_pressure_policy(selected_request),
+        marker,
+    )
+
+
 def _self_check() -> None:
     ok = redcap_dapp_guard_ul_prb_cap(RedCapDappUlPrbRequest(0xE349, 32, 0, 275))
     bad = redcap_dapp_guard_ul_prb_cap(RedCapDappUlPrbRequest(0xE349, 300, 0, 275))
@@ -265,6 +304,19 @@ def _self_check() -> None:
     assert high.pusch_ratio_permille == 400
     assert not redcap_dapp_access_pressure_allows_apply(missing_iq_policy)
     assert missing_iq_policy.allocation.reason == "missing_iq_samples"
+
+    selected = redcap_dapp_select_ra_pressure_priority(
+        [
+            RedCapDappAccessPressureRequest(0x2001, REDCAP_DAPP_PROXY_BWP_PRBS_30KHZ, 10, True, 0, 1, 3, 4, 0),
+            RedCapDappAccessPressureRequest(0x2002, REDCAP_DAPP_PROXY_BWP_PRBS_30KHZ, 10, True, 0, 4, 0, 0, 0),
+            RedCapDappAccessPressureRequest(0x2003, REDCAP_DAPP_PROXY_BWP_PRBS_30KHZ, 50, True, 0, 4, 0, 0, 0),
+        ]
+    )
+    assert selected.found
+    assert selected.selected_index == 2
+    assert selected.selected_rnti == 0x2003
+    assert selected.selected_ra_retry_count == 4
+    assert selected.pressure.allocation.reason == "ack"
 
 
 if __name__ == "__main__":

@@ -44,6 +44,7 @@
 /* MAC */
 #include "NR_MAC_COMMON/nr_mac.h"
 #include "NR_MAC_UE/mac_proto.h"
+#include "NR_MAC_UE/nr_ue_drx.h"
 #include "common/utils/nr/nr_common.h"
 #include "openair2/NR_UE_PHY_INTERFACE/NR_Packet_Drop.h"
 
@@ -559,11 +560,9 @@ static int nr_ue_process_dci_ul_00(NR_UE_MAC_INST_t *mac,
   // Schedule PUSCH
   const int coreset_type = dci_ind->coreset_type == NFAPI_NR_CSET_CONFIG_PDCCH_CONFIG; // 0 for coreset0, 1 otherwise;
 
-  NR_tda_info_t tda_info = get_ul_tda_info(mac->current_UL_BWP,
-                                           coreset_type,
-                                           dci_ind->ss_type,
-                                           get_rnti_type(mac, dci_ind->rnti),
-                                           dci->time_domain_assignment.val);
+  const nr_rnti_type_t rnti_type = get_rnti_type(mac, dci_ind->rnti);
+  NR_tda_info_t tda_info =
+      get_ul_tda_info(mac->current_UL_BWP, coreset_type, dci_ind->ss_type, rnti_type, dci->time_domain_assignment.val);
 
   if (!tda_info.valid_tda || tda_info.nrOfSymbols == 0)
     return -1;
@@ -589,8 +588,15 @@ static int nr_ue_process_dci_ul_00(NR_UE_MAC_INST_t *mac,
                                 dci_ind->rnti,
                                 dci_ind->ss_type,
                                 NR_UL_DCI_FORMAT_0_0);
-  if (ret != 0)
+  if (ret != 0) {
     remove_ul_config_last_item(pdu);
+  } else if (rnti_type == TYPE_C_RNTI_ || rnti_type == TYPE_CS_RNTI_) {
+    nr_ue_drx_on_ul_assignment(mac,
+                               frame,
+                               slot,
+                               pdu->pusch_config_pdu.pusch_data.harq_process_id,
+                               pdu->pusch_config_pdu.pusch_data.new_data_indicator);
+  }
   release_ul_config(pdu, false);
   return ret;
 }
@@ -650,11 +656,9 @@ static int nr_ue_process_dci_ul_01(NR_UE_MAC_INST_t *mac,
   int slot_tx;
   const int coreset_type = dci_ind->coreset_type == NFAPI_NR_CSET_CONFIG_PDCCH_CONFIG; // 0 for coreset0, 1 otherwise;
 
-  NR_tda_info_t tda_info = get_ul_tda_info(mac->current_UL_BWP,
-                                           coreset_type,
-                                           dci_ind->ss_type,
-                                           get_rnti_type(mac, dci_ind->rnti),
-                                           dci->time_domain_assignment.val);
+  const nr_rnti_type_t rnti_type = get_rnti_type(mac, dci_ind->rnti);
+  NR_tda_info_t tda_info =
+      get_ul_tda_info(mac->current_UL_BWP, coreset_type, dci_ind->ss_type, rnti_type, dci->time_domain_assignment.val);
 
   if (!tda_info.valid_tda || tda_info.nrOfSymbols == 0)
     return -1;
@@ -694,8 +698,15 @@ static int nr_ue_process_dci_ul_01(NR_UE_MAC_INST_t *mac,
         frame_tx,
         slot_tx,
         0);
-  if (ret != 0)
+  if (ret != 0) {
     remove_ul_config_last_item(pdu);
+  } else if (rnti_type == TYPE_C_RNTI_ || rnti_type == TYPE_CS_RNTI_) {
+    nr_ue_drx_on_ul_assignment(mac,
+                               frame,
+                               slot,
+                               pdu->pusch_config_pdu.pusch_data.harq_process_id,
+                               pdu->pusch_config_pdu.pusch_data.new_data_indicator);
+  }
   release_ul_config(pdu, false);
   return ret;
 }
@@ -1084,6 +1095,9 @@ static int nr_ue_process_dci_dl_10(NR_UE_MAC_INST_t *mac,
 
   LOG_D(MAC, "(nr_ue_procedures.c) pdu_type=%d\n\n", dl_conf_req->pdu_type);
 
+  if (rnti_type == TYPE_C_RNTI_ || rnti_type == TYPE_CS_RNTI_)
+    nr_ue_drx_on_dl_assignment(mac, frame, slot, dci->harq_pid.val, dlsch_pdu->new_data_indicator);
+
   // the prepared dci is valid, we add it in the list
   dl_config->number_pdus++;
   return 0;
@@ -1445,6 +1459,9 @@ static int nr_ue_process_dci_dl_11(NR_UE_MAC_INST_t *mac,
       LOG_D(MAC, "DL PTRS values: PTRS time den: %d, PTRS freq den: %d\n", dlsch_pdu->PTRSTimeDensity, dlsch_pdu->PTRSFreqDensity);
     }
   }
+  if (rnti_type == TYPE_C_RNTI_ || rnti_type == TYPE_CS_RNTI_)
+    nr_ue_drx_on_dl_assignment(mac, frame, slot, dci->harq_pid.val, dlsch_pdu->new_data_indicator);
+
   // the prepared dci is valid, we add it in the list
   dl_conf_req->pdu_type = FAPI_NR_DL_CONFIG_TYPE_DLSCH;
   dl_config->number_pdus++; // The DCI configuration is valid, we add it in the list
@@ -2614,6 +2631,7 @@ bool get_downlink_ack(NR_UE_MAC_INST_t *mac, frame_t frame, int slot, PUCCH_sche
 
             if (get_FeedbackDisabled(mac->sc_info.downlinkHARQ_FeedbackDisabled_r17, dl_harq_pid)) {
               LOG_W(NR_MAC, "skipping DLSCH ACK/NACK reporting for harq pid %d\n", dl_harq_pid);
+              nr_ue_drx_on_dl_harq_feedback(mac, frame, slot, dl_harq_pid, true);
               current_harq->active = false;
               current_harq->ack_received = false;
               continue;
@@ -2630,10 +2648,12 @@ bool get_downlink_ack(NR_UE_MAC_INST_t *mac, frame_t frame, int slot, PUCCH_sche
             int dai_index = current_harq->dai_cumul - 1;
             if (current_harq->ack_received) {
               ack_data[code_word][dai_index] = current_harq->ack;
+              nr_ue_drx_on_dl_harq_feedback(mac, frame, slot, dl_harq_pid, current_harq->ack != 0);
               current_harq->active = false;
               current_harq->ack_received = false;
             } else {
               ack_data[code_word][dai_index] = 0;
+              nr_ue_drx_on_dl_harq_feedback(mac, frame, slot, dl_harq_pid, false);
             }
             dai[code_word][dai_index] = (dai_index % 4) + 1; // value between 1 and 4
             int temp_ind = current_harq->pucch_resource_indicator;
@@ -4089,13 +4109,13 @@ static void nr_ue_process_mac_pdu(NR_UE_MAC_INST_t *mac, nr_downlink_indication_
         break;
       case DL_SCH_LCID_L_DRX:
         //  38.321 Ch6.1.3.6
-        //  fixed length but not yet specify.
         mac_len = 0;
+        nr_ue_drx_on_command(mac, frameP, slot, true);
         break;
       case DL_SCH_LCID_DRX:
         //  38.321 Ch6.1.3.5
-        //  fixed length but not yet specify.
         mac_len = 0;
+        nr_ue_drx_on_command(mac, frameP, slot, false);
         break;
       case DL_SCH_LCID_TA_COMMAND:
         //  38.321 Ch6.1.3.4

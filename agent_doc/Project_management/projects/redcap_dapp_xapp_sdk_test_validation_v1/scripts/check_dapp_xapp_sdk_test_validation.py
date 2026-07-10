@@ -60,17 +60,22 @@ def check_sdk_symbols(errors: list[str]) -> None:
     require_text("openair2/E3AP/sdk/redcap_dapp_sdk.h", "redcap_dapp_prb_allocation_request_t", errors)
     require_text("openair2/E3AP/sdk/redcap_dapp_sdk.h", "redcap_dapp_access_pressure_request_t", errors)
     require_text("openair2/E3AP/sdk/redcap_dapp_sdk.h", "redcap_dapp_access_pressure_policy", errors)
+    require_text("openair2/E3AP/sdk/redcap_dapp_sdk.h", "redcap_dapp_select_ra_pressure_priority", errors)
     require_text("openair2/E3AP/sdk/redcap_dapp_sdk.h", "REDCAP_DAPP_TEST_BWP_MHZ = 5", errors)
     require_text("openair2/E3AP/sdk/redcap_dapp_sdk.h", "REDCAP_DAPP_TEST_BWP_PRBS_30KHZ = 12", errors)
     require_text("openair2/E3AP/sdk/redcap_dapp_sdk.h", "REDCAP_DAPP_PROXY_BWP_MHZ = 20", errors)
     require_text("openair2/E3AP/sdk/redcap_dapp_sdk.h", "REDCAP_DAPP_PROXY_BWP_PRBS_30KHZ = 51", errors)
     require_text("openair2/E3AP/sdk/redcap_dapp_sdk.c", "redcap_dapp_guard_prb_allocation", errors)
     require_text("openair2/E3AP/sdk/redcap_dapp_sdk.c", "redcap_dapp_access_pressure_policy", errors)
+    require_text("openair2/E3AP/sdk/redcap_dapp_sdk.c", "redcap_dapp_select_ra_pressure_priority", errors)
+    require_text("openair2/E3AP/sdk/redcap_dapp_sdk.c", "RedCap dApp RA pressure priority", errors)
     require_text("openair2/E3AP/sdk/redcap_dapp_sdk.c", "RedCap dApp access pressure policy", errors)
     require_text("openair2/E3AP/sdk/redcap_dapp_sdk.c", "unsupported_bwp_profile", errors)
     require_text("openair2/E3AP/sdk/redcap_dapp_sdk.py", "RedCapDappPrbAllocationRequest", errors)
     require_text("openair2/E3AP/sdk/redcap_dapp_sdk.py", "RedCapDappAccessPressureRequest", errors)
     require_text("openair2/E3AP/sdk/redcap_dapp_sdk.py", "redcap_dapp_access_pressure_policy", errors)
+    require_text("openair2/E3AP/sdk/redcap_dapp_sdk.py", "redcap_dapp_select_ra_pressure_priority", errors)
+    require_text("openair2/E3AP/sdk/redcap_dapp_sdk.py", "RedCap dApp RA pressure priority", errors)
     require_text("openair2/E3AP/sdk/redcap_dapp_sdk.py", "RedCap dApp access pressure policy", errors)
     require_text("openair2/E3AP/sdk/redcap_dapp_sdk.py", "RedCap dApp PRB decision", errors)
     require_text("openair2/E3AP/sdk/redcap_dapp_sdk.py", "REDCAP_DAPP_TEST_BWP_MHZ = 5", errors)
@@ -109,6 +114,7 @@ def check_docs(errors: list[str]) -> None:
         "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/gate_c_e3_loopback_check.py",
         "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/gate_d_rfsim_marker_check.py",
         "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/gate_e_64ue_stage_check.py",
+        "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/select_core36_pressure_priority.py",
         "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/third_party/tl_expected_gate_c_stub/CMakeLists.txt",
         "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/third_party/tl_expected_gate_c_stub/include/tl/expected.hpp",
         "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/README.en.md",
@@ -120,6 +126,7 @@ def check_docs(errors: list[str]) -> None:
         "agent_doc/Project_management/projects/redcap_oran_sdk_workflow_v3/project_plan.md",
         "ci-scripts/conf_files/gnb.sa.band78.fr1.106PRB.usrpb210.redcap.5mhz-bwp.yaml",
         "ci-scripts/conf_files/gnb.sa.band78.fr1.51PRB.usrpb210.redcap.yaml",
+        "openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_RA.c",
         "openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_ulsch.c",
         "openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_uci.c",
         "openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_primitives.c",
@@ -313,6 +320,11 @@ def check_docs(errors: list[str]) -> None:
     gnb_primitives = read("openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_primitives.c")
     require("apply_redcap_initial_bwp_if_needed" in gnb_primitives and "[RedCap RA][gNB DCI BWP]" in gnb_primitives,
             "gNB scheduler primitives missing Gate E RedCap connected DCI BWP preservation marker", errors)
+    gnb_ra = read("openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_RA.c")
+    require("OAI_REDCAP_DAPP_RA_RETRY_PRIORITY" in gnb_ra and "RedCap dApp RA retry priority" in gnb_ra,
+            "gNB RA scheduler missing dApp RA retry-priority hook", errors)
+    require("nrRA_Msg3_retransmission" in gnb_ra and "nr_generate_Msg3_retransmission" in gnb_ra,
+            "gNB RA scheduler missing Msg3 retransmission scheduling path", errors)
     gate_e_checker = read("agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/gate_e_64ue_stage_check.py")
     require("--summary-log" in gate_e_checker and "check_stage_summary" in gate_e_checker,
             "gate_e_64ue_stage_check.py missing stage summary metric validation", errors)
@@ -320,13 +332,36 @@ def check_docs(errors: list[str]) -> None:
             "gate_e_64ue_stage_check.py must reject runtime validation without a summary log", errors)
     require("core56-ab" in gate_e_checker and "baseline-latency-log" in gate_e_checker and "Launch-to-TUN" in gate_e_checker,
             "gate_e_64ue_stage_check.py missing Gate E-Core 56 UE A/B latency validation", errors)
+    require("core36-pressure" in gate_e_checker and "stage_profile=core36_pressure" in gate_e_checker,
+            "gate_e_64ue_stage_check.py missing Gate E-Core 36 UE zero-gap pressure validation", errors)
+    require("select_core36_pressure_priority.py" in gate_e_checker and "dapp_stop_non_priority=1" in gate_e_checker,
+            "gate_e_64ue_stage_check.py missing core36 priority selector / STOP acceptance guidance", errors)
+    core36_selector = read(
+        "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/select_core36_pressure_priority.py"
+    )
+    require("redcap_dapp_select_ra_pressure_priority" in core36_selector and "MMTC_DAPP_PRIORITY_UES" in core36_selector,
+            "select_core36_pressure_priority.py missing SDK selector or env output", errors)
+    require("RA Procedure failed" in core36_selector and "launch_to_tun_ms" in core36_selector,
+            "select_core36_pressure_priority.py missing RA failure and latency fallback evidence parsing", errors)
     require("Access latency CSV" in read("redcap_interface/bash_library/fc_mmtc_smoke_validation.sh"),
             "mMTC smoke wrapper missing Launch-to-TUN latency CSV output", errors)
+    stage_scan = read("redcap_interface/bash_library/fc_mmtc_stage_scan.sh")
+    require("core36_pressure" in stage_scan and "MMTC_ADAPTIVE_BURST_ON_ZERO_GAP" in stage_scan,
+            "mMTC stage scan missing core36 pressure zero-gap/adaptive-burst profile", errors)
+    require("OAI_REDCAP_DAPP_RA_RETRY_PRIORITY" in stage_scan,
+            "mMTC stage scan missing dApp RA retry-priority env control", errors)
+    smoke_runner = read("redcap_interface/bash_library/fc_mmtc_smoke_validation.sh")
+    require("RedCap dApp wrapper STOP" in smoke_runner and "MMTC_DAPP_STOP_NON_PRIORITY" in smoke_runner,
+            "mMTC smoke wrapper missing dApp wrapper STOP marker/control", errors)
+    require("dApp RA retry prio" in smoke_runner,
+            "mMTC smoke wrapper missing dApp RA retry-priority log marker", errors)
     require("redcap_dapp_sdk.c" in read("CMakeLists.txt"),
             "CMakeLists.txt missing redcap_dapp_sdk.c in build source list", errors)
     require("OAI_REDCAP_DAPP_GATE_D_MARKER" in read("ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.mmtc.yml"),
             "docker-compose.mmtc.yml missing Gate D marker env passthrough", errors)
     mmtc_overlay = read("ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.mmtc.yml")
+    require("OAI_REDCAP_DAPP_RA_RETRY_PRIORITY" in mmtc_overlay,
+            "docker-compose.mmtc.yml missing dApp RA retry-priority env passthrough", errors)
     require("oai-nr-ue56:" in mmtc_overlay and 'MMTC_UE_INDEX: "56"' in mmtc_overlay,
             "docker-compose.mmtc.yml missing generated UE56 service/index", errors)
     require("nrue56.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro" in mmtc_overlay,
@@ -334,12 +369,13 @@ def check_docs(errors: list[str]) -> None:
     require("OAI_REDCAP_DAPP_GATE_D_MARKER" in read("ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/scripts/generate_mmtc_overlay.sh"),
             "generate_mmtc_overlay.sh missing Gate D marker env passthrough", errors)
     overlay_generator = read("ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/scripts/generate_mmtc_overlay.sh")
+    require("OAI_REDCAP_DAPP_RA_RETRY_PRIORITY" in overlay_generator,
+            "generate_mmtc_overlay.sh missing dApp RA retry-priority env passthrough", errors)
     require("TOTAL_UES" in overlay_generator and "nrue${idx}.uicc.yaml" in overlay_generator,
             "generate_mmtc_overlay.sh missing scalable UE generation logic", errors)
     cn_db_generator = read("redcap_interface/bash_library/fc_generate_mmtc_cn_db_overlay.sh")
     require("AuthenticationSubscription" in cn_db_generator and "SessionManagementSubscriptionData" in cn_db_generator,
             "mMTC CN DB generator missing subscription rows", errors)
-    smoke_runner = read("redcap_interface/bash_library/fc_mmtc_smoke_validation.sh")
     require("CN_COMPOSE=${MMTC_CN_COMPOSE:-/home/tonywang/OAI/oai-cn5g/docker-compose.yaml}" in smoke_runner,
             "mMTC smoke runner missing oai-cn5g CN compose default", errors)
     require("5g_rfsimulator_flexric_redcap/docker-compose.yml" in smoke_runner

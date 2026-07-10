@@ -484,6 +484,9 @@ void nr_mac_reset_ul_failure(NR_UE_sched_ctrl_t *sched_ctrl);
 bool nr_mac_check_ul_failure(gNB_MAC_INST *nrmac, int rnti, NR_UE_sched_ctrl_t *sched_ctrl);
 
 bool nr_mac_trigger_reconfiguration(const gNB_MAC_INST *nrmac, NR_UE_info_t *UE, int new_bwp_id);
+bool nr_mac_apply_drx_policy(gNB_MAC_INST *nrmac, rnti_t rnti, const nr_gnb_drx_profile_t *profile);
+bool nr_mac_rollback_drx_policy(gNB_MAC_INST *nrmac, rnti_t rnti, uint32_t rollback_policy_version);
+bool nr_mac_request_drx_command(gNB_MAC_INST *nrmac, rnti_t rnti);
 
 bool nr_mac_add_lcid(NR_UE_sched_ctrl_t *sched_ctrl, const nr_lc_config_t *c);
 nr_lc_config_t *nr_mac_get_lc_config(NR_UE_sched_ctrl_t* sched_ctrl, int lcid);

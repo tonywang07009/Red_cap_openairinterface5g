@@ -48,6 +48,14 @@ IPERF_QUIESCE_NON_SELECTED=${MMTC_IPERF_QUIESCE_NON_SELECTED:-0}
 IPERF_QUIESCE_ACTION=${MMTC_IPERF_QUIESCE_ACTION:-pause}
 IPERF_RETRIES=${MMTC_IPERF_RETRIES:-2}
 IPERF_SERVER_SETTLE=${MMTC_IPERF_SERVER_SETTLE:-1}
+IPERF_TIMEOUT_MARGIN=${MMTC_IPERF_TIMEOUT_MARGIN:-15}
+DAPP_PRIORITY_UES_RAW=${MMTC_DAPP_PRIORITY_UES:-}
+DAPP_STOP_NON_PRIORITY=${MMTC_DAPP_STOP_NON_PRIORITY:-0}
+DAPP_RA_RETRY_PRIORITY=${OAI_REDCAP_DAPP_RA_RETRY_PRIORITY:-0}
+if [ "${DAPP_STOP_NON_PRIORITY}" = "1" ] && [ -n "${DAPP_PRIORITY_UES_RAW}" ]; then
+  IPERF_SAMPLE_UES_RAW="${DAPP_PRIORITY_UES_RAW}"
+  IPERF_QUIESCE_NON_SELECTED=1
+fi
 USE_EXISTING_CN_DB=${MMTC_USE_EXISTING_CN_DB:-1}
 MMTC_PUCCH_COMMON_FALLBACK_BWP0=${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-1}
 export MMTC_PUCCH_COMMON_FALLBACK_BWP0
@@ -449,6 +457,7 @@ run_iperf_for_selected_ues()
     local target_ip="${iperf_server_ip}"
     local ue_ipv4="${PING_UE_IPV4S[$idx]}"
     local iperf_log="${LOG_DIR}/mmtc_smoke_${TIMESTAMP}_ue${ue_idx}_iperf3_ul.log"
+    local iperf_timeout=$((IPERF_DURATION + IPERF_TIMEOUT_MARGIN))
     local -a iperf_args=()
 
     if ! ue_selected_for_iperf "${ue_idx}"; then
@@ -486,8 +495,8 @@ run_iperf_for_selected_ues()
       echo "# target=${target_ip}"
       echo "# ue_ipv4=${ue_ipv4}"
       echo "# attempt=0"
-      echo "# command: docker exec ${container_name} ${iperf_args[*]}"
-      docker exec "${container_name}" "${iperf_args[@]}"
+      echo "# command: timeout ${iperf_timeout}s docker exec ${container_name} ${iperf_args[*]}"
+      timeout "${iperf_timeout}s" docker exec "${container_name}" "${iperf_args[@]}"
     } > "${iperf_log}" 2>&1
     local iperf_rc=$?
     set -e
@@ -504,8 +513,8 @@ run_iperf_for_selected_ues()
         echo
         echo "# retry_collected_at=$(date --iso-8601=seconds)"
         echo "# attempt=${retry_idx}"
-        echo "# command: docker exec ${container_name} ${iperf_args[*]}"
-        docker exec "${container_name}" "${iperf_args[@]}"
+        echo "# command: timeout ${iperf_timeout}s docker exec ${container_name} ${iperf_args[*]}"
+        timeout "${iperf_timeout}s" docker exec "${container_name}" "${iperf_args[@]}"
       } >> "${iperf_log}" 2>&1
       iperf_rc=$?
       set -e
@@ -633,6 +642,20 @@ start_sample_ues()
     else
       echo "[WARN] Adaptive UE burst pacing disabled due to invalid config: MMTC_UE_START_BURST_SIZE='${UE_START_BURST_SIZE}' MMTC_UE_START_BURST_PAUSE='${UE_START_BURST_PAUSE}'"
     fi
+  fi
+
+  if [ "${UE_START_GAP}" -eq 0 ] && [ "${adaptive_burst}" = "0" ]; then
+    local batch_epoch_ms
+    batch_epoch_ms=$(epoch_ms)
+    local -a service_names=()
+    for idx in "${!SAMPLE_UES[@]}"; do
+      local service_name="oai-nr-ue${SAMPLE_UES[$idx]}"
+      UE_LAUNCH_EPOCH_MS["${SAMPLE_UES[$idx]}"]=${batch_epoch_ms}
+      service_names+=("${service_name}")
+    done
+    echo "[INFO] Starting sampled UE services in one zero-gap compose call: ${service_names[*]}"
+    compose_with_images "${compose_args[@]}" up -d "${service_names[@]}"
+    return
   fi
 
   for idx in "${!SAMPLE_UES[@]}"; do
@@ -769,6 +792,11 @@ if [ "${IPERF_UDP}" != "0" ] && [ "${IPERF_UDP}" != "1" ]; then
   exit 1
 fi
 
+if ! [[ "${IPERF_TIMEOUT_MARGIN}" =~ ^[0-9]+$ ]]; then
+  echo "Invalid MMTC_IPERF_TIMEOUT_MARGIN: ${IPERF_TIMEOUT_MARGIN}" >&2
+  exit 1
+fi
+
 if [ "${USE_EXISTING_CN_DB}" != "0" ] && [ "${USE_EXISTING_CN_DB}" != "1" ]; then
   echo "Invalid MMTC_USE_EXISTING_CN_DB: ${USE_EXISTING_CN_DB}" >&2
   exit 1
@@ -817,12 +845,17 @@ echo "[INFO] gNB warmup          : ${GNB_WARMUP}s"
 echo "[INFO] UE start gap        : ${UE_START_GAP}s"
 echo "[INFO] forward ping mode   : ${FORWARD_PING_MODE}"
 echo "[INFO] reverse ping        : ${RUN_REVERSE_PING}"
-echo "[INFO] UL iperf3           : enable=${IPERF_ENABLE} sample=${IPERF_SAMPLE_UES_RAW} udp=${IPERF_UDP} rate=${IPERF_RATE} duration=${IPERF_DURATION}s quiesce=${IPERF_QUIESCE_NON_SELECTED}/${IPERF_QUIESCE_ACTION} retries=${IPERF_RETRIES} server_settle=${IPERF_SERVER_SETTLE}s"
+echo "[INFO] UL iperf3           : enable=${IPERF_ENABLE} sample=${IPERF_SAMPLE_UES_RAW} udp=${IPERF_UDP} rate=${IPERF_RATE} duration=${IPERF_DURATION}s quiesce=${IPERF_QUIESCE_NON_SELECTED}/${IPERF_QUIESCE_ACTION} retries=${IPERF_RETRIES} server_settle=${IPERF_SERVER_SETTLE}s timeout_margin=${IPERF_TIMEOUT_MARGIN}s"
+echo "[INFO] dApp wrapper STOP   : enabled=${DAPP_STOP_NON_PRIORITY} priority_ues=${DAPP_PRIORITY_UES_RAW:-none}"
+echo "[INFO] dApp RA retry prio : ${DAPP_RA_RETRY_PRIORITY}"
 echo "[INFO] UE PUCCH fallback   : bwp0_common=${MMTC_PUCCH_COMMON_FALLBACK_BWP0}"
 echo "[INFO] RF profile          : n_rb=${MMTC_N_RB_DL:-default} rf=${MMTC_RF_FREQ:-default} ssb=${MMTC_SSB_START:-default}"
 echo "[INFO] image selection     : REGISTRY='${IMAGE_REGISTRY}' TAG='${IMAGE_TAG}' GNB='${GNB_IMAGE_NAME}' NRUE='${NRUE_IMAGE_NAME}'"
 echo "[INFO] recovery config     : restart_on_gnb_restart=${AUTO_RECOVER_AFTER_GNB_RESTART} recover_missing_ues=${AUTO_RECOVER_MISSING_UES} recover_after_precheck_restart=${RECOVER_ON_PRECHECK_GNB_RESTART} settle=${RECOVERY_SETTLE}s gap=${RECOVERY_UE_GAP}s precheck_gentle_settle=${PRECHECK_RECOVERY_SETTLE}s precheck_gentle_gap=${PRECHECK_RECOVERY_UE_GAP}s fail_on_gnb_restart=${FAIL_ON_GNB_RESTART}"
 echo "[INFO] adaptive burst      : on_zero_gap=${ADAPTIVE_BURST_ON_ZERO_GAP} threshold=${UE_START_BURST_THRESHOLD} burst_size=${UE_START_BURST_SIZE} pause=${UE_START_BURST_PAUSE}s"
+if [ "${DAPP_STOP_NON_PRIORITY}" = "1" ] && [ -n "${DAPP_PRIORITY_UES_RAW}" ]; then
+  echo "[RedCap dApp wrapper STOP] ACK selected_ues=${DAPP_PRIORITY_UES_RAW} action=${IPERF_QUIESCE_ACTION}"
+fi
 
 if [ "${PREPARE_ONLY}" = "1" ]; then
   echo "[INFO] Prepare-only mode active; overlay generated at ${OVERLAY_COMPOSE}"

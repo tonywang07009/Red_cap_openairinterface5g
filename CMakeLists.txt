@@ -1232,6 +1232,7 @@ set (MAC_NR_SRC
   ${NR_GNB_MAC_DIR}/mac_rrc_dl_handler.c
   ${NR_GNB_MAC_DIR}/mac_rrc_ul_direct.c
   ${NR_GNB_MAC_DIR}/mac_rrc_ul_f1ap.c
+  ${NR_GNB_MAC_DIR}/nr_mac_drx.c
   ${NR_GNB_MAC_DIR}/nr_mac_redcap_bwp.c
   ${NR_GNB_MAC_DIR}/nr_mac_sdt_fsm.c
   ${NR_GNB_MAC_DIR}/nr_radio_config.c

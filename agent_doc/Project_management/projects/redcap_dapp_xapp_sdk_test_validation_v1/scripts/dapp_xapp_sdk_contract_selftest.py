@@ -158,6 +158,50 @@ def main() -> int:
     assert not dapp.redcap_dapp_access_pressure_allows_apply(missing_iq_pressure)
     assert missing_iq_pressure.allocation.reason == "missing_iq_samples"
 
+    selected_pressure_ue = dapp.redcap_dapp_select_ra_pressure_priority(
+        [
+            dapp.RedCapDappAccessPressureRequest(
+                rnti=0x2001,
+                bwp_prbs=dapp.REDCAP_DAPP_PROXY_BWP_PRBS_30KHZ,
+                priority_weight=40,
+                has_iq_samples=True,
+                previous_pressure_permille=0,
+                ra_retry_count=1,
+                msg3_failure_count=3,
+                pucch_resource_reject_count=4,
+                crc_discard_count=0,
+            ),
+            dapp.RedCapDappAccessPressureRequest(
+                rnti=0x2002,
+                bwp_prbs=dapp.REDCAP_DAPP_PROXY_BWP_PRBS_30KHZ,
+                priority_weight=10,
+                has_iq_samples=True,
+                previous_pressure_permille=0,
+                ra_retry_count=4,
+                msg3_failure_count=0,
+                pucch_resource_reject_count=0,
+                crc_discard_count=0,
+            ),
+            dapp.RedCapDappAccessPressureRequest(
+                rnti=0x2003,
+                bwp_prbs=dapp.REDCAP_DAPP_PROXY_BWP_PRBS_30KHZ,
+                priority_weight=50,
+                has_iq_samples=True,
+                previous_pressure_permille=0,
+                ra_retry_count=4,
+                msg3_failure_count=0,
+                pucch_resource_reject_count=0,
+                crc_discard_count=0,
+            ),
+        ]
+    )
+    assert selected_pressure_ue.found
+    assert selected_pressure_ue.selected_index == 2
+    assert selected_pressure_ue.selected_rnti == 0x2003
+    assert selected_pressure_ue.selected_ra_retry_count == 4
+    assert selected_pressure_ue.marker == "RedCap dApp RA pressure priority"
+    assert dapp.redcap_dapp_access_pressure_allows_apply(selected_pressure_ue.pressure)
+
     print("[PASS] dApp/xApp SDK contract self-test")
     return 0
 

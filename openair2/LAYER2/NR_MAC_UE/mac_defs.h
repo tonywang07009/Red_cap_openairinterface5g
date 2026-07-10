@@ -248,6 +248,11 @@ typedef struct {
 } nr_phr_info_t;
 
 typedef struct {
+  uint64_t rtt_until_slot;
+  uint64_t retransmission_until_slot;
+} nr_drx_harq_timer_t;
+
+typedef struct {
   bool configured;
   uint32_t on_duration_slots;
   uint32_t inactivity_slots;
@@ -262,6 +267,16 @@ typedef struct {
   uint32_t short_cycle_slots;
   uint32_t short_cycle_timer;
   uint32_t slot_offset;
+  bool short_cycle_active;
+  uint64_t short_cycle_until_slot;
+  bool short_cycle_pending;
+  uint64_t short_cycle_pending_start_slot;
+  uint64_t short_cycle_pending_until_slot;
+  uint64_t monitor_cycle_from_slot;
+  bool clock_initialized;
+  uint64_t last_absolute_slot;
+  nr_drx_harq_timer_t dl_harq[NR_MAX_HARQ_PROCESSES];
+  nr_drx_harq_timer_t ul_harq[NR_MAX_HARQ_PROCESSES];
 } nr_drx_config_t;
 
 // LTE structure, might need to be adapted for NR

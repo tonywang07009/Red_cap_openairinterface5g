@@ -12,8 +12,8 @@
 |---|---|---|
 | xApp C SDK | `openair2/E2AP/REDCAP_SDK/xapp/redcap_xapp_sdk.h` / `.c` | Priority-hint data model 與 selection helper |
 | xApp Python helper | `openair2/E2AP/REDCAP_SDK/xapp/redcap_xapp_sdk.py` | priority-hint logic 的快速 parity helper |
-| dApp C SDK | `openair2/E3AP/sdk/redcap_dapp_sdk.h` / `.c` | PRB allocation guard 與 access-pressure policy |
-| dApp Python helper | `openair2/E3AP/sdk/redcap_dapp_sdk.py` | dApp policy logic 的快速 parity helper |
+| dApp C SDK | `openair2/E3AP/sdk/redcap_dapp_sdk.h` / `.c` | PRB allocation guard、access-pressure policy 與 RA-pressure selector |
+| dApp Python helper | `openair2/E3AP/sdk/redcap_dapp_sdk.py` | dApp policy / selector logic 的快速 parity helper |
 | E2/FlexRIC assets | `openair2/E2AP/flexric` | xApp / nearRT-RIC integration route |
 | E3 references | `dev_refer/dapp_dev_need/libe3` | dApp-side E3 loopback 與 SWIG reference route |
 
@@ -22,13 +22,14 @@
 - [xApp input]：每個 UE 的 RNTI、UL buffer、QoS weight、RedCap weight 等 metric。
 - [xApp output]：以 RedCap priority hint 包裝的 `priority_weight`。
 - [dApp input]：RA retry count、Msg3 failure count、PUCCH resource reject count、CRC/discard count、previous pressure EWMA、BWP PRB marker、I/Q availability，以及可選的 xApp priority hint。
-- [dApp output]：受限制的 PUCCH/PUSCH ratio intent 與 PRB allocation metadata。
+- [dApp output]：受限制的 PUCCH/PUSCH ratio intent、RA-pressure priority selection 與 PRB allocation metadata。
 - [Guard boundary]：dApp policy output 必須通過 `redcap_dapp_guard_prb_allocation`，才可視為 applyable。
 - [I/Q boundary]：`has_iq_samples` 必須為 true 才能 apply；否則只能維持 reject/diagnostic。
 
 ## Current Policy Shape
 
-- [Pressure score]：`50 * ra_retry + 120 * msg3_failure + 160 * pucch_resource_reject + 40 * crc_discard`，上限 clamp 到 `1000`。
+- [Pressure score]：`100 * ra_retry + 120 * msg3_failure + 160 * pucch_resource_reject + 40 * crc_discard`，上限 clamp 到 `1000`。
+- [Priority selector]：`redcap_dapp_select_ra_pressure_priority` 先選 [RA retry count] 最高 UE，再用 pressure score、priority weight、較小 RNTI 做 tie-break。
 - [EWMA]：以整數近似 `0.7 * previous + 0.3 * current`。
 - [Low pressure]：PUCCH `200`，PUSCH `600`。
 - [Medium pressure]：PUCCH `300`，PUSCH `500`。
@@ -66,7 +67,8 @@ python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_valid
 openspec validate redcap-dapp-xapp-sdk-test-validation --strict
 ```
 
-7. Runtime evidence 請依照 [Gate E-Core 手動復現](./gate_e_core56_manual_reproduction.zh-TW.md)。
+7. 36 UE pressure evidence 先跑 baseline，再用 `select_core36_pressure_priority.py` 產生 `MMTC_DAPP_PRIORITY_UES`，最後用 `gate_e_64ue_stage_check.py --stage core36-pressure` 驗證。
+8. 56 UE runtime evidence 請依照 [Gate E-Core 手動復現](./gate_e_core56_manual_reproduction.zh-TW.md)。
 
 ## Reporting Rules
 

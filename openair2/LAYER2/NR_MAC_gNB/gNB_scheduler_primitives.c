@@ -3023,6 +3023,14 @@ void configure_UE_BWP(gNB_MAC_INST *nr_mac,
     mcs_Table = UL_BWP->transform_precoding ? UL_BWP->pusch_Config->mcs_Table : UL_BWP->pusch_Config->mcs_TableTransformPrecoder;
 
   UL_BWP->mcs_table = get_pusch_mcs_table(mcs_Table, !UL_BWP->transform_precoding, UL_BWP->dci_format, TYPE_C_RNTI_, target_ss, false);
+
+  if (!sched_ctrl->drx_state.configured && !sched_ctrl->drx_state.pending_config_valid) {
+    nr_gnb_drx_profile_t baseline = {0};
+    if (get_drx_profile_from_cellGroupConfig(CellGroup, &baseline)
+        && nr_gnb_drx_stage_profile(&sched_ctrl->drx_state, &baseline)
+        && nr_gnb_drx_commit_profile(&sched_ctrl->drx_state, 0, 0, nr_mac->frame_structure.numb_slots_frame))
+      (void)nr_gnb_drx_complete_reconfiguration(&sched_ctrl->drx_state);
+  }
 }
 
 void reset_srs_stats(NR_UE_info_t *UE) {
@@ -4015,6 +4023,12 @@ static bool verify_bwp_switch(const NR_UE_info_t *UE, const nr_mac_config_t *con
 bool nr_mac_trigger_reconfiguration(const gNB_MAC_INST *nrmac, NR_UE_info_t *UE, int new_bwp_id)
 {
   DevAssert(UE->CellGroup != NULL);
+  if (UE->reconfigCellGroup != NULL || UE->UE_sched_ctrl.drx_state.rrc_completion_pending) {
+    LOG_W(NR_MAC,
+          "RNTI %04x reconfiguration rejected: another RRC reconfiguration is pending\n",
+          UE->rnti);
+    return false;
+  }
   NR_CellGroupConfig_t *cellGroup_for_UE = NULL;
   if (new_bwp_id >= 0) {
     AssertFatal(UE->current_DL_BWP.bwp_id == UE->current_UL_BWP.bwp_id, "We only support same BWP for UL and DL\n");
@@ -4073,6 +4087,119 @@ bool nr_mac_trigger_reconfiguration(const gNB_MAC_INST *nrmac, NR_UE_info_t *UE,
   };
   nrmac->mac_rrc.ue_context_modification_required(&required);
   return true;
+}
+
+static bool trigger_drx_reconfiguration(const gNB_MAC_INST *nrmac,
+                                        NR_UE_info_t *UE,
+                                        const nr_gnb_drx_profile_t *profile)
+{
+  if (UE->CellGroup == NULL || UE->reconfigCellGroup != NULL
+      || UE->UE_sched_ctrl.drx_state.rrc_completion_pending) {
+    LOG_W(NR_MAC,
+          "[RedCap DRX][gNB reject] RNTI %04x policy_version %u reason cooldown_active\n",
+          UE->rnti,
+          profile != NULL ? profile->policy_version : 0);
+    return false;
+  }
+
+  NR_CellGroupConfig_t *candidate = update_cellGroupConfig_for_drx(UE->CellGroup, profile);
+  if (candidate == NULL)
+    return false;
+
+  uint8_t buf[2048];
+  const asn_enc_rval_t enc = uper_encode_to_buffer(&asn_DEF_NR_CellGroupConfig, NULL, candidate, buf, sizeof(buf));
+  if (enc.encoded <= 0) {
+    LOG_E(NR_MAC,
+          "[RedCap DRX][gNB reject] RNTI %04x policy_version %u reason encode_failed type %s\n",
+          UE->rnti,
+          profile->policy_version,
+          enc.failed_type != NULL ? enc.failed_type->name : "unknown");
+    ASN_STRUCT_FREE(asn_DEF_NR_CellGroupConfig, candidate);
+    return false;
+  }
+
+  if (!nr_gnb_drx_stage_profile(&UE->UE_sched_ctrl.drx_state, profile)) {
+    ASN_STRUCT_FREE(asn_DEF_NR_CellGroupConfig, candidate);
+    return false;
+  }
+
+  UE->reconfigCellGroup = candidate;
+  du_to_cu_rrc_information_t du2cu = {
+      .cellGroupConfig = buf,
+      .cellGroupConfig_length = (enc.encoded + 7) >> 3,
+  };
+  const f1_ue_data_t ue_data = du_get_f1_ue_data(UE->rnti);
+  f1ap_ue_context_modif_required_t required = {
+      .gNB_CU_ue_id = ue_data.secondary_ue,
+      .gNB_DU_ue_id = UE->rnti,
+      .du_to_cu_rrc_information = &du2cu,
+      .cause = F1AP_CAUSE_RADIO_NETWORK,
+      .cause_value = F1AP_CauseRadioNetwork_action_desirable_for_radio_reasons,
+  };
+  nrmac->mac_rrc.ue_context_modification_required(&required);
+  LOG_I(NR_MAC,
+        "[RedCap DRX][gNB staged] RNTI %04x policy_version %u cycle_ms %u on_duration_ms %u offset_ms %u\n",
+        UE->rnti,
+        profile->policy_version,
+        profile->long_cycle_ms,
+        profile->on_duration_ms,
+        profile->start_offset_ms);
+  return true;
+}
+
+bool nr_mac_apply_drx_policy(gNB_MAC_INST *nrmac, rnti_t rnti, const nr_gnb_drx_profile_t *profile)
+{
+  if (nrmac == NULL || profile == NULL || !nr_gnb_drx_profile_is_valid(profile))
+    return false;
+
+  NR_SCHED_LOCK(&nrmac->sched_lock);
+  NR_UE_info_t *UE = find_nr_UE(&nrmac->UE_info, rnti);
+  const bool accepted = UE != NULL && trigger_drx_reconfiguration(nrmac, UE, profile);
+  NR_SCHED_UNLOCK(&nrmac->sched_lock);
+  if (UE == NULL)
+    LOG_W(NR_MAC, "[RedCap DRX][gNB reject] RNTI %04x reason unknown_rnti\n", rnti);
+  return accepted;
+}
+
+bool nr_mac_rollback_drx_policy(gNB_MAC_INST *nrmac, rnti_t rnti, uint32_t rollback_policy_version)
+{
+  if (nrmac == NULL || rollback_policy_version == 0)
+    return false;
+
+  NR_SCHED_LOCK(&nrmac->sched_lock);
+  NR_UE_info_t *UE = find_nr_UE(&nrmac->UE_info, rnti);
+  bool accepted = false;
+  if (UE != NULL && UE->UE_sched_ctrl.drx_state.previous_config_valid) {
+    nr_gnb_drx_profile_t rollback = UE->UE_sched_ctrl.drx_state.previous;
+    rollback.policy_version = rollback_policy_version;
+    accepted = trigger_drx_reconfiguration(nrmac, UE, &rollback);
+    if (accepted)
+      LOG_I(NR_MAC,
+            "[RedCap DRX][rollback] RNTI %04x policy_version %u restore_cycle_ms %u\n",
+            rnti,
+            rollback_policy_version,
+            rollback.long_cycle_ms);
+  }
+  NR_SCHED_UNLOCK(&nrmac->sched_lock);
+  return accepted;
+}
+
+bool nr_mac_request_drx_command(gNB_MAC_INST *nrmac, rnti_t rnti)
+{
+  if (nrmac == NULL)
+    return false;
+
+  NR_SCHED_LOCK(&nrmac->sched_lock);
+  NR_UE_info_t *UE = find_nr_UE(&nrmac->UE_info, rnti);
+  const bool accepted = UE != NULL && nr_gnb_drx_request_command(&UE->UE_sched_ctrl.drx_state);
+  const uint32_t policy_version = accepted ? UE->UE_sched_ctrl.drx_state.applied.policy_version : 0;
+  NR_SCHED_UNLOCK(&nrmac->sched_lock);
+  if (accepted)
+    LOG_I(NR_MAC,
+          "[RedCap DRX][DRX Command requested] RNTI %04x policy_version %u\n",
+          rnti,
+          policy_version);
+  return accepted;
 }
 
 long get_lcid_from_drbid(int drb_id)

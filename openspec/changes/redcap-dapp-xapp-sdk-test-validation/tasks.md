@@ -136,6 +136,24 @@
   - Verification hardening: `redcap_interface/bash_library/fc_verify_ul_prb_control.sh` now falls back to captured post-control gNB logs when live Docker logs are too large for the short polling window; `bash redcap_interface/redcap_verify_ul_prb_control.sh` passes against the captured marker.
   - Runtime checker boundary: the latest full64 evidence with xApp/RIC/gNB control logs still fails `gate_e_64ue_stage_check.py --stage full64` only on summary metrics (`attach=62`, `pdu=62`, `tun=62`, `failures=12`).
   - Runtime boundary: the historical full64 path remains open as Gate E-Stretch. Gate E-Core is closed by the 2026-07-09 56 UE baseline-vs-dApp Launch-to-TUN comparison.
+- [x] 5.3A Prepare Gate E-Core36 zero-gap pressure validation.
+  - SDK selector: `redcap_dapp_select_ra_pressure_priority` selects the UE with the highest RA retry count before pressure/priority/RNTI tie-break.
+  - Runtime profile: `MMTC_STAGE_PROFILE=core36_pressure` defaults to 56 UE topology, 36 sampled UE, `MMTC_UE_START_GAP=0`, and `MMTC_ADAPTIVE_BURST_ON_ZERO_GAP=0`.
+  - Batch-start implementation: zero-gap with adaptive burst disabled starts all sampled UE services in one compose call.
+  - Priority selector runner: `select_core36_pressure_priority.py` derives `MMTC_DAPP_PRIORITY_UES` from baseline UE logs and Launch-to-TUN evidence.
+  - Wrapper STOP marker: `MMTC_DAPP_STOP_NON_PRIORITY=1` with baseline-derived `MMTC_DAPP_PRIORITY_UES` maps selected UE ACK intent to existing user-plane quiesce behavior.
+  - Checker: `gate_e_64ue_stage_check.py --stage core36-pressure` validates baseline-vs-dApp 36 UE zero-gap summaries, latency CSVs, and dApp marker evidence.
+  - Runtime evidence: baseline summary `test_log/compiler_logs/mmtc_stage_scan_2026-07-10_01-58-27_summary.log` and dApp summary `test_log/compiler_logs/mmtc_stage_scan_2026-07-10_02-00-43_summary.log` both report `sample=36 running=36 attach=17 pdu=17 tun=17 gnb_restart=0 failures=19`.
+  - Checker evidence: `gate_e_64ue_stage_check.py --stage core36-pressure` PASS.
+  - Selector evidence: the baseline-derived selector picks UE36, with `ra_retry_count=452` and `no_tun`.
+  - STOP evidence: `test_log/compiler_logs/mmtc_stage_scan_2026-07-10_02-00-43_ue36.log` contains `[RedCap dApp wrapper STOP] ACK selected_ues=36 action=pause`.
+  - Prior pause evidence: `test_log/compiler_logs/mmtc_stage_scan_2026-07-10_01-51-15_ue36.log` contains `Quiesced 35 non-selected UE container(s) before iperf3`.
+  - Timeout evidence: `test_log/compiler_logs/mmtc_smoke_2026-07-10_01-51-15_ue1_iperf3_ul.log` shows three `timeout 20s docker exec ... iperf3` attempts without sender/server completion.
+  - Boundary: true batch-start core36 evidence does not show dApp pressure mitigation. STOP+iperf remains blocked by sampled UL iperf timeout and selected UE36 has no TUN in the pressure run.
+  - Post-boundary scheduler hook: `openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_RA.c` supports `OAI_REDCAP_DAPP_RA_RETRY_PRIORITY=1` to schedule `nrRA_Msg3_retransmission` before new `nrRA_Msg2` entries.
+  - Post-hook script/compose wiring: `fc_mmtc_stage_scan.sh`, `fc_mmtc_smoke_validation.sh`, `docker-compose.mmtc.yml`, and `generate_mmtc_overlay.sh` pass and report `OAI_REDCAP_DAPP_RA_RETRY_PRIORITY`.
+  - Post-hook readiness evidence: `test_log/build_logs/build_nr-softmodem_2026-07-10_02-14-47_ra-retry-priority.log` and `test_log/build_logs/rebuild_local_oai_images_2026-07-10_02-15-34_ra-retry-priority.log`.
+  - Post-hook runtime boundary: fresh core36 A/B runtime rerun was blocked because Docker compose escalation was rejected when workspace credits were exhausted; do not use the `2026-07-10_02-00-43` dApp run as retry-priority mitigation evidence.
 - [ ] 5.4 Run Gate E-Stretch 64 UE strict upper-bound validation.
   - This is non-blocking for SDK v1 completion.
   - Keep strict full64 attach/PDU/TUN/ping/control evidence tracked as research-grade stress validation.

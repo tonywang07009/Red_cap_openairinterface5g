@@ -358,6 +358,14 @@ static uint32_t update_dlsch_buffer(frame_t frame, slot_t slot, NR_UE_info_t *UE
   return sched_ctrl->num_total_bytes;
 }
 
+static bool nr_gnb_drx_queues_empty(const NR_UE_sched_ctrl_t *sched_ctrl)
+{
+  return sched_ctrl->num_total_bytes == 0 && !sched_ctrl->ta_apply
+         && sched_ctrl->estimated_ul_buffer <= sched_ctrl->sched_ul_bytes
+         && sched_ctrl->feedback_dl_harq.head < 0 && sched_ctrl->retrans_dl_harq.head < 0
+         && sched_ctrl->feedback_ul_harq.head < 0 && sched_ctrl->retrans_ul_harq.head < 0;
+}
+
 void finish_nr_dl_harq(NR_UE_sched_ctrl_t *sched_ctrl, int harq_pid)
 {
   NR_UE_harq_t *harq = &sched_ctrl->harq_processes[harq_pid];
@@ -603,6 +611,21 @@ static void ack_reconfig(gNB_MAC_INST *mac, NR_UE_info_t *UE)
   const long old_dl_bwp_id = UE->current_DL_BWP.bwp_id;
   const long old_ul_bwp_id = UE->current_UL_BWP.bwp_id;
   const long pending_bwp_id = UE->local_bwp_id;
+  nr_gnb_drx_state_t *drx_state = &UE->UE_sched_ctrl.drx_state;
+  bool drx_committed = false;
+  if (drx_state->pending_config_valid) {
+    const uint16_t slots_per_frame = mac->frame_structure.numb_slots_frame;
+    const uint16_t frame = drx_state->last_mod_slot / slots_per_frame;
+    const uint16_t slot = drx_state->last_mod_slot % slots_per_frame;
+    drx_committed = nr_gnb_drx_commit_profile(drx_state, frame, slot, slots_per_frame);
+    if (!drx_committed) {
+      LOG_E(NR_MAC,
+            "[RedCap DRX][gNB apply failed] RNTI %04x pending_policy_version %u\n",
+            UE->rnti,
+            drx_state->pending.policy_version);
+      nr_gnb_drx_cancel_pending(drx_state);
+    }
+  }
   ASN_STRUCT_FREE(asn_DEF_NR_CellGroupConfig, UE->CellGroup);
   UE->CellGroup = UE->reconfigCellGroup;
   UE->reconfigCellGroup = NULL;
@@ -619,6 +642,14 @@ static void ack_reconfig(gNB_MAC_INST *mac, NR_UE_info_t *UE)
         (long)UE->current_DL_BWP.bwp_id,
         (long)UE->current_UL_BWP.bwp_id,
         pending_bwp_id);
+  if (drx_committed)
+    LOG_I(NR_MAC,
+          "[RedCap DRX][gNB applied] RNTI %04x policy_version %u cycle_ms %u on_duration_ms %u offset_ms %u\n",
+          UE->rnti,
+          drx_state->applied.policy_version,
+          drx_state->applied.long_cycle_ms,
+          drx_state->applied.on_duration_ms,
+          drx_state->applied.start_offset_ms);
 }
 
 typedef struct UEsched_s {
@@ -670,6 +701,16 @@ static void pf_dl(gNB_MAC_INST *mac,
     /* get the PID of a HARQ process awaiting retrnasmission, or -1 otherwise */
     int harq_pid = sched_ctrl->retrans_dl_harq.head;
 
+    if (!nr_gnb_drx_is_active(&sched_ctrl->drx_state,
+                              frame,
+                              slot,
+                              slots_per_frame,
+                              sched_ctrl->SR,
+                              harq_pid >= 0)) {
+      LOG_D(NR_MAC, "[RedCap DRX][gNB gate] RNTI %04x DL sleeping at %d.%d\n", UE->rnti, frame, slot);
+      continue;
+    }
+
     /* Calculate Throughput */
     const float a = 0.01f;
     const uint32_t b = stats->current_bytes;
@@ -718,7 +759,11 @@ static void pf_dl(gNB_MAC_INST *mac,
       update_dlsch_buffer(pp_pdsch->frame, pp_pdsch->slot, UE);
 
       /* Check DL buffer and skip this UE if no bytes and no TA necessary */
-      if (sched_ctrl->num_total_bytes == 0 && sched_ctrl->ta_apply == false)
+      if (sched_ctrl->num_total_bytes == 0 && sched_ctrl->ta_apply == false
+          && !nr_gnb_drx_command_ready(&sched_ctrl->drx_state,
+                                       sched_ctrl->SR,
+                                       false,
+                                       nr_gnb_drx_queues_empty(sched_ctrl)))
         continue;
 
       /* Calculate coeff */
@@ -919,6 +964,7 @@ static void pf_dl(gNB_MAC_INST *mac,
                   &sched_pdsch.tb_size,
                   &sched_pdsch.rbSize);
 
+    nr_gnb_drx_note_new_transmission(&sched_ctrl->drx_state, frame, slot, slots_per_frame);
     post_process_dlsch(mac, pp_pdsch, iterator->UE, &sched_pdsch);
 
     /* transmissions: directly allocate */
@@ -1056,6 +1102,12 @@ void post_process_dlsch(gNB_MAC_INST *nr_mac, post_process_pdsch_t *pdsch, NR_UE
   const uint8_t nrOfLayers = sched_pdsch->nrOfLayers;
   const uint32_t TBS = sched_pdsch->tb_size;
   int8_t current_harq_pid = sched_pdsch->dl_harq_pid;
+  const bool is_new_transmission = current_harq_pid < 0 || sched_ctrl->harq_processes[current_harq_pid].round == 0;
+  const bool send_drx_command = is_new_transmission
+                                && nr_gnb_drx_take_command(&sched_ctrl->drx_state,
+                                                           sched_ctrl->SR,
+                                                           false,
+                                                           nr_gnb_drx_queues_empty(sched_ctrl));
 
   if (current_harq_pid < 0) {
     /* PP has not selected a specific HARQ Process, get a new one */
@@ -1271,8 +1323,15 @@ void post_process_dlsch(gNB_MAC_INST *nr_mac, post_process_pdsch_t *pdsch, NR_UE
     int written = nr_write_ce_dlsch_pdu(module_id,
                                         sched_ctrl,
                                         (unsigned char *)buf,
-                                        255, // no drx
+                                        send_drx_command ? 0 : 255,
                                         NULL); // contention res id
+    if (send_drx_command)
+      LOG_I(NR_MAC,
+            "[RedCap DRX][DRX Command] RNTI %04x policy_version %u frame.slot %d.%d\n",
+            rnti,
+            sched_ctrl->drx_state.applied.policy_version,
+            frame,
+            slot);
     buf += written;
     uint8_t *bufEnd = buf + TBS - written;
     DevAssert(TBS > written);

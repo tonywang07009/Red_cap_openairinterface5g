@@ -17,3 +17,8 @@ add_executable(test_nr_redcap_rc_ctrl test_nr_redcap_rc_ctrl.cpp ../../../E2AP/R
 target_link_libraries(test_nr_redcap_rc_ctrl PRIVATE GTest::gtest)
 add_dependencies(tests test_nr_redcap_rc_ctrl)
 add_test(NAME test_nr_redcap_rc_ctrl COMMAND ./test_nr_redcap_rc_ctrl)
+
+add_executable(test_nr_gnb_drx test_nr_gnb_drx.cpp ../nr_mac_drx.c)
+target_link_libraries(test_nr_gnb_drx PRIVATE GTest::gtest)
+add_dependencies(tests test_nr_gnb_drx)
+add_test(NAME test_nr_gnb_drx COMMAND ./test_nr_gnb_drx)

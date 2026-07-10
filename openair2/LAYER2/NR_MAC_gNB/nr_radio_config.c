@@ -38,6 +38,7 @@
 #include "executables/softmodem-common.h"
 #include "oai_asn1.h"
 #include "NR_ConfiguredGrantConfig.h"
+#include "NR_DRX-Config.h"
 #include "NR_SetupRelease.h"
 #include "openair2/LAYER2/NR_MAC_gNB/nr_mac_gNB.h"
 #include "openair2/LAYER2/NR_MAC_gNB/mac_proto.h"
@@ -4161,6 +4162,137 @@ NR_CellGroupConfig_t *get_initial_cellGroupConfig(int uid,
   cellGroupConfig->sCellToAddModList = NULL;
   cellGroupConfig->sCellToReleaseList = NULL;
   return cellGroupConfig;
+}
+
+static bool set_drx_long_cycle(NR_DRX_Config_t *drx, uint32_t cycle_ms, uint32_t offset_ms)
+{
+  switch (cycle_ms) {
+    case 320:
+      drx->drx_LongCycleStartOffset.present = NR_DRX_Config__drx_LongCycleStartOffset_PR_ms320;
+      drx->drx_LongCycleStartOffset.choice.ms320 = offset_ms;
+      return true;
+    case 640:
+      drx->drx_LongCycleStartOffset.present = NR_DRX_Config__drx_LongCycleStartOffset_PR_ms640;
+      drx->drx_LongCycleStartOffset.choice.ms640 = offset_ms;
+      return true;
+    case 1280:
+      drx->drx_LongCycleStartOffset.present = NR_DRX_Config__drx_LongCycleStartOffset_PR_ms1280;
+      drx->drx_LongCycleStartOffset.choice.ms1280 = offset_ms;
+      return true;
+    case 2560:
+      drx->drx_LongCycleStartOffset.present = NR_DRX_Config__drx_LongCycleStartOffset_PR_ms2560;
+      drx->drx_LongCycleStartOffset.choice.ms2560 = offset_ms;
+      return true;
+    case 5120:
+      drx->drx_LongCycleStartOffset.present = NR_DRX_Config__drx_LongCycleStartOffset_PR_ms5120;
+      drx->drx_LongCycleStartOffset.choice.ms5120 = offset_ms;
+      return true;
+    case 10240:
+      drx->drx_LongCycleStartOffset.present = NR_DRX_Config__drx_LongCycleStartOffset_PR_ms10240;
+      drx->drx_LongCycleStartOffset.choice.ms10240 = offset_ms;
+      return true;
+    default:
+      return false;
+  }
+}
+
+static long drx_on_duration_value(uint32_t on_duration_ms)
+{
+  switch (on_duration_ms) {
+    case 10:
+      return NR_DRX_Config__drx_onDurationTimer__milliSeconds_ms10;
+    case 20:
+      return NR_DRX_Config__drx_onDurationTimer__milliSeconds_ms20;
+    case 40:
+      return NR_DRX_Config__drx_onDurationTimer__milliSeconds_ms40;
+    default:
+      return -1;
+  }
+}
+
+bool get_drx_profile_from_cellGroupConfig(const NR_CellGroupConfig_t *cellGroupConfig,
+                                          nr_gnb_drx_profile_t *profile)
+{
+  if (cellGroupConfig == NULL || cellGroupConfig->mac_CellGroupConfig == NULL
+      || cellGroupConfig->mac_CellGroupConfig->drx_Config == NULL || profile == NULL)
+    return false;
+
+  const NR_SetupRelease_DRX_Config_t *wrapper = cellGroupConfig->mac_CellGroupConfig->drx_Config;
+  if (wrapper->present != NR_SetupRelease_DRX_Config_PR_setup || wrapper->choice.setup == NULL)
+    return false;
+  const NR_DRX_Config_t *drx = wrapper->choice.setup;
+  if (drx->shortDRX != NULL || drx->drx_InactivityTimer != NR_DRX_Config__drx_InactivityTimer_ms20
+      || drx->drx_SlotOffset != 0
+      || drx->drx_onDurationTimer.present != NR_DRX_Config__drx_onDurationTimer_PR_milliSeconds)
+    return false;
+
+  *profile = (nr_gnb_drx_profile_t){.inactivity_ms = 20};
+  switch (drx->drx_onDurationTimer.choice.milliSeconds) {
+    case NR_DRX_Config__drx_onDurationTimer__milliSeconds_ms10:
+      profile->on_duration_ms = 10;
+      break;
+    case NR_DRX_Config__drx_onDurationTimer__milliSeconds_ms20:
+      profile->on_duration_ms = 20;
+      break;
+    case NR_DRX_Config__drx_onDurationTimer__milliSeconds_ms40:
+      profile->on_duration_ms = 40;
+      break;
+    default:
+      return false;
+  }
+
+#define READ_DRX_CYCLE(ms)                                                                                 \
+  case NR_DRX_Config__drx_LongCycleStartOffset_PR_ms##ms:                                                 \
+    profile->long_cycle_ms = ms;                                                                           \
+    profile->start_offset_ms = drx->drx_LongCycleStartOffset.choice.ms##ms;                                \
+    break
+  switch (drx->drx_LongCycleStartOffset.present) {
+    READ_DRX_CYCLE(320);
+    READ_DRX_CYCLE(640);
+    READ_DRX_CYCLE(1280);
+    READ_DRX_CYCLE(2560);
+    READ_DRX_CYCLE(5120);
+    READ_DRX_CYCLE(10240);
+    default:
+      return false;
+  }
+#undef READ_DRX_CYCLE
+
+  return nr_gnb_drx_profile_is_valid(profile);
+}
+
+NR_CellGroupConfig_t *update_cellGroupConfig_for_drx(const NR_CellGroupConfig_t *cellGroupConfig,
+                                                     const nr_gnb_drx_profile_t *profile)
+{
+  if (cellGroupConfig == NULL || cellGroupConfig->mac_CellGroupConfig == NULL || !nr_gnb_drx_profile_is_valid(profile))
+    return NULL;
+
+  NR_CellGroupConfig_t *clone = NULL;
+  if (asn_copy(&asn_DEF_NR_CellGroupConfig, (void **)&clone, cellGroupConfig) != 0 || clone == NULL)
+    return NULL;
+
+  ASN_STRUCT_FREE(asn_DEF_NR_SetupRelease_DRX_Config, clone->mac_CellGroupConfig->drx_Config);
+  clone->mac_CellGroupConfig->drx_Config = calloc_or_fail(1, sizeof(*clone->mac_CellGroupConfig->drx_Config));
+  clone->mac_CellGroupConfig->drx_Config->present = NR_SetupRelease_DRX_Config_PR_setup;
+  clone->mac_CellGroupConfig->drx_Config->choice.setup = calloc_or_fail(1, sizeof(NR_DRX_Config_t));
+
+  NR_DRX_Config_t *drx = clone->mac_CellGroupConfig->drx_Config->choice.setup;
+  drx->drx_onDurationTimer.present = NR_DRX_Config__drx_onDurationTimer_PR_milliSeconds;
+  drx->drx_onDurationTimer.choice.milliSeconds = drx_on_duration_value(profile->on_duration_ms);
+  drx->drx_InactivityTimer = NR_DRX_Config__drx_InactivityTimer_ms20;
+  drx->drx_HARQ_RTT_TimerDL = 4;
+  drx->drx_HARQ_RTT_TimerUL = 4;
+  drx->drx_RetransmissionTimerDL = NR_DRX_Config__drx_RetransmissionTimerDL_sl8;
+  drx->drx_RetransmissionTimerUL = NR_DRX_Config__drx_RetransmissionTimerUL_sl8;
+  drx->shortDRX = NULL;
+  drx->drx_SlotOffset = 0;
+
+  if (drx->drx_onDurationTimer.choice.milliSeconds < 0
+      || !set_drx_long_cycle(drx, profile->long_cycle_ms, profile->start_offset_ms)) {
+    ASN_STRUCT_FREE(asn_DEF_NR_CellGroupConfig, clone);
+    return NULL;
+  }
+  return clone;
 }
 
 NR_CellGroupConfig_t *update_cellGroupConfig_for_BWP_switch(NR_CellGroupConfig_t *cellGroupConfig,

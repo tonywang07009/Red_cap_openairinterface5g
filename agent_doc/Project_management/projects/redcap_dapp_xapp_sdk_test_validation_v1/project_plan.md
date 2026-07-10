@@ -52,6 +52,15 @@
 - Current Gate E-Core runtime evidence proves the 56 UE baseline-vs-dApp Launch-to-TUN comparison: both runs reached `sample=56`, `running=56`, `attach=56`, `pdu=56`, `tun=56`, `gnb_restart=0`, and `failures=0`.
 - Gate E-Core latency evidence: baseline median/p95/max `436318/703145/722926 ms`; dApp median/p95/max `441487/708146/728189 ms`; dApp-minus-baseline delta `+5169/+5001/+5263 ms`. This is a valid A/B comparison, not a latency-improvement claim.
 - Gate E-Core dApp marker evidence: `test_log/compiler_logs/mmtc_smoke_2026-07-09_10-42-43_gnb.log` contains `RedCap dApp PRB decision` markers and no assert/abort/segfault marker was found by the checker.
+- Current core36 pressure implementation adds `redcap_dapp_select_ra_pressure_priority`, `select_core36_pressure_priority.py`, `MMTC_STAGE_PROFILE=core36_pressure`, one-call zero-gap batch UE start, wrapper-level `MMTC_DAPP_STOP_NON_PRIORITY`, and `gate_e_64ue_stage_check.py --stage core36-pressure`.
+- Current true batch-start core36 runtime evidence creates pressure: baseline and dApp runs both reached `sample=36`, `running=36`, `attach=17`, `pdu=17`, `tun=17`, `gnb_restart=0`, and `failures=19`.
+- Core36 batch-start latency evidence over successful TUN rows: baseline median/p95/max `37651/43189/44453 ms`; dApp median/p95/max `37687/43991/44369 ms`. This is valid A/B evidence, not mitigation or latency-improvement evidence.
+- Core36 selector evidence selected UE36 from baseline because it had the highest observed `ra_retry_count=452` and no TUN. The selected UE still had no TUN in the dApp run, so the priority decision did not improve access success.
+- Core36 STOP boundary: the wrapper emitted `[RedCap dApp wrapper STOP] ACK selected_ues=36 action=pause` in the true batch-start dApp run. Prior STOP+iperf evidence paused 35 non-selected UE containers, but sampled UL iperf timed out; do not report traffic-relief PASS until the iperf path passes.
+- Current core36 pressure boundary: dApp does not mitigate the true batch-start access pressure in current evidence.
+- Current post-boundary scheduler update: `openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_RA.c` now supports `OAI_REDCAP_DAPP_RA_RETRY_PRIORITY=1`, which schedules `nrRA_Msg3_retransmission` before new `nrRA_Msg2` entries. This is a gNB-visible RA-state priority hook, not a direct UE36-at-Msg1 selector.
+- Post-hook readiness evidence: `test_log/build_logs/build_nr-softmodem_2026-07-10_02-14-47_ra-retry-priority.log` and `test_log/build_logs/rebuild_local_oai_images_2026-07-10_02-15-34_ra-retry-priority.log`.
+- Post-hook runtime boundary: fresh core36 A/B rerun was not captured because Docker compose escalation for the runtime run was rejected when workspace credits were exhausted.
 - Current SDK additions are test-facing helpers for priority hints, PRB allocation decisions, and dApp access-pressure policy decisions.
 - The dApp remains the local apply/reject boundary; xApp only emits UE priority hints.
 
@@ -73,9 +82,13 @@ openspec validate redcap-dapp-xapp-sdk-test-validation --strict
 ## Next Runtime Pull
 
 - Gate E-Core 56 UE A/B access-latency comparison is complete; return to 64 UE Stretch work only when strict upper-bound evidence is explicitly needed.
+- The lighter core36 pressure gate with 56 UE topology, 36 sampled UE, one-call batch start, `MMTC_UE_START_GAP=0`, `MMTC_ADAPTIVE_BURST_ON_ZERO_GAP=0`, and baseline-derived `MMTC_DAPP_PRIORITY_UES` now has A/B evidence checked by `--stage core36-pressure`.
+- Next runtime pull should rerun core36 A/B with `OAI_REDCAP_DAPP_RA_RETRY_PRIORITY=1` and diagnose the STOP+sampled-iperf timeout path.
 - Baseline profile: `MMTC_TOTAL_UES_TARGET=56`, `MMTC_STAGE_LIST=56`, `MMTC_START_XAPP=0`, `OAI_REDCAP_DAPP_GATE_D_MARKER=0`, `MMTC_N_RB_DL=51`, `MMTC_IPERF_ENABLE=0`, and the no-CSI/SRS RFsim workaround.
 - dApp profile: same RF/CN/UE profile, with `MMTC_START_XAPP=1` and `OAI_REDCAP_DAPP_GATE_D_MARKER=1`.
 - Gate E-Core evidence: baseline summary `test_log/compiler_logs/mmtc_stage_scan_2026-07-09_10-27-10_summary.log`, dApp summary `test_log/compiler_logs/mmtc_stage_scan_2026-07-09_10-42-43_summary.log`, baseline latency `test_log/compiler_logs/mmtc_smoke_2026-07-09_10-27-10_access_latency.csv`, dApp latency `test_log/compiler_logs/mmtc_smoke_2026-07-09_10-42-43_access_latency.csv`, dApp gNB marker log `test_log/compiler_logs/mmtc_smoke_2026-07-09_10-42-43_gnb.log`, and report `agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/report/gate_e_core56_ab_latency_2026-07-09.md`.
+- Core36 evidence: baseline summary `test_log/compiler_logs/mmtc_stage_scan_2026-07-10_01-58-27_summary.log`, dApp summary `test_log/compiler_logs/mmtc_stage_scan_2026-07-10_02-00-43_summary.log`, baseline latency `test_log/compiler_logs/mmtc_smoke_2026-07-10_01-58-27_access_latency.csv`, dApp latency `test_log/compiler_logs/mmtc_smoke_2026-07-10_02-00-43_access_latency.csv`, dApp gNB marker log `test_log/compiler_logs/mmtc_smoke_2026-07-10_02-00-43_gnb.log`, latest STOP+iperf blocker log `test_log/compiler_logs/mmtc_stage_scan_2026-07-10_01-51-15_ue36.log`, and report `agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/report/gate_e_core36_pressure_2026-07-10.md`.
+- Core36 post-hook evidence currently stops at build/image readiness; do not reuse the `2026-07-10_02-00-43` dApp run as retry-priority proof because its summary lacks `dapp_ra_retry_priority=1`.
 - Replace the Gate C local `tl_expected` shim with official `tl_expected` cache/network access before treating the libe3 build as production dependency evidence.
 - Use `ci-scripts/conf_files/gnb.sa.band78.fr1.106PRB.usrpb210.redcap.5mhz-bwp.yaml` for the 5 MHz BWP run. It keeps the 106 PRB RF carrier stable and makes BWP1 plus RedCap DL/UL initial BWP 12 PRBs at 30 kHz SCS `[Needs Verification]`.
 - Latest Gate D 5 MHz RFsim run evidence:

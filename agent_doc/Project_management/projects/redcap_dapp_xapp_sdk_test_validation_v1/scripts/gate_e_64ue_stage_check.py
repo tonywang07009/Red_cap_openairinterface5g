@@ -26,8 +26,10 @@ CN_DB_IMPL = ROOT / "redcap_interface/bash_library/fc_generate_mmtc_cn_db_overla
 SMOKE_WRAPPER = ROOT / "redcap_interface/bash_library/fc_mmtc_smoke_validation.sh"
 EXPECTED_UE_COUNT = 64
 CORE_UE_COUNT = 56
+CORE36_UE_COUNT = 36
 FIRST_STAGE_UE_COUNT = 32
 STAGE_EXPECTED_UE_COUNT = {
+    "core36-pressure": CORE36_UE_COUNT,
     "core56-ab": CORE_UE_COUNT,
     "first32": FIRST_STAGE_UE_COUNT,
     "full64": EXPECTED_UE_COUNT,
@@ -122,9 +124,21 @@ def check_stage_summary(summary_log_path: Path, required_ue_count: int, errors: 
 
 
 def latency_success_count(latency_log_path: Path, required_ue_count: int, errors: list[str], label: str) -> int:
+    rows, success_rows = latency_status_counts(latency_log_path, required_ue_count, errors, label)
+    require(success_rows >= required_ue_count,
+            f"Gate E {label} latency success rows={success_rows}, expected at least {required_ue_count}", errors)
+    return success_rows
+
+
+def latency_status_counts(
+    latency_log_path: Path,
+    required_ue_count: int,
+    errors: list[str],
+    label: str,
+) -> tuple[int, int]:
     if not latency_log_path.exists():
         errors.append(f"missing Gate E {label} latency log: {rel(latency_log_path)}")
-        return 0
+        return 0, 0
 
     with latency_log_path.open(newline="", encoding="utf-8", errors="replace") as handle:
         rows = list(csv.DictReader(handle))
@@ -134,9 +148,34 @@ def latency_success_count(latency_log_path: Path, required_ue_count: int, errors
     ]
     require(len(rows) >= required_ue_count,
             f"Gate E {label} latency rows={len(rows)}, expected at least {required_ue_count}", errors)
-    require(len(success_rows) >= required_ue_count,
-            f"Gate E {label} latency success rows={len(success_rows)}, expected at least {required_ue_count}", errors)
-    return len(success_rows)
+    return len(rows), len(success_rows)
+
+
+def check_core36_summary_shape(text: str, label: str, errors: list[str]) -> dict[str, int]:
+    require("stage_profile=core36_pressure" in text,
+            f"Gate E core36-pressure {label} summary missing stage_profile=core36_pressure", errors)
+    require("total_ues_target=56" in text,
+            f"Gate E core36-pressure {label} summary missing total_ues_target=56", errors)
+    require("stages=36" in text,
+            f"Gate E core36-pressure {label} summary missing stages=36", errors)
+    require("ue_start_gap=0" in text,
+            f"Gate E core36-pressure {label} summary missing ue_start_gap=0", errors)
+    require("adaptive_burst_on_zero_gap=0" in text,
+            f"Gate E core36-pressure {label} summary missing adaptive_burst_on_zero_gap=0", errors)
+
+    metrics = parse_summary_metrics(text)
+    for key in ["sample", "running", "attach", "pdu", "tun", "gnb_restart", "failures"]:
+        require(key in metrics, f"Gate E core36-pressure {label} summary missing metric: {key}", errors)
+    require(metrics.get("sample", 0) >= CORE36_UE_COUNT,
+            f"Gate E core36-pressure {label} sample={metrics.get('sample', 0)}, expected at least {CORE36_UE_COUNT}",
+            errors)
+    require(metrics.get("running", 0) >= CORE36_UE_COUNT,
+            f"Gate E core36-pressure {label} running={metrics.get('running', 0)}, expected at least {CORE36_UE_COUNT}",
+            errors)
+    require(metrics.get("gnb_restart", 1) == 0,
+            f"Gate E core36-pressure {label} gnb_restart={metrics.get('gnb_restart', 'missing')}, expected 0",
+            errors)
+    return metrics
 
 
 def check_core56_ab(args: argparse.Namespace, errors: list[str]) -> None:
@@ -172,6 +211,58 @@ def check_core56_ab(args: argparse.Namespace, errors: list[str]) -> None:
             "Gate E core56-ab dApp gNB log missing dApp decision/pressure marker", errors)
     require("Aborted" not in dapp_log and "Assertion" not in dapp_log,
             "Gate E core56-ab dApp gNB log contains abort/assert evidence", errors)
+
+
+def check_core36_pressure(args: argparse.Namespace, errors: list[str]) -> None:
+    required_paths = [
+        ("baseline summary", args.baseline_summary_log),
+        ("dApp summary", args.dapp_summary_log),
+        ("baseline latency", args.baseline_latency_log),
+        ("dApp latency", args.dapp_latency_log),
+        ("dApp gNB log", args.dapp_gnb_log),
+    ]
+    for label, path in required_paths:
+        if path is None:
+            errors.append(f"Gate E core36-pressure requires --{label.replace(' ', '-').lower()}")
+            return
+        if not path.exists():
+            errors.append(f"missing Gate E core36-pressure {label}: {rel(path)}")
+            return
+
+    baseline_summary = read(args.baseline_summary_log)
+    dapp_summary = read(args.dapp_summary_log)
+    baseline_metrics = check_core36_summary_shape(baseline_summary, "baseline", errors)
+    dapp_metrics = check_core36_summary_shape(dapp_summary, "dApp", errors)
+    dapp_priority_match = re.search(r"\bdapp_priority_ues=([^ \n]+)", dapp_summary)
+    require("dapp_stop_non_priority=1" in dapp_summary,
+            "Gate E core36-pressure dApp summary missing dapp_stop_non_priority=1", errors)
+    require("dapp_ra_retry_priority=1" in dapp_summary,
+            "Gate E core36-pressure dApp summary missing dapp_ra_retry_priority=1", errors)
+    require(dapp_priority_match is not None and dapp_priority_match.group(1) != "none",
+            "Gate E core36-pressure dApp summary did not record selected priority UE(s)", errors)
+
+    for key in ["attach", "pdu", "tun", "running"]:
+        require(dapp_metrics.get(key, 0) >= baseline_metrics.get(key, 0),
+                f"Gate E core36-pressure dApp {key}={dapp_metrics.get(key, 0)} below baseline {baseline_metrics.get(key, 0)}",
+                errors)
+    require(dapp_metrics.get("failures", 9999) <= baseline_metrics.get("failures", 9999),
+            f"Gate E core36-pressure dApp failures={dapp_metrics.get('failures', 'missing')} above baseline {baseline_metrics.get('failures', 'missing')}",
+            errors)
+
+    _, baseline_success = latency_status_counts(args.baseline_latency_log, CORE36_UE_COUNT, errors, "baseline")
+    _, dapp_success = latency_status_counts(args.dapp_latency_log, CORE36_UE_COUNT, errors, "dApp")
+    require(dapp_success >= baseline_success,
+            f"Gate E core36-pressure dApp latency success rows={dapp_success} below baseline={baseline_success}", errors)
+
+    dapp_log = read(args.dapp_gnb_log)
+    require(any(marker in dapp_log for marker in [
+                "RedCap dApp RA retry priority",
+                "RedCap dApp RA pressure priority",
+                "RedCap dApp PRB decision",
+            ]),
+            "Gate E core36-pressure dApp gNB log missing RA retry/pressure priority or PRB decision marker", errors)
+    require("Aborted" not in dapp_log and "Assertion" not in dapp_log,
+            "Gate E core36-pressure dApp gNB log contains abort/assert evidence", errors)
 
 
 def check_static_preflight(errors: list[str], expected_ue_count: int) -> None:
@@ -212,6 +303,8 @@ def check_static_preflight(errors: list[str], expected_ue_count: int) -> None:
                 f"mMTC overlay missing UE{expected_ue_count} RedCap config mount", errors)
         require("OAI_REDCAP_DAPP_GATE_D_MARKER" in overlay,
                 "mMTC overlay missing dApp marker env passthrough", errors)
+        require("OAI_REDCAP_DAPP_RA_RETRY_PRIORITY" in overlay,
+                "mMTC overlay missing dApp RA retry-priority env passthrough", errors)
 
     if OVERLAY_GENERATOR.exists():
         generator = read(OVERLAY_GENERATOR)
@@ -219,6 +312,7 @@ def check_static_preflight(errors: list[str], expected_ue_count: int) -> None:
             "TOTAL_UES",
             "BASE_FIXED_UE_COUNT",
             "OAI_REDCAP_DAPP_GATE_D_MARKER",
+            "OAI_REDCAP_DAPP_RA_RETRY_PRIORITY",
             "MMTC_GNB_EXTRA_OPTIONS",
             "nrue${idx}.uicc.yaml",
         ]:
@@ -367,6 +461,21 @@ def print_next_commands() -> None:
     print("    --baseline-latency-log test_log/compiler_logs/mmtc_smoke_<baseline>_access_latency.csv \\")
     print("    --dapp-latency-log test_log/compiler_logs/mmtc_smoke_<dapp>_access_latency.csv \\")
     print("    --dapp-gnb-log test_log/compiler_logs/mmtc_smoke_<dapp>_gnb.log")
+    print("[INFO] Gate E-Core 36 UE zero-gap pressure command shape:")
+    print("  MMTC_STAGE_PROFILE=core36_pressure MMTC_START_XAPP=0 MMTC_USE_EXISTING_CN_DB=0 \\")
+    print("  MMTC_N_RB_DL=51 GNB_REDCAP_CONFIG=../../conf_files/gnb.sa.band78.fr1.51PRB.usrpb210.redcap.yaml \\")
+    print('  MMTC_GNB_EXTRA_OPTIONS="--gNBs.[0].do_CSIRS 0 --gNBs.[0].do_SRS 0" \\')
+    print("  bash redcap_interface/redcap_mmtc_stage_scan.sh")
+    print("  python3 -B "
+          "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/"
+          "select_core36_pressure_priority.py \\")
+    print("    --summary-log test_log/compiler_logs/mmtc_stage_scan_<baseline>_summary.log")
+    print("  MMTC_STAGE_PROFILE=core36_pressure MMTC_START_XAPP=1 MMTC_USE_EXISTING_CN_DB=0 \\")
+    print("  OAI_REDCAP_DAPP_GATE_D_MARKER=1 OAI_REDCAP_DAPP_RA_RETRY_PRIORITY=1 \\")
+    print("  MMTC_DAPP_STOP_NON_PRIORITY=1 MMTC_DAPP_PRIORITY_UES=<top-ue-list> \\")
+    print("  MMTC_N_RB_DL=51 GNB_REDCAP_CONFIG=../../conf_files/gnb.sa.band78.fr1.51PRB.usrpb210.redcap.yaml \\")
+    print('  MMTC_GNB_EXTRA_OPTIONS="--gNBs.[0].do_CSIRS 0 --gNBs.[0].do_SRS 0" \\')
+    print("  bash redcap_interface/redcap_mmtc_stage_scan.sh")
     print("[INFO] regenerate 64 UE overlay:")
     print("  bash ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/scripts/generate_mmtc_overlay.sh 64")
     print("[INFO] regenerate 64 UE CN DB overlay:")
@@ -416,7 +525,9 @@ def main() -> int:
     static_ue_count = EXPECTED_UE_COUNT if has_runtime_evidence and args.stage == "full64" else CORE_UE_COUNT
     check_static_preflight(errors, static_ue_count)
 
-    if args.stage == "core56-ab":
+    if args.stage == "core36-pressure":
+        check_core36_pressure(args, errors)
+    elif args.stage == "core56-ab":
         check_core56_ab(args, errors)
     elif args.gnb_log is not None:
         if args.summary_log is None:
@@ -439,7 +550,9 @@ def main() -> int:
         print_next_commands()
         return 1
 
-    if args.stage == "core56-ab" and args.baseline_summary_log is not None:
+    if args.stage == "core36-pressure" and args.baseline_summary_log is not None:
+        print("[PASS] Gate E-Core36 zero-gap pressure A/B evidence found")
+    elif args.stage == "core56-ab" and args.baseline_summary_log is not None:
         print("[PASS] Gate E-Core 56 UE A/B latency evidence found")
     elif args.gnb_log is None:
         print("[PASS] Gate E static preflight is ready for two-tier RFsim validation")

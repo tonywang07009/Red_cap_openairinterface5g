@@ -73,6 +73,51 @@ static seq_ran_param_t redcap_xapp_make_integer_ran_param(uint32_t ran_param_id,
   return ran_param;
 }
 
+static bool redcap_xapp_is_approved_long_drx_cycle(uint16_t long_cycle_ms)
+{
+  static const uint16_t approved_cycles_ms[] = {320, 640, 1280, 2560, 5120, 10240};
+  for (size_t i = 0; i < sizeof(approved_cycles_ms) / sizeof(approved_cycles_ms[0]); ++i) {
+    if (long_cycle_ms == approved_cycles_ms[i])
+      return true;
+  }
+  return false;
+}
+
+bool redcap_xapp_make_drx_ctrl_req(uint64_t ue_id, uint16_t long_cycle_ms, rc_ctrl_req_data_t *ctrl_req)
+{
+  if (ue_id == 0 || ctrl_req == NULL || !redcap_xapp_is_approved_long_drx_cycle(long_cycle_ms))
+    return false;
+
+  *ctrl_req = (rc_ctrl_req_data_t){0};
+  ctrl_req->hdr.format = FORMAT_1_E2SM_RC_CTRL_HDR;
+  ctrl_req->hdr.frmt_1.ue_id = redcap_xapp_make_gnb_ue_id(ue_id);
+  if (ctrl_req->hdr.frmt_1.ue_id.gnb.ran_ue_id == NULL)
+    return false;
+  ctrl_req->hdr.frmt_1.ric_style_type = NR_REDCAP_RC_CTRL_STYLE_ID_RADIO_RESOURCE_ALLOCATION;
+  ctrl_req->hdr.frmt_1.ctrl_act_id = NR_REDCAP_RC_CTRL_ACT_ID_DRX_CONFIGURATION;
+  ctrl_req->hdr.frmt_1.ric_ctrl_decision = NULL;
+
+  ctrl_req->msg.format = FORMAT_1_E2SM_RC_CTRL_MSG;
+  ctrl_req->msg.frmt_1.sz_ran_param = 1;
+  ctrl_req->msg.frmt_1.ran_param = calloc(1, sizeof(*ctrl_req->msg.frmt_1.ran_param));
+  if (ctrl_req->msg.frmt_1.ran_param == NULL) {
+    free(ctrl_req->hdr.frmt_1.ue_id.gnb.ran_ue_id);
+    *ctrl_req = (rc_ctrl_req_data_t){0};
+    return false;
+  }
+
+  // [Needs Verification]: v1 carries milliseconds as the integer value pending the TS 38.473 mapping check.
+  ctrl_req->msg.frmt_1.ran_param[0] =
+      redcap_xapp_make_integer_ran_param(NR_REDCAP_RC_RAN_PARAM_ID_LONG_DRX_CYCLE, long_cycle_ms);
+  if (ctrl_req->msg.frmt_1.ran_param[0].ran_param_val.flag_true == NULL) {
+    free(ctrl_req->msg.frmt_1.ran_param);
+    free(ctrl_req->hdr.frmt_1.ue_id.gnb.ran_ue_id);
+    *ctrl_req = (rc_ctrl_req_data_t){0};
+    return false;
+  }
+  return true;
+}
+
 rc_ctrl_req_data_t redcap_xapp_make_ul_prb_ctrl_req(uint64_t ue_id, uint16_t rnti, uint16_t max_ul_prb)
 {
   rc_ctrl_req_data_t ctrl_req = {0};

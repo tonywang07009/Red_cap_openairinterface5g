@@ -2329,6 +2329,17 @@ static int  pf_ul(gNB_MAC_INST *nrmac,
     /* Check if retransmission is necessary */
     int ul_harq_pid = sched_ctrl->retrans_ul_harq.head;
     LOG_D(NR_MAC,"pf_ul: UE %04x harq_pid %d\n", UE->rnti, ul_harq_pid);
+    if (!nr_gnb_drx_is_active(&sched_ctrl->drx_state,
+                              frame,
+                              slot,
+                              slots_per_frame,
+                              sched_ctrl->SR,
+                              ul_harq_pid >= 0)) {
+      LOG_D(NR_MAC, "[RedCap DRX][gNB gate] RNTI %04x UL sleeping at %d.%d\n", UE->rnti, frame, slot);
+      reset_beam_status(&nrmac->beam_info, sched_frame, sched_slot, UE->UE_beam_index, slots_per_frame, beam.new_beam);
+      reset_beam_status(&nrmac->beam_info, frame, slot, UE->UE_beam_index, slots_per_frame, dci_beam.new_beam);
+      continue;
+    }
     if (ul_harq_pid >= 0) {
       /* Allocate retransmission*/
       bool r = allocate_ul_retransmission(nrmac,
@@ -2603,6 +2614,7 @@ static int  pf_ul(gNB_MAC_INST *nrmac,
 
     /* save allocation to FAPI structures */
     post_process_ulsch(nrmac, pp_pusch, iterator->UE, &sched);
+    nr_gnb_drx_note_new_transmission(&sched_ctrl->drx_state, frame, slot, slots_per_frame);
 
     n_rb_sched[beam.idx] -= sched.rbSize;
     for (int rb = bi.bwpStart; rb < sched.rbSize; rb++)

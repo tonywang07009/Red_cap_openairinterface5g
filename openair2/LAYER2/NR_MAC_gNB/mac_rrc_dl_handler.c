@@ -766,15 +766,81 @@ void ue_context_modification_request(const f1ap_ue_context_mod_req_t *req)
 
   NR_ServingCellConfigCommon_t *scc = mac->common_channels[0].ServingCellConfigCommon;
   if (req->reconfig_compl && *req->reconfig_compl != RRCreconf_success) {
-    LOG_E(NR_MAC,
-          "RRC reconfiguration outcome unsuccessful, but no rollback mechanism implemented to come back to old configuration\n");
+    nr_gnb_drx_state_t *drx_state = &UE->UE_sched_ctrl.drx_state;
+    if (drx_state->rrc_completion_pending) {
+      const uint32_t failed_version =
+          drx_state->pending_config_valid ? drx_state->pending.policy_version : drx_state->applied.policy_version;
+      const uint32_t restored_version = drx_state->pending_config_valid || !drx_state->previous_config_valid
+                                            ? drx_state->applied.policy_version
+                                            : drx_state->previous.policy_version;
+      NR_CellGroupConfig_t *restored = NULL;
+      if (!drx_state->pending_config_valid && drx_state->previous_config_valid)
+        restored = update_cellGroupConfig_for_drx(UE->CellGroup, &drx_state->previous);
+
+      ASN_STRUCT_FREE(asn_DEF_NR_CellGroupConfig, UE->reconfigCellGroup);
+      UE->reconfigCellGroup = NULL;
+      if (nr_gnb_drx_fail_reconfiguration(drx_state, mac->frame_structure.numb_slots_frame)) {
+        if (restored != NULL) {
+          ASN_STRUCT_FREE(asn_DEF_NR_CellGroupConfig, UE->CellGroup);
+          UE->CellGroup = restored;
+          ASN_STRUCT_FREE(asn_DEF_NR_CellGroupConfig, new_CellGroup);
+          new_CellGroup = clone_CellGroupConfig(UE->CellGroup);
+        }
+        LOG_W(NR_MAC,
+              "[RedCap DRX][rollback] RNTI %04x failed_policy_version %u restored_policy_version %u\n",
+              UE->rnti,
+              failed_version,
+              restored_version);
+      } else {
+        ASN_STRUCT_FREE(asn_DEF_NR_CellGroupConfig, restored);
+        LOG_E(NR_MAC,
+              "[RedCap DRX][rollback failed] RNTI %04x policy_version %u\n",
+              UE->rnti,
+              failed_version);
+      }
+      LOG_W(NR_MAC,
+            "[RedCap DRX][RRC complete] RNTI %04x policy_version %u outcome failure\n",
+            UE->rnti,
+            failed_version);
+    } else {
+      LOG_E(NR_MAC,
+            "RRC reconfiguration outcome unsuccessful, but no rollback mechanism implemented to come back to old configuration\n");
+    }
   } else if (req->reconfig_compl) {
     LOG_I(NR_MAC, "DU received confirmation of successful RRC Reconfiguration\n");
+    nr_gnb_drx_state_t *drx_state = &UE->UE_sched_ctrl.drx_state;
+    const bool drx_completion_pending = drx_state->rrc_completion_pending;
     if (UE->reconfigCellGroup) {
       LOG_W(NR_MAC, "reconfigCellGroup still present, did we miss ACK for RRCReconfiguration?\n");
       ASN_STRUCT_FREE(asn_DEF_NR_CellGroupConfig, UE->CellGroup);
       UE->CellGroup = UE->reconfigCellGroup;
       UE->reconfigCellGroup = NULL;
+    }
+    if (drx_completion_pending && drx_state->pending_config_valid) {
+      const uint16_t slots_per_frame = mac->frame_structure.numb_slots_frame;
+      const uint16_t frame = slots_per_frame == 0 ? 0 : drx_state->last_mod_slot / slots_per_frame;
+      const uint16_t slot = slots_per_frame == 0 ? 0 : drx_state->last_mod_slot % slots_per_frame;
+      if (slots_per_frame > 0 && nr_gnb_drx_commit_profile(drx_state, frame, slot, slots_per_frame))
+        LOG_I(NR_MAC,
+              "[RedCap DRX][gNB applied] RNTI %04x policy_version %u cycle_ms %u on_duration_ms %u offset_ms %u\n",
+              UE->rnti,
+              drx_state->applied.policy_version,
+              drx_state->applied.long_cycle_ms,
+              drx_state->applied.on_duration_ms,
+              drx_state->applied.start_offset_ms);
+    }
+    if (drx_completion_pending) {
+      const uint32_t policy_version = drx_state->applied.policy_version;
+      if (nr_gnb_drx_complete_reconfiguration(drx_state))
+        LOG_I(NR_MAC,
+              "[RedCap DRX][RRC complete] RNTI %04x policy_version %u outcome success\n",
+              UE->rnti,
+              policy_version);
+      else
+        LOG_E(NR_MAC,
+              "[RedCap DRX][RRC completion failed] RNTI %04x policy_version %u\n",
+              UE->rnti,
+              policy_version);
     }
     if (UE->reestablish_rlc) {
       for (int i = 1; i < seq_arr_size(&UE->UE_sched_ctrl.lc_config); ++i) {

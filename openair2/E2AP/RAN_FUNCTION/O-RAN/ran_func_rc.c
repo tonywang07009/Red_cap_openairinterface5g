@@ -32,8 +32,10 @@
 #if defined(NGRAN_GNB_DU)
 #include "openair2/LAYER2/NR_MAC_gNB/mac_proto.h"
 #include "openair2/LAYER2/NR_MAC_gNB/nr_mac_redcap.h"
+#include "openair2/E3AP/sdk/redcap_dapp_sdk.h"
 #endif
 
+#include <inttypes.h>
 #include <stdio.h>
 #include <unistd.h>
 #include "common/ran_context.h"
@@ -81,6 +83,88 @@ static bool apply_redcap_ul_prb_control(const nr_redcap_rc_ul_prb_ctrl_t *redcap
          redcap_ctrl->max_ul_prbs,
          effective_cap);
   fflush(stdout);
+  return true;
+}
+
+static NR_UE_info_t *find_redcap_ue_by_rrc_id(gNB_MAC_INST *nrmac, uint64_t rrc_ue_id)
+{
+  UE_iterator(nrmac->UE_info.connected_ue_list, UE) {
+    const f1_ue_data_t ids = du_get_f1_ue_data(UE->rnti);
+    if (ids.secondary_ue == rrc_ue_id || UE->rnti == rrc_ue_id)
+      return UE;
+  }
+  return NULL;
+}
+
+static bool apply_redcap_drx_control(const nr_redcap_rc_drx_ctrl_t *control, uint32_t ric_request_id)
+{
+  if (control == NULL || RC.nrmac[0] == NULL || ric_request_id == 0) {
+    printf("[RedCap DRX][dApp REJECT] reason=gnb_apply_failed\n");
+    return false;
+  }
+
+  gNB_MAC_INST *nrmac = RC.nrmac[0];
+  rnti_t rnti = 0;
+  bool connected = false;
+  bool cooldown_elapsed = false;
+  redcap_dapp_drx_config_t current = {0};
+  bool have_current = false;
+
+  NR_SCHED_LOCK(&nrmac->sched_lock);
+  NR_UE_info_t *UE = find_redcap_ue_by_rrc_id(nrmac, control->rrc_ue_id);
+  if (UE != NULL) {
+    const nr_gnb_drx_state_t *state = &UE->UE_sched_ctrl.drx_state;
+    rnti = UE->rnti;
+    connected = nr_mac_ue_is_active(UE);
+    cooldown_elapsed = UE->reconfigCellGroup == NULL && !state->rrc_completion_pending;
+    if (state->configured) {
+      current = (redcap_dapp_drx_config_t){
+          .rnti = rnti,
+          .policy_version = state->applied.policy_version,
+          .long_cycle_ms = state->applied.long_cycle_ms,
+          .on_duration_ms = state->applied.on_duration_ms,
+          .start_offset_ms = state->applied.start_offset_ms,
+          .inactivity_ms = state->applied.inactivity_ms,
+          .rollback_available = true,
+          .drx_command_enabled = state->applied.drx_command_enabled,
+      };
+      have_current = true;
+    }
+  }
+  NR_SCHED_UNLOCK(&nrmac->sched_lock);
+
+  const redcap_dapp_e2_drx_cycle_request_t request = {
+      .rnti = rnti,
+      .policy_version = ric_request_id,
+      .requested_long_cycle_ms = control->long_cycle_ms,
+      .ue_connected = connected,
+      .rrc_reconfiguration_cooldown_elapsed = cooldown_elapsed,
+  };
+  const redcap_dapp_drx_guard_result_t decision =
+      redcap_dapp_guard_e2_drx_cycle(&request, have_current ? &current : NULL);
+  printf("%s rrc_ue_id=%" PRIu64 " rnti=%04x policy_version=%u reason=%s\n",
+         decision.marker,
+         control->rrc_ue_id,
+         rnti,
+         ric_request_id,
+         decision.reason);
+  if (!redcap_dapp_drx_guard_allows_apply(&decision))
+    return false;
+
+  const nr_gnb_drx_profile_t profile = {
+      .policy_version = (uint32_t)decision.accepted.policy_version,
+      .long_cycle_ms = decision.accepted.long_cycle_ms,
+      .on_duration_ms = decision.accepted.on_duration_ms,
+      .inactivity_ms = decision.accepted.inactivity_ms,
+      .start_offset_ms = decision.accepted.start_offset_ms,
+      .drx_command_enabled = decision.accepted.drx_command_enabled,
+  };
+  if (!nr_mac_apply_drx_policy(nrmac, rnti, &profile)) {
+    printf("[RedCap DRX][dApp REJECT] rnti=%04x policy_version=%u reason=gnb_apply_failed\n",
+           rnti,
+           ric_request_id);
+    return false;
+  }
   return true;
 }
 #endif
@@ -320,7 +404,7 @@ static void fill_rc_control(ran_func_def_ctrl_t* ctrl)
 {
   // Sequence of CONTROL styles
   // [1 - 63]
-  ctrl->sz_seq_ctrl_style = 1;
+  ctrl->sz_seq_ctrl_style = 2;
   ctrl->seq_ctrl_style = calloc(ctrl->sz_seq_ctrl_style, sizeof(seq_ctrl_style_t));
   assert(ctrl->seq_ctrl_style != NULL && "Memory exhausted");
 
@@ -445,6 +529,33 @@ static void fill_rc_control(ran_func_def_ctrl_t* ctrl)
   // [0- 255]
   ctrl_style->sz_ran_param_ctrl_out = 0;
   ctrl_style->ran_param_ctrl_out = NULL;
+
+  seq_ctrl_style_t *drx_ctrl_style = &ctrl->seq_ctrl_style[1];
+  drx_ctrl_style->style_type = NR_REDCAP_RC_CTRL_STYLE_ID_RADIO_RESOURCE_ALLOCATION;
+  const char drx_control_name[] = "Radio Resource Allocation Control";
+  drx_ctrl_style->name = cp_str_to_ba(drx_control_name);
+  drx_ctrl_style->hdr = FORMAT_1_E2SM_RC_CTRL_HDR;
+  drx_ctrl_style->msg = FORMAT_1_E2SM_RC_CTRL_MSG;
+  drx_ctrl_style->call_proc_id_type = NULL;
+  drx_ctrl_style->out_frmt = FORMAT_1_E2SM_RC_CTRL_OUT;
+  drx_ctrl_style->sz_seq_ctrl_act = 1;
+  drx_ctrl_style->seq_ctrl_act = calloc(drx_ctrl_style->sz_seq_ctrl_act, sizeof(seq_ctrl_act_2_t));
+  assert(drx_ctrl_style->seq_ctrl_act != NULL && "Memory exhausted");
+
+  seq_ctrl_act_2_t *drx_ctrl_act = &drx_ctrl_style->seq_ctrl_act[0];
+  drx_ctrl_act->id = NR_REDCAP_RC_CTRL_ACT_ID_DRX_CONFIGURATION;
+  const char drx_ctrl_act_name[] = "DRX parameter configuration";
+  drx_ctrl_act->name = cp_str_to_ba(drx_ctrl_act_name);
+  drx_ctrl_act->sz_seq_assoc_ran_param = 1;
+  drx_ctrl_act->assoc_ran_param = calloc(drx_ctrl_act->sz_seq_assoc_ran_param, sizeof(seq_ran_param_3_t));
+  assert(drx_ctrl_act->assoc_ran_param != NULL && "Memory exhausted");
+
+  drx_ctrl_act->assoc_ran_param[0].id = NR_REDCAP_RC_RAN_PARAM_ID_LONG_DRX_CYCLE;
+  const char long_drx_cycle_name[] = "Long DRX Cycle Length";
+  drx_ctrl_act->assoc_ran_param[0].name = cp_str_to_ba(long_drx_cycle_name);
+  drx_ctrl_act->assoc_ran_param[0].def = NULL;
+  drx_ctrl_style->sz_ran_param_ctrl_out = 0;
+  drx_ctrl_style->ran_param_ctrl_out = NULL;
 }
 
 static ran_function_name_t fill_rc_ran_func_name(void)
@@ -958,17 +1069,47 @@ sm_ag_if_ans_t write_subs_rc_sm(void const* src)
 
 sm_ag_if_ans_t write_ctrl_rc_sm(void const* data)
 {
-  assert(data != NULL);
+  sm_ag_if_ans_t ans = {.type = CTRL_OUTCOME_SM_AG_IF_ANS_V0};
+  ans.ctrl_out.type = RAN_CTRL_V1_3_AGENT_IF_CTRL_ANS_V0;
+  if (data == NULL) {
+    printf("[RedCap DRX][dApp REJECT] reason=e2_decode_error\n");
+    return ans;
+  }
 //  assert(data->type == RAN_CONTROL_CTRL_V1_03 );
 
   rc_ctrl_req_data_t const* ctrl = (rc_ctrl_req_data_t const*)data;
 
-  assert(ctrl->hdr.format == FORMAT_1_E2SM_RC_CTRL_HDR && "Indication Header Format received not valid");
-  assert(ctrl->msg.format == FORMAT_1_E2SM_RC_CTRL_MSG && "Indication Message Format received not valid");
+  if (ctrl->hdr.format != FORMAT_1_E2SM_RC_CTRL_HDR || ctrl->msg.format != FORMAT_1_E2SM_RC_CTRL_MSG) {
+    printf("[RedCap DRX][dApp REJECT] reason=e2_decode_error\n");
+    return ans;
+  }
   const uint16_t ctrl_act_id = ctrl->hdr.frmt_1.ctrl_act_id;
+  const uint32_t ctrl_style_id = ctrl->hdr.frmt_1.ric_style_type;
   const seq_ran_param_t* ran_param = ctrl->msg.frmt_1.ran_param;
 
-  if (ctrl_act_id == 2) {
+  if (ctrl_style_id == NR_REDCAP_RC_CTRL_STYLE_ID_RADIO_RESOURCE_ALLOCATION
+      && ctrl_act_id == NR_REDCAP_RC_CTRL_ACT_ID_DRX_CONFIGURATION) {
+    printf("[RedCap DRX][xApp request] style=%u action=%u policy_version=%u\n",
+           ctrl_style_id,
+           ctrl_act_id,
+           ctrl->ric_req_id);
+    nr_redcap_rc_drx_ctrl_t drx_ctrl = {0};
+    const char *reason = "e2_decode_error";
+    if (!nr_redcap_parse_drx_ctrl_message(&ctrl->hdr.frmt_1, &ctrl->msg.frmt_1, &drx_ctrl, &reason)) {
+      printf("[RedCap DRX][dApp REJECT] reason=%s\n", reason);
+      goto rc_control_done;
+    }
+    // [Needs Verification]: the integer-to-TS 38.473 value mapping remains a frozen v1 review boundary.
+    printf("[RedCap DRX][E2 ACK] rrc_ue_id=%" PRIu64 " policy_version=%u long_cycle_ms=%u decode=accepted\n",
+           drx_ctrl.rrc_ue_id,
+           ctrl->ric_req_id,
+           drx_ctrl.long_cycle_ms);
+#if defined(NGRAN_GNB_DU)
+    (void)apply_redcap_drx_control(&drx_ctrl, ctrl->ric_req_id);
+#else
+    printf("[RedCap DRX][dApp REJECT] reason=unsupported_node_role\n");
+#endif
+  } else if (ctrl_style_id == 1 && ctrl_act_id == 2) {
     printf("QoS flow mapping configuration\n");
 
     // DRB ID
@@ -999,7 +1140,7 @@ sm_ag_if_ans_t write_ctrl_rc_sm(void const* data)
     assert(dir == 0 || dir == 1);
 
     printf("qfi = %ld, dir %ld \n", qfi, dir);
-  } else if (ctrl_act_id == NR_REDCAP_RC_CTRL_ACT_ID_UL_PRB_CAP) {
+  } else if (ctrl_style_id == 1 && ctrl_act_id == NR_REDCAP_RC_CTRL_ACT_ID_UL_PRB_CAP) {
     nr_redcap_rc_ul_prb_ctrl_t redcap_ctrl = {0};
     if (!nr_redcap_parse_ul_prb_ctrl_message(&ctrl->msg.frmt_1, &redcap_ctrl)) {
       printf("RedCap UL PRB control rejected: malformed RC control message\n");
@@ -1011,12 +1152,10 @@ sm_ag_if_ans_t write_ctrl_rc_sm(void const* data)
     assert(false && "RedCap UL PRB control is not supported for CU-UP-only RC agent builds");
 #endif
   } else {
-    assert(false && "Unsupported RIC control action");
+    printf("RIC control rejected: unsupported style=%u action=%u\n", ctrl_style_id, ctrl_act_id);
   }
 
 rc_control_done:
-  sm_ag_if_ans_t ans = {.type = CTRL_OUTCOME_SM_AG_IF_ANS_V0};
-  ans.ctrl_out.type = RAN_CTRL_V1_3_AGENT_IF_CTRL_ANS_V0;
   return ans;
 }
 

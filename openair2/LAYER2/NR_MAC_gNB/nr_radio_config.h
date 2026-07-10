@@ -31,6 +31,7 @@
 #include "NR_MeasConfig.h"
 #include "NR_MeasurementTimingConfiguration.h"
 #include "NR_UL-CCCH-Message.h"
+#include "nr_mac_drx.h"
 #include "f1ap_messages_types.h"
 #include "common/platform_types.h"
 #include "openair2/LAYER2/nr_rlc/nr_rlc_configuration.h"
@@ -131,6 +132,10 @@ NR_CellGroupConfig_t *update_cellGroupConfig_for_BWP_switch(NR_CellGroupConfig_t
                                                             int uid,
                                                             int old_bwp,
                                                             int new_bwp);
+NR_CellGroupConfig_t *update_cellGroupConfig_for_drx(const NR_CellGroupConfig_t *cellGroupConfig,
+                                                     const nr_gnb_drx_profile_t *profile);
+bool get_drx_profile_from_cellGroupConfig(const NR_CellGroupConfig_t *cellGroupConfig,
+                                          nr_gnb_drx_profile_t *profile);
 NR_MeasurementTimingConfiguration_t *get_nr_mtc(uint8_t *buf, uint32_t len);
 measgap_config_t create_measgap_config(const NR_MeasurementTimingConfiguration_t *mtc, int scs, int min_rxtxtime);
 int encode_measgap_config(const measgap_config_t *c, uint8_t *buf);

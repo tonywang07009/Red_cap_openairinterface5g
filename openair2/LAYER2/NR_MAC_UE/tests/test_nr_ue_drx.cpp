@@ -38,15 +38,64 @@ TEST(NrUeDrx, PendingSrAndInactivityKeepUeActive)
   EXPECT_TRUE(nr_ue_drx_is_active_slot(&drx, 10, true));
 }
 
-TEST(NrUeDrx, ActivityExtendsActiveTimeByInactivityTimer)
+TEST(NrUeDrx, NewAssignmentExtendsActiveTimeByInactivityTimer)
 {
   NR_UE_MAC_INST_t mac = {};
   mac.frame_structure.numb_slots_frame = 20;
   mac.scheduling_info.drx_config.configured = true;
   mac.scheduling_info.drx_config.inactivity_slots = 8;
 
-  nr_ue_drx_note_activity(&mac, 3, 4);
-  EXPECT_EQ(72U, mac.scheduling_info.drx_config.active_until_slot);
+  nr_ue_drx_on_dl_assignment(&mac, 3, 4, 2, true);
+  EXPECT_EQ(73U, mac.scheduling_info.drx_config.active_until_slot);
+  nr_ue_drx_on_dl_assignment(&mac, 3, 5, 2, false);
+  EXPECT_EQ(73U, mac.scheduling_info.drx_config.active_until_slot);
+}
+
+TEST(NrUeDrx, UnwrapsSlotAcrossSfnBoundary)
+{
+  nr_drx_config_t drx = {};
+  EXPECT_EQ(10239U, nr_ue_drx_unwrap_slot(&drx, 10, 1023, 9));
+  EXPECT_EQ(10240U, nr_ue_drx_unwrap_slot(&drx, 10, 0, 0));
+}
+
+TEST(NrUeDrx, NackActivatesHarqRetransmissionWindowAfterRtt)
+{
+  NR_UE_MAC_INST_t mac = {};
+  mac.frame_structure.numb_slots_frame = 10;
+  nr_drx_config_t *drx = &mac.scheduling_info.drx_config;
+  drx->configured = true;
+  drx->long_cycle_slots = 100;
+  drx->on_duration_slots = 1;
+  drx->harq_rtt_dl_slots = 4;
+  drx->retransmission_dl_slots = 8;
+
+  nr_ue_drx_on_dl_harq_feedback(&mac, 1, 0, 3, false);
+  EXPECT_FALSE(nr_ue_drx_is_active_slot(drx, 14, false));
+  EXPECT_TRUE(nr_ue_drx_is_active_slot(drx, 15, false));
+  EXPECT_FALSE(nr_ue_drx_is_active_slot(drx, 23, false));
+}
+
+TEST(NrUeDrx, DrxCommandsStopInactivityAndSelectCycle)
+{
+  NR_UE_MAC_INST_t mac = {};
+  mac.frame_structure.numb_slots_frame = 10;
+  nr_drx_config_t *drx = &mac.scheduling_info.drx_config;
+  drx->configured = true;
+  drx->long_cycle_slots = 320;
+  drx->on_duration_slots = 10;
+  drx->inactivity_slots = 20;
+  drx->short_cycle_configured = true;
+  drx->short_cycle_slots = 20;
+  drx->short_cycle_timer = 2;
+
+  nr_ue_drx_on_dl_assignment(&mac, 0, 2, 0, true);
+  ASSERT_GT(drx->active_until_slot, 0U);
+  nr_ue_drx_on_command(&mac, 0, 3, false);
+  EXPECT_EQ(0U, drx->active_until_slot);
+  EXPECT_TRUE(drx->short_cycle_active);
+
+  nr_ue_drx_on_command(&mac, 0, 4, true);
+  EXPECT_FALSE(drx->short_cycle_active);
 }
 
 TEST(NrUeDrx, DetectsPendingSchedulingRequest)

@@ -75,6 +75,7 @@
 #include "NR_BCCH-BCH-Message.h"
 #include "NR_CellGroupConfig.h"
 #include "NR_BCCH-DL-SCH-Message.h"
+#include "nr_mac_drx.h"
 #include "nr_mac_redcap.h"
 #include "nr_mac_redcap_bwp.h"
 #include "nr_mac_sdt_fsm.h"
@@ -706,6 +707,8 @@ typedef struct {
   nr_redcap_sdt_fsm_t redcap_sdt_fsm;
   /// Optional per-UE runtime UL PRB cap pushed through the RedCap xApp control path
   uint16_t redcap_ul_prb_cap;
+  /// gNB view of the UE's RRC-configured Connected DRX state
+  nr_gnb_drx_state_t drx_state;
   NR_UE_mac_ce_ctrl_t UE_mac_ce_ctrl; // MAC CE related information
 
   /// Timer for RRC processing procedures and transmission activity

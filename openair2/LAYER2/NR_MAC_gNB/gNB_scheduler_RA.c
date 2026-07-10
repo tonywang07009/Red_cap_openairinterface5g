@@ -46,6 +46,9 @@
 
 #include <executables/softmodem-common.h>
 #include <stdlib.h>
+#include <string.h>
+
+#define NR_REDCAP_DAPP_RA_RETRY_PRIORITY_ENV "OAI_REDCAP_DAPP_RA_RETRY_PRIORITY"
 
 static void nr_fill_rar(uint8_t Mod_idP, NR_UE_info_t *UE, uint8_t *dlsch_buffer, nfapi_nr_pusch_pdu_t *pusch_pdu);
 
@@ -59,6 +62,21 @@ static int mmtc_rrc_inactive_gate2_resume_trigger_enabled(void)
   const char *env = getenv("MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER");
   cached = (env != NULL && atoi(env) > 0) ? 1 : 0;
   return cached;
+}
+
+static bool nr_redcap_dapp_ra_retry_priority_enabled(void)
+{
+  static int cached_enabled = -1;
+  if (cached_enabled >= 0)
+    return cached_enabled == 1;
+
+  const char *env = getenv(NR_REDCAP_DAPP_RA_RETRY_PRIORITY_ENV);
+  cached_enabled = env != NULL
+                   && env[0] != '\0'
+                   && strcmp(env, "0") != 0
+                   && strcmp(env, "false") != 0
+                   && strcmp(env, "FALSE") != 0;
+  return cached_enabled == 1;
 }
 
 static int count_vrb_occupied_prbs(const uint16_t *vrb_map, int bwp_start, int bwp_size, uint16_t symbol_mask)
@@ -2667,16 +2685,36 @@ void nr_schedule_RA(module_id_t module_idP,
 
     }
 
+    const bool retry_priority_enabled = nr_redcap_dapp_ra_retry_priority_enabled();
+
+    if (retry_priority_enabled) {
+      UE_iterator(mac->UE_info.access_ue_list, UE) {
+        NR_RA_t *ra = UE->ra;
+        if (ra->ra_state == nrRA_Msg3_retransmission) {
+          LOG_I(NR_MAC,
+                "[RedCap dApp RA retry priority] frame.slot %d.%d TC-RNTI %04x preamble %u msg3_round %u action=msg3_retx_first\n",
+                frameP,
+                slotP,
+                UE->rnti,
+                ra->preamble_index,
+                ra->msg3_round);
+          nr_generate_Msg3_retransmission(module_idP, CC_id, frameP, slotP, UE, ul_dci_req);
+        }
+      }
+    }
+
     UE_iterator(mac->UE_info.access_ue_list, UE) {
       NR_RA_t *ra = UE->ra;
       if (ra->ra_state == nrRA_Msg2)
         nr_generate_Msg2(module_idP, CC_id, frameP, slotP, UE, DL_req, TX_req);
     }
 
-    UE_iterator(mac->UE_info.access_ue_list, UE) {
-      NR_RA_t *ra = UE->ra;
-      if (ra->ra_state == nrRA_Msg3_retransmission)
-        nr_generate_Msg3_retransmission(module_idP, CC_id, frameP, slotP, UE, ul_dci_req);
+    if (!retry_priority_enabled) {
+      UE_iterator(mac->UE_info.access_ue_list, UE) {
+        NR_RA_t *ra = UE->ra;
+        if (ra->ra_state == nrRA_Msg3_retransmission)
+          nr_generate_Msg3_retransmission(module_idP, CC_id, frameP, slotP, UE, ul_dci_req);
+      }
     }
 
     UE_iterator(mac->UE_info.access_ue_list, UE) {

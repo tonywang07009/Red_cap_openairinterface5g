@@ -2506,6 +2506,20 @@ static uint32_t nr_drx_retransmission_slots(long timer)
   return values_slots[timer];
 }
 
+static uint32_t nr_drx_harq_rtt_slots(long timer_symbols)
+{
+  AssertFatal(timer_symbols >= 0 && timer_symbols <= 56, "Invalid DRX HARQ RTT timer value %ld\n", timer_symbols);
+  return (uint32_t)timer_symbols / NR_NUMBER_OF_SYMBOLS_PER_SLOT;
+}
+
+static uint32_t nr_drx_slot_offset_slots(long offset_1_over_32_ms, int scs)
+{
+  AssertFatal(offset_1_over_32_ms >= 0 && offset_1_over_32_ms <= 31,
+              "Invalid DRX slot offset value %ld\n",
+              offset_1_over_32_ms);
+  return (uint32_t)offset_1_over_32_ms * (1U << scs) / 32U;
+}
+
 /**
  * @brief Decode NR DRX short-cycle enum values into slots.
  *
@@ -2650,12 +2664,13 @@ static void configure_drx(NR_UE_MAC_INST_t *mac, const NR_SetupRelease_DRX_Confi
   dst->configured = true;
   dst->on_duration_slots = nr_drx_on_duration_slots(drx, scs);
   dst->inactivity_slots = nr_drx_inactivity_slots(drx, scs);
-  dst->harq_rtt_dl_slots = drx->drx_HARQ_RTT_TimerDL;
-  dst->harq_rtt_ul_slots = drx->drx_HARQ_RTT_TimerUL;
+  dst->harq_rtt_dl_slots = nr_drx_harq_rtt_slots(drx->drx_HARQ_RTT_TimerDL);
+  dst->harq_rtt_ul_slots = nr_drx_harq_rtt_slots(drx->drx_HARQ_RTT_TimerUL);
   dst->retransmission_dl_slots = nr_drx_retransmission_slots(drx->drx_RetransmissionTimerDL);
   dst->retransmission_ul_slots = nr_drx_retransmission_slots(drx->drx_RetransmissionTimerUL);
   nr_drx_long_cycle_slots(drx, scs, &dst->long_cycle_slots, &dst->long_cycle_offset_slots);
-  dst->slot_offset = drx->drx_SlotOffset;
+  // The scheduler gates complete slots; a fractional slot offset keeps its containing slot monitored.
+  dst->slot_offset = nr_drx_slot_offset_slots(drx->drx_SlotOffset, scs);
   if (drx->shortDRX) {
     dst->short_cycle_configured = true;
     dst->short_cycle_slots = nr_drx_short_cycle_slots(drx->shortDRX->drx_ShortCycle, scs);

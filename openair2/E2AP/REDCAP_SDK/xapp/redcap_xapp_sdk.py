@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Minimal Python helpers matching the RedCap xApp C SDK."""
+"""RedCap xApp data helpers; this module is not a live FlexRIC SWIG transport."""
 
 from __future__ import annotations
 
@@ -11,6 +11,10 @@ from typing import Any, Mapping, Sequence
 NR_REDCAP_RC_CTRL_ACT_ID_UL_PRB_CAP = 100
 NR_REDCAP_RC_RAN_PARAM_ID_UE_RNTI = 101
 NR_REDCAP_RC_RAN_PARAM_ID_MAX_UL_PRB = 102
+NR_REDCAP_RC_CTRL_STYLE_ID_RADIO_RESOURCE_ALLOCATION = 2
+NR_REDCAP_RC_CTRL_ACT_ID_DRX_CONFIGURATION = 1
+NR_REDCAP_RC_RAN_PARAM_ID_LONG_DRX_CYCLE = 1
+APPROVED_LONG_DRX_CYCLES_MS = frozenset({320, 640, 1280, 2560, 5120, 10240})
 SM_RC_ID = 3
 
 
@@ -37,6 +41,37 @@ class RedCapUlPrbCtrlRequest:
                 ],
             },
         }
+
+
+@dataclass(frozen=True)
+class RedCapDrxCtrlRequest:
+    ue_id: int
+    long_cycle_ms: int
+    ric_request_id: int
+    policy_version: int
+
+    def as_e2sm_rc_dict(self) -> dict[str, Any]:
+        """Return only fields encoded by the standard RC request."""
+        return {
+            "hdr": {
+                "format": "FORMAT_1_E2SM_RC_CTRL_HDR",
+                "ue_id": self.ue_id,
+                "ric_style_type": NR_REDCAP_RC_CTRL_STYLE_ID_RADIO_RESOURCE_ALLOCATION,
+                "ctrl_act_id": NR_REDCAP_RC_CTRL_ACT_ID_DRX_CONFIGURATION,
+            },
+            "msg": {
+                "format": "FORMAT_1_E2SM_RC_CTRL_MSG",
+                "ran_param": [
+                    {
+                        "ran_param_id": NR_REDCAP_RC_RAN_PARAM_ID_LONG_DRX_CYCLE,
+                        "int_ran": self.long_cycle_ms,
+                    }
+                ],
+            },
+        }
+
+    def local_correlation(self) -> dict[str, int]:
+        return {"ric_request_id": self.ric_request_id, "policy_version": self.policy_version}
 
 
 @dataclass(frozen=True)
@@ -82,6 +117,21 @@ def make_ul_prb_ctrl_request(ue_id: int, rnti: int, max_ul_prb: int) -> RedCapUl
     return RedCapUlPrbCtrlRequest(ue_id=ue_id, rnti=rnti, max_ul_prb=max_ul_prb)
 
 
+def make_drx_ctrl_request(
+    ue_id: int,
+    long_cycle_ms: int,
+    ric_request_id: int,
+    policy_version: int,
+) -> RedCapDrxCtrlRequest:
+    if ue_id <= 0:
+        raise ValueError("ue_id must be positive")
+    if long_cycle_ms not in APPROVED_LONG_DRX_CYCLES_MS:
+        raise ValueError("unsupported_long_cycle")
+    if ric_request_id < 0 or policy_version <= 0:
+        raise ValueError("ric_request_id must be non-negative and policy_version must be positive")
+    return RedCapDrxCtrlRequest(ue_id, long_cycle_ms, ric_request_id, policy_version)
+
+
 def find_rc_ran_func_idx(ran_functions: Sequence[Mapping[str, Any]]) -> int:
     for idx, ran_func in enumerate(ran_functions):
         if ran_func.get("id") == SM_RC_ID or ran_func.get("defn_type") == "RC_RAN_FUNC_DEF_E":
@@ -117,6 +167,14 @@ def _self_check() -> None:
     assert encoded["msg"]["ran_param"][0]["int_ran"] == 0xE349
     assert find_rc_ran_func_idx([{"id": 1}, {"id": SM_RC_ID}]) == 1
     assert find_rc_ran_func_idx([{"defn_type": "RC_RAN_FUNC_DEF_E"}]) == 0
+    drx_req = make_drx_ctrl_request(ue_id=0xE349, long_cycle_ms=1280, ric_request_id=7, policy_version=3)
+    drx_encoded = drx_req.as_e2sm_rc_dict()
+    assert drx_encoded["hdr"]["ric_style_type"] == NR_REDCAP_RC_CTRL_STYLE_ID_RADIO_RESOURCE_ALLOCATION
+    assert drx_encoded["msg"]["ran_param"] == [
+        {"ran_param_id": NR_REDCAP_RC_RAN_PARAM_ID_LONG_DRX_CYCLE, "int_ran": 1280}
+    ]
+    assert "on_duration_ms" not in str(drx_encoded)
+    assert drx_req.local_correlation() == {"ric_request_id": 7, "policy_version": 3}
     top = select_top_priority_hint(
         [
             RedCapUeMetric(rnti=0x1002, ul_buffer_bytes=1024, qos_weight=1, redcap_weight=1),
