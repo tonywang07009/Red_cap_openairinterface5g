@@ -245,7 +245,8 @@ static redcap_dapp_drx_guard_result_t redcap_dapp_reject_drx_policy(const char *
 
 static bool redcap_dapp_valid_rollback_config(const redcap_dapp_drx_config_t *current, uint16_t rnti)
 {
-  if (current == 0 || current->rnti != rnti || current->start_offset_ms >= current->long_cycle_ms)
+  if (current == 0 || !current->rollback_available || current->rnti != rnti
+      || current->start_offset_ms >= current->long_cycle_ms)
     return false;
 
   const redcap_dapp_drx_profile_t *profile = redcap_dapp_find_drx_profile(current->long_cycle_ms);

@@ -120,7 +120,7 @@ static bool apply_redcap_drx_control(const nr_redcap_rc_drx_ctrl_t *control, uin
     if (state->configured) {
       current = (redcap_dapp_drx_config_t){
           .rnti = rnti,
-          .policy_version = state->applied.policy_version,
+          .policy_version = state->latest_policy_version,
           .long_cycle_ms = state->applied.long_cycle_ms,
           .on_duration_ms = state->applied.on_duration_ms,
           .start_offset_ms = state->applied.start_offset_ms,

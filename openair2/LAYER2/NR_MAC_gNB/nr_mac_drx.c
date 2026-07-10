@@ -7,6 +7,12 @@
 #include "nr_mac_drx.h"
 
 #include <stddef.h>
+#include <string.h>
+
+enum {
+  NR_GNB_DRX_HARQ_RTT_FULL_SLOTS = 0,
+  NR_GNB_DRX_RETRANSMISSION_SLOTS = 8,
+};
 
 static bool approved_profile(uint32_t cycle_ms, uint32_t on_duration_ms)
 {
@@ -94,6 +100,8 @@ bool nr_gnb_drx_commit_profile(nr_gnb_drx_state_t *state,
   state->drx_command_requested = false;
   state->drx_command_pending = false;
   state->active_until_slot = 0;
+  memset(state->dl_harq, 0, sizeof(state->dl_harq));
+  memset(state->ul_harq, 0, sizeof(state->ul_harq));
   return true;
 }
 
@@ -143,8 +151,7 @@ bool nr_gnb_drx_is_active(nr_gnb_drx_state_t *state,
                           uint16_t frame,
                           uint16_t slot,
                           uint16_t slots_per_frame,
-                          bool scheduling_request_pending,
-                          bool retransmission_pending)
+                          bool scheduling_request_pending)
 {
   if (state == NULL)
     return true;
@@ -152,8 +159,18 @@ bool nr_gnb_drx_is_active(nr_gnb_drx_state_t *state,
     return false;
   if (!state->configured)
     return true;
-  if (scheduling_request_pending || retransmission_pending || state->absolute_slot < state->active_until_slot)
+  if (scheduling_request_pending || state->absolute_slot < state->active_until_slot)
     return true;
+
+  for (size_t i = 0; i < NR_GNB_DRX_MAX_HARQ_PROCESSES; ++i) {
+    const nr_gnb_drx_harq_timer_t *dl = &state->dl_harq[i];
+    const nr_gnb_drx_harq_timer_t *ul = &state->ul_harq[i];
+    if ((dl->rtt_until_slot < dl->retransmission_until_slot && state->absolute_slot >= dl->rtt_until_slot
+         && state->absolute_slot < dl->retransmission_until_slot)
+        || (ul->rtt_until_slot < ul->retransmission_until_slot && state->absolute_slot >= ul->rtt_until_slot
+            && state->absolute_slot < ul->retransmission_until_slot))
+      return true;
+  }
 
   const uint64_t cycle_position =
       (state->absolute_slot + state->long_cycle_slots - state->start_offset_slots) % state->long_cycle_slots;
@@ -179,6 +196,58 @@ void nr_gnb_drx_note_dl_ack(nr_gnb_drx_state_t *state)
     state->drx_command_requested = false;
     state->drx_command_pending = true;
   }
+}
+
+void nr_gnb_drx_clear_harq(nr_gnb_drx_state_t *state, bool downlink, uint8_t harq_pid)
+{
+  if (state == NULL || harq_pid >= NR_GNB_DRX_MAX_HARQ_PROCESSES)
+    return;
+  nr_gnb_drx_harq_timer_t *timer = downlink ? &state->dl_harq[harq_pid] : &state->ul_harq[harq_pid];
+  *timer = (nr_gnb_drx_harq_timer_t){0};
+}
+
+static void nr_gnb_drx_start_harq_timer(nr_gnb_drx_state_t *state,
+                                        bool downlink,
+                                        uint8_t harq_pid,
+                                        uint16_t frame,
+                                        uint16_t slot,
+                                        uint16_t slots_per_frame)
+{
+  if (state == NULL || !state->configured || harq_pid >= NR_GNB_DRX_MAX_HARQ_PROCESSES
+      || slots_per_frame == 0 || frame >= NR_GNB_DRX_SFN_MODULUS || slot >= slots_per_frame)
+    return;
+
+  if (!state->clock_initialized && !update_clock(state, frame, slot, slots_per_frame))
+    return;
+  const uint32_t period_slots = NR_GNB_DRX_SFN_MODULUS * slots_per_frame;
+  const uint32_t event_mod_slot = (uint32_t)frame * slots_per_frame + slot;
+  const uint32_t delta = (event_mod_slot + period_slots - state->last_mod_slot) % period_slots;
+  const uint64_t event_slot = state->absolute_slot + delta;
+
+  nr_gnb_drx_harq_timer_t *timer = downlink ? &state->dl_harq[harq_pid] : &state->ul_harq[harq_pid];
+  timer->rtt_until_slot = event_slot + 1 + NR_GNB_DRX_HARQ_RTT_FULL_SLOTS;
+  timer->retransmission_until_slot = timer->rtt_until_slot + NR_GNB_DRX_RETRANSMISSION_SLOTS;
+}
+
+void nr_gnb_drx_note_dl_harq_result(nr_gnb_drx_state_t *state,
+                                    uint8_t harq_pid,
+                                    bool acknowledged,
+                                    uint16_t frame,
+                                    uint16_t slot,
+                                    uint16_t slots_per_frame)
+{
+  nr_gnb_drx_clear_harq(state, true, harq_pid);
+  if (!acknowledged)
+    nr_gnb_drx_start_harq_timer(state, true, harq_pid, frame, slot, slots_per_frame);
+}
+
+void nr_gnb_drx_note_ul_harq_transmission(nr_gnb_drx_state_t *state,
+                                          uint8_t harq_pid,
+                                          uint16_t frame,
+                                          uint16_t slot,
+                                          uint16_t slots_per_frame)
+{
+  nr_gnb_drx_start_harq_timer(state, false, harq_pid, frame, slot, slots_per_frame);
 }
 
 bool nr_gnb_drx_request_command(nr_gnb_drx_state_t *state)

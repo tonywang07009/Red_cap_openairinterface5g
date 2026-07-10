@@ -11,6 +11,12 @@
 #include <stdint.h>
 
 #define NR_GNB_DRX_SFN_MODULUS 1024U
+#define NR_GNB_DRX_MAX_HARQ_PROCESSES 16U
+
+typedef struct {
+  uint64_t rtt_until_slot;
+  uint64_t retransmission_until_slot;
+} nr_gnb_drx_harq_timer_t;
 
 typedef struct {
   uint32_t policy_version;
@@ -40,6 +46,8 @@ typedef struct {
   nr_gnb_drx_profile_t applied;
   nr_gnb_drx_profile_t previous;
   nr_gnb_drx_profile_t pending;
+  nr_gnb_drx_harq_timer_t dl_harq[NR_GNB_DRX_MAX_HARQ_PROCESSES];
+  nr_gnb_drx_harq_timer_t ul_harq[NR_GNB_DRX_MAX_HARQ_PROCESSES];
 } nr_gnb_drx_state_t;
 
 bool nr_gnb_drx_profile_is_valid(const nr_gnb_drx_profile_t *profile);
@@ -55,13 +63,24 @@ bool nr_gnb_drx_is_active(nr_gnb_drx_state_t *state,
                           uint16_t frame,
                           uint16_t slot,
                           uint16_t slots_per_frame,
-                          bool scheduling_request_pending,
-                          bool retransmission_pending);
+                          bool scheduling_request_pending);
 void nr_gnb_drx_note_new_transmission(nr_gnb_drx_state_t *state,
                                       uint16_t frame,
                                       uint16_t slot,
                                       uint16_t slots_per_frame);
 void nr_gnb_drx_note_dl_ack(nr_gnb_drx_state_t *state);
+void nr_gnb_drx_note_dl_harq_result(nr_gnb_drx_state_t *state,
+                                    uint8_t harq_pid,
+                                    bool acknowledged,
+                                    uint16_t frame,
+                                    uint16_t slot,
+                                    uint16_t slots_per_frame);
+void nr_gnb_drx_note_ul_harq_transmission(nr_gnb_drx_state_t *state,
+                                          uint8_t harq_pid,
+                                          uint16_t frame,
+                                          uint16_t slot,
+                                          uint16_t slots_per_frame);
+void nr_gnb_drx_clear_harq(nr_gnb_drx_state_t *state, bool downlink, uint8_t harq_pid);
 bool nr_gnb_drx_request_command(nr_gnb_drx_state_t *state);
 bool nr_gnb_drx_command_ready(const nr_gnb_drx_state_t *state,
                               bool scheduling_request_pending,

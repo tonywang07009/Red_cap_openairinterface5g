@@ -12,6 +12,7 @@ int main(void)
       .on_duration_ms = 10,
       .start_offset_ms = 0,
       .inactivity_ms = REDCAP_DAPP_DRX_INACTIVITY_MS,
+      .rollback_available = true,
       .profile_id = "drx-320-10",
   };
   redcap_dapp_drx_policy_request_t request = {
@@ -58,6 +59,11 @@ int main(void)
   result = redcap_dapp_guard_drx_policy(&request, 0);
   assert(strcmp(result.reason, "rollback_unavailable") == 0);
   assert(strcmp(result.marker, "[RedCap DRX][dApp REJECT]") == 0);
+
+  redcap_dapp_drx_config_t no_rollback = baseline;
+  no_rollback.rollback_available = false;
+  result = redcap_dapp_guard_drx_policy(&request, &no_rollback);
+  assert(strcmp(result.reason, "rollback_unavailable") == 0);
 
   redcap_dapp_e2_drx_cycle_request_t e2_request = {
       .rnti = baseline.rnti,

@@ -24,8 +24,19 @@ CONTROL_MARKERS = (
 TIMEOUT_MARKER = "[RedCap DRX][control timeout]"
 
 
-def _contains_version(text: str, marker: str, policy_version: str) -> bool:
-    pattern = rf"{re.escape(marker)}[^\n]*\bpolicy_version(?:=|\s+){re.escape(policy_version)}\b"
+def _contains_version(text: str, marker: str, policy_version: str, suffix: str = "") -> bool:
+    pattern = (
+        rf"{re.escape(marker)}[^\n]*\bpolicy_version(?:=|\s+){re.escape(policy_version)}\b"
+        rf"[^\n]*{re.escape(suffix)}"
+    )
+    return re.search(pattern, text) is not None
+
+
+def _contains_applied_profile(text: str, policy_version: str, cycle_ms: int, on_duration_ms: int) -> bool:
+    pattern = (
+        rf"{re.escape('[RedCap DRX][gNB applied]')}[^\n]*\bpolicy_version(?:=|\s+){re.escape(policy_version)}\b"
+        rf"[^\n]*\bcycle_ms(?:=|\s+){cycle_ms}\b[^\n]*\bon_duration_ms(?:=|\s+){on_duration_ms}\b"
+    )
     return re.search(pattern, text) is not None
 
 
@@ -69,6 +80,11 @@ def check(
     policy_counts: Counter[str] = Counter()
     window_versions: dict[int, set[str]] = defaultdict(set)
     window_profiles: dict[int, set[str]] = defaultdict(set)
+    profiles_by_version: dict[str, set[str]] = defaultdict(set)
+    approved_profiles = {
+        str(profile["profile_id"]): (int(profile["long_cycle_ms"]), int(profile["on_duration_ms"]))
+        for profile in manifest.get("approved_profiles", [])
+    }
     for row in scored:
         arrival_id = int(row["arrival_id"])
         expected = trace.get(arrival_id)
@@ -86,6 +102,10 @@ def check(
             issues.append(f"arrival {arrival_id}: missing profile_id")
         else:
             window_profiles[(arrival_id - 1) // 30].add(row["profile_id"])
+            if row["profile_id"] not in approved_profiles:
+                issues.append(f"arrival {arrival_id}: unsupported profile_id {row['profile_id']}")
+            if row["policy_version"]:
+                profiles_by_version[row["policy_version"]].add(row["profile_id"])
         success_count += row["delivery_success"].strip().lower() in {"1", "true", "yes", "pass"}
 
     if len(policy_versions) != 10 or any(count != 30 for count in policy_counts.values()):
@@ -110,8 +130,18 @@ def check(
     correlated_markers = CONTROL_MARKERS if campaign.get("arm") == "B" else ("[RedCap DRX][gNB applied]",)
     for version in sorted(policy_versions):
         for marker in correlated_markers:
-            if not _contains_version(logs, marker, version):
+            suffix = "outcome success" if marker == "[RedCap DRX][RRC complete]" else ""
+            if not _contains_version(logs, marker, version, suffix):
                 issues.append(f"{TIMEOUT_MARKER} policy_version {version}: missing marker {marker}")
+        version_profiles = profiles_by_version[version]
+        if len(version_profiles) == 1:
+            profile_id = next(iter(version_profiles))
+            if profile_id in approved_profiles:
+                cycle_ms, on_duration_ms = approved_profiles[profile_id]
+                if not _contains_applied_profile(logs, version, cycle_ms, on_duration_ms):
+                    issues.append(
+                        f"policy_version {version}: gNB applied profile does not match {profile_id}"
+                    )
     return issues, {"scored_records": len(scored), "delivery_success_count": success_count, "policy_versions": len(policy_versions)}
 
 

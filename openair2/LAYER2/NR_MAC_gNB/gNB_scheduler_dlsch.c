@@ -705,8 +705,7 @@ static void pf_dl(gNB_MAC_INST *mac,
                               frame,
                               slot,
                               slots_per_frame,
-                              sched_ctrl->SR,
-                              harq_pid >= 0)) {
+                              sched_ctrl->SR || UE->ra != NULL)) {
       LOG_D(NR_MAC, "[RedCap DRX][gNB gate] RNTI %04x DL sleeping at %d.%d\n", UE->rnti, frame, slot);
       continue;
     }
@@ -741,6 +740,7 @@ static void pf_dl(gNB_MAC_INST *mac,
         reset_beam_status(&mac->beam_info, frame, slot, UE->UE_beam_index, slots_per_frame, beam.new_beam);
         continue;
       }
+      nr_gnb_drx_clear_harq(&sched_ctrl->drx_state, true, harq_pid);
       /* reduce max_num_ue once we are sure UE can be allocated, i.e., has CCE */
       remainUEs[beam.idx]--;
 

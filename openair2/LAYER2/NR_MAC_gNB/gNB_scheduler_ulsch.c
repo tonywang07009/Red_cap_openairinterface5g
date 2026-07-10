@@ -985,6 +985,7 @@ static void handle_nr_ul_harq(gNB_MAC_INST *nrmac,
 
     if(sched_ctrl->ul_harq_processes[harq_pid].round >= nrmac->ul_bler.harq_round_max - 1) {
       abort_nr_ul_harq(UE, harq_pid);
+      nr_gnb_drx_clear_harq(&sched_ctrl->drx_state, false, harq_pid);
     } else {
       sched_ctrl->ul_harq_processes[harq_pid].round++;
       add_tail_nr_list(&sched_ctrl->retrans_ul_harq, harq_pid);
@@ -998,12 +999,14 @@ static void handle_nr_ul_harq(gNB_MAC_INST *nrmac,
   harq->is_waiting = false;
   if (!crc_status) {
     finish_nr_ul_harq(sched_ctrl, harq_pid);
+    nr_gnb_drx_clear_harq(&sched_ctrl->drx_state, false, harq_pid);
     LOG_D(NR_MAC,
           "Ulharq id %d crc passed for RNTI %04x\n",
           harq_pid,
           rnti);
   } else if (harq->round >= nrmac->ul_bler.harq_round_max  - 1) {
     abort_nr_ul_harq(UE, harq_pid);
+    nr_gnb_drx_clear_harq(&sched_ctrl->drx_state, false, harq_pid);
     LOG_D(NR_MAC,
           "RNTI %04x: Ulharq id %d crc failed in all rounds\n",
           rnti,
@@ -2333,8 +2336,7 @@ static int  pf_ul(gNB_MAC_INST *nrmac,
                               frame,
                               slot,
                               slots_per_frame,
-                              sched_ctrl->SR,
-                              ul_harq_pid >= 0)) {
+                              sched_ctrl->SR || UE->ra != NULL)) {
       LOG_D(NR_MAC, "[RedCap DRX][gNB gate] RNTI %04x UL sleeping at %d.%d\n", UE->rnti, frame, slot);
       reset_beam_status(&nrmac->beam_info, sched_frame, sched_slot, UE->UE_beam_index, slots_per_frame, beam.new_beam);
       reset_beam_status(&nrmac->beam_info, frame, slot, UE->UE_beam_index, slots_per_frame, dci_beam.new_beam);
@@ -2360,6 +2362,12 @@ static int  pf_ul(gNB_MAC_INST *nrmac,
       }
       else
         LOG_D(NR_MAC,"%4d.%2d UL Retransmission UE RNTI %04x to be allocated, max_num_ue %d\n", frame, slot, UE->rnti,max_num_ue);
+
+      nr_gnb_drx_note_ul_harq_transmission(&sched_ctrl->drx_state,
+                                           ul_harq_pid,
+                                           sched_frame,
+                                           sched_slot,
+                                           slots_per_frame);
 
       /* reduce max_num_ue once we are sure UE can be allocated, i.e., has CCE */
       remainUEs[beam.idx]--;
@@ -2615,6 +2623,11 @@ static int  pf_ul(gNB_MAC_INST *nrmac,
     /* save allocation to FAPI structures */
     post_process_ulsch(nrmac, pp_pusch, iterator->UE, &sched);
     nr_gnb_drx_note_new_transmission(&sched_ctrl->drx_state, frame, slot, slots_per_frame);
+    nr_gnb_drx_note_ul_harq_transmission(&sched_ctrl->drx_state,
+                                         sched.ul_harq_pid,
+                                         sched.frame,
+                                         sched.slot,
+                                         slots_per_frame);
 
     n_rb_sched[beam.idx] -= sched.rbSize;
     for (int rb = bi.bwpStart; rb < sched.rbSize; rb++)

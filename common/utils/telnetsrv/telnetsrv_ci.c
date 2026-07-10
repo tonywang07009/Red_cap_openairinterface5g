@@ -386,6 +386,55 @@ static int trigger_bwp_switch(char *buf, int debug, telnet_printfunc_t prnt)
   }
 }
 
+static int trigger_drx_policy(char *buf, int debug, telnet_printfunc_t prnt)
+{
+  char *sversion = strtok(buf, " ");
+  char *scycle = strtok(NULL, " ");
+  char *son_duration = strtok(NULL, " ");
+  char *soffset = strtok(NULL, " ");
+  char *scommand_enabled = strtok(NULL, " ");
+  char *srnti = strtok(NULL, " ");
+  if (!sversion || !scycle || !son_duration || !soffset || !scommand_enabled)
+    ERROR_MSG_RET(
+        "usage: ci trigger_drx_policy version cycle_ms on_duration_ms offset_ms command_enabled [rnti]\n");
+
+  char *end = NULL;
+  const unsigned long version = strtoul(sversion, &end, 0);
+  if (*end != '\0' || version == 0 || version > UINT32_MAX)
+    ERROR_MSG_RET("invalid policy version: %s\n", sversion);
+  const unsigned long cycle = strtoul(scycle, &end, 0);
+  if (*end != '\0' || cycle > UINT32_MAX)
+    ERROR_MSG_RET("invalid DRX cycle: %s\n", scycle);
+  const unsigned long on_duration = strtoul(son_duration, &end, 0);
+  if (*end != '\0' || on_duration > UINT32_MAX)
+    ERROR_MSG_RET("invalid On Duration: %s\n", son_duration);
+  const unsigned long offset = strtoul(soffset, &end, 0);
+  if (*end != '\0' || offset > UINT32_MAX)
+    ERROR_MSG_RET("invalid start offset: %s\n", soffset);
+  const unsigned long command_enabled = strtoul(scommand_enabled, &end, 0);
+  if (*end != '\0' || command_enabled > 1)
+    ERROR_MSG_RET("invalid command_enabled value: %s\n", scommand_enabled);
+
+  const int rnti = fetch_rnti(srnti, prnt);
+  if (rnti < 0)
+    ERROR_MSG_RET("could not identify UE (no UE, no such RNTI, or multiple UEs)\n");
+  if (!nr_trigger_drx_policy(rnti, version, cycle, on_duration, offset, command_enabled != 0))
+    ERROR_MSG_RET("failed DRX policy version %lu for UE %04x\n", version, rnti);
+  prnt("staged DRX policy version %lu for UE %04x\n", version, rnti);
+  return 0;
+}
+
+static int request_drx_command(char *buf, int debug, telnet_printfunc_t prnt)
+{
+  const int rnti = fetch_rnti(buf, prnt);
+  if (rnti < 0)
+    ERROR_MSG_RET("could not identify UE (no UE, no such RNTI, or multiple UEs)\n");
+  if (!nr_mac_request_drx_command(RC.nrmac[0], rnti))
+    ERROR_MSG_RET("DRX Command request rejected for UE %04x\n", rnti);
+  prnt("requested one-shot DRX Command for UE %04x\n", rnti);
+  return 0;
+}
+
 static telnetshell_cmddef_t cicmds[] = {
     {"get_single_rnti", "", get_single_rnti},
     {"force_reestab", "[rnti(hex,opt)]", trigger_reestab},
@@ -396,6 +445,8 @@ static telnetshell_cmddef_t cicmds[] = {
     {"fetch_du_by_ue_id", "[rrc_ue_id(int,opt)]", fetch_du_by_ue_id},
     {"get_current_bwp", "[rnti(hex,opt)]", get_current_bwp},
     {"trigger_bwp_switch", "newBWPId [rnti(hex,opt)]", trigger_bwp_switch},
+    {"trigger_drx_policy", "version cycle_ms on_duration_ms offset_ms command_enabled [rnti(hex,opt)]", trigger_drx_policy},
+    {"request_drx_command", "[rnti(hex,opt)]", request_drx_command},
     {"trigger_n2_ho", "[neighbour_pci(uint32_t),ueId(uint32_t)]", rrc_gNB_trigger_n2_ho},
     {"pdu_session_release", "[gNB_ue_ngap_id(int,opt)]", trigger_ngap_pdu_session_release},
     {"", "", NULL},

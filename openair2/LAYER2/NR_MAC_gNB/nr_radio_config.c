@@ -4222,6 +4222,9 @@ bool get_drx_profile_from_cellGroupConfig(const NR_CellGroupConfig_t *cellGroupC
     return false;
   const NR_DRX_Config_t *drx = wrapper->choice.setup;
   if (drx->shortDRX != NULL || drx->drx_InactivityTimer != NR_DRX_Config__drx_InactivityTimer_ms20
+      || drx->drx_HARQ_RTT_TimerDL != 4 || drx->drx_HARQ_RTT_TimerUL != 4
+      || drx->drx_RetransmissionTimerDL != NR_DRX_Config__drx_RetransmissionTimerDL_sl8
+      || drx->drx_RetransmissionTimerUL != NR_DRX_Config__drx_RetransmissionTimerUL_sl8
       || drx->drx_SlotOffset != 0
       || drx->drx_onDurationTimer.present != NR_DRX_Config__drx_onDurationTimer_PR_milliSeconds)
     return false;
@@ -4241,10 +4244,10 @@ bool get_drx_profile_from_cellGroupConfig(const NR_CellGroupConfig_t *cellGroupC
       return false;
   }
 
-#define READ_DRX_CYCLE(ms)                                                                                 \
-  case NR_DRX_Config__drx_LongCycleStartOffset_PR_ms##ms:                                                 \
-    profile->long_cycle_ms = ms;                                                                           \
-    profile->start_offset_ms = drx->drx_LongCycleStartOffset.choice.ms##ms;                                \
+#define READ_DRX_CYCLE(cycle)                                                                              \
+  case NR_DRX_Config__drx_LongCycleStartOffset_PR_ms##cycle:                                              \
+    profile->long_cycle_ms = cycle;                                                                        \
+    profile->start_offset_ms = drx->drx_LongCycleStartOffset.choice.ms##cycle;                             \
     break
   switch (drx->drx_LongCycleStartOffset.present) {
     READ_DRX_CYCLE(320);

@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import csv
+import contextlib
+import io
 import json
 import tempfile
 import unittest
@@ -20,7 +22,7 @@ from adaptive_drx import (
     write_campaign_manifest,
 )
 from check_campaign import CONTROL_MARKERS, TIMEOUT_MARKER, check
-from run_campaign import iperf_command
+from run_campaign import iperf_command, main as run_campaign
 
 
 class AdaptiveDrxTest(unittest.TestCase):
@@ -86,7 +88,12 @@ class AdaptiveDrxTest(unittest.TestCase):
             log_path = root / "runtime.log"
             log_lines = []
             for version in range(1, 11):
-                log_lines.extend(f"{marker} policy_version={version}" for marker in CONTROL_MARKERS)
+                log_lines.extend(
+                    f"{marker} policy_version={version}"
+                    + (" cycle_ms=320 on_duration_ms=10" if marker == "[RedCap DRX][gNB applied]" else "")
+                    + (" outcome success" if marker == "[RedCap DRX][RRC complete]" else "")
+                    for marker in CONTROL_MARKERS
+                )
             log_lines.extend(("Configured Connected DRX", "Received RRCReconfigurationComplete"))
             log_path.write_text("\n".join(log_lines), encoding="utf-8")
 
@@ -97,7 +104,11 @@ class AdaptiveDrxTest(unittest.TestCase):
             self.assertEqual(summary["policy_versions"], 10)
 
             log_path.write_text(
-                "\n".join(line for line in log_lines if line != "[RedCap DRX][RRC complete] policy_version=10"),
+                "\n".join(
+                    line
+                    for line in log_lines
+                    if line != "[RedCap DRX][RRC complete] policy_version=10 outcome success"
+                ),
                 encoding="utf-8",
             )
             issues, _ = check(manifest_path, "arm-b-ul", metrics_path, [log_path])
@@ -139,6 +150,36 @@ class AdaptiveDrxTest(unittest.TestCase):
         )
         predictor.resolve(True)
         self.assertEqual(predictor.samples, ())
+
+    def test_arm_b_runner_plans_ten_committed_windows(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            manifest_path = write_campaign_manifest(root, 41, 73, 1_800_000_000_000_000)
+            plan_path = root / "commands.jsonl"
+            with contextlib.redirect_stdout(io.StringIO()):
+                result = run_campaign(
+                    [
+                        "--manifest",
+                        str(manifest_path),
+                        "--campaign-id",
+                        "arm-b-dl",
+                        "--server",
+                        "10.0.0.2",
+                        "--command-plan",
+                        str(plan_path),
+                        "--rrc-ue-id",
+                        "17",
+                    ]
+                )
+            self.assertEqual(result, 2)
+            records = [json.loads(line) for line in plan_path.read_text(encoding="utf-8").splitlines()]
+            self.assertEqual(len(records), ARRIVALS_PER_CAMPAIGN)
+            controls = [record["control"] for record in records if "control" in record]
+            self.assertEqual(len(controls), 10)
+            self.assertEqual([control["policy_version"] for control in controls], list(range(1, 11)))
+            for version in range(1, 11):
+                scored = [record for record in records if record["policy_version"] == version]
+                self.assertEqual(len(scored), 30)
 
 
 if __name__ == "__main__":

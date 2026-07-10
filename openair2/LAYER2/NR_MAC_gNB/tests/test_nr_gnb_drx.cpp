@@ -29,12 +29,12 @@ TEST(nr_gnb_drx, gates_outside_on_duration_and_extends_active_time)
   ASSERT_TRUE(nr_gnb_drx_stage_profile(&state, &p));
   ASSERT_TRUE(nr_gnb_drx_commit_profile(&state, 0, 0, 10));
 
-  EXPECT_TRUE(nr_gnb_drx_is_active(&state, 0, 5, 10, false, false));
-  EXPECT_FALSE(nr_gnb_drx_is_active(&state, 1, 0, 10, false, false));
+  EXPECT_TRUE(nr_gnb_drx_is_active(&state, 0, 5, 10, false));
+  EXPECT_FALSE(nr_gnb_drx_is_active(&state, 1, 0, 10, false));
   nr_gnb_drx_note_new_transmission(&state, 1, 0, 10);
-  EXPECT_TRUE(nr_gnb_drx_is_active(&state, 2, 9, 10, false, false));
-  EXPECT_TRUE(nr_gnb_drx_is_active(&state, 3, 0, 10, false, false));
-  EXPECT_FALSE(nr_gnb_drx_is_active(&state, 3, 1, 10, false, false));
+  EXPECT_TRUE(nr_gnb_drx_is_active(&state, 2, 9, 10, false));
+  EXPECT_TRUE(nr_gnb_drx_is_active(&state, 3, 0, 10, false));
+  EXPECT_FALSE(nr_gnb_drx_is_active(&state, 3, 1, 10, false));
 }
 
 TEST(nr_gnb_drx, extends_clock_across_sfn_wrap)
@@ -45,7 +45,7 @@ TEST(nr_gnb_drx, extends_clock_across_sfn_wrap)
   ASSERT_TRUE(nr_gnb_drx_commit_profile(&state, 1023, 9, 10));
   const uint64_t before = state.absolute_slot;
 
-  (void)nr_gnb_drx_is_active(&state, 0, 0, 10, false, false);
+  (void)nr_gnb_drx_is_active(&state, 0, 0, 10, false);
   EXPECT_EQ(before + 1, state.absolute_slot);
 }
 
@@ -85,6 +85,23 @@ TEST(nr_gnb_drx, command_requires_explicit_enable_ack_and_no_pending_work)
   nr_gnb_drx_note_new_transmission(&state, 0, 3, 10);
   nr_gnb_drx_note_dl_ack(&state);
   EXPECT_FALSE(state.drx_command_pending);
+}
+
+TEST(nr_gnb_drx, harq_retransmission_active_time_is_finite)
+{
+  nr_gnb_drx_state_t state = {};
+  const nr_gnb_drx_profile_t p = profile(1);
+  ASSERT_TRUE(nr_gnb_drx_stage_profile(&state, &p));
+  ASSERT_TRUE(nr_gnb_drx_commit_profile(&state, 0, 0, 10));
+  ASSERT_TRUE(nr_gnb_drx_complete_reconfiguration(&state));
+
+  nr_gnb_drx_note_dl_harq_result(&state, 3, false, 1, 0, 10);
+  EXPECT_TRUE(nr_gnb_drx_is_active(&state, 1, 1, 10, false));
+  EXPECT_TRUE(nr_gnb_drx_is_active(&state, 1, 8, 10, false));
+  EXPECT_FALSE(nr_gnb_drx_is_active(&state, 1, 9, 10, false));
+
+  nr_gnb_drx_note_dl_harq_result(&state, 3, true, 1, 9, 10);
+  EXPECT_FALSE(nr_gnb_drx_is_active(&state, 2, 0, 10, false));
 }
 
 TEST(nr_gnb_drx, retains_previous_profile_for_rollback)

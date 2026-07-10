@@ -1075,6 +1075,24 @@ bool nr_trigger_bwp_switch(uint16_t rnti, int bwp_id)
   return success;
 }
 
+bool nr_trigger_drx_policy(uint16_t rnti,
+                           uint32_t policy_version,
+                           uint32_t long_cycle_ms,
+                           uint32_t on_duration_ms,
+                           uint32_t start_offset_ms,
+                           bool drx_command_enabled)
+{
+  const nr_gnb_drx_profile_t profile = {
+      .policy_version = policy_version,
+      .long_cycle_ms = long_cycle_ms,
+      .on_duration_ms = on_duration_ms,
+      .inactivity_ms = 20,
+      .start_offset_ms = start_offset_ms,
+      .drx_command_enabled = drx_command_enabled,
+  };
+  return nr_mac_apply_drx_policy(RC.nrmac[0], rnti, &profile);
+}
+
 void prepare_du_configuration_update(gNB_MAC_INST *mac,
                                      f1ap_served_cell_info_t *info,
                                      NR_BCCH_BCH_Message_t *mib,
