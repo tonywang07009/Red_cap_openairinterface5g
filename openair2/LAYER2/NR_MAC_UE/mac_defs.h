@@ -298,6 +298,8 @@ typedef struct {
 
   nr_phr_info_t phr_info;
   nr_drx_config_t drx_config;
+  // ponytail: split this bounded-campaign counter if one run can exceed 2^32 observed slots.
+  uint64_t drx_slot_counts;
 } NR_UE_SCHEDULING_INFO;
 
 typedef enum {

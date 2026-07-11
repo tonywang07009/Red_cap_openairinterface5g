@@ -30,6 +30,10 @@ uint64_t nr_ue_drx_unwrap_slot(nr_drx_config_t *drx, uint32_t slots_per_frame, f
 bool nr_ue_drx_has_pending_sr(const NR_UE_SCHEDULING_INFO *sched_info);
 bool nr_ue_drx_is_active_slot(nr_drx_config_t *drx, uint64_t absolute_slot, bool pending_sr);
 bool nr_ue_drx_is_active(NR_UE_MAC_INST_t *mac, frame_t frame, slot_t slot);
+void nr_ue_drx_get_metrics(NR_UE_SCHEDULING_INFO *sched_info,
+                           bool reset,
+                           uint32_t *observed_slots,
+                           uint32_t *active_slots);
 void nr_ue_drx_on_dl_assignment(NR_UE_MAC_INST_t *mac,
                                 frame_t frame,
                                 slot_t slot,

@@ -25,7 +25,7 @@ This change designs an RRC_CONNECTED C-DRX experiment. It distinguishes three ro
 ## Decisions
 
 - [Campaign shape] Each campaign SHALL schedule 330 arrivals. The first 30 arrivals warm up the predictor; the final 300 are the scored population. This supplies ten 30-arrival adaptive windows without treating training samples as predicted samples.
-- [Baseline] Arm A SHALL consume a pre-generated, versioned DRX-profile table using a recorded seed. A randomly selected profile without a saved seed is rejected because it cannot be reproduced.
+- [Baseline] Arm A SHALL pre-apply `drx-320-10` once and retain that profile for all 300 scored arrivals. Arm B SHALL start from the same applied rollback baseline before its first adaptive request.
 - [Traffic direction] Downlink and uplink SHALL run as independent campaigns before a bidirectional campaign is considered. The gNB sees downlink queue arrival directly, while uplink arrival must be timestamped at the UE traffic generator.
 - [Prediction] The xApp SHALL calculate `mu`, `sigma`, and `mu +/- 3 sigma` from exactly 30 committed samples. It SHALL also report median, p95, min, and max. The dApp SHALL clamp candidates to legal RRC values and select a conservative fallback when the predicted interval is outside the experiment bounds or otherwise unreliable.
 - [Control boundary] The Python xApp SHALL use E2SM-RC Radio Resource Allocation Control Service Style 2, Action 1, RAN Parameter 1 to convey the Long DRX Cycle Length. The C dApp/gNB guard SHALL correlate the RIC Request ID with the local versioned policy record, select On Duration from the approved local profile, and validate UE state, cooldown, and rollback data before applying an accepted RRC reconfiguration.
@@ -46,9 +46,9 @@ This change designs an RRC_CONNECTED C-DRX experiment. It distinguishes three ro
 
 ## Migration Plan
 
-1. Add the DRX parameters and versioned policy schema without changing the current Case A files.
+1. Add the DRX parameters and versioned policy schema without changing unrelated Case A files.
 2. Add read-only trace and static contract checks before enabling runtime application.
-3. Enable the seeded baseline first, then the dApp apply path behind an explicit Case B flag.
+3. Enable the fixed `drx-320-10` baseline first, then the dApp apply path behind an explicit Case B flag.
 4. Roll back an accepted policy by applying the saved previous profile; reject updates requiring a restart or unsupported RRC mutation.
 5. Preserve all artifacts and report a PARTIAL or BLOCKED result when control acknowledgement lacks gNB/UE marker proof.
 

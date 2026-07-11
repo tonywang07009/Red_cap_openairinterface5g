@@ -108,6 +108,32 @@ TEST(NrUeDrx, DetectsPendingSchedulingRequest)
   EXPECT_TRUE(nr_ue_drx_has_pending_sr(&sched_info));
 }
 
+TEST(NrUeDrx, CountsAndResetsActiveTimeMetrics)
+{
+  NR_UE_MAC_INST_t mac = {};
+  mac.frame_structure.numb_slots_frame = 10;
+  nr_drx_config_t *drx = &mac.scheduling_info.drx_config;
+  drx->configured = true;
+  drx->long_cycle_slots = 10;
+  drx->on_duration_slots = 2;
+
+  for (int slot = 0; slot < 10; ++slot)
+    nr_ue_drx_is_active(&mac, 0, slot);
+
+  uint32_t observed_slots = 0;
+  uint32_t active_slots = 0;
+  nr_ue_drx_get_metrics(&mac.scheduling_info, false, &observed_slots, &active_slots);
+  EXPECT_EQ(10U, observed_slots);
+  EXPECT_EQ(2U, active_slots);
+
+  nr_ue_drx_get_metrics(&mac.scheduling_info, true, &observed_slots, &active_slots);
+  EXPECT_EQ(10U, observed_slots);
+  EXPECT_EQ(2U, active_slots);
+  nr_ue_drx_get_metrics(&mac.scheduling_info, false, &observed_slots, &active_slots);
+  EXPECT_EQ(0U, observed_slots);
+  EXPECT_EQ(0U, active_slots);
+}
+
 int main(int argc, char **argv)
 {
   testing::InitGoogleTest(&argc, argv);

@@ -63,6 +63,19 @@ TEST(nr_gnb_drx, rejects_stale_policy_and_unapproved_profile)
   EXPECT_FALSE(nr_gnb_drx_stage_profile(&state, &p));
 }
 
+TEST(nr_gnb_drx, reserves_version_zero_for_an_unconfigured_bootstrap)
+{
+  nr_gnb_drx_state_t state = {};
+  nr_gnb_drx_profile_t bootstrap = profile(0);
+  ASSERT_TRUE(nr_gnb_drx_stage_profile(&state, &bootstrap));
+  ASSERT_TRUE(nr_gnb_drx_commit_profile(&state, 0, 0, 10));
+  ASSERT_TRUE(nr_gnb_drx_complete_reconfiguration(&state));
+  EXPECT_FALSE(nr_gnb_drx_stage_profile(&state, &bootstrap));
+
+  nr_gnb_drx_profile_t first_policy = profile(1);
+  EXPECT_TRUE(nr_gnb_drx_stage_profile(&state, &first_policy));
+}
+
 TEST(nr_gnb_drx, command_requires_explicit_enable_ack_and_no_pending_work)
 {
   nr_gnb_drx_state_t state = {};

@@ -94,14 +94,6 @@ def _stable_direction_seed(trace_seed: int, direction: str) -> int:
     return int.from_bytes(digest[:8], "big")
 
 
-def generate_arm_a_profiles(profile_seed: int, direction: str) -> list[DrxProfile]:
-    if direction not in {"downlink", "uplink"}:
-        raise ValueError(f"unsupported direction: {direction}")
-    seed = _stable_direction_seed(profile_seed, f"arm-a-profile:{direction}")
-    rng = random.Random(seed)
-    return [rng.choice(APPROVED_PROFILES) for _ in range(SCORED_ARRIVALS // ARRIVALS_PER_WINDOW)]
-
-
 def generate_intervals(trace_seed: int, direction: str) -> list[int]:
     """Generate the frozen eleven-window truncated-normal interval population."""
     if direction not in {"downlink", "uplink"}:
@@ -162,7 +154,6 @@ def file_sha256(path: Path) -> str:
 def write_campaign_manifest(
     output_dir: Path,
     trace_seed: int,
-    profile_seed: int,
     start_epoch_us: int,
 ) -> Path:
     """Write paired A/B campaign entries that reference one trace per direction."""
@@ -188,11 +179,9 @@ def write_campaign_manifest(
                 "trace": traces[direction],
             }
             if arm == "A":
-                campaign["control_mode"] = "local_seeded_rrc"
-                campaign["profile_schedule"] = [
-                    {"scored_window_id": index, **asdict(profile)}
-                    for index, profile in enumerate(generate_arm_a_profiles(profile_seed, direction), start=1)
-                ]
+                campaign["control_mode"] = "fixed_local_rrc"
+                campaign["initial_profile"] = asdict(FALLBACK_PROFILE)
+                campaign["baseline_policy_version"] = 1
                 campaign["required_markers"] = [
                     "[RedCap DRX][gNB applied]",
                     "Configured Connected DRX",
@@ -215,7 +204,6 @@ def write_campaign_manifest(
         "schema_version": SCHEMA_VERSION,
         "experiment": "adaptive_c_drx_ab_v1",
         "trace_seed": trace_seed,
-        "arm_a_profile_seed": profile_seed,
         "population": {
             "arrivals_per_campaign": ARRIVALS_PER_CAMPAIGN,
             "warmup_arrivals": WARMUP_ARRIVALS,
@@ -240,6 +228,52 @@ def write_campaign_manifest(
     manifest_path = output_dir / "adaptive_drx_campaign_manifest_v1.json"
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     return manifest_path
+
+
+def rebase_campaign_manifest(manifest_path: Path, output_dir: Path, start_epoch_us: int) -> Path:
+    """Clone the frozen interval population with a new absolute start time."""
+    if start_epoch_us < 0:
+        raise ValueError("start_epoch_us must be non-negative")
+    if output_dir.resolve() == manifest_path.parent.resolve():
+        raise ValueError("rebase output directory must preserve the source manifest")
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if manifest.get("schema_version") != SCHEMA_VERSION or manifest.get("experiment") != "adaptive_c_drx_ab_v1":
+        raise ValueError("unsupported adaptive DRX manifest")
+
+    source_intervals: dict[str, list[int]] = {}
+    for campaign in manifest.get("campaigns", []):
+        if not isinstance(campaign, dict) or campaign.get("direction") not in {"downlink", "uplink"}:
+            raise ValueError("manifest campaign is invalid")
+        trace_record = campaign.get("trace")
+        if not isinstance(trace_record, dict):
+            raise ValueError("campaign trace record is missing")
+        trace_path = manifest_path.parent / str(trace_record["path"])
+        if file_sha256(trace_path) != trace_record.get("sha256"):
+            raise ValueError(f"trace checksum mismatch: {trace_path}")
+        rows = read_trace(trace_path)
+        direction = str(campaign["direction"])
+        intervals = [int(row["interval_us"]) for row in rows]
+        if direction in source_intervals and source_intervals[direction] != intervals:
+            raise ValueError(f"paired {direction} campaigns do not share one interval population")
+        source_intervals[direction] = intervals
+
+    if set(source_intervals) != {"downlink", "uplink"}:
+        raise ValueError("manifest must contain paired downlink and uplink traces")
+
+    rebased_path = write_campaign_manifest(output_dir, int(manifest["trace_seed"]), start_epoch_us)
+    rebased = json.loads(rebased_path.read_text(encoding="utf-8"))
+    for direction, suffix in (("downlink", "dl"), ("uplink", "ul")):
+        campaign = find_campaign(rebased, f"arm-a-{suffix}")
+        trace_path = rebased_path.parent / str(campaign["trace"]["path"])
+        if [int(row["interval_us"]) for row in read_trace(trace_path)] != source_intervals[direction]:
+            raise RuntimeError(f"rebased {direction} interval population changed")
+    rebased["rebase"] = {
+        "source_manifest_sha256": file_sha256(manifest_path),
+        "start_epoch_us": start_epoch_us,
+    }
+    rebased_path.write_text(json.dumps(rebased, indent=2) + "\n", encoding="utf-8")
+    return rebased_path
 
 
 def summarize_window(samples: Sequence[int]) -> WindowStatistics:
@@ -333,8 +367,13 @@ class AdaptiveDrxPredictor:
             raise ValueError(f"unsupported previous profile: {previous_profile_id}")
 
         stats = summarize_window(self._samples)
-        profile, used_fallback = select_profile(stats.lower_3sigma_us)
-        if stats.stddev_interval_us == 0:
+        prediction_out_of_range = stats.lower_3sigma_us < MIN_INTERVAL_US or stats.upper_3sigma_us > MAX_INTERVAL_US
+        profile, used_fallback = (
+            (FALLBACK_PROFILE, True) if prediction_out_of_range else select_profile(stats.lower_3sigma_us)
+        )
+        if prediction_out_of_range:
+            status = "fallback"
+        elif stats.stddev_interval_us == 0:
             status = "zero_variance"
         elif used_fallback:
             status = "fallback"
@@ -388,7 +427,13 @@ def find_campaign(manifest: dict[str, object], campaign_id: str) -> dict[str, ob
 
 
 def _generate_command(args: argparse.Namespace) -> int:
-    manifest_path = write_campaign_manifest(args.output_dir, args.trace_seed, args.profile_seed, args.start_epoch_us)
+    manifest_path = write_campaign_manifest(args.output_dir, args.trace_seed, args.start_epoch_us)
+    print(manifest_path)
+    return 0
+
+
+def _rebase_command(args: argparse.Namespace) -> int:
+    manifest_path = rebase_campaign_manifest(args.manifest, args.output_dir, args.start_epoch_us)
     print(manifest_path)
     return 0
 
@@ -399,9 +444,13 @@ def main(argv: Iterable[str] | None = None) -> int:
     generate = subparsers.add_parser("generate", help="write paired DL/UL traces and a JSON run manifest")
     generate.add_argument("--output-dir", type=Path, required=True)
     generate.add_argument("--trace-seed", type=int, required=True)
-    generate.add_argument("--profile-seed", type=int, required=True)
     generate.add_argument("--start-epoch-us", type=int, required=True)
     generate.set_defaults(handler=_generate_command)
+    rebase = subparsers.add_parser("rebase", help="clone a manifest with fresh absolute traffic timestamps")
+    rebase.add_argument("--manifest", type=Path, required=True)
+    rebase.add_argument("--output-dir", type=Path, required=True)
+    rebase.add_argument("--start-epoch-us", type=int, required=True)
+    rebase.set_defaults(handler=_rebase_command)
     args = parser.parse_args(argv)
     return args.handler(args)
 

@@ -146,9 +146,22 @@ bool nr_ue_drx_is_active(NR_UE_MAC_INST_t *mac, frame_t frame, slot_t slot)
     return true;
 
   const uint64_t absolute_slot = nr_ue_drx_unwrap_slot(drx, slots_per_frame, frame, slot);
-  if (mac->ra.contention_resolution_timer.active || mac->ra.response_window_timer.active)
-    return true;
-  return nr_ue_drx_is_active_slot(drx, absolute_slot, nr_ue_drx_has_pending_sr(sched_info));
+  const bool active = mac->ra.contention_resolution_timer.active || mac->ra.response_window_timer.active
+                      || nr_ue_drx_is_active_slot(drx, absolute_slot, nr_ue_drx_has_pending_sr(sched_info));
+  if (drx->configured)
+    __atomic_add_fetch(&sched_info->drx_slot_counts, 1ULL | ((uint64_t)active << 32), __ATOMIC_RELAXED);
+  return active;
+}
+
+void nr_ue_drx_get_metrics(NR_UE_SCHEDULING_INFO *sched_info,
+                           bool reset,
+                           uint32_t *observed_slots,
+                           uint32_t *active_slots)
+{
+  const uint64_t counts = reset ? __atomic_exchange_n(&sched_info->drx_slot_counts, 0, __ATOMIC_RELAXED)
+                                : __atomic_load_n(&sched_info->drx_slot_counts, __ATOMIC_RELAXED);
+  *observed_slots = (uint32_t)counts;
+  *active_slots = (uint32_t)(counts >> 32);
 }
 
 static void nr_ue_drx_schedule_short_cycle(nr_drx_config_t *drx)

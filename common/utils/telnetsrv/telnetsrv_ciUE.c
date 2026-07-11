@@ -36,6 +36,7 @@
 #include <stdarg.h>
 #include "openair2/LAYER2/NR_MAC_UE/mac_defs.h"
 #include "openair2/LAYER2/NR_MAC_UE/mac_proto.h"
+#include "openair2/LAYER2/NR_MAC_UE/nr_ue_drx.h"
 #include "openair2/RRC/NR_UE/rrc_proto.h"
 #include "openair1/PHY/defs_nr_common.h"
 #include "openair1/PHY/defs_nr_UE.h"
@@ -123,6 +124,32 @@ static int force_deregistration(char *buf, int debug, telnet_printfunc_t prnt)
   return 0;
 }
 
+static int get_drx_stats(char *buf, int debug, telnet_printfunc_t prnt)
+{
+  NR_UE_MAC_INST_t *mac = get_mac_inst(0);
+  if (mac == NULL)
+    ERROR_MSG_RET("No UE MAC context found\n");
+
+  bool reset = false;
+  char action[16] = {0};
+  if (buf != NULL && sscanf(buf, "%15s", action) == 1) {
+    if (strcmp(action, "reset") != 0)
+      ERROR_MSG_RET("Invalid argument: expected [reset]\n");
+    reset = true;
+  }
+
+  uint32_t observed_slots = 0;
+  uint32_t active_slots = 0;
+  nr_ue_drx_get_metrics(&mac->scheduling_info, reset, &observed_slots, &active_slots);
+  const double active_ratio = observed_slots == 0 ? 0.0 : (double)active_slots / observed_slots;
+  prnt("[RedCap DRX][UE stats] observed_slots=%u active_slots=%u active_ratio=%.6f reset=%d\n",
+       observed_slots,
+       active_slots,
+       active_ratio,
+       reset);
+  return 0;
+}
+
 extern float get_prs_max_dl_toa(prs_meas_t *prs_meas);
 static int get_dl_toa(char *buf, int debug, telnet_printfunc_t prnt)
 {
@@ -184,6 +211,7 @@ static telnetshell_cmddef_t cicmds[] = {
   {"force_RRC_IDLE", "", force_RRC_IDLE},
   {"force_crnti_ra", "", force_crnti_ra},
   {"deregistration", "", force_deregistration},
+  {"drx_stats", "[reset]", get_drx_stats},
   {"get_max_dl_toa", "[ant]", get_dl_toa},
   {"add_pdu_session", "[PDUSessionID(int)],[UE_ID(int,opt)]", add_pdu_session},
   {"", "", NULL},
@@ -198,4 +226,3 @@ static telnetshell_vardef_t civars[] = {
 void add_ciUE_cmds(void) {
   add_telnetcmd("ciUE", civars, cicmds);
 }
-

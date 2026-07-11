@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 
@@ -397,12 +398,96 @@ def check_docs(errors: list[str]) -> None:
             "E3Controller slot_iq_pipeline.h missing slot I/Q sample reference", errors)
 
 
+def check_adaptive_drx_docs(errors: list[str]) -> None:
+    pairs = [
+        ("Doc/adaptive_drx_ab_manual_reproduction.en.md", "Doc/adaptive_drx_ab_manual_reproduction.zh-TW.md"),
+        ("Doc/adaptive_drx_api_contract.en.md", "Doc/adaptive_drx_api_contract.zh-TW.md"),
+        ("Doc/adaptive_drx_trace_code_guide.en.md", "Doc/adaptive_drx_trace_code_guide.zh-TW.md"),
+        ("report/adaptive_drx_ab_gate_2026-07-11.en.md", "report/adaptive_drx_ab_gate_2026-07-11.zh-TW.md"),
+        ("drx_exprment/README.en.md", "drx_exprment/README.zh-TW.md"),
+    ]
+    paths = [str(PROJECT.relative_to(ROOT) / path) for pair in pairs for path in pair]
+    for path in paths:
+        require_path(path, errors)
+        if not (ROOT / path).exists():
+            continue
+        text = read(path)
+        require("rtk " not in text, f"{path} user-facing commands must not use rtk", errors)
+        for link in re.findall(r"\[[^]]+\]\(([^)]+)\)", text):
+            target = link.strip("<>").split("#", 1)[0]
+            if not target or "://" in target or target.startswith("mailto:"):
+                continue
+            resolved = ((ROOT / path).parent / target).resolve()
+            require(resolved.exists(), f"{path} has broken local link: {link}", errors)
+
+    en_index = (PROJECT / "Doc/README.en.md").read_text(encoding="utf-8")
+    zh_index = (PROJECT / "Doc/README.zh-TW.md").read_text(encoding="utf-8")
+    for stem in ["adaptive_drx_ab_manual_reproduction", "adaptive_drx_api_contract", "adaptive_drx_trace_code_guide"]:
+        require(f"{stem}.en.md" in en_index, f"English Doc index missing {stem}", errors)
+        require(f"{stem}.zh-TW.md" in zh_index, f"Traditional Chinese Doc index missing {stem}", errors)
+    require("adaptive_drx_ab_gate_2026-07-11.en.md" in en_index, "English Doc index missing adaptive DRX Gate report", errors)
+    require("adaptive_drx_ab_gate_2026-07-11.zh-TW.md" in zh_index,
+            "Traditional Chinese Doc index missing adaptive DRX Gate report", errors)
+    require("drx_exprment/README.en.md" in en_index, "English Doc index missing adaptive DRX experiment dossier", errors)
+    require("drx_exprment/README.zh-TW.md" in zh_index,
+            "Traditional Chinese Doc index missing adaptive DRX experiment dossier", errors)
+
+    for path in paths[:2]:
+        text = read(path)
+        for needle in ["330", "300", "--txstart-time", "--execute", "check_campaign.py", "SWIG", "[BLOCKED]"]:
+            require(needle in text, f"{path} missing manual text: {needle}", errors)
+        require(text.count("```mermaid") == 2, f"{path} must contain two Mermaid diagrams", errors)
+
+    for path in paths[2:4]:
+        text = read(path)
+        for needle in ["PolicyIntent", "control_drx_sm", "redcap_dapp_guard_e2_drx_cycle", "rollback", "[Needs Verification]"]:
+            require(needle in text, f"{path} missing adaptive DRX contract text: {needle}", errors)
+
+    for path in paths[4:6]:
+        text = read(path)
+        for needle in ["Input", "Output", "marker", "write_ctrl_rc_sm", "nr_mac_apply_drx_policy", "configure_drx", "check_campaign.py"]:
+            require(needle in text, f"{path} missing Trace Code Guide text: {needle}", errors)
+        require("Next trace point" in text or "下一個 trace point" in text,
+                f"{path} missing Trace Code Guide next-point field", errors)
+
+    for path in paths[6:8]:
+        text = read(path)
+        for needle in ["BLOCKED", "0/1200", "N/A", "SWIG", "E2_AGENT=OFF"]:
+            require(needle in text, f"{path} missing Gate evidence boundary: {needle}", errors)
+        require("physical-power" in text or "實體耗電" in text,
+                f"{path} missing physical-power claim boundary", errors)
+
+    for path in paths[8:]:
+        text = read(path)
+        for needle in [
+            "RRC_CONNECTED",
+            "drx-320-10",
+            "0/1200",
+            "N/A",
+            "SWIG",
+            "E2_AGENT",
+            "check_campaign.py",
+            "PARTIAL",
+            "BLOCKED",
+        ]:
+            require(needle in text, f"{path} missing experiment dossier text: {needle}", errors)
+        require("Experiment Design" in text or "實驗設計" in text,
+                f"{path} missing experiment design section", errors)
+        require("Current Result Explanation" in text or "目前實驗結果說明" in text,
+                f"{path} missing current result section", errors)
+        require("Human-Only Step-by-Step Reproduction" in text or "無 AI 工具的人工重建步驟" in text,
+                f"{path} missing human reproduction section", errors)
+        require("physical-power" in text or "實體耗電" in text,
+                f"{path} missing physical-power claim boundary", errors)
+
+
 def main() -> int:
     errors: list[str] = []
     check_reference_paths(errors)
     check_sdk_symbols(errors)
     generated_swig = check_swig_evidence(errors)
     check_docs(errors)
+    check_adaptive_drx_docs(errors)
 
     if errors:
         for error in errors:

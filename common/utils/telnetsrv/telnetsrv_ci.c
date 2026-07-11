@@ -424,6 +424,31 @@ static int trigger_drx_policy(char *buf, int debug, telnet_printfunc_t prnt)
   return 0;
 }
 
+static int bootstrap_drx_policy(char *buf, int debug, telnet_printfunc_t prnt)
+{
+  char *scycle = strtok(buf, " ");
+  char *son_duration = strtok(NULL, " ");
+  char *srnti = strtok(NULL, " ");
+  if (!scycle || !son_duration)
+    ERROR_MSG_RET("usage: ci bootstrap_drx_policy cycle_ms on_duration_ms [rnti]\n");
+
+  char *end = NULL;
+  const unsigned long cycle = strtoul(scycle, &end, 0);
+  if (*end != '\0' || cycle > UINT32_MAX)
+    ERROR_MSG_RET("invalid DRX cycle: %s\n", scycle);
+  const unsigned long on_duration = strtoul(son_duration, &end, 0);
+  if (*end != '\0' || on_duration > UINT32_MAX)
+    ERROR_MSG_RET("invalid On Duration: %s\n", son_duration);
+
+  const int rnti = fetch_rnti(srnti, prnt);
+  if (rnti < 0)
+    ERROR_MSG_RET("could not identify UE (no UE, no such RNTI, or multiple UEs)\n");
+  if (!nr_trigger_drx_policy(rnti, 0, cycle, on_duration, 0, false))
+    ERROR_MSG_RET("failed DRX bootstrap for UE %04x; bootstrap requires unconfigured DRX state\n", rnti);
+  prnt("staged DRX bootstrap version 0 for UE %04x\n", rnti);
+  return 0;
+}
+
 static int request_drx_command(char *buf, int debug, telnet_printfunc_t prnt)
 {
   const int rnti = fetch_rnti(buf, prnt);
@@ -446,6 +471,7 @@ static telnetshell_cmddef_t cicmds[] = {
     {"get_current_bwp", "[rnti(hex,opt)]", get_current_bwp},
     {"trigger_bwp_switch", "newBWPId [rnti(hex,opt)]", trigger_bwp_switch},
     {"trigger_drx_policy", "version cycle_ms on_duration_ms offset_ms command_enabled [rnti(hex,opt)]", trigger_drx_policy},
+    {"bootstrap_drx_policy", "cycle_ms on_duration_ms [rnti(hex,opt)]", bootstrap_drx_policy},
     {"request_drx_command", "[rnti(hex,opt)]", request_drx_command},
     {"trigger_n2_ho", "[neighbour_pci(uint32_t),ueId(uint32_t)]", rrc_gNB_trigger_n2_ho},
     {"pdu_session_release", "[gNB_ue_ngap_id(int,opt)]", trigger_ngap_pdu_session_release},

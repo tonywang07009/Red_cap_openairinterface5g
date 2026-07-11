@@ -32,7 +32,7 @@ arrival_population:
   minimum_interval_ms: 300
   maximum_interval_ms: 10240
   trace_seed: required_at_run
-  paired_arm_rule: A_and_B_replay_the_same_trace_csv
+  paired_arm_rule: A_and_B_use_the_same_seeded_interval_sequence_with_a_per_campaign_future_epoch
   trace_model:
     name: piecewise_truncated_normal_v1
     window_mean_ms: [640, 800, 1000, 1250, 1600, 2000, 2500, 3200, 4000, 5000, 6400]
@@ -41,9 +41,9 @@ arrival_population:
   source_of_truth: generated_trace_csv
 
 arm_a:
-  policy: seeded_profile_per_scored_window
-  profile_seed: required_at_run
-  profile_source: drx_policy_contract_v1.yaml
+  policy: fixed_profile_for_all_scored_arrivals
+  baseline_profile_id: drx-320-10
+  apply_count: 1
 
 arm_b:
   history_size: 30
@@ -58,7 +58,8 @@ arm_b:
     - minimum
     - maximum
   selection_source: drx_policy_contract_v1.yaml
-  clear_history_after: committed_policy_or_recorded_failure
+  clear_history_after: committed_policy_only
+  retain_history_after: reject_or_timeout
 
 traffic_generator:
   tool: iperf2

@@ -4,7 +4,7 @@ The current RedCap dApp/xApp validation proves selected PRB and access-pressure 
 
 ## What Changes
 
-- Define a reproducible C-DRX A/B experiment with a seeded baseline and an adaptive dApp/xApp policy path.
+- Define a reproducible C-DRX A/B experiment with one fixed `drx-320-10` baseline and an adaptive dApp/xApp policy path.
 - Collect 330 scheduled traffic arrivals per direction and score the final 300 arrivals after a 30-sample warm-up window.
 - Add a versioned xApp-to-dApp DRX policy contract, including prediction data, legal DRX candidates, reject reasons, rollback, and applied-state markers.
 - Add a dApp/gNB guard that validates and applies DRX policy updates through the appropriate gNB control surface; a DRX Command MAC CE may only be used as an early-active-state control, not as a DRX reconfiguration mechanism.

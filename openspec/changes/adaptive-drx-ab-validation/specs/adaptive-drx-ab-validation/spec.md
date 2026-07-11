@@ -1,11 +1,11 @@
 ## ADDED Requirements
 
 ### Requirement: Deterministic adaptive C-DRX A/B campaigns
-The system SHALL execute each downlink or uplink C-DRX campaign with 330 scheduled arrivals, a recorded traffic-trace seed, and a recorded DRX-profile seed. It SHALL score only arrivals 31 through 330 and SHALL keep traffic direction separate until both single-direction campaigns have completed.
+The system SHALL execute each downlink or uplink C-DRX campaign with 330 scheduled arrivals, a recorded traffic-trace seed, and a recorded baseline profile. It SHALL score only arrivals 31 through 330 and SHALL keep traffic direction separate until both single-direction campaigns have completed.
 
 #### Scenario: Reproducible baseline campaign
-- **WHEN** an operator starts Arm A with a saved traffic trace and DRX-profile seed
-- **THEN** the runner records the 330 scheduled arrivals, the selected profile for every scored window, and the seed values in the campaign manifest
+- **WHEN** an operator starts Arm A with a saved traffic trace and the fixed `drx-320-10` baseline
+- **THEN** the runner applies the baseline once, records all 330 scheduled arrivals, and associates the same profile and policy version with all 300 scored arrivals
 
 #### Scenario: Direction isolation
 - **WHEN** an operator starts a downlink or uplink campaign

@@ -15,6 +15,11 @@
 | 36 UE zero-gap pressure gate | `MMTC_STAGE_PROFILE=core36_pressure` 搭配 `gate_e_64ue_stage_check.py --stage core36-pressure` |
 | 56 UE Gate E-Core 手動復現 | [gate_e_core56_manual_reproduction.zh-TW.md](./gate_e_core56_manual_reproduction.zh-TW.md) |
 | 最終 Gate E-Core accepted report | [gate_e_core56_ab_latency_2026-07-09.md](../report/gate_e_core56_ab_latency_2026-07-09.md) |
+| Adaptive C-DRX A/B 手動重建 | [adaptive_drx_ab_manual_reproduction.zh-TW.md](./adaptive_drx_ab_manual_reproduction.zh-TW.md) |
+| Adaptive C-DRX 實驗文件 | [drx_exprment/README.zh-TW.md](../drx_exprment/README.zh-TW.md) |
+| Adaptive C-DRX API 與控制合約 | [adaptive_drx_api_contract.zh-TW.md](./adaptive_drx_api_contract.zh-TW.md) |
+| Adaptive C-DRX 原始碼 Trace Code Guide | [adaptive_drx_trace_code_guide.zh-TW.md](./adaptive_drx_trace_code_guide.zh-TW.md) |
+| Adaptive C-DRX 證據 Gate 報告 | [adaptive_drx_ab_gate_2026-07-11.zh-TW.md](../report/adaptive_drx_ab_gate_2026-07-11.zh-TW.md) |
 
 ## API / config behavior
 

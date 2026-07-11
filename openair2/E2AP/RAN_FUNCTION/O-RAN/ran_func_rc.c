@@ -33,6 +33,7 @@
 #include "openair2/LAYER2/NR_MAC_gNB/mac_proto.h"
 #include "openair2/LAYER2/NR_MAC_gNB/nr_mac_redcap.h"
 #include "openair2/E3AP/sdk/redcap_dapp_sdk.h"
+#include "openair2/F1AP/f1ap_ids.h"
 #endif
 
 #include <inttypes.h>
