@@ -14,19 +14,20 @@ The frozen v1 experiment has four independent campaigns:
 
 | Campaign | Control arm | Direction |
 |---|---|---|
-| `arm-a-dl` | Seeded approved profiles through the local gNB control surface | Downlink |
+| `arm-a-dl` | Fixed `drx-320-10`, applied once through local gNB control | Downlink |
 | `arm-b-dl` | Python predictor through E2SM-RC and the C dApp guard | Downlink |
-| `arm-a-ul` | Seeded approved profiles through the local gNB control surface | Uplink |
+| `arm-a-ul` | Fixed `drx-320-10`, applied once through local gNB control | Uplink |
 | `arm-b-ul` | Python predictor through E2SM-RC and the C dApp guard | Uplink |
 
 Each campaign contains 330 scheduled arrivals. Arrivals 1-30 warm up the predictor; arrivals 31-330 form the 300-record scored population. Every scored policy window contains 30 arrivals.
 
-Arm B uses E2SM-RC Service Style 2, Action 1, RAN Parameter 1 for the Long DRX Cycle Length. The local dApp guard selects the paired On Duration from the approved profile set and validates the UE state, monotonic policy version, cooldown, and rollback state before the gNB stages an RRC reconfiguration.
+Arm B uses E2SM-RC Service Style 2, Action 1, RAN Parameter 1 for the Long DRX Cycle Length. The xApp owns the 30-sample statistics and bounded fallback because the standard message carries only the UE ID and long cycle. The C dApp guard selects the paired On Duration and validates the UE state, policy version, cooldown, legal profile, and rollback state.
 
 ```mermaid
 flowchart LR
   T[Seeded trace CSV] --> R[run_campaign.py]
-  R -->|Arm A seeded profile| G[gNB local CI control]
+  R -->|Arm A fixed baseline| G[gNB local CI control]
+  R -->|Arm B version 0 bootstrap| G
   R -->|Arm B 30 samples| P[AdaptiveDrxPredictor]
   P --> X[xapp_sdk.control_drx_sm]
   X --> E[E2SM-RC Style 2 Action 1]
@@ -41,7 +42,7 @@ flowchart LR
   M -->|Commit| N[Collect next 30 samples]
 ```
 
-The current evidence proves builds and focused tests. It does **not** prove a completed RFsim A/B campaign, physical power reduction, or an importable Python FlexRIC bridge on this host.
+The current evidence proves focused tests, an importable Python 3.12 FlexRIC bridge, and E2-enabled gNB/UE builds. It does **not** prove a completed RFsim A/B campaign or physical power reduction.
 
 ## 2. Prerequisites
 
@@ -64,7 +65,7 @@ iperf --version
 iperf --help | grep -E -- '--txstart-time|--trip-times|--reverse'
 ```
 
-### 2.1 Arm A local-control requirement
+### 2.1 Local-control requirement
 
 The gNB must load the telnet CI module. The campaign runner's default `127.0.0.1:9091` works only when it shares the gNB network namespace. For the supplied RFsim bridge, use the gNB address explicitly:
 
@@ -72,7 +73,7 @@ The gNB must load the telnet CI module. The campaign runner's default `127.0.0.1
 --telnetsrv --telnetsrv.shrmod ci --telnetsrv.listenaddr 192.168.70.140 --telnetsrv.listenport 9091
 ```
 
-Then pass `--gnb-control-host 192.168.70.140 --gnb-control-port 9091` to Arm A.
+Both arms require this surface: Arm A applies policy version 1 once, while Arm B applies the reserved version-0 rollback bootstrap only on fresh, unconfigured DRX state. The UE must also load `ciUE` on `192.168.71.150:8091` for scored Active-Time counters.
 
 ### 2.2 Arm B Python/FlexRIC requirement
 
@@ -83,15 +84,15 @@ swig -version
 python3 -c 'import xapp_sdk; print(xapp_sdk.__file__)'
 ```
 
-On the evidence host, SWIG is 4.0.2. Therefore the SWIG build/import gate and executable Arm B campaign are currently `[BLOCKED]`; do not weaken the FlexRIC version requirement.
+The system SWIG remains 4.0.2, but the repository-provided `cmake_targets/swig/swig` is 4.1.1. The isolated `xapp_sdk` build/import gate passes with Python 3.12; use that exact build output and do not weaken the version requirement.
 
 ### 2.3 Traffic and control namespace requirement
 
-`run_campaign.py` launches the iPerf2 client. It must therefore run in a namespace that can use the UE data path. Arm B also imports the FlexRIC Python module in that same process. The existing compose files do not yet prove an execution environment containing both capabilities. Until one is provided, retain this as `[BLOCKED]` rather than running traffic from the wrong namespace.
+Run Python and `xapp_sdk` on the host, and use `--traffic-prefix "docker exec rfsim5g-oai-nr-ue1_redcap"` so only iPerf2 runs in the UE namespace. The host must reach the gNB/UE telnet addresses. Verify that the UE image contains iPerf2 before `--execute`.
 
 ### 2.4 Absolute-time replay requirement
 
-One manifest gives Arm A and Arm B the same absolute `--txstart-time` values. With one UE, the arms cannot run sequentially from that same manifest because the second run sees past timestamps. Exact CSV replay currently requires two isolated topologies running concurrently. A sequential campaign needs a future trace-rebase option; regenerating with a new epoch preserves seeded intervals but is not byte-identical CSV replay.
+Use `adaptive_drx.py rebase` before every sequential campaign. It verifies the source hashes, preserves every interval, and writes new future timestamps and hashes. Each campaign still requires a fresh gNB/UE stack so version 0 is accepted only as the initial Arm B bootstrap.
 
 Use a fresh gNB state for each independent campaign. Otherwise policy versions starting again at 1 can be rejected as stale.
 
@@ -100,8 +101,25 @@ Use a fresh gNB state for each independent campaign. Otherwise policy versions s
 Enable the telnet server when building the gNB control surface:
 
 ```bash
-cmake --preset default -DENABLE_TELNETSRV=ON
-cmake --build --preset default --target nr-softmodem nr-uesoftmodem telnetsrv_ci -j2
+cmake -S . -B /tmp/oai-e2-agent-build -GNinja -DE2_AGENT=ON -DENABLE_TELNETSRV=ON
+cmake --build /tmp/oai-e2-agent-build \
+  --target nr-softmodem nr-uesoftmodem telnetsrv_ci telnetsrv_ciUE -j2
+```
+
+Build the Python xApp bridge with the repository SWIG 4.1.1 and one consistent Python installation:
+
+```bash
+PYTHON_BIN=$(command -v python3)
+PYTHON_INCLUDE=$(python3 -c 'import sysconfig; print(sysconfig.get_path("include"))')
+PYTHON_LIBRARY=$(python3 -c 'import os,sysconfig; print(os.path.join(sysconfig.get_config_var("LIBDIR"),sysconfig.get_config_var("LDLIBRARY")))')
+cmake -S openair2/E2AP/flexric -B /tmp/flexric-adaptive-drx -GNinja \
+  -DXAPP_MULTILANGUAGE=ON -DUNIT_TEST=FALSE \
+  -DSWIG_EXECUTABLE="$PWD/cmake_targets/swig/swig" \
+  -DPython3_EXECUTABLE="$PYTHON_BIN" -DPYTHON_EXECUTABLE="$PYTHON_BIN" \
+  -DPYTHON_INCLUDE_DIR="$PYTHON_INCLUDE" -DPYTHON_LIBRARY="$PYTHON_LIBRARY"
+cmake --build /tmp/flexric-adaptive-drx --target xapp_sdk -j2
+PYTHONPATH=/tmp/flexric-adaptive-drx/examples/xApp/python3 \
+  python3 -B -c 'import xapp_sdk; assert hasattr(xapp_sdk, "control_drx_sm")'
 ```
 
 Build and run the focused C-DRX tests:
@@ -118,13 +136,14 @@ Run the deterministic trace, predictor, and checker tests:
 
 ```bash
 python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/test_adaptive_drx.py -v
+python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/test_campaign_evidence.py -v
 ```
 
-Expected focused results are three passing CTest targets and four passing Python tests. These are implementation checks, not RFsim campaign evidence.
+Expected focused results are three passing CTest targets, 10 adaptive Python tests, and 3 evidence tests. These are implementation checks, not RFsim campaign evidence.
 
 ## 4. Generate the Deterministic Trace
 
-Choose and record both seeds. The values below match the focused test examples. The start epoch must be in the future:
+Choose and record the trace seed. Arm A is always `drx-320-10`; there is no profile seed. The start epoch must be in the future:
 
 ```bash
 RUN_ID=$(date +%F_%H-%M-%S)
@@ -135,7 +154,6 @@ mkdir -p "$RUN_DIR"
 python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/adaptive_drx.py generate \
   --output-dir "$RUN_DIR" \
   --trace-seed 41 \
-  --profile-seed 73 \
   --start-epoch-us "$START_EPOCH_US"
 ```
 
@@ -150,10 +168,20 @@ Check the population and record the trace hashes:
 ```bash
 wc -l "$RUN_DIR"/adaptive_drx_*_trace.csv
 sha256sum "$RUN_DIR"/adaptive_drx_*_trace.csv
-grep -E '"(trace_seed|arm_a_profile_seed|id)"' "$RUN_DIR/adaptive_drx_campaign_manifest_v1.json"
+grep -E '"(trace_seed|initial_profile|id)"' "$RUN_DIR/adaptive_drx_campaign_manifest_v1.json"
 ```
 
 Each CSV must contain 331 lines: one header plus 330 arrivals.
+
+Before the next sequential campaign, preserve the intervals and assign a future epoch:
+
+```bash
+NEXT_DIR="${RUN_DIR}_next"
+python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/adaptive_drx.py rebase \
+  --manifest "$RUN_DIR/adaptive_drx_campaign_manifest_v1.json" \
+  --output-dir "$NEXT_DIR" \
+  --start-epoch-us "$(date -d '+10 minutes' +%s%6N)"
+```
 
 ## 5. Plan and Run the A/B Campaigns
 
@@ -162,13 +190,15 @@ Each CSV must contain 331 lines: one header plus 330 arrivals.
 Set the iPerf2 server address reachable through the UE data path. Planning intentionally exits with status 2 after writing the 330-command JSONL because runtime evidence is absent:
 
 ```bash
-IPERF_SERVER=10.0.0.1
+IPERF_SERVER=192.168.72.135
+UE_PDU_ADDRESS=10.0.0.2
 
 for CAMPAIGN in arm-a-dl arm-b-dl arm-a-ul arm-b-ul; do
   python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/run_campaign.py \
     --manifest "$RUN_DIR/adaptive_drx_campaign_manifest_v1.json" \
     --campaign-id "$CAMPAIGN" \
     --server "$IPERF_SERVER" \
+    --bind-address "$UE_PDU_ADDRESS" \
     --command-plan "$RUN_DIR/${CAMPAIGN}.plan.jsonl"
   test "$?" -eq 2
 done
@@ -212,7 +242,7 @@ In a separate terminal, append both gNB and UE logs to one file:
 docker compose \
   -f "$COMPOSE_DIR/docker-compose.yml" \
   -f "$COMPOSE_DIR/docker-compose.mmtc.yml" \
-  logs -f --no-color oai-gnb oai-nr-ue1 | tee -a "$RUN_DIR/runtime.log"
+  logs -f --no-color --no-log-prefix oai-gnb oai-nr-ue1 | tee -a "$RUN_DIR/runtime.log"
 ```
 
 This topology command is not a complete campaign wrapper. Confirm the namespace, PDU session, iPerf route, control port, and xApp import before using `--execute`.
@@ -226,17 +256,22 @@ python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_valid
   --manifest "$RUN_DIR/adaptive_drx_campaign_manifest_v1.json" \
   --campaign-id arm-a-dl \
   --server "$IPERF_SERVER" \
+  --bind-address "$UE_PDU_ADDRESS" \
   --command-plan "$RUN_DIR/arm-a-dl.runtime.jsonl" \
   --metrics-csv "$RUN_DIR/arm-a-dl.metrics.csv" \
+  --summary-json "$RUN_DIR/arm-a-dl.summary.json" \
+  --traffic-prefix "docker exec rfsim5g-oai-nr-ue1_redcap" \
   --execute \
   --rnti 0x1234 \
   --gnb-control-host 192.168.70.140 \
   --gnb-control-port 9091 \
+  --ue-control-host 192.168.71.150 \
+  --ue-control-port 8091 \
   --runtime-log "$RUN_DIR/runtime.log" \
   --control-timeout-s 10
 ```
 
-Use `arm-a-ul` for the independent uplink campaign. Restart with a fresh gNB state and regenerate a future schedule before the next sequential campaign.
+Use `arm-a-ul` for the independent uplink campaign. Restart with fresh state and use `rebase` before the next sequential campaign.
 
 ### 5.5 Execute one Arm B campaign
 
@@ -249,16 +284,49 @@ python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_valid
   --manifest "$RUN_DIR/adaptive_drx_campaign_manifest_v1.json" \
   --campaign-id arm-b-dl \
   --server "$IPERF_SERVER" \
+  --bind-address "$UE_PDU_ADDRESS" \
   --command-plan "$RUN_DIR/arm-b-dl.runtime.jsonl" \
   --metrics-csv "$RUN_DIR/arm-b-dl.metrics.csv" \
+  --summary-json "$RUN_DIR/arm-b-dl.summary.json" \
+  --traffic-prefix "docker exec rfsim5g-oai-nr-ue1_redcap" \
   --execute \
+  --rnti 0x1234 \
   --rrc-ue-id 17 \
   --node-index 0 \
+  --gnb-control-host 192.168.70.140 \
+  --gnb-control-port 9091 \
+  --ue-control-host 192.168.71.150 \
+  --ue-control-port 8091 \
   --runtime-log "$RUN_DIR/runtime.log" \
   --control-timeout-s 10
 ```
 
-Use `arm-b-ul` for the independent uplink campaign. The gNB must already hold an approved applied C-DRX profile that can be saved as rollback state, and its policy version must be lower than the incoming correlated RIC request ID. The current runner does not establish that baseline automatically; absent this condition, record `rollback_unavailable` as `[BLOCKED]`.
+Use `arm-b-ul` for the independent uplink campaign. On fresh DRX state, the runner automatically commits `drx-320-10` as reserved bootstrap version 0 before the first FlexRIC request. Reusing a configured stack must fail rather than overwrite its policy history.
+
+### 5.6 Capture receiver timestamps
+
+Start one filtered capture before the campaign. For DL, capture packets received by the UE; for UL, capture packets received by the persistent server:
+
+```bash
+# DL example; use `udp and dst port 5001` in oai-ext-dn for UL.
+docker exec rfsim5g-oai-nr-ue1_redcap \
+  tcpdump -tt -n -l -i oaitun_ue1 'udp and src port 5001' \
+  > "$RUN_DIR/arm-b-dl.receive.tcpdump.log" &
+CAPTURE_PID=$!
+```
+
+After the campaign, stop that capture and correlate its first packet per scored trace window:
+
+```bash
+kill "$CAPTURE_PID"
+python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/adaptive_drx.py receive-csv \
+  --manifest "$RUN_DIR/adaptive_drx_campaign_manifest_v1.json" \
+  --campaign-id arm-b-dl \
+  --capture-log "$RUN_DIR/arm-b-dl.receive.tcpdump.log" \
+  --output "$RUN_DIR/arm-b-dl.receive.csv"
+```
+
+The capture must contain only inbound iPerf2 UDP data for the selected campaign. Missing or out-of-window timestamps remain `[PARTIAL]`.
 
 ## 6. Validate the Evidence
 
@@ -269,6 +337,9 @@ python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_valid
   --manifest "$RUN_DIR/adaptive_drx_campaign_manifest_v1.json" \
   --campaign-id arm-b-dl \
   --metrics-csv "$RUN_DIR/arm-b-dl.metrics.csv" \
+  --receive-csv "$RUN_DIR/arm-b-dl.receive.csv" \
+  --summary-json "$RUN_DIR/arm-b-dl.summary.json" \
+  --rnti 0x1234 \
   --log "$RUN_DIR/runtime.log"
 ```
 
@@ -288,8 +359,9 @@ Arm B requires this marker chain:
 
 The frozen implementation evidence is:
 
-- `test_log/build_logs/build_nr-softmodem_2026-07-11_00-50-00_adaptive-drx.log`
-- `test_log/build_logs/build_nr-uesoftmodem_2026-07-11_00-53-00_adaptive-drx.log`
+- `test_log/build_logs/build_e2_agent_telnet_gnb_ue_2026-07-11_16-02-bootstrap-metrics.log`
+- `test_log/build_logs/build_xapp_sdk_2026-07-11_15-13-45_swig411.log`
+- `test_log/compiler_logs/xapp_sdk_import_2026-07-11_15-13-45_swig411.log`
 - `test_log/compiler_logs/ctest_adaptive_drx_final_2026-07-11_01-04-00.log`
 - `test_log/compiler_logs/test_adaptive_drx_python_2026-07-11_00-57-00.log`
 
@@ -326,11 +398,11 @@ stateDiagram-v2
 
 | Symptom | Meaning and action |
 |---|---|
-| `SWIG Version 4.0.2` | Arm B is blocked; install/provide SWIG 4.1 or newer without lowering the requirement. |
+| System `SWIG Version 4.0.2` | Use the repository SWIG 4.1.1 path recorded in the build section; do not lower the requirement. |
 | `No module named xapp_sdk` | Point `PYTHONPATH` at a successfully built FlexRIC Python module in the runner's interpreter. |
-| `first --txstart-time is not in the future` | Regenerate the manifest with a future epoch; do not edit trace rows manually. |
+| `first --txstart-time is not in the future` | Use `rebase` with a future epoch; do not edit trace rows manually. |
 | gNB control connection refused | Enable `telnetsrv`, load `shrmod ci`, and pass the reachable gNB address and port. |
-| `rollback_unavailable` | Apply and commit an approved lower-version baseline before Arm B; the runner does not automate it. |
+| `rollback_unavailable` | Start from fresh DRX state and allow the runner's reserved version-0 bootstrap to complete. |
 | `stale_policy_version` | Restart with fresh per-campaign gNB state or use a strictly newer correlated request ID. |
 | `[RedCap DRX][control timeout]` | Keep the 30-sample window and inspect the missing request, ACK, decision, applied, or completion marker. |
 | iPerf cannot reach the server | Run the client in the UE data namespace and verify the PDU session and route. |
@@ -345,8 +417,8 @@ Read one accepted Arm B policy in this order:
 
 | Step | File and symbol | Input | Output or marker | Next trace point |
 |---|---|---|---|---|
-| 1 | `scripts/adaptive_drx/adaptive_drx.py`: `write_campaign_manifest()` | Seeds and start epoch | Manifest and paired DL/UL CSVs | `run_campaign.main()` |
-| 2 | `scripts/adaptive_drx/run_campaign.py`: `main()` | One campaign and 30 intervals | Policy intent or seeded Arm A profile | `AdaptiveDrxPredictor.propose()` or local CI control |
+| 1 | `scripts/adaptive_drx/adaptive_drx.py`: `write_campaign_manifest()` / `rebase_campaign_manifest()` | Trace seed and future epoch | Manifest and paired/rebased DL/UL CSVs | `run_campaign.main()` |
+| 2 | `scripts/adaptive_drx/run_campaign.py`: `main()` | One campaign and 30 intervals | Fixed Arm A baseline or adaptive intent | `AdaptiveDrxPredictor.propose()` or local CI control |
 | 3 | `adaptive_drx.py`: `AdaptiveDrxPredictor.propose()` | Exactly 30 samples | Statistics and approved long-cycle request | `xapp_sdk.control_drx_sm()` |
 | 4 | `openair2/E2AP/flexric/src/xApp/swig/swig_wrapper.cpp`: `control_drx_sm()` | RRC UE ID and long cycle | E2SM-RC control request | `write_ctrl_rc_sm()` |
 | 5 | `openair2/E2AP/RAN_FUNCTION/O-RAN/ran_func_rc.c`: `write_ctrl_rc_sm()` | Style 2 / Action 1 message | xApp request and E2 ACK markers | `apply_redcap_drx_control()` |
@@ -354,5 +426,4 @@ Read one accepted Arm B policy in this order:
 | 7 | `openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_primitives.c`: `nr_mac_apply_drx_policy()` | Accepted profile | Staged CellGroup reconfiguration | UE `configure_drx()` |
 | 8 | `openair2/LAYER2/NR_MAC_UE/config_ue.c`: `configure_drx()` | RRC `DRX-Config` | `Configured Connected DRX` | UE Active Time functions |
 | 9 | `openair2/LAYER2/NR_MAC_gNB/mac_rrc_dl_handler.c` | RRC completion result | gNB applied, RRC complete, or rollback marker | `check_campaign.check()` |
-| 10 | `scripts/adaptive_drx/check_campaign.py`: `check()` | Manifest, metrics CSV, combined log | PASS, PARTIAL, or BLOCKED | Preserve the evidence package |
-
+| 10 | `scripts/adaptive_drx/check_campaign.py`: `check()` | Manifest, metrics/receive CSVs, summary, log | PASS, PARTIAL, or BLOCKED | Preserve the evidence package |

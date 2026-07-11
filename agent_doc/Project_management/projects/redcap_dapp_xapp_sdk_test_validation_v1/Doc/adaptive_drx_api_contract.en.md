@@ -68,12 +68,12 @@ The manifest stores the trace `path`, `sha256`, `trace_seed`, and
 
 | Field group | Fields | Owner / rule |
 |---|---|---|
-| Top level | `schema_version`, `experiment`, `trace_seed`, `arm_a_profile_seed`, `claim_boundary` | Generator; records reproducibility and the RFsim-only claim boundary |
+| Top level | `schema_version`, `experiment`, `trace_seed`, `claim_boundary`, optional `rebase` | Generator; records reproducibility, source-manifest hash, and the RFsim-only claim boundary |
 | Population | `arrivals_per_campaign`, `warmup_arrivals`, `scored_arrivals`, `arrivals_per_window`, `minimum_interval_us`, `maximum_interval_us` | Frozen v1 experiment shape |
 | Traffic | `tool`, `transport`, `bytes_per_burst`, `payload_bytes`, `target_bitrate_bps`, `schedule_option`, `latency_option` | Fixed iPerf2 UDP burst contract |
 | Campaign | `id`, `arm`, `direction`, `trace`, `control_mode`, `required_markers` | Selects one of Arm A/B and DL/UL |
-| Arm A | `profile_schedule[]`: `scored_window_id`, `profile_id`, `long_cycle_ms`, `on_duration_ms` | Seeded local RRC schedule |
-| Arm B | `initial_profile`: `profile_id`, `long_cycle_ms`, `on_duration_ms` | Runner-local initial label only; see the baseline gap below |
+| Arm A | `initial_profile`, `baseline_policy_version` | Fixed `drx-320-10`, version 1, applied once for all 300 scored arrivals |
+| Arm B | `initial_profile` | Fixed `drx-320-10`; runner commits reserved bootstrap version 0 on fresh DRX state |
 | Profiles | `approved_profiles[]`: `profile_id`, `long_cycle_ms`, `on_duration_ms` | Six legal v1 profile pairs |
 
 ## 4. Python Predictor and Local Policy Record
@@ -98,7 +98,7 @@ All fields are Python-local JSON evidence and are not encoded over E2.
 | `mean_interval_us` | Arithmetic mean | `statistics.fmean()` |
 | `stddev_interval_us` | Sample standard deviation | `statistics.stdev()` |
 | `lower_3sigma_us` | Mean minus three standard deviations | Used for profile selection |
-| `upper_3sigma_us` | Mean plus three standard deviations | Recorded, but not enforced on the live path |
+| `upper_3sigma_us` | Mean plus three standard deviations | Outside 10.24 s forces fallback before E2 submission |
 | `median_interval_us` | Median | Descriptive evidence |
 | `p95_interval_us` | Nearest-rank p95 | Sorted item at `ceil(0.95*N)-1` |
 | `minimum_interval_us` | Minimum sample | Descriptive evidence |
@@ -285,6 +285,10 @@ current active deadline and select the next short/long-cycle transition.
 
 Source: [`run_campaign.py`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/run_campaign.py#L176) and [`check_campaign.py`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/check_campaign.py#L17).
 
+Runtime execution requires `--bind-address` to identify the UE PDU-session
+source address. `iperf_command()` maps it to iPerf2 `-B`; omission is
+`[BLOCKED]` because container `eth0` could otherwise bypass the NR tunnel.
+
 ### 8.1 Metrics CSV Fields
 
 | Field | Meaning | Checker rule |
@@ -300,7 +304,8 @@ Source: [`run_campaign.py`](../../../../../agent_doc/Project_management/projects
 
 The command JSONL additionally records `arm`, `direction`, `traffic_source`,
 the complete command, `executed`, optional flattened control intent,
-`returncode`, `stdout`, and `stderr`.
+`returncode`, `stdout`, and `stderr`. A failed control persists the trace hash,
+arrival range, and all 30 retained intervals for deterministic retry.
 
 ### 8.2 Runtime Markers
 
@@ -319,28 +324,26 @@ the complete command, `executed`, optional flattened control intent,
 | `[RedCap DRX][DRX Command requested]` | gNB local API | One-shot command requested |
 | `[RedCap DRX][DRX Command]` | gNB scheduler | Zero-length MAC CE emitted |
 | `[RedCap DRX][control timeout]` | Runner/checker | Required versioned marker chain incomplete |
+| `[RedCap DRX][UE stats]` | UE `ciUE` module | Scored observed/active slots and v1 PDCCH-monitoring proxy |
 
 ## 9. Required `[Needs Verification]` Boundaries
 
 1. The integer value used for E2SM-RC Long DRX Cycle Length still requires an
    exact TS 38.473 encoding check.
-2. Arm B's manifest `initial_profile` initializes only the Python label. The
-   runner does not install that baseline at the gNB, while the live dApp guard
-   requires an existing rollback profile.
-3. `PolicyIntent.rnti` contains `rrc_ue_id` in Arm B. The authoritative C-RNTI
+2. `PolicyIntent.rnti` contains `rrc_ue_id` in Arm B. The authoritative C-RNTI
    is resolved only inside the gNB.
-4. Statistics, prediction quality, profile IDs, and planned version are
+3. Statistics, prediction quality, profile IDs, and planned version are
    JSON-only. The live E2 path calls the narrow cycle guard, not the rich
-   statistics-aware guard.
-5. `select_profile()` uses `lower_3sigma_us`; an excessive
-   `upper_3sigma_us` does not force fallback before the live E2 request.
-6. The live E2 path fixes start offset to zero. Predicted-arrival/SFN alignment
+   statistics-aware guard. Statistical quality is therefore xApp-owned in v1;
+   the dApp owns legal/state safety.
+4. The live E2 path fixes start offset to zero. Predicted-arrival/SFN alignment
    remains unimplemented.
-7. A FlexRIC control ACK does not report the dApp outcome. Runtime commit must
+5. A FlexRIC control ACK does not report the dApp outcome. Runtime commit must
    be inferred from the complete marker chain.
-8. The checker correlates the versioned custom RRC marker, but the UE config
+6. The checker correlates the versioned custom RRC marker, but the UE config
    and ordinary RRC completion strings are only required globally.
-9. The current metrics do not measure first-receive latency, goodput, UDP
-   loss/jitter, HARQ retransmissions, or DRX monitoring/Active-Time ratios.
-10. Automatic failure rollback exists, but no dApp rollback-decision marker
+7. The collectors and checker now support receiver latency, iPerf metrics,
+   HARQ deltas, policy latency, and UE Active-Time ratios, but no four-campaign
+   RFsim result has been collected yet.
+8. Automatic failure rollback exists, but no dApp rollback-decision marker
     or live caller of `nr_mac_rollback_drx_policy()` exists.

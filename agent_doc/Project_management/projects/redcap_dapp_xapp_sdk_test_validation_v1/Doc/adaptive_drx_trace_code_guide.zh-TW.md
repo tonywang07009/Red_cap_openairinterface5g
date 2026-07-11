@@ -14,15 +14,15 @@ Runtime `policy_version` 是 FlexRIC RIC request ID，不一定等於 predictor 
 | 1 | [`adaptive_drx.py:92`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/adaptive_drx.py#L92)，`_stable_direction_seed()` | Trace seed、DL/UL direction | 穩定且依方向區分的 seed | 無 | `generate_intervals()` |
 | 2 | [`adaptive_drx.py:105`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/adaptive_drx.py#L105)，`generate_intervals()` | Stable seed、十一個 window means | 330 筆有界 inter-arrival values | 無 | `write_trace()` |
 | 3 | [`adaptive_drx.py:119`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/adaptive_drx.py#L119)，`write_trace()` | Intervals 與 start epoch | 由方向擁有 timestamp 的 trace CSV | 無 | `write_campaign_manifest()` |
-| 4 | [`adaptive_drx.py:162`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/adaptive_drx.py#L162)，`write_campaign_manifest()` | Trace/profile seeds | 四組 campaign records、checksums 與 profiles | 無 | `load_campaign()` |
+| 4 | [`adaptive_drx.py`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/adaptive_drx.py)，`write_campaign_manifest()` / `rebase_campaign_manifest()` | Trace seed 與 future epoch | 四組 campaign records 與已驗證/rebased checksums | 無 | `load_campaign()` |
 | 5 | [`run_campaign.py:53`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/run_campaign.py#L53)，`load_campaign()` | Manifest 與 campaign ID | 已驗證 campaign 與 330 rows | 證據無效時 BLOCKED/exception | Main campaign loop |
-| 6 | [`run_campaign.py:31`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/run_campaign.py#L31)，`iperf_command()` | Trace row 與 server address | Fixed-byte UDP command；DL 加上 `-R` | 無 | `subprocess.run()` |
+| 6 | [`run_campaign.py`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/run_campaign.py)，`iperf_command()` | Trace row、server、UE PDU bind address、optional traffic prefix | 綁定 UE PDU-session address 的 fixed-byte UDP command；DL 加上 `-R` | 無 | `subprocess.run()` |
 | 7 | [`adaptive_drx.py:306`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/adaptive_drx.py#L306)，`AdaptiveDrxPredictor.observe()` | Burst 後的一筆 `interval_us` | 保留的 30-sample history | 無 | 下一 boundary 的 `propose()` |
 | 8 | [`adaptive_drx.py:245`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/adaptive_drx.py#L245)，`summarize_window()` | 剛好 30 筆 bounded intervals | Mean、sample sigma、+/-3 sigma、median、p95、min/max | 無 | `select_profile()` |
-| 9 | [`adaptive_drx.py:266`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/adaptive_drx.py#L266)，`select_profile()` | `lower_3sigma_us` | 不大於 lower bound 的最大 approved cycle，否則 fallback | 無 | `AdaptiveDrxPredictor.propose()` |
+| 9 | [`adaptive_drx.py`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/adaptive_drx.py)，`select_profile()` / `propose()` | Lower/upper 3-sigma bounds | 合法 cycle；任一 bound 不可靠時在 E2 前 fallback | 無 | Runner control branch |
 | 10 | [`adaptive_drx.py:313`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/adaptive_drx.py#L313)，`propose()` | Campaign/window IDs、UE identity、previous profile | 本地 `PolicyIntent` 與 JSON request description | 僅為 JSON `[xApp request]` label | Runner control branch |
-| 11 | [`run_campaign.py:193`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/run_campaign.py#L193)，window-control branch | Policy intent 或 seeded Arm A profile | 下一個 30 scored arrivals 使用的 profile | 無 | Local telnet 或 SWIG |
-| 12A | [`run_campaign.py:91`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/run_campaign.py#L91)，`_send_local_drx_policy()` | Arm A version、C-RNTI、完整 profile | Local telnet 的 `ci trigger_drx_policy ...` | gNB staged/applied | 步驟 20 |
+| 11 | [`run_campaign.py`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/run_campaign.py)，baseline/window branches | 固定 Arm A baseline 或 Arm B intent | 一個 Arm A version 或十個 scored Arm B versions | 無 | Local telnet 或 SWIG |
+| 12A | [`run_campaign.py`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/run_campaign.py)，`_send_local_drx_policy()` | C-RNTI 與 profile | Arm A version 1 或 fresh-state Arm B bootstrap version 0 | gNB staged/applied | 步驟 20 |
 | 12B | [`run_campaign.py:226`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/run_campaign.py#L226)，`ric.control_drx_sm()` | Arm B node、RRC UE ID、long cycle | FlexRIC 產生的 RIC request ID | Caller 無 marker | SWIG wrapper |
 | 13 | [`swig_wrapper.cpp:459`](../../../../../openair2/E2AP/flexric/src/xApp/swig/swig_wrapper.cpp#L459)，`control_drx_sm()` | E2 node、`rrc_ue_id`、cycle | 同步 RC control 與回傳 request ID | Generic FlexRIC response | C xApp request builder |
 | 14 | [`redcap_xapp_sdk.c:86`](../../../../../openair2/E2AP/REDCAP_SDK/xapp/redcap_xapp_sdk.c#L86)，`redcap_xapp_make_drx_ctrl_req()` | RRC UE ID 與 approved cycle | RC Format 1 header/message、Style 2、Action 1、Parameter 1 | 無 | `control_sm_xapp_api()` |
@@ -39,15 +39,15 @@ Runtime `policy_version` 是 FlexRIC RIC request ID，不一定等於 predictor 
 | 25 | [`rrc_UE.c:1022`](../../../../../openair2/RRC/NR_UE/rrc_UE.c#L1022)，`nr_rrc_ue_process_masterCellGroup()` | Encoded master CellGroup | Decoded CellGroup 排入 UE MAC | CellGroup debug markers | `nr_rrc_mac_config_req_cg()` |
 | 26 | [`config_ue.c:3288`](../../../../../openair2/LAYER2/NR_MAC_UE/config_ue.c#L3288)，`nr_rrc_mac_config_req_cg()` | Decoded CellGroup | MAC CellGroup applied | Applying CellGroupConfig | `configure_drx()` |
 | 27 | [`config_ue.c:2647`](../../../../../openair2/LAYER2/NR_MAC_UE/config_ue.c#L2647)，`configure_drx()` | RRC `DRX-Config` 與 SCS | Slot-based `nr_drx_config_t` | `Configured Connected DRX` | UE Active Time |
-| 28 | [`nr_ue_drx.c:111`](../../../../../openair2/LAYER2/NR_MAC_UE/nr_ue_drx.c#L111)，`nr_ue_drx_is_active_slot()` | Slot、SR、inactivity 與 HARQ timers | Active/sleep decision | 無 | UE PDCCH gate |
+| 28 | [`nr_ue_drx.c`](../../../../../openair2/LAYER2/NR_MAC_UE/nr_ue_drx.c)，`nr_ue_drx_is_active()` | Slot、SR、inactivity、RA 與 HARQ timers | Active decision 與 persistent packed counters | `ciUE drx_stats` 的 `[UE stats]` | UE PDCCH gate |
 | 29 | [`nr_ue_scheduler.c:1169`](../../../../../openair2/LAYER2/NR_MAC_UE/nr_ue_scheduler.c#L1169)，`nr_ue_dl_scheduler()` | UE state 與 current slot | 只在 Active Time 設定 DCI monitoring | 無 | Assignment event hooks |
 | 30 | [`nr_ue_drx.c:173`](../../../../../openair2/LAYER2/NR_MAC_UE/nr_ue_drx.c#L173)，assignment/HARQ hooks | New DL/UL grants 與 HARQ outcomes | Inactivity 與 retransmission deadlines | 無 | 下一次 Active-Time evaluation |
 | 31 | [`nr_mac_drx.c:62`](../../../../../openair2/LAYER2/NR_MAC_gNB/nr_mac_drx.c#L62)，stage/commit/complete state | Profile 與 RRC outcomes | `pending -> applied`、保存 `previous`、清除 cooldown | `[gNB applied]` | RRC completion |
 | 32 | [`rrc_gNB.c:1973`](../../../../../openair2/RRC/NR/rrc_gNB.c#L1973)，`handle_rrcReconfigurationComplete()` | UE RRC complete | F1 success indication 傳回 DU | `Received RRCReconfigurationComplete` | DU completion handler |
 | 33 | [`mac_rrc_dl_handler.c:767`](../../../../../openair2/LAYER2/NR_MAC_gNB/mac_rrc_dl_handler.c#L767)，completion branch | F1 success/failure | Commit completion 或自動還原 | `[RRC complete]`，可能有 `[rollback]` | Runner commit wait |
 | 34 | [`run_campaign.py:73`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/run_campaign.py#L73)，`_wait_for_commit()` | Runtime log 與 request ID | 只有完整 versioned marker chain 才成功 | Expire 時 `[control timeout]` | `predictor.resolve()` |
-| 35 | [`run_campaign.py:241`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/run_campaign.py#L241)，resolve/record branch | Commit result | 成功清 sample；失敗保留；寫 JSONL/CSV | PASS/PARTIAL | Checker |
-| 36 | [`check_campaign.py:43`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/check_campaign.py#L43)，`check()` | Manifest、metrics CSV、runtime logs | Population、version、profile 與 marker issues | PASS 或 PARTIAL | Gate report |
+| 35 | [`run_campaign.py`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/run_campaign.py)，resolve/record branch | Commit 與 traffic results | 成功清除；失敗保存完整 30-sample evidence；metrics/summary | PASS/PARTIAL | Checker |
+| 36 | [`check_campaign.py`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/check_campaign.py)，`check()` | Manifest、metrics/receive CSVs、summary、logs | Population、latency、Active-Time、HARQ、version 與 marker issues | PASS 或 PARTIAL | Gate report |
 
 ## 3. 成功 Marker 順序
 
@@ -94,15 +94,12 @@ request ID correlate，才會清除 predictor window。
 
 ## 6. 停止點與 `[Needs Verification]`
 
-- 如果 fallback baseline 尚未安裝到 gNB，請停止宣告 live Arm B pass；manifest
-  `initial_profile` 只存在 Python 本地。
+- Fresh-state Arm B version-0 bootstrap 未完成時停止；不可用保留 bootstrap
+  覆寫已配置的 DRX state。
 - 將 `PolicyIntent.rnti` 視為名稱不正確的 RRC UE correlation value。請繼續
   追到 `find_redcap_ue_by_rrc_id()`，才取得權威 C-RNTI。
 - 不要在 E2 packet 內尋找 prediction statistics；它們只存在 JSON。
-- 不要宣告已強制執行 upper-bound fallback；live selection 只使用
-  `lower_3sigma_us`。
 - 不要宣告已完成 predicted start-offset alignment；live E2 guard 使用零。
-- 不可從目前 CSV 推論 latency、goodput、loss、HARQ 或 monitoring-time
-  metrics；程式尚未產生這些欄位。
+- 宣告 latency、goodput、loss、HARQ 或 Active-Time 前，必須同時提供
+  metrics/receive CSVs、UE summary、RNTI-specific logs 與完整 marker chain。
 - TS 38.473 integer mapping 必須維持 `[Needs Verification]`。
-

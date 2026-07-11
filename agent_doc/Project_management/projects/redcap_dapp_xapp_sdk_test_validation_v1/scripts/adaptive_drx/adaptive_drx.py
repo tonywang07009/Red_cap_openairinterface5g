@@ -9,6 +9,7 @@ import hashlib
 import json
 import math
 import random
+import re
 import statistics
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -426,6 +427,48 @@ def find_campaign(manifest: dict[str, object], campaign_id: str) -> dict[str, ob
     raise ValueError(f"unknown campaign: {campaign_id}")
 
 
+def write_receive_csv(manifest_path: Path, campaign_id: str, capture_path: Path, output_path: Path) -> None:
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    campaign = find_campaign(manifest, campaign_id)
+    trace_record = campaign.get("trace")
+    if not isinstance(trace_record, dict):
+        raise ValueError("campaign trace record is missing")
+    trace_path = manifest_path.parent / str(trace_record["path"])
+    if file_sha256(trace_path) != trace_record.get("sha256"):
+        raise ValueError(f"trace checksum mismatch: {trace_path}")
+    trace = read_trace(trace_path)
+
+    timestamp_pattern = re.compile(r"^\s*(\d+)(?:\.(\d+))?\s+")
+    receive_times_us: list[int] = []
+    for line in capture_path.read_text(encoding="utf-8", errors="replace").splitlines():
+        match = timestamp_pattern.match(line)
+        if match is None:
+            continue
+        fraction = (match.group(2) or "")[:6].ljust(6, "0")
+        receive_times_us.append(int(match.group(1)) * 1_000_000 + int(fraction))
+    receive_times_us.sort()
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    cursor = 0
+    with output_path.open("w", encoding="utf-8", newline="") as stream:
+        writer = csv.DictWriter(stream, fieldnames=("campaign_id", "arrival_id", "source_receive_time_us"))
+        writer.writeheader()
+        for index, row in enumerate(trace[WARMUP_ARRIVALS:], start=WARMUP_ARRIVALS):
+            scheduled_us = int(row["scheduled_source_tx_time_us"])
+            next_us = int(trace[index + 1]["scheduled_source_tx_time_us"]) if index + 1 < len(trace) else None
+            while cursor < len(receive_times_us) and receive_times_us[cursor] < scheduled_us:
+                cursor += 1
+            if cursor == len(receive_times_us) or (next_us is not None and receive_times_us[cursor] >= next_us):
+                continue
+            writer.writerow(
+                {
+                    "campaign_id": campaign_id,
+                    "arrival_id": row["arrival_id"],
+                    "source_receive_time_us": receive_times_us[cursor],
+                }
+            )
+
+
 def _generate_command(args: argparse.Namespace) -> int:
     manifest_path = write_campaign_manifest(args.output_dir, args.trace_seed, args.start_epoch_us)
     print(manifest_path)
@@ -435,6 +478,12 @@ def _generate_command(args: argparse.Namespace) -> int:
 def _rebase_command(args: argparse.Namespace) -> int:
     manifest_path = rebase_campaign_manifest(args.manifest, args.output_dir, args.start_epoch_us)
     print(manifest_path)
+    return 0
+
+
+def _receive_csv_command(args: argparse.Namespace) -> int:
+    write_receive_csv(args.manifest, args.campaign_id, args.capture_log, args.output)
+    print(args.output)
     return 0
 
 
@@ -451,6 +500,12 @@ def main(argv: Iterable[str] | None = None) -> int:
     rebase.add_argument("--output-dir", type=Path, required=True)
     rebase.add_argument("--start-epoch-us", type=int, required=True)
     rebase.set_defaults(handler=_rebase_command)
+    receive_csv = subparsers.add_parser("receive-csv", help="correlate filtered tcpdump timestamps to scored arrivals")
+    receive_csv.add_argument("--manifest", type=Path, required=True)
+    receive_csv.add_argument("--campaign-id", required=True)
+    receive_csv.add_argument("--capture-log", type=Path, required=True)
+    receive_csv.add_argument("--output", type=Path, required=True)
+    receive_csv.set_defaults(handler=_receive_csv_command)
     args = parser.parse_args(argv)
     return args.handler(args)
 

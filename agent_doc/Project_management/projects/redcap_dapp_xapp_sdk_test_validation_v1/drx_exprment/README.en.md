@@ -87,34 +87,28 @@ Arm B commits one policy for every 30 scored arrivals. A policy is committed
 only after the versioned request, E2 acknowledgement, dApp acceptance, gNB
 application, and RRC completion markers correlate.
 
-### 1.4 Next baseline protocol
+### 1.4 Implemented baseline protocol
 
-The next A/B protocol uses `drx-320-10` as a fixed Arm A baseline. It is
+The A/B protocol uses `drx-320-10` as a fixed Arm A baseline. It is
 pre-applied once before traffic begins and remains unchanged for all 300 scored
 arrivals. Arm B starts from the same approved baseline and may update its
 profile after every committed 30-arrival history window.
 
-This is an approved next-run design, not current runner behavior. The current
-manifest and `run_campaign.py` still schedule seeded Arm A profile changes at
-each scored window. Do not label a current v1 run as the fixed-baseline
-experiment until that runner and manifest change is implemented and tested.
-
-The Arm B baseline also has a version-correlation constraint: its first live
-FlexRIC RIC request ID must be strictly newer than the locally applied baseline
-version. If that ordering cannot be proved, stop with `stale_policy_version`
-or `rollback_unavailable`; do not force the run.
+The runner now enforces that behavior. On fresh Arm B state it first commits the
+same profile with reserved bootstrap version 0, then uses FlexRIC request IDs
+for the ten scored policy windows. Reusing configured DRX state is rejected.
 
 ### 1.5 Required measurements and claim boundary
 
 | Measurement | Purpose | Current support |
 |---|---|---|
 | Applied profile and marker chain | Prove the control took effect | Implemented in logs/checker |
-| Delivery success | Confirm one scored record per arrival | Process result only; UDP delivery still needs receiver evidence |
-| First receive latency | Measure wake-to-delivery behavior | Missing receiver timestamp collector |
-| iPerf goodput/loss/jitter | Detect traffic degradation | Raw output retained; parser missing |
-| UE DRX Active-Time slot ratio | Energy-related behavior proxy | Counter/export missing |
-| DL/UL HARQ retransmissions | Explain poor delivery or extended Active Time | Campaign counter/export missing |
-| Policy apply latency | Quantify RRC control overhead | Timestamp correlation missing |
+| Delivery success | Confirm one scored record per arrival | Requires parsed receiver report with received packets |
+| First receive latency | Measure wake-to-delivery behavior | Filtered tcpdump -> `receive-csv` -> checker |
+| iPerf goodput/loss/jitter | Detect traffic degradation | Parsed into metrics CSV |
+| UE DRX Active-Time slot ratio | Energy-related behavior proxy | Atomic UE counter via `ciUE drx_stats` |
+| DL/UL HARQ retransmissions | Explain poor delivery or extended Active Time | RNTI-specific first/last log delta |
+| Policy apply latency | Quantify RRC control overhead | Timestamped staged-to-RRC-complete correlation |
 
 RFsim does not measure current, watts, joules, battery life, or receiver-chain
 power states. Active-Time and PDCCH-monitoring ratios are behavior proxies only.
@@ -128,14 +122,15 @@ power states. Active-Time and PDCCH-monitoring ratios are behavior proxies only.
 | gNB and UE softmodem builds | PASS |
 | Telnet CI DRX control module | PASS |
 | Focused UE DRX, RC, and gNB DRX CTest targets | PASS, 3/3 |
-| Trace, predictor, window, and checker tests | PASS, 4/4 |
+| Trace, predictor, window, and checker tests | PASS, 10/10 plus evidence 3/3 |
 | C dApp and C xApp self-checks | PASS |
-| Generated Python FlexRIC module | Definition-only on this host |
-| Main build E2 path | `E2_AGENT=OFF` in the recorded build caches |
+| Generated Python FlexRIC module | PASS with repository SWIG 4.1.1 and Python 3.12 |
+| Isolated E2 build path | PASS with `E2_AGENT=ON`, gNB/UE, `telnetsrv_ci`, and `ciUE` |
+| One-UE RFsim C-DRX smoke | PASS: attach/PDU/TUN/ping, E2 Setup, Arm A apply/RRC complete, UE counters, UL/DL bursts |
 | Four RFsim campaigns | BLOCKED / not executed |
 
-The passing builds and unit tests prove source readiness. They do not prove a
-live E2 control request, an applied adaptive RFsim policy, or traffic benefit.
+The smoke proves the fixed Arm A local control and traffic path, not a live Arm
+B Python E2 request, an adaptive A/B result, or traffic benefit.
 
 ### 2.2 Scored population
 
@@ -153,13 +148,9 @@ All latency, goodput, loss, jitter, HARQ, monitoring, Active-Time, reject, and
 rollback metrics are currently `N/A`. `N/A` means not measured; it is not zero
 and it is not a successful result.
 
-The current blockers are:
-
-- The evidence host has SWIG 4.0.2 while FlexRIC requires 4.1 or newer.
-- No importable `xapp_sdk` module and live E2 control path have been proven.
-- The traffic runner must share both the UE data path and the FlexRIC Python environment.
-- Receiver timestamp, iPerf result parsing, Active-Time, and HARQ exporters are missing.
-- The fixed Arm A baseline protocol is approved but not implemented by the current runner.
+The current images, iPerf2, and tcpdump are ready. The remaining blocker is
+controlled host-to-Docker bridge access for Python xApp node discovery, followed
+by the four 330-arrival campaigns and complete marker/evidence packages.
 
 ## 3. Human-Only Step-by-Step Reproduction
 
@@ -182,8 +173,9 @@ docker compose version
 For Arm B, require SWIG 4.1 or newer and an importable FlexRIC module:
 
 ```bash
-python3 -c 'import xapp_sdk; print(xapp_sdk.__file__)'
-grep '^E2_AGENT:' cmake_targets/ran_build/build/CMakeCache.txt
+PYTHONPATH=/tmp/flexric-adaptive-drx/examples/xApp/python3 \
+  python3 -c 'import xapp_sdk; print(xapp_sdk.__file__)'
+grep '^E2_AGENT:' /tmp/oai-e2-agent-build/CMakeCache.txt
 ```
 
 Stop and record `[BLOCKED]` if the module cannot be imported or `E2_AGENT` is
@@ -192,8 +184,9 @@ not enabled in the build used for the campaign.
 ### Step 2: Build the affected targets
 
 ```bash
-cmake --preset default -DENABLE_TELNETSRV=ON
-cmake --build --preset default --target nr-softmodem nr-uesoftmodem telnetsrv_ci -j2
+cmake -S . -B /tmp/oai-e2-agent-build -GNinja -DE2_AGENT=ON -DENABLE_TELNETSRV=ON
+cmake --build /tmp/oai-e2-agent-build \
+  --target nr-softmodem nr-uesoftmodem telnetsrv_ci telnetsrv_ciUE -j2
 ```
 
 ### Step 3: Run focused tests
@@ -206,6 +199,7 @@ ctest --test-dir cmake_targets/ran_build/build_test \
   -R '^(test_nr_ue_drx|test_nr_redcap_rc_ctrl|test_nr_gnb_drx)$'
 
 python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/test_adaptive_drx.py -v
+python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/test_campaign_evidence.py -v
 ```
 
 Do not continue after a focused-test failure.
@@ -221,17 +215,15 @@ mkdir -p "$RUN_DIR"
 python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/adaptive_drx.py generate \
   --output-dir "$RUN_DIR" \
   --trace-seed 41 \
-  --profile-seed 73 \
   --start-epoch-us "$START_EPOCH_US"
 
 wc -l "$RUN_DIR"/adaptive_drx_*_trace.csv
 sha256sum "$RUN_DIR"/adaptive_drx_*_trace.csv
 ```
 
-Each trace must have 331 lines: one header and 330 arrivals. Regenerate the
-manifest for each sequential campaign because absolute `--txstart-time`
-values must remain in the future. Keep the same seeds to retain the same
-interval sequence.
+Each trace must have 331 lines. Use the detailed manual's `rebase` command for
+each sequential campaign so intervals remain identical and timestamps remain
+in the future.
 
 ### Step 5: Start the runtime services and log collection
 
@@ -254,10 +246,10 @@ In another terminal, retain a combined gNB/UE log at
 `$RUN_DIR/runtime.log`. Use the exact Docker Compose log command from the
 [detailed reproduction manual](../Doc/adaptive_drx_ab_manual_reproduction.en.md).
 
-### Step 6: Pre-apply the baseline
+### Step 6: Let the runner pre-apply the baseline
 
-Resolve the connected UE C-RNTI from current gNB evidence. Apply
-`drx-320-10`, offset 0, and DRX Command disabled through the telnet CI command:
+Resolve the connected UE C-RNTI from current gNB evidence and pass it as
+`--rnti`. The runner uses this local control surface:
 
 ```text
 ci trigger_drx_policy 1 320 10 0 0 0x1234
@@ -266,14 +258,9 @@ ci trigger_drx_policy 1 320 10 0 0 0x1234
 Replace `0x1234` with the live C-RNTI. Do not send traffic until the log shows
 the matching gNB applied marker and successful versioned RRC completion.
 
-For the next fixed-baseline protocol, leave this profile unchanged throughout
-Arm A. The current runner cannot yet do that: it still changes seeded Arm A
-profiles at each window. Until the runner is updated, stop here for the new
-protocol or run only the clearly labelled legacy v1 seeded-baseline procedure.
-
-Before Arm B, prove that the next FlexRIC-generated request ID is newer than
-the baseline policy version and that the gNB has rollback state. Otherwise
-record `[BLOCKED]`.
+Arm A commits version 1 once. Arm B on a fresh stack uses
+`ci bootstrap_drx_policy 320 10 <rnti>` for reserved version 0, then requires
+the first FlexRIC request ID to be positive and newer.
 
 ### Step 7: Run the four campaigns
 
@@ -293,12 +280,14 @@ For every command, provide:
 - the generated manifest;
 - the campaign ID;
 - the persistent iPerf2 server address;
+- the UE PDU-session address passed through `--bind-address`, such as `10.0.0.2`;
 - a command-plan JSONL and metrics CSV path under `$RUN_DIR`;
 - `--execute` and the correct C-RNTI or RRC UE ID;
 - the combined runtime log and a positive control timeout.
 
-Do not run Arm B unless the runner can import `xapp_sdk` from the same
-environment that can send traffic over the UE data path.
+Run Python on the host, use the detailed manual's `--traffic-prefix` to
+execute iPerf2 in the UE container, and bind iPerf2 to the UE PDU-session
+address so traffic cannot bypass `oaitun_ue1` through container `eth0`.
 
 ### Step 8: Collect evidence
 
@@ -312,9 +301,8 @@ Retain these artifacts for every campaign:
 - DL/UL HARQ retransmission counters;
 - request, ACK, dApp decision, gNB apply, UE configuration, and RRC completion markers.
 
-The current source does not export the receiver timestamp, Active-Time, or
-campaign HARQ measurements and does not parse all iPerf metrics. Leave those
-fields `N/A` and the runtime Gate `BLOCKED` until real collectors exist.
+The collectors are source-ready. Metrics remain `N/A` until the real campaign
+produces metrics/receive CSVs, a UE summary, and RNTI-specific runtime logs.
 
 ### Step 9: Validate each campaign
 
@@ -323,6 +311,9 @@ python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_valid
   --manifest "$RUN_DIR/adaptive_drx_campaign_manifest_v1.json" \
   --campaign-id arm-b-dl \
   --metrics-csv "$RUN_DIR/arm-b-dl.metrics.csv" \
+  --receive-csv "$RUN_DIR/arm-b-dl.receive.csv" \
+  --summary-json "$RUN_DIR/arm-b-dl.summary.json" \
+  --rnti 0x1234 \
   --log "$RUN_DIR/runtime.log"
 ```
 
@@ -347,9 +338,9 @@ restart from a clean topology when operator recovery is required.
 
 ## 4. Publication Checklist
 
-- Record both seeds, start epoch, profile table, software revision, build options, and topology.
+- Record the trace seed, start epoch, profile table, software revision, build options, and topology.
 - Keep DL and UL results separate.
-- Distinguish current implementation behavior from the next fixed-baseline protocol.
+- Record fixed Arm A version 1 and fresh-state Arm B bootstrap version 0.
 - Report missing metrics as `N/A` and incomplete evidence as PARTIAL or BLOCKED.
 - Call RFsim Active-Time and PDCCH values behavior proxies, never physical-power measurements.
 - Link the final evidence package from the Gate report instead of copying generated logs into this directory.

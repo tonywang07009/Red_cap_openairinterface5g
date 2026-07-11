@@ -14,19 +14,20 @@
 
 | Campaign | 控制組別 | 方向 |
 |---|---|---|
-| `arm-a-dl` | 透過 gNB 本地控制介面套用固定 seed 的合法 profile | Downlink |
+| `arm-a-dl` | 透過 gNB 本地控制介面只套用一次固定 `drx-320-10` | Downlink |
 | `arm-b-dl` | Python predictor 經 E2SM-RC 與 C dApp guard | Downlink |
-| `arm-a-ul` | 透過 gNB 本地控制介面套用固定 seed 的合法 profile | Uplink |
+| `arm-a-ul` | 透過 gNB 本地控制介面只套用一次固定 `drx-320-10` | Uplink |
 | `arm-b-ul` | Python predictor 經 E2SM-RC 與 C dApp guard | Uplink |
 
 每個 campaign 有 330 次排程到達。第 1-30 次用於 predictor warm-up，第 31-330 次才是 300 筆正式評分資料。每個正式 policy window 固定包含 30 次到達。
 
-Arm B 使用 E2SM-RC Service Style 2、Action 1、RAN Parameter 1 傳遞 Long DRX Cycle Length。本地 dApp guard 依合法 profile 選出對應的 On Duration，並在 gNB 建立 RRC reconfiguration 前驗證 UE 狀態、遞增的 policy version、cooldown 與 rollback 狀態。
+Arm B 使用 E2SM-RC Service Style 2、Action 1、RAN Parameter 1 傳遞 Long DRX Cycle Length。標準訊息只攜帶 UE ID 與 long cycle，因此 30-sample 統計與 bounded fallback 由 xApp 負責；C dApp guard 驗證 UE 狀態、policy version、cooldown、合法 profile 與 rollback state。
 
 ```mermaid
 flowchart LR
   T[固定 seed 的 trace CSV] --> R[run_campaign.py]
-  R -->|Arm A 固定 profile| G[gNB 本地 CI 控制]
+  R -->|Arm A 固定 baseline| G[gNB 本地 CI 控制]
+  R -->|Arm B version 0 bootstrap| G
   R -->|Arm B 收滿 30 筆| P[AdaptiveDrxPredictor]
   P --> X[xapp_sdk.control_drx_sm]
   X --> E[E2SM-RC Style 2 Action 1]
@@ -41,7 +42,7 @@ flowchart LR
   M -->|Commit| N[收集下一批 30 筆]
 ```
 
-目前 evidence 已證明編譯與 focused tests，但尚未證明完整 RFsim A/B campaign、實體耗電下降，或此主機可 import Python FlexRIC bridge。
+目前 evidence 已證明 focused tests、Python 3.12 可 import FlexRIC bridge，以及 E2-enabled gNB/UE build；尚未證明完整 RFsim A/B campaign或實體耗電下降。
 
 ## 2. 前置需求
 
@@ -64,7 +65,7 @@ iperf --version
 iperf --help | grep -E -- '--txstart-time|--trip-times|--reverse'
 ```
 
-### 2.1 Arm A 本地控制需求
+### 2.1 本地控制需求
 
 gNB 必須載入 telnet CI module。Campaign runner 預設的 `127.0.0.1:9091` 只有在 runner 與 gNB 共用 network namespace 時才正確。使用目前 RFsim bridge 時，請明確指定 gNB address：
 
@@ -72,7 +73,7 @@ gNB 必須載入 telnet CI module。Campaign runner 預設的 `127.0.0.1:9091` �
 --telnetsrv --telnetsrv.shrmod ci --telnetsrv.listenaddr 192.168.70.140 --telnetsrv.listenport 9091
 ```
 
-Arm A 同時要傳入 `--gnb-control-host 192.168.70.140 --gnb-control-port 9091`。
+兩組都需要此介面：Arm A 只套用一次 version 1；Arm B 只允許在全新、尚未配置 DRX 的狀態套用保留的 version-0 rollback bootstrap。UE 也必須在 `192.168.71.150:8091` 載入 `ciUE`，才能取得 scored Active-Time counters。
 
 ### 2.2 Arm B Python/FlexRIC 需求
 
@@ -83,15 +84,15 @@ swig -version
 python3 -c 'import xapp_sdk; print(xapp_sdk.__file__)'
 ```
 
-目前 evidence host 的 SWIG 是 4.0.2。因此 SWIG build/import gate 與可執行的 Arm B campaign 目前都是 `[BLOCKED]`；不可降低 FlexRIC 的版本需求來迴避此 blocker。
+系統 SWIG 仍為 4.0.2，但 repository 的 `cmake_targets/swig/swig` 是 4.1.1。隔離的 `xapp_sdk` build 與 Python 3.12 import gate 已通過；必須使用該 build output，不可降低版本需求。
 
 ### 2.3 Traffic 與 control namespace 需求
 
-`run_campaign.py` 會直接啟動 iPerf2 client，所以它必須在可使用 UE data path 的 namespace 執行。Arm B 又會在同一個 process import FlexRIC Python module。現有 compose files 尚未證明有同時具備這兩種能力的 execution environment。在完成前應保留為 `[BLOCKED]`，不可從錯誤的 namespace 送 traffic 後宣稱 PASS。
+Python 與 `xapp_sdk` 在 host 執行，並傳入 `--traffic-prefix "docker exec rfsim5g-oai-nr-ue1_redcap"`，只讓 iPerf2 進入 UE namespace。Host 必須可連到 gNB/UE telnet address；使用 `--execute` 前也要確認 UE image 內有 iPerf2。
 
 ### 2.4 Absolute-time replay 需求
 
-同一份 manifest 會讓 Arm A 與 Arm B 使用完全相同的 absolute `--txstart-time`。單一 UE 無法依序使用這份 manifest 執行兩組測試，因為第二組會遇到已過期的 timestamp。目前要重播完全相同的 CSV，只能使用兩套隔離 topology 同時執行。Sequential campaign 需要未來新增 trace rebase 功能；重新產生不同 epoch 雖可保留相同 seed interval，但並不是 byte-identical CSV replay。
+每個 sequential campaign 前使用 `adaptive_drx.py rebase`。它會驗證來源 hash、保留每個 interval，並寫入新的 future timestamps 與 hashes。每個 campaign 仍需 fresh gNB/UE stack，確保 version 0 只作為 Arm B 初始 bootstrap。
 
 每個獨立 campaign 都要使用全新的 gNB state，否則重新從 1 開始的 policy version 會被判定為 stale。
 
@@ -100,8 +101,25 @@ python3 -c 'import xapp_sdk; print(xapp_sdk.__file__)'
 編譯 gNB control surface 時要啟用 telnet server：
 
 ```bash
-cmake --preset default -DENABLE_TELNETSRV=ON
-cmake --build --preset default --target nr-softmodem nr-uesoftmodem telnetsrv_ci -j2
+cmake -S . -B /tmp/oai-e2-agent-build -GNinja -DE2_AGENT=ON -DENABLE_TELNETSRV=ON
+cmake --build /tmp/oai-e2-agent-build \
+  --target nr-softmodem nr-uesoftmodem telnetsrv_ci telnetsrv_ciUE -j2
+```
+
+使用 repository SWIG 4.1.1 與同一套 Python 安裝來編譯 Python xApp bridge：
+
+```bash
+PYTHON_BIN=$(command -v python3)
+PYTHON_INCLUDE=$(python3 -c 'import sysconfig; print(sysconfig.get_path("include"))')
+PYTHON_LIBRARY=$(python3 -c 'import os,sysconfig; print(os.path.join(sysconfig.get_config_var("LIBDIR"),sysconfig.get_config_var("LDLIBRARY")))')
+cmake -S openair2/E2AP/flexric -B /tmp/flexric-adaptive-drx -GNinja \
+  -DXAPP_MULTILANGUAGE=ON -DUNIT_TEST=FALSE \
+  -DSWIG_EXECUTABLE="$PWD/cmake_targets/swig/swig" \
+  -DPython3_EXECUTABLE="$PYTHON_BIN" -DPYTHON_EXECUTABLE="$PYTHON_BIN" \
+  -DPYTHON_INCLUDE_DIR="$PYTHON_INCLUDE" -DPYTHON_LIBRARY="$PYTHON_LIBRARY"
+cmake --build /tmp/flexric-adaptive-drx --target xapp_sdk -j2
+PYTHONPATH=/tmp/flexric-adaptive-drx/examples/xApp/python3 \
+  python3 -B -c 'import xapp_sdk; assert hasattr(xapp_sdk, "control_drx_sm")'
 ```
 
 編譯並執行 focused C-DRX tests：
@@ -118,13 +136,14 @@ ctest --test-dir cmake_targets/ran_build/build_test \
 
 ```bash
 python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/test_adaptive_drx.py -v
+python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/test_campaign_evidence.py -v
 ```
 
-預期結果是三個 CTest targets 與四個 Python tests 全部通過。這些結果屬於 implementation checks，不是 RFsim campaign evidence。
+預期結果是三個 CTest targets、10 個 adaptive Python tests 與 3 個 evidence tests 全部通過。這些結果屬於 implementation checks，不是 RFsim campaign evidence。
 
 ## 4. 產生 Deterministic Trace
 
-選擇並記錄兩個 seeds。下列數值與 focused test example 相同；start epoch 必須在未來：
+選擇並記錄 trace seed。Arm A 固定為 `drx-320-10`，沒有 profile seed；start epoch 必須在未來：
 
 ```bash
 RUN_ID=$(date +%F_%H-%M-%S)
@@ -135,7 +154,6 @@ mkdir -p "$RUN_DIR"
 python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/adaptive_drx.py generate \
   --output-dir "$RUN_DIR" \
   --trace-seed 41 \
-  --profile-seed 73 \
   --start-epoch-us "$START_EPOCH_US"
 ```
 
@@ -150,10 +168,20 @@ python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_valid
 ```bash
 wc -l "$RUN_DIR"/adaptive_drx_*_trace.csv
 sha256sum "$RUN_DIR"/adaptive_drx_*_trace.csv
-grep -E '"(trace_seed|arm_a_profile_seed|id)"' "$RUN_DIR/adaptive_drx_campaign_manifest_v1.json"
+grep -E '"(trace_seed|initial_profile|id)"' "$RUN_DIR/adaptive_drx_campaign_manifest_v1.json"
 ```
 
 每個 CSV 必須有 331 行：一行 header 加上 330 次 arrivals。
+
+下一個 sequential campaign 前，保留 intervals 並配置新的 future epoch：
+
+```bash
+NEXT_DIR="${RUN_DIR}_next"
+python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/adaptive_drx.py rebase \
+  --manifest "$RUN_DIR/adaptive_drx_campaign_manifest_v1.json" \
+  --output-dir "$NEXT_DIR" \
+  --start-epoch-us "$(date -d '+10 minutes' +%s%6N)"
+```
 
 ## 5. 規劃並執行 A/B Campaigns
 
@@ -162,13 +190,15 @@ grep -E '"(trace_seed|arm_a_profile_seed|id)"' "$RUN_DIR/adaptive_drx_campaign_m
 設定可由 UE data path 到達的 iPerf2 server address。Planning mode 寫完 330-command JSONL 後會刻意用 status 2 結束，因為此時沒有 runtime evidence：
 
 ```bash
-IPERF_SERVER=10.0.0.1
+IPERF_SERVER=192.168.72.135
+UE_PDU_ADDRESS=10.0.0.2
 
 for CAMPAIGN in arm-a-dl arm-b-dl arm-a-ul arm-b-ul; do
   python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/run_campaign.py \
     --manifest "$RUN_DIR/adaptive_drx_campaign_manifest_v1.json" \
     --campaign-id "$CAMPAIGN" \
     --server "$IPERF_SERVER" \
+    --bind-address "$UE_PDU_ADDRESS" \
     --command-plan "$RUN_DIR/${CAMPAIGN}.plan.jsonl"
   test "$?" -eq 2
 done
@@ -212,7 +242,7 @@ docker compose \
 docker compose \
   -f "$COMPOSE_DIR/docker-compose.yml" \
   -f "$COMPOSE_DIR/docker-compose.mmtc.yml" \
-  logs -f --no-color oai-gnb oai-nr-ue1 | tee -a "$RUN_DIR/runtime.log"
+  logs -f --no-color --no-log-prefix oai-gnb oai-nr-ue1 | tee -a "$RUN_DIR/runtime.log"
 ```
 
 這個 topology command 不是完整 campaign wrapper。使用 `--execute` 前必須確認 namespace、PDU session、iPerf route、control port 與 xApp import。
@@ -226,17 +256,22 @@ python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_valid
   --manifest "$RUN_DIR/adaptive_drx_campaign_manifest_v1.json" \
   --campaign-id arm-a-dl \
   --server "$IPERF_SERVER" \
+  --bind-address "$UE_PDU_ADDRESS" \
   --command-plan "$RUN_DIR/arm-a-dl.runtime.jsonl" \
   --metrics-csv "$RUN_DIR/arm-a-dl.metrics.csv" \
+  --summary-json "$RUN_DIR/arm-a-dl.summary.json" \
+  --traffic-prefix "docker exec rfsim5g-oai-nr-ue1_redcap" \
   --execute \
   --rnti 0x1234 \
   --gnb-control-host 192.168.70.140 \
   --gnb-control-port 9091 \
+  --ue-control-host 192.168.71.150 \
+  --ue-control-port 8091 \
   --runtime-log "$RUN_DIR/runtime.log" \
   --control-timeout-s 10
 ```
 
-獨立的 uplink campaign 使用 `arm-a-ul`。依序執行下一個 campaign 前，要用全新的 gNB state 重新啟動並產生 future schedule。
+獨立的 uplink campaign 使用 `arm-a-ul`。依序執行下一個 campaign 前，要用全新的 state 並執行 `rebase`。
 
 ### 5.5 執行單一 Arm B campaign
 
@@ -249,16 +284,49 @@ python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_valid
   --manifest "$RUN_DIR/adaptive_drx_campaign_manifest_v1.json" \
   --campaign-id arm-b-dl \
   --server "$IPERF_SERVER" \
+  --bind-address "$UE_PDU_ADDRESS" \
   --command-plan "$RUN_DIR/arm-b-dl.runtime.jsonl" \
   --metrics-csv "$RUN_DIR/arm-b-dl.metrics.csv" \
+  --summary-json "$RUN_DIR/arm-b-dl.summary.json" \
+  --traffic-prefix "docker exec rfsim5g-oai-nr-ue1_redcap" \
   --execute \
+  --rnti 0x1234 \
   --rrc-ue-id 17 \
   --node-index 0 \
+  --gnb-control-host 192.168.70.140 \
+  --gnb-control-port 9091 \
+  --ue-control-host 192.168.71.150 \
+  --ue-control-port 8091 \
   --runtime-log "$RUN_DIR/runtime.log" \
   --control-timeout-s 10
 ```
 
-獨立的 uplink campaign 使用 `arm-b-ul`。gNB 必須先有一個已套用的合法 C-DRX profile，才能保存 rollback state，而且其 policy version 必須小於接下來的 correlated RIC request ID。現有 runner 不會自動建立此 baseline；沒有此條件時，`rollback_unavailable` 必須記錄為 `[BLOCKED]`。
+獨立的 uplink campaign 使用 `arm-b-ul`。在 fresh DRX state 上，runner 會在第一個 FlexRIC request 前自動把 `drx-320-10` commit 為保留的 bootstrap version 0。重用已配置的 stack 必須失敗，不可覆寫既有 policy history。
+
+### 5.6 收集 receiver timestamps
+
+Campaign 前啟動一個已過濾的 capture。DL 在 UE 收包處擷取；UL 在常駐 server 收包處擷取：
+
+```bash
+# DL example；UL 改在 oai-ext-dn 使用 `udp and dst port 5001`。
+docker exec rfsim5g-oai-nr-ue1_redcap \
+  tcpdump -tt -n -l -i oaitun_ue1 'udp and src port 5001' \
+  > "$RUN_DIR/arm-b-dl.receive.tcpdump.log" &
+CAPTURE_PID=$!
+```
+
+Campaign 後停止 capture，並把每個 scored trace window 的第一個 packet 轉成 CSV：
+
+```bash
+kill "$CAPTURE_PID"
+python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/adaptive_drx.py receive-csv \
+  --manifest "$RUN_DIR/adaptive_drx_campaign_manifest_v1.json" \
+  --campaign-id arm-b-dl \
+  --capture-log "$RUN_DIR/arm-b-dl.receive.tcpdump.log" \
+  --output "$RUN_DIR/arm-b-dl.receive.csv"
+```
+
+Capture 只能包含該 campaign 的 inbound iPerf2 UDP data；缺少或超出 window 的 timestamp 維持 `[PARTIAL]`。
 
 ## 6. 驗證 Evidence
 
@@ -269,6 +337,9 @@ python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_valid
   --manifest "$RUN_DIR/adaptive_drx_campaign_manifest_v1.json" \
   --campaign-id arm-b-dl \
   --metrics-csv "$RUN_DIR/arm-b-dl.metrics.csv" \
+  --receive-csv "$RUN_DIR/arm-b-dl.receive.csv" \
+  --summary-json "$RUN_DIR/arm-b-dl.summary.json" \
+  --rnti 0x1234 \
   --log "$RUN_DIR/runtime.log"
 ```
 
@@ -288,8 +359,9 @@ Combined evidence 也必須包含 `Configured Connected DRX` 與 `Received RRCRe
 
 目前凍結的 implementation evidence：
 
-- `test_log/build_logs/build_nr-softmodem_2026-07-11_00-50-00_adaptive-drx.log`
-- `test_log/build_logs/build_nr-uesoftmodem_2026-07-11_00-53-00_adaptive-drx.log`
+- `test_log/build_logs/build_e2_agent_telnet_gnb_ue_2026-07-11_16-02-bootstrap-metrics.log`
+- `test_log/build_logs/build_xapp_sdk_2026-07-11_15-13-45_swig411.log`
+- `test_log/compiler_logs/xapp_sdk_import_2026-07-11_15-13-45_swig411.log`
 - `test_log/compiler_logs/ctest_adaptive_drx_final_2026-07-11_01-04-00.log`
 - `test_log/compiler_logs/test_adaptive_drx_python_2026-07-11_00-57-00.log`
 
@@ -326,11 +398,11 @@ stateDiagram-v2
 
 | 現象 | 意義與處理方式 |
 |---|---|
-| `SWIG Version 4.0.2` | Arm B 被阻擋；提供 SWIG 4.1 以上，不可降低 requirement。 |
+| 系統 `SWIG Version 4.0.2` | 使用 build section 記錄的 repository SWIG 4.1.1；不可降低 requirement。 |
 | `No module named xapp_sdk` | 讓 `PYTHONPATH` 指向同一 interpreter 可使用的 FlexRIC Python build output。 |
-| `first --txstart-time is not in the future` | 使用 future epoch 重新產生 manifest，不可手動修改 trace rows。 |
+| `first --txstart-time is not in the future` | 使用 future epoch 執行 `rebase`，不可手動修改 trace rows。 |
 | gNB control connection refused | 啟用 `telnetsrv`、載入 `shrmod ci`，並傳入可到達的 gNB address 與 port。 |
-| `rollback_unavailable` | Arm B 前先套用並 commit 合法且版本較低的 baseline；runner 尚未自動處理。 |
+| `rollback_unavailable` | 從 fresh DRX state 啟動，讓 runner 的保留 version-0 bootstrap 完成。 |
 | `stale_policy_version` | 每個 campaign 使用全新 gNB state，或使用嚴格遞增的 correlated request ID。 |
 | `[RedCap DRX][control timeout]` | 保留 30-sample window，確認缺少 request、ACK、decision、applied 或 completion 中的哪一個 marker。 |
 | iPerf 無法連到 server | 從 UE data namespace 執行 client，並確認 PDU session 與 route。 |
@@ -345,8 +417,8 @@ RFsim 可以提供 PDCCH-monitoring 與 DRX-active-time proxies，但不能證�
 
 | 步驟 | File 與 symbol | Input | Output 或 marker | 下一個 trace point |
 |---|---|---|---|---|
-| 1 | `scripts/adaptive_drx/adaptive_drx.py`: `write_campaign_manifest()` | Seeds 與 start epoch | Manifest 與 paired DL/UL CSVs | `run_campaign.main()` |
-| 2 | `scripts/adaptive_drx/run_campaign.py`: `main()` | 單一 campaign 與 30 intervals | Policy intent 或 Arm A seeded profile | `AdaptiveDrxPredictor.propose()` 或 local CI control |
+| 1 | `scripts/adaptive_drx/adaptive_drx.py`: `write_campaign_manifest()` / `rebase_campaign_manifest()` | Trace seed 與 future epoch | Manifest 與 paired/rebased DL/UL CSVs | `run_campaign.main()` |
+| 2 | `scripts/adaptive_drx/run_campaign.py`: `main()` | 單一 campaign 與 30 intervals | 固定 Arm A baseline 或 adaptive intent | `AdaptiveDrxPredictor.propose()` 或 local CI control |
 | 3 | `adaptive_drx.py`: `AdaptiveDrxPredictor.propose()` | 固定 30 samples | Statistics 與合法 long-cycle request | `xapp_sdk.control_drx_sm()` |
 | 4 | `openair2/E2AP/flexric/src/xApp/swig/swig_wrapper.cpp`: `control_drx_sm()` | RRC UE ID 與 long cycle | E2SM-RC control request | `write_ctrl_rc_sm()` |
 | 5 | `openair2/E2AP/RAN_FUNCTION/O-RAN/ran_func_rc.c`: `write_ctrl_rc_sm()` | Style 2 / Action 1 message | xApp request 與 E2 ACK markers | `apply_redcap_drx_control()` |
@@ -354,5 +426,4 @@ RFsim 可以提供 PDCCH-monitoring 與 DRX-active-time proxies，但不能證�
 | 7 | `openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_primitives.c`: `nr_mac_apply_drx_policy()` | Accepted profile | Staged CellGroup reconfiguration | UE `configure_drx()` |
 | 8 | `openair2/LAYER2/NR_MAC_UE/config_ue.c`: `configure_drx()` | RRC `DRX-Config` | `Configured Connected DRX` | UE Active Time functions |
 | 9 | `openair2/LAYER2/NR_MAC_gNB/mac_rrc_dl_handler.c` | RRC completion result | gNB applied、RRC complete 或 rollback marker | `check_campaign.check()` |
-| 10 | `scripts/adaptive_drx/check_campaign.py`: `check()` | Manifest、metrics CSV、combined log | PASS、PARTIAL 或 BLOCKED | 保存 evidence package |
-
+| 10 | `scripts/adaptive_drx/check_campaign.py`: `check()` | Manifest、metrics/receive CSVs、summary、log | PASS、PARTIAL 或 BLOCKED | 保存 evidence package |

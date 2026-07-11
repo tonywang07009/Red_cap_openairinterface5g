@@ -107,6 +107,7 @@ def iperf_command(
     row: dict[str, str],
     iperf: str = "iperf",
     traffic_prefix: Iterable[str] = (),
+    bind_address: str | None = None,
 ) -> list[str]:
     scheduled_seconds = int(row["scheduled_source_tx_time_us"]) / 1_000_000
     command = [
@@ -121,10 +122,10 @@ def iperf_command(
         "32768",
         "-l",
         "1200",
-        "--txstart-time",
-        f"{scheduled_seconds:.6f}",
-        "--trip-times",
     ]
+    if bind_address is not None:
+        command.extend(["-B", bind_address])
+    command.extend(["--txstart-time", f"{scheduled_seconds:.6f}", "--trip-times"])
     if row["direction"] == "downlink":
         command.append("-R")
     return command
@@ -191,6 +192,7 @@ def main(argv: Iterable[str] | None = None) -> int:
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--campaign-id", required=True)
     parser.add_argument("--server", required=True, help="iPerf2 server address reachable from the UE-side client")
+    parser.add_argument("--bind-address", help="UE PDU-session address used by iPerf2 -B, for example 10.0.0.2")
     parser.add_argument("--iperf", default="iperf", help="iPerf2 client executable")
     parser.add_argument(
         "--traffic-prefix",
@@ -226,6 +228,9 @@ def main(argv: Iterable[str] | None = None) -> int:
         return 2
     if args.execute and args.runtime_log is None:
         print("[BLOCKED] --runtime-log is required to commit a policy window")
+        return 2
+    if args.execute and args.bind_address is None:
+        print("[BLOCKED] --bind-address is required to keep traffic on the UE PDU-session route")
         return 2
     if args.execute and args.rnti is None:
         print("[BLOCKED] --rnti is required for the local DRX baseline")
@@ -407,7 +412,7 @@ def main(argv: Iterable[str] | None = None) -> int:
                 current_policy_version = policy_version
                 current_profile = profile
 
-            command = iperf_command(args.server, row, args.iperf, traffic_prefix)
+            command = iperf_command(args.server, row, args.iperf, traffic_prefix, args.bind_address)
             record: dict[str, object] = {
                 "campaign_id": campaign["id"],
                 "arm": campaign["arm"],

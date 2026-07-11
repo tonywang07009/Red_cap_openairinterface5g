@@ -23,6 +23,7 @@ from adaptive_drx import (
     file_sha256,
     generate_intervals,
     rebase_campaign_manifest,
+    write_receive_csv,
     write_campaign_manifest,
 )
 from check_campaign import CONTROL_MARKERS, TIMEOUT_MARKER, check
@@ -91,8 +92,14 @@ class AdaptiveDrxTest(unittest.TestCase):
             self.assertEqual(rows[0]["traffic_source"], "iperf_server")
             self.assertEqual(rows[30]["phase"], "scored")
             self.assertIn("-R", iperf_command("10.0.0.2", rows[0]))
-            prefixed = iperf_command("10.0.0.2", rows[0], traffic_prefix=("docker", "exec", "ue1"))
+            prefixed = iperf_command(
+                "192.168.72.135",
+                rows[0],
+                traffic_prefix=("docker", "exec", "ue1"),
+                bind_address="10.0.0.2",
+            )
             self.assertEqual(prefixed[:4], ["docker", "exec", "ue1", "iperf"])
+            self.assertEqual(prefixed[prefixed.index("-B") + 1], "10.0.0.2")
             self.assertEqual(campaigns["arm-a-dl"]["control_mode"], "fixed_local_rrc")
             self.assertEqual(campaigns["arm-a-dl"]["initial_profile"], FALLBACK_PROFILE.__dict__)
             self.assertNotIn("profile_schedule", campaigns["arm-a-dl"])
@@ -113,6 +120,22 @@ class AdaptiveDrxTest(unittest.TestCase):
                 rebased_campaign["trace"]["sha256"], file_sha256(rebased_path.parent / rebased_campaign["trace"]["path"])
             )
             self.assertEqual(source_hash, file_sha256(root / campaigns["arm-a-dl"]["trace"]["path"]))
+
+            capture_path = root / "receiver.log"
+            capture_path.write_text(
+                "\n".join(
+                    f"{(int(row['scheduled_source_tx_time_us']) + 1000) // 1_000_000}."
+                    f"{(int(row['scheduled_source_tx_time_us']) + 1000) % 1_000_000:06d} IP packet"
+                    for row in rows[30:]
+                ),
+                encoding="utf-8",
+            )
+            receive_path = root / "receive.csv"
+            write_receive_csv(manifest_path, "arm-a-dl", capture_path, receive_path)
+            with receive_path.open(newline="") as stream:
+                receive_rows = list(csv.DictReader(stream))
+            self.assertEqual(len(receive_rows), 300)
+            self.assertEqual(receive_rows[0]["arrival_id"], "31")
 
     def test_scored_csv_and_policy_markers_correlate(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

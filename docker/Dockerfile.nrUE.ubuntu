@@ -65,6 +65,7 @@ RUN apt-get update && \
         iproute2 \
         iperf3 \
         iperf \
+        tcpdump \
         libyaml-cpp-dev \
         libasan8 \
         libubsan1 && \

@@ -21,8 +21,11 @@
 - [x] 2.8 Advertise and decode standard E2SM-RC Service Style 2 / Action 1, call the dApp-local guard, and record distinct request, acknowledgement, decision, apply, completion, and timeout markers.
 - [x] 2.9 Add focused unit/contract tests for prediction bounds, stale-version rejection, rollback, window retention, deterministic seeds, complete Active Time, frame wrap, and DRX Command guard conditions.
 - [x] 2.10 Add RFsim campaign runners and checkers for Arm A and Arm B, including CSV correlation by policy version and a clear PARTIAL/BLOCKED result when any required marker is missing.
-- [ ] 2.11 Update the campaign runtime for the fixed Arm A baseline, sequential trace rebasing, bounded prediction fallback, and the frozen metric outputs.
+- [x] 2.11 Update the campaign runtime for the fixed Arm A baseline, sequential trace rebasing, bounded prediction fallback, and the frozen metric outputs.
 - [ ] 2.12 Build the affected gNB and UE targets with the live E2/xApp path, run the focused tests, and save timestamped compiler, runtime, and marker evidence.
+  - Verified: repository SWIG 4.1.1 `xapp_sdk` build/import, E2-enabled gNB/UE and telnet-module builds, 8/8 gNB DRX tests, 9/9 UE DRX tests, 10/10 adaptive Python tests, and 3/3 evidence tests.
+  - Verified runtime smoke: rebuilt images, one-UE attach/PDU/TUN/ping, E2 Setup, fixed Arm A apply/RRC completion, UE Active-Time counters, and bound fixed-byte UL/DL bursts.
+  - Pending: restore controlled host-to-Docker bridge access for live Python xApp node discovery, then collect request/ACK/dApp/apply/RRC, traffic, receiver, Active-Time, and HARQ evidence for all four campaigns.
 
 > **Model checkpoint - use GPT-5.6 Sol / ultra for multi-module C/E2/E3 integration and RFsim blocker analysis.** Use Sol / max for smaller source changes; do not use Terra to decide protocol behavior.
 
@@ -33,8 +36,8 @@
 - [x] 3.3 Document every API and control-contract field, its owner, direction, validation rule, rollback behavior, and expected marker.
 - [x] 3.4 Write the Gate report with Arm A/B manifests, scored population, statistical results, latency/throughput/retransmission/monitoring-time proxies, limitations, and explicit separation of RFsim proxies from physical-power claims.
 - [x] 3.5 Add the final **Trace Code Guide**: a file-and-symbol route from traffic generation through Python xApp prediction, E2 decode, C dApp guard, gNB RRC/MAC apply, UE MAC timer handling, and the checker markers; each entry must state input, output, marker, and next trace point.
-- [ ] 3.6 Verify paired-document completeness, Mermaid rendering, commands, source links, and evidence-path references before publishing the final report.
-  - Verified: paired sections, documented commands, local source links, and evidence-path references pass the durable static checker.
-  - Pending: render the four Mermaid blocks in a browser. The local renderer was found, but headless Chrome cannot start in the current sandbox and the controlled elevation was denied because the workspace is out of credits.
+- [x] 3.6 Verify paired-document completeness, Mermaid rendering, commands, source links, and evidence-path references before publishing the final report.
+  - Verified: paired sections, documented commands, local source links, and evidence-path references pass the durable static checker; local headless Chrome rendered all four Mermaid blocks (`PASS diagrams=4`).
+  - Evidence: `test_log/compiler_logs/adaptive_drx_mermaid_render_2026-07-11_20-05-02.log`.
 
 > **Model checkpoint - switch to GPT-5.6 Terra only after Implementation evidence is frozen.** Use Terra for bilingual drafting, tables, Mermaid, and tutorial wording; return to Sol / max for the final standards and evidence review.

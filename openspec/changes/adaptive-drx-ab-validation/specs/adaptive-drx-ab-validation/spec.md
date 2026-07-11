@@ -11,6 +11,10 @@ The system SHALL execute each downlink or uplink C-DRX campaign with 330 schedul
 - **WHEN** an operator starts a downlink or uplink campaign
 - **THEN** the runner stores direction-specific source timestamps and does not merge the results into a bidirectional claim
 
+#### Scenario: Adaptive-arm rollback bootstrap
+- **WHEN** an operator starts Arm B on fresh, unconfigured DRX state
+- **THEN** the runner commits `drx-320-10` under reserved local version 0 before sending positive FlexRIC request IDs and rejects bootstrap reuse on configured state
+
 ### Requirement: Versioned xApp prediction intent
 The xApp SHALL consume only a committed set of 30 arrival intervals, calculate descriptive statistics and a z-score interval, and emit a versioned DRX policy intent for the next 30 arrivals. The intent SHALL include a prediction-quality result and a conservative fallback request when the selected candidate is not reliable.
 
@@ -23,7 +27,7 @@ The xApp SHALL consume only a committed set of 30 arrival intervals, calculate d
 - **THEN** the xApp emits a fallback-profile intent and records the reason without claiming a valid prediction
 
 ### Requirement: dApp-gNB DRX safety boundary
-The dApp/gNB guard SHALL validate every DRX policy intent before runtime application and SHALL be the only component allowed to accept, reject, apply, or roll back a policy. It SHALL use an RRC configuration path for DRX-cycle or On Duration changes and SHALL treat a DRX Command MAC CE as a separately guarded early-active-state action.
+The xApp SHALL validate the 30-sample statistical intent before E2 submission. The dApp/gNB guard SHALL validate every resulting live DRX request for legal profile, version, UE state, cooldown, and rollback safety and SHALL be the only component allowed to accept, reject, apply, or roll back it. It SHALL use an RRC configuration path for DRX-cycle or On Duration changes and SHALL treat a DRX Command MAC CE as a separately guarded early-active-state action.
 
 #### Scenario: Accepted RRC DRX update
 - **WHEN** a policy intent has a new version, legal enumerated values, a valid rollback profile, and passes the local state guard

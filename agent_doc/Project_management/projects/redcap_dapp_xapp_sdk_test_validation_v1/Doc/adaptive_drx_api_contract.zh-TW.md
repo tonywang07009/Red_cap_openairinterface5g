@@ -67,12 +67,12 @@ Manifest 會保存 trace `path`、`sha256`、`trace_seed` 與 `start_epoch_us`�
 
 | 欄位群組 | 欄位 | 擁有者 / 規則 |
 |---|---|---|
-| Top level | `schema_version`、`experiment`、`trace_seed`、`arm_a_profile_seed`、`claim_boundary` | Generator；保存重現條件與 RFsim-only 宣告邊界 |
+| Top level | `schema_version`、`experiment`、`trace_seed`、`claim_boundary`、optional `rebase` | Generator；保存重現條件、來源 manifest hash 與 RFsim-only 宣告邊界 |
 | Population | `arrivals_per_campaign`、`warmup_arrivals`、`scored_arrivals`、`arrivals_per_window`、`minimum_interval_us`、`maximum_interval_us` | 凍結的 v1 實驗形狀 |
 | Traffic | `tool`、`transport`、`bytes_per_burst`、`payload_bytes`、`target_bitrate_bps`、`schedule_option`、`latency_option` | 固定 iPerf2 UDP burst 合約 |
 | Campaign | `id`、`arm`、`direction`、`trace`、`control_mode`、`required_markers` | 選擇 Arm A/B 與 DL/UL |
-| Arm A | `profile_schedule[]`：`scored_window_id`、`profile_id`、`long_cycle_ms`、`on_duration_ms` | 固定 seed 的本地 RRC schedule |
-| Arm B | `initial_profile`：`profile_id`、`long_cycle_ms`、`on_duration_ms` | 只初始化 runner 本地 label；請見 baseline 缺口 |
+| Arm A | `initial_profile`、`baseline_policy_version` | 固定 `drx-320-10` version 1，只套用一次並涵蓋 300 scored arrivals |
+| Arm B | `initial_profile` | 固定 `drx-320-10`；runner 只在 fresh DRX state commit 保留的 bootstrap version 0 |
 | Profiles | `approved_profiles[]`：`profile_id`、`long_cycle_ms`、`on_duration_ms` | 六組 v1 合法 profile pair |
 
 ## 4. Python Predictor 與本地 Policy Record
@@ -97,7 +97,7 @@ Manifest 會保存 trace `path`、`sha256`、`trace_seed` 與 `start_epoch_us`�
 | `mean_interval_us` | 算術平均數 | `statistics.fmean()` |
 | `stddev_interval_us` | 樣本標準差 | `statistics.stdev()` |
 | `lower_3sigma_us` | 平均數減三倍標準差 | 用於選擇 profile |
-| `upper_3sigma_us` | 平均數加三倍標準差 | 有記錄，但 live path 未強制檢查 |
+| `upper_3sigma_us` | 平均數加三倍標準差 | 超過 10.24 s 時在 E2 submission 前強制 fallback |
 | `median_interval_us` | 中位數 | 描述性證據 |
 | `p95_interval_us` | Nearest-rank p95 | 排序後第 `ceil(0.95*N)-1` 個項目 |
 | `minimum_interval_us` | 最小 sample | 描述性證據 |
@@ -284,6 +284,8 @@ deadline，並選擇下一個 short/long-cycle transition。
 
 來源：[`run_campaign.py`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/run_campaign.py#L176) 與 [`check_campaign.py`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/check_campaign.py#L17)。
 
+Runtime execution 必須用 `--bind-address` 指定 UE PDU-session source address。`iperf_command()` 會把它映射為 iPerf2 `-B`；若省略則回報 `[BLOCKED]`，避免 container `eth0` 繞過 NR tunnel。
+
 ### 8.1 Metrics CSV 欄位
 
 | 欄位 | 意義 | Checker 規則 |
@@ -299,7 +301,8 @@ deadline，並選擇下一個 short/long-cycle transition。
 
 Command JSONL 另記錄 `arm`、`direction`、`traffic_source`、完整 command、
 `executed`、optional flattened control intent、`returncode`、`stdout` 與
-`stderr`。
+`stderr`。Control 失敗時也會保存 trace hash、arrival range 與完整 30 筆
+retained intervals，供 deterministic retry。
 
 ### 8.2 Runtime Markers
 
@@ -318,26 +321,24 @@ Command JSONL 另記錄 `arm`、`direction`、`traffic_source`、完整 command�
 | `[RedCap DRX][DRX Command requested]` | gNB local API | 已要求一次性 command |
 | `[RedCap DRX][DRX Command]` | gNB scheduler | 已送出 zero-length MAC CE |
 | `[RedCap DRX][control timeout]` | Runner/checker | 必要的 versioned marker chain 不完整 |
+| `[RedCap DRX][UE stats]` | UE `ciUE` module | Scored observed/active slots 與 v1 PDCCH-monitoring proxy |
 
 ## 9. 必須保留的 `[Needs Verification]` 邊界
 
 1. E2SM-RC Long DRX Cycle Length 所使用的 integer value，仍需核對 TS
    38.473 的精確 encoding。
-2. Arm B manifest 的 `initial_profile` 只初始化 Python label。Runner 沒有
-   在 gNB 安裝 baseline，但 live dApp guard 要求既有 rollback profile。
-3. Arm B 的 `PolicyIntent.rnti` 實際包含 `rrc_ue_id`。權威 C-RNTI 只在 gNB
+2. Arm B 的 `PolicyIntent.rnti` 實際包含 `rrc_ue_id`。權威 C-RNTI 只在 gNB
    內解析。
-4. Statistics、prediction quality、profile IDs 與 planned version 只存在
+3. Statistics、prediction quality、profile IDs 與 planned version 只存在
    JSON。Live E2 path 呼叫 narrow cycle guard，而非 statistics-aware rich guard。
-5. `select_profile()` 只使用 `lower_3sigma_us`；過大的 `upper_3sigma_us` 不會
-   在 live E2 request 前強制 fallback。
-6. Live E2 path 將 start offset 固定為零。Predicted-arrival/SFN alignment 尚未
+   因此 v1 的 statistical quality 由 xApp 負責，dApp 負責 legal/state safety。
+4. Live E2 path 將 start offset 固定為零。Predicted-arrival/SFN alignment 尚未
    實作。
-7. FlexRIC control ACK 不會回報 dApp outcome。Runtime commit 必須由完整
+5. FlexRIC control ACK 不會回報 dApp outcome。Runtime commit 必須由完整
    marker chain 判斷。
-8. Checker 會依 version correlate custom RRC marker，但 UE config 與一般 RRC
+6. Checker 會依 version correlate custom RRC marker，但 UE config 與一般 RRC
    completion string 只做全域存在檢查。
-9. 目前 metrics 尚未量測 first-receive latency、goodput、UDP loss/jitter、
-   HARQ retransmission，或 DRX monitoring/Active-Time ratio。
-10. 已有自動 failure rollback，但沒有 dApp rollback-decision marker，也沒有
+7. Collectors 與 checker 已支援 receiver latency、iPerf metrics、HARQ delta、
+   policy latency 與 UE Active-Time ratio，但尚未取得四個 RFsim campaign result。
+8. 已有自動 failure rollback，但沒有 dApp rollback-decision marker，也沒有
     `nr_mac_rollback_drx_policy()` 的 live caller。

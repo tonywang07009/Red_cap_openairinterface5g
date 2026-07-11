@@ -46,6 +46,9 @@ arm_a:
   apply_count: 1
 
 arm_b:
+  bootstrap_profile_id: drx-320-10
+  bootstrap_policy_version: 0
+  bootstrap_requires_fresh_unconfigured_state: true
   history_size: 30
   forecast_horizon_arrivals: 30
   statistics:

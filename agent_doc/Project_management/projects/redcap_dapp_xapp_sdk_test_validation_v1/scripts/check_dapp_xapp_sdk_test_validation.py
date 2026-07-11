@@ -434,8 +434,23 @@ def check_adaptive_drx_docs(errors: list[str]) -> None:
 
     for path in paths[:2]:
         text = read(path)
-        for needle in ["330", "300", "--txstart-time", "--execute", "check_campaign.py", "SWIG", "[BLOCKED]"]:
+        for needle in [
+            "330",
+            "300",
+            "--txstart-time",
+            "--execute",
+            "--traffic-prefix",
+            "--bind-address",
+            "--receive-csv",
+            "--summary-json",
+            "rebase",
+            "check_campaign.py",
+            "SWIG",
+            "[BLOCKED]",
+        ]:
             require(needle in text, f"{path} missing manual text: {needle}", errors)
+        for obsolete in ["--profile-seed", "arm_a_profile_seed", "profile_schedule[]"]:
+            require(obsolete not in text, f"{path} contains obsolete adaptive DRX text: {obsolete}", errors)
         require(text.count("```mermaid") == 2, f"{path} must contain two Mermaid diagrams", errors)
 
     for path in paths[2:4]:
@@ -452,7 +467,7 @@ def check_adaptive_drx_docs(errors: list[str]) -> None:
 
     for path in paths[6:8]:
         text = read(path)
-        for needle in ["BLOCKED", "0/1200", "N/A", "SWIG", "E2_AGENT=OFF"]:
+        for needle in ["BLOCKED", "0/1200", "N/A", "SWIG", "E2_AGENT=ON"]:
             require(needle in text, f"{path} missing Gate evidence boundary: {needle}", errors)
         require("physical-power" in text or "實體耗電" in text,
                 f"{path} missing physical-power claim boundary", errors)
