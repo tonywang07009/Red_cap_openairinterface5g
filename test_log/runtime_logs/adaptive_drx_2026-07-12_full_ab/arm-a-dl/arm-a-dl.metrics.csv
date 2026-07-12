@@ -1,0 +1,1 @@
+campaign_id,arrival_id,scheduled_source_tx_time_us,delivery_success,policy_version,profile_id,client_launch_time_us,iperf_returncode,burst_goodput_mbps,udp_jitter_ms,udp_lost_packets,udp_total_packets,udp_loss_percent
