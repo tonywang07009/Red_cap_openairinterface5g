@@ -95,8 +95,10 @@ arrivals. Arm B starts from the same approved baseline and may update its
 profile after every committed 30-arrival history window.
 
 The runner now enforces that behavior. On fresh Arm B state it first commits the
-same profile with reserved bootstrap version 0, then uses FlexRIC request IDs
-for the ten scored policy windows. Reusing configured DRX state is rejected.
+same profile with reserved bootstrap version 0. Each scored window records a
+positive xApp-local `e42_request_id` and separately correlates the Near-RT
+RIC's network request ID as `policy_version`. Reusing configured DRX state is
+rejected.
 
 ### 1.5 Required measurements and claim boundary
 
@@ -234,13 +236,34 @@ topology. The gNB must include:
 --telnetsrv --telnetsrv.shrmod ci --telnetsrv.listenaddr 192.168.70.140 --telnetsrv.listenport 9091
 ```
 
-Verify that the UE has a PDU session and that the campaign process can reach
-both the UE data path and the FlexRIC Python module. Start a persistent iPerf2
-server in the receiving data-network namespace:
+Load the shared UE CI telnet module when recreating the RFsim gNB and UE, then
+require its DRX-counter marker before starting a 330-arrival run:
 
 ```bash
-iperf -s -u -i 1
+COMPOSE_DIR=ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap
+export MMTC_UE_EXTRA_OPTIONS="--telnetsrv.shrmod ciUE"
+docker compose -f "$COMPOSE_DIR/docker-compose.yml" \
+  -f "$COMPOSE_DIR/docker-compose.mmtc.yml" \
+  up -d --force-recreate --no-deps oai-gnb oai-nr-ue1
+printf 'ciUE drx_stats\n' | nc -w 3 192.168.71.150 8091 \
+  | grep -E '\[RedCap DRX\]\[UE stats\].*observed_slots=[0-9]+.*active_slots=[0-9]+'
 ```
+
+The required literal response marker is `[RedCap DRX][UE stats]`.
+
+Verify that the UE has a PDU session and that the campaign process can reach
+both the UE data path and the FlexRIC Python module. Start a fresh iPerf2 2.1.9
+server for each campaign so the server and UE client use the same version:
+
+```bash
+docker run --rm --name adaptive-drx-iperf-server \
+  --network oai-cn5g-traffic-net --ip 192.168.72.136 \
+  --entrypoint /usr/bin/iperf oai-nr-ue:latest -s -u -i 1
+```
+
+Keep it running for the complete campaign, preserve its log, and verify both
+`iperf --version` outputs before traffic. Do not reuse its process for the next
+campaign.
 
 In another terminal, retain a combined gNB/UE log at
 `$RUN_DIR/runtime.log`. Use the exact Docker Compose log command from the
@@ -259,16 +282,17 @@ Replace `0x1234` with the live C-RNTI. Do not send traffic until the log shows
 the matching gNB applied marker and successful versioned RRC completion.
 
 Arm A commits version 1 once. Arm B on a fresh stack uses
-`ci bootstrap_drx_policy 320 10 <rnti>` for reserved version 0, then requires
-the first FlexRIC request ID to be positive and newer.
+`ci bootstrap_drx 320 10 <rnti>` for reserved version 0. Each adaptive request
+must return a positive local `e42_request_id`; the runner then requires a newer
+network RIC request ID with a complete gNB marker chain.
 
 ### Step 7: Run the four campaigns
 
 Run one campaign at a time in this order:
 
 1. `arm-a-dl`
-2. `arm-a-ul`
-3. `arm-b-dl`
+2. `arm-b-dl`
+3. `arm-a-ul`
 4. `arm-b-ul`
 
 Use a fresh future trace and fresh gNB policy state for each campaign. The
@@ -283,7 +307,7 @@ For every command, provide:
 - the UE PDU-session address passed through `--bind-address`, such as `10.0.0.2`;
 - a command-plan JSONL and metrics CSV path under `$RUN_DIR`;
 - `--execute` and the correct C-RNTI or RRC UE ID;
-- the combined runtime log and a positive control timeout.
+- the combined runtime log and positive control/traffic timeouts.
 
 Run Python on the host, use the detailed manual's `--traffic-prefix` to
 execute iPerf2 in the UE container, and bind iPerf2 to the UE PDU-session

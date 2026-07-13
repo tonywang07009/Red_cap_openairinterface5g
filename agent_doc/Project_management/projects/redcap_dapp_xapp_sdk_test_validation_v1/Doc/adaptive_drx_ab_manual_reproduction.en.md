@@ -199,7 +199,7 @@ python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_valid
 Set the iPerf2 server address reachable through the UE data path. Planning intentionally exits with status 2 after writing the 330-command JSONL because runtime evidence is absent:
 
 ```bash
-IPERF_SERVER=192.168.72.135
+IPERF_SERVER=192.168.72.136
 UE_PDU_ADDRESS=10.0.0.2
 
 for CAMPAIGN in arm-a-dl arm-b-dl arm-a-ul arm-b-ul; do
@@ -219,10 +219,23 @@ Each plan must contain 330 JSON records. `[PLAN]` followed by `[BLOCKED]` is the
 
 ### 5.2 Start the persistent iPerf2 server
 
-Run the server in the external data-network namespace and leave it running for one campaign:
+Run a fresh server in the external data network and leave it running for one
+campaign. The server and UE client must report the same iPerf2 version; the
+verified RFsim path uses `2.1.9` from the same local OAI image on both sides:
 
 ```bash
-iperf -s -u -i 1
+docker run --rm --name adaptive-drx-iperf-server \
+  --network oai-cn5g-traffic-net --ip 192.168.72.136 \
+  --entrypoint /usr/bin/iperf oai-nr-ue:latest -s -u -i 1
+```
+
+Run the server in the foreground so its log remains an artifact. Start a new
+container before each campaign; do not reuse accumulated server state. Verify
+version parity before traffic:
+
+```bash
+docker exec rfsim5g-oai-nr-ue1_redcap iperf --version
+docker exec adaptive-drx-iperf-server iperf --version
 ```
 
 The UE-side runner uses normal mode for uplink and `-R` reverse mode for downlink. With `--launch-lead-ms 250`, UL starts the client 250 ms early and lets `--txstart-time` own source transmission timing. The iPerf2 reverse server does not honor the client's `--txstart-time`, so DL launches at the scheduled epoch with no lead. Do not use process-start time as the arrival timestamp; the generated CSV remains the timing source of truth.
@@ -238,12 +251,24 @@ export TAG=latest
 export GNB_IMG=oai-gnb
 export NRUE_IMG=oai-nr-ue
 export MMTC_GNB_EXTRA_OPTIONS="--telnetsrv --telnetsrv.shrmod ci --telnetsrv.listenaddr 192.168.70.140 --telnetsrv.listenport 9091 --gNBs.[0].do_CSIRS 0 --gNBs.[0].do_SRS 0"
+export MMTC_UE_EXTRA_OPTIONS="--telnetsrv.shrmod ciUE"
 
 docker compose \
   -f "$COMPOSE_DIR/docker-compose.yml" \
   -f "$COMPOSE_DIR/docker-compose.mmtc.yml" \
   up -d nearRT-RIC oai-gnb oai-nr-ue1
 ```
+
+Before generating any traffic, require a non-resetting UE counter response:
+
+```bash
+printf 'ciUE drx_stats\n' | nc -w 3 192.168.71.150 8091 \
+  | grep -E '\[RedCap DRX\]\[UE stats\].*observed_slots=[0-9]+.*active_slots=[0-9]+'
+```
+
+If the `[RedCap DRX][UE stats]` marker is absent, recreate the UE with the
+`MMTC_UE_EXTRA_OPTIONS` export above. A plain container restart cannot change
+its original command line.
 
 In a separate terminal, append both gNB and UE logs to one file:
 
@@ -278,6 +303,7 @@ python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_valid
   --ue-control-port 8091 \
   --runtime-log "$RUN_DIR/runtime.log" \
   --control-timeout-s 10 \
+  --traffic-timeout-s 10 \
   --launch-lead-ms 250
 ```
 
@@ -285,7 +311,7 @@ Use `arm-a-ul` for the independent uplink campaign. Restart with fresh state and
 
 ### 5.5 Execute one Arm B campaign
 
-This command is valid only after the SWIG import, shared UE-traffic/FlexRIC namespace, E2 connection, and approved rollback baseline are proven. Replace the example RRC UE ID:
+This command is valid only after the SWIG import, shared UE-traffic/FlexRIC namespace, E2 connection, and approved rollback baseline are proven. Run no concurrent RC controller for the same UE during a campaign. Replace the example RRC UE ID:
 
 ```bash
 export PYTHONPATH=/tmp/flexric-adaptive-drx-v3/src/xApp/swig
@@ -310,6 +336,7 @@ python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_valid
   --ue-control-port 8091 \
   --runtime-log "$RUN_DIR/runtime.log" \
   --control-timeout-s 10 \
+  --traffic-timeout-s 10 \
   --launch-lead-ms 250
 ```
 
@@ -320,14 +347,14 @@ Use `arm-b-ul` for the independent uplink campaign. On fresh DRX state, the runn
 Start one filtered capture before the campaign. For DL, capture packets received by the UE; for UL, capture packets received by the persistent server:
 
 ```bash
-# DL example; use `udp and dst port 5001` in oai-ext-dn for UL.
+# DL example; use `udp and dst port 5001` in adaptive-drx-iperf-server for UL.
 docker exec rfsim5g-oai-nr-ue1_redcap \
   tcpdump -tt -n -l -i oaitun_ue1 'udp and src port 5001' \
   > "$RUN_DIR/arm-b-dl.receive.tcpdump.log" &
 CAPTURE_PID=$!
 ```
 
-After the campaign, stop that capture and correlate its first packet per scored trace window:
+After the campaign, stop that capture and correlate the first packet of each sequential iPerf2 flow to its arrival ID:
 
 ```bash
 kill "$CAPTURE_PID"
@@ -338,7 +365,7 @@ python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_valid
   --output "$RUN_DIR/arm-b-dl.receive.csv"
 ```
 
-The capture must contain only inbound iPerf2 UDP data for the selected campaign. Missing or out-of-window timestamps remain `[PARTIAL]`.
+The capture must contain only inbound iPerf2 UDP data for the selected campaign. A receive timestamp may follow the next scheduled arrival when RRC control delays traffic; that delay remains part of the metric. Missing or extra flow segments remain `[PARTIAL]`.
 
 ## 6. Validate the Evidence
 

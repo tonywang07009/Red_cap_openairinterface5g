@@ -73,7 +73,7 @@ Arm B 每 30 筆 scored arrivals 套用一個 policy。只有 versioned request�
 
 ### 1.4 已實作的 Baseline Protocol
 
-目前 A/B protocol 使用 `drx-320-10` 作為固定 Arm A baseline；Traffic 前只 pre-apply 一次，300 筆 scored arrivals 全程不變。Runner 已實作此行為。Fresh Arm B state 會先用保留的 bootstrap version 0 commit 同一 profile，再以 FlexRIC request IDs 處理十個 scored windows；重用已配置的 DRX state 會被拒絕。
+目前 A/B protocol 使用 `drx-320-10` 作為固定 Arm A baseline；Traffic 前只 pre-apply 一次，300 筆 scored arrivals 全程不變。Runner 已實作此行為。Fresh Arm B state 會先用保留的 bootstrap version 0 commit 同一 profile；每個 scored window 分別記錄正值的 xApp-local `e42_request_id`，並將 Near-RT RIC 的 network request ID correlation 為 `policy_version`。重用已配置的 DRX state 會被拒絕。
 
 ### 1.5 必要量測與宣稱邊界
 
@@ -199,11 +199,33 @@ sha256sum "$RUN_DIR"/adaptive_drx_*_trace.csv
 --telnetsrv --telnetsrv.shrmod ci --telnetsrv.listenaddr 192.168.70.140 --telnetsrv.listenport 9091
 ```
 
-確認 UE 已建立 PDU session，而且 campaign process 同時可連線 UE data path 與 FlexRIC Python module。在接收端 data-network namespace 啟動 persistent iPerf2 server：
+重新建立 RFsim gNB 與 UE 時載入共用 UE CI telnet module，並在 330-arrival
+run 開始前要求 DRX counter marker：
 
 ```bash
-iperf -s -u -i 1
+COMPOSE_DIR=ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap
+export MMTC_UE_EXTRA_OPTIONS="--telnetsrv.shrmod ciUE"
+docker compose -f "$COMPOSE_DIR/docker-compose.yml" \
+  -f "$COMPOSE_DIR/docker-compose.mmtc.yml" \
+  up -d --force-recreate --no-deps oai-gnb oai-nr-ue1
+printf 'ciUE drx_stats\n' | nc -w 3 192.168.71.150 8091 \
+  | grep -E '\[RedCap DRX\]\[UE stats\].*observed_slots=[0-9]+.*active_slots=[0-9]+'
 ```
+
+必要的原始回應 marker 是 `[RedCap DRX][UE stats]`。
+
+確認 UE 已建立 PDU session，而且 campaign process 同時可連線 UE data path
+與 FlexRIC Python module。每個 campaign 啟動全新的 iPerf2 2.1.9 server，
+使 server 與 UE client 使用相同版本：
+
+```bash
+docker run --rm --name adaptive-drx-iperf-server \
+  --network oai-cn5g-traffic-net --ip 192.168.72.136 \
+  --entrypoint /usr/bin/iperf oai-nr-ue:latest -s -u -i 1
+```
+
+讓它在整個 campaign 期間持續執行、保留 log，並在 traffic 前比對兩端
+`iperf --version`。下一個 campaign 不可重用同一個 process。
 
 在另一個 terminal 持續保存 combined gNB/UE log 到 `$RUN_DIR/runtime.log`。Docker Compose log 的完整命令請使用[詳細人工重建指南](../Doc/adaptive_drx_ab_manual_reproduction.zh-TW.md)。
 
@@ -217,15 +239,15 @@ ci trigger_drx_policy 1 320 10 0 0 0x1234
 
 將 `0x1234` 替換成 live C-RNTI。Log 出現 matching gNB applied marker 與 versioned RRC completion success 前，不可開始傳送 traffic。
 
-Arm A 只 commit version 1 一次。Fresh-stack Arm B 使用 `ci bootstrap_drx_policy 320 10 <rnti>` 建立保留 version 0，再要求第一個 FlexRIC request ID 為正且更新。
+Arm A 只 commit version 1 一次。Fresh-stack Arm B 使用 `ci bootstrap_drx 320 10 <rnti>` 建立保留 version 0。每個 adaptive request 必須回傳正值的本地 `e42_request_id`；runner 再要求較新的 network RIC request ID 與完整 gNB marker chain。
 
 ### Step 7：執行四個 Campaigns
 
 依序一次執行一個 campaign：
 
 1. `arm-a-dl`
-2. `arm-a-ul`
-3. `arm-b-dl`
+2. `arm-b-dl`
+3. `arm-a-ul`
 4. `arm-b-ul`
 
 每個 campaign 都使用新的 future trace 與乾淨的 gNB policy state。Arm A 與 Arm B 的 exact command templates 維護在[詳細人工重建指南](../Doc/adaptive_drx_ab_manual_reproduction.zh-TW.md)第 5.4 與 5.5 節。
@@ -238,7 +260,7 @@ Arm A 只 commit version 1 一次。Fresh-stack Arm B 使用 `ci bootstrap_drx_p
 - 以 `--bind-address` 傳入的 UE PDU-session address，例如 `10.0.0.2`；
 - `$RUN_DIR` 內的 command-plan JSONL 與 metrics CSV path；
 - `--execute` 與正確的 C-RNTI 或 RRC UE ID；
-- combined runtime log 與大於零的 control timeout。
+- combined runtime log 與大於零的 control/traffic timeouts。
 
 Python 在 host 執行，使用詳細指南的 `--traffic-prefix` 讓 iPerf2 進入 UE container，並綁定 UE PDU-session address，避免 traffic 經 container `eth0` 繞過 `oaitun_ue1`。
 

@@ -92,12 +92,8 @@ def _receive_evidence(
             continue
         scheduled_us = int(expected["scheduled_source_tx_time_us"])
         receive_us = int(row["source_receive_time_us"])
-        next_row = trace.get(arrival_id + 1)
         if receive_us < scheduled_us:
             issues.append(f"receive arrival {arrival_id}: timestamp precedes scheduled transmission")
-            continue
-        if next_row is not None and receive_us >= int(next_row["scheduled_source_tx_time_us"]):
-            issues.append(f"receive arrival {arrival_id}: timestamp is not before the next arrival")
             continue
         latencies_ms.append((receive_us - scheduled_us) / 1000)
 

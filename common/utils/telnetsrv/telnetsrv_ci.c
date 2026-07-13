@@ -388,6 +388,10 @@ static int trigger_bwp_switch(char *buf, int debug, telnet_printfunc_t prnt)
 
 static int trigger_drx_policy(char *buf, int debug, telnet_printfunc_t prnt)
 {
+  if (buf == NULL)
+    ERROR_MSG_RET(
+        "usage: ci trigger_drx_policy version cycle_ms on_duration_ms offset_ms command_enabled [rnti]\n");
+
   char *sversion = strtok(buf, " ");
   char *scycle = strtok(NULL, " ");
   char *son_duration = strtok(NULL, " ");
@@ -426,11 +430,14 @@ static int trigger_drx_policy(char *buf, int debug, telnet_printfunc_t prnt)
 
 static int bootstrap_drx_policy(char *buf, int debug, telnet_printfunc_t prnt)
 {
+  if (buf == NULL)
+    ERROR_MSG_RET("usage: ci bootstrap_drx cycle_ms on_duration_ms [rnti]\n");
+
   char *scycle = strtok(buf, " ");
   char *son_duration = strtok(NULL, " ");
   char *srnti = strtok(NULL, " ");
   if (!scycle || !son_duration)
-    ERROR_MSG_RET("usage: ci bootstrap_drx_policy cycle_ms on_duration_ms [rnti]\n");
+    ERROR_MSG_RET("usage: ci bootstrap_drx cycle_ms on_duration_ms [rnti]\n");
 
   char *end = NULL;
   const unsigned long cycle = strtoul(scycle, &end, 0);
@@ -471,7 +478,7 @@ static telnetshell_cmddef_t cicmds[] = {
     {"get_current_bwp", "[rnti(hex,opt)]", get_current_bwp},
     {"trigger_bwp_switch", "newBWPId [rnti(hex,opt)]", trigger_bwp_switch},
     {"trigger_drx_policy", "version cycle_ms on_duration_ms offset_ms command_enabled [rnti(hex,opt)]", trigger_drx_policy},
-    {"bootstrap_drx_policy", "cycle_ms on_duration_ms [rnti(hex,opt)]", bootstrap_drx_policy},
+    {"bootstrap_drx", "cycle_ms on_duration_ms [rnti(hex,opt)]", bootstrap_drx_policy},
     {"request_drx_command", "[rnti(hex,opt)]", request_drx_command},
     {"trigger_n2_ho", "[neighbour_pci(uint32_t),ueId(uint32_t)]", rrc_gNB_trigger_n2_ho},
     {"pdu_session_release", "[gNB_ue_ngap_id(int,opt)]", trigger_ngap_pdu_session_release},

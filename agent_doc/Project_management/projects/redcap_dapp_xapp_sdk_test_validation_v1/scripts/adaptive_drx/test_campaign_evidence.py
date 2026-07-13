@@ -145,7 +145,7 @@ class CampaignEvidenceTest(unittest.TestCase):
         self.assertEqual(summary["burst_goodput_mean_mbps"], 9.5)
         self.assertEqual(summary["drx_active_time_slot_ratio"], 0.1)
 
-    def test_receive_timestamp_must_precede_next_arrival(self) -> None:
+    def test_receive_timestamp_after_next_arrival_is_measured(self) -> None:
         self._write_receive(late_arrival=31)
         issues, summary = check(
             self.manifest_path,
@@ -155,8 +155,8 @@ class CampaignEvidenceTest(unittest.TestCase):
             receive_path=self.receive_path,
             rnti=0x1234,
         )
-        self.assertTrue(any("not before the next arrival" in issue for issue in issues))
-        self.assertNotIn("scheduled_to_first_receive_median_ms", summary)
+        self.assertEqual(issues, [])
+        self.assertGreater(summary["scheduled_to_first_receive_max_ms"], 1.0)
 
     def test_cli_reports_missing_optional_evidence_as_partial(self) -> None:
         output = io.StringIO()

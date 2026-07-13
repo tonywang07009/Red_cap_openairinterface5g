@@ -177,6 +177,103 @@ def _wait_for_commit(log_path: Path, start_offset: int, policy_version: int, arm
     return False
 
 
+def _marker_has_fields(text: str, marker: str, policy_version: int, fields: dict[str, int], hex_fields: set[str]) -> bool:
+    for line in text.splitlines():
+        if not _versioned_marker(line, marker, policy_version):
+            continue
+        if all(
+            re.search(
+                rf"\b{re.escape(name)}(?:=|\s+){value:04x}\b" if name in hex_fields else rf"\b{re.escape(name)}(?:=|\s+){value}\b",
+                line,
+                re.IGNORECASE,
+            )
+            for name, value in fields.items()
+        ):
+            return True
+    return False
+
+
+def _committed_policy_versions(
+    text: str,
+    arm: str,
+    *,
+    rrc_ue_id: int | None = None,
+    rnti: int | None = None,
+    long_cycle_ms: int | None = None,
+) -> list[int]:
+    markers = ["[RedCap DRX][gNB applied]"]
+    if arm == "B":
+        markers[:0] = ["[RedCap DRX][xApp request]", "[RedCap DRX][E2 ACK]", "[RedCap DRX][dApp ACCEPT]"]
+    versions = {
+        int(version)
+        for version in re.findall(
+            r"\[RedCap DRX\]\[gNB applied\][^\n]*\bpolicy_version(?:=|\s+)(\d+)\b",
+            text,
+        )
+    }
+    committed = sorted(
+        version
+        for version in versions
+        if all(_versioned_marker(text, marker, version) for marker in markers)
+        and _versioned_marker(text, "[RedCap DRX][RRC complete]", version, "outcome success")
+    )
+    if arm != "B" or rrc_ue_id is None or rnti is None or long_cycle_ms is None:
+        return committed
+    return [
+        version
+        for version in committed
+        if _marker_has_fields(
+            text,
+            "[RedCap DRX][E2 ACK]",
+            version,
+            {"rrc_ue_id": rrc_ue_id, "long_cycle_ms": long_cycle_ms},
+            set(),
+        )
+        and _marker_has_fields(
+            text,
+            "[RedCap DRX][dApp ACCEPT]",
+            version,
+            {"rrc_ue_id": rrc_ue_id, "rnti": rnti},
+            {"rnti"},
+        )
+        and _marker_has_fields(
+            text,
+            "[RedCap DRX][gNB applied]",
+            version,
+            {"RNTI": rnti, "cycle_ms": long_cycle_ms},
+            {"RNTI"},
+        )
+    ]
+
+
+def _wait_for_new_commit(
+    log_path: Path,
+    start_offset: int,
+    arm: str,
+    timeout_s: float,
+    *,
+    rrc_ue_id: int,
+    rnti: int,
+    long_cycle_ms: int,
+) -> int | None:
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        if log_path.exists():
+            with log_path.open("r", encoding="utf-8", errors="replace") as stream:
+                stream.seek(start_offset)
+                versions = _committed_policy_versions(
+                    stream.read(),
+                    arm,
+                    rrc_ue_id=rrc_ue_id,
+                    rnti=rnti,
+                    long_cycle_ms=long_cycle_ms,
+                )
+            if versions:
+                return versions[0]
+        time.sleep(0.05)
+    return None
+
+
 def _send_local_drx_policy(
     host: str,
     port: int,
@@ -185,7 +282,7 @@ def _send_local_drx_policy(
     profile: DrxProfile,
 ) -> None:
     if policy_version == 0:
-        command = f"ci bootstrap_drx_policy {profile.long_cycle_ms} {profile.on_duration_ms} 0x{rnti:04x}\n"
+        command = f"ci bootstrap_drx {profile.long_cycle_ms} {profile.on_duration_ms} 0x{rnti:04x}\n"
     else:
         command = (
             f"ci trigger_drx_policy {policy_version} {profile.long_cycle_ms} "
@@ -219,6 +316,7 @@ def main(argv: Iterable[str] | None = None) -> int:
     parser.add_argument("--runtime-log", type=Path, help="combined gNB/UE runtime log used for policy commit")
     parser.add_argument("--summary-json", type=Path, help="campaign-level DRX metric summary; defaults beside --command-plan")
     parser.add_argument("--control-timeout-s", type=float, default=5.0)
+    parser.add_argument("--traffic-timeout-s", type=float, default=10.0)
     parser.add_argument(
         "--launch-lead-ms",
         type=float,
@@ -255,6 +353,9 @@ def main(argv: Iterable[str] | None = None) -> int:
     if args.control_timeout_s <= 0:
         print("[BLOCKED] --control-timeout-s must be positive")
         return 2
+    if args.traffic_timeout_s <= 0:
+        print("[BLOCKED] --traffic-timeout-s must be positive")
+        return 2
     if args.launch_lead_ms < 0:
         print("[BLOCKED] --launch-lead-ms must be non-negative")
         return 2
@@ -264,6 +365,12 @@ def main(argv: Iterable[str] | None = None) -> int:
     if args.execute and int(rows[0]["scheduled_source_tx_time_us"]) <= time.time_ns() // 1000:
         print("[BLOCKED] first --txstart-time is not in the future; regenerate the trace with a future start epoch")
         return 2
+    if args.execute:
+        try:
+            _query_ue_drx_stats(args.ue_control_host, args.ue_control_port, False)
+        except (OSError, RuntimeError) as error:
+            print(f"[BLOCKED] UE DRX stats preflight failed: {error}")
+            return 2
 
     ric = node_id = None
     if args.execute and campaign["arm"] == "B":
@@ -381,24 +488,31 @@ def main(argv: Iterable[str] | None = None) -> int:
                 retained_samples = list(predictor.samples)
 
                 policy_version = planned_version
+                e42_request_id = 0
                 accepted = True
                 control_error = None
                 if args.execute:
                     try:
                         assert ric is not None and node_id is not None
-                        policy_version = int(ric.control_drx_sm(node_id, args.rrc_ue_id, profile.long_cycle_ms))
-                        accepted = policy_version > 0
+                        request_log_start = args.runtime_log.stat().st_size if args.runtime_log.exists() else 0
+                        e42_request_id = int(ric.control_drx_sm(node_id, args.rrc_ue_id, profile.long_cycle_ms))
+                        accepted = e42_request_id > 0
                     except (OSError, RuntimeError) as error:
                         accepted = False
                         control_error = str(error)
                     if accepted:
-                        accepted = _wait_for_commit(
+                        committed_version = _wait_for_new_commit(
                             args.runtime_log,
-                            log_start,
-                            policy_version,
+                            request_log_start,
                             str(campaign["arm"]),
                             args.control_timeout_s,
+                            rrc_ue_id=args.rrc_ue_id,
+                            rnti=args.rnti,
+                            long_cycle_ms=profile.long_cycle_ms,
                         )
+                        accepted = committed_version is not None
+                        if committed_version is not None:
+                            policy_version = committed_version
                 predictor.resolve(accepted)
                 intent_record = intent.to_dict()
                 intent_record["e2sm_rc_request"]["ric_request_id"] = policy_version
@@ -406,6 +520,7 @@ def main(argv: Iterable[str] | None = None) -> int:
                 control = {
                     **intent_record,
                     "planned_policy_version": planned_version,
+                    "e42_request_id": e42_request_id,
                     "policy_version": policy_version,
                     "profile_id": profile.profile_id,
                     "long_cycle_ms": profile.long_cycle_ms,
@@ -452,13 +567,36 @@ def main(argv: Iterable[str] | None = None) -> int:
                 if delay_s > 0:
                     time.sleep(delay_s)
                 record["client_launch_time_us"] = time.time_ns() // 1000
-                result = subprocess.run(command, capture_output=True, text=True, check=False)
-                record.update(returncode=result.returncode, stdout=result.stdout, stderr=result.stderr)
-                report = parse_iperf2_udp_report("\n".join((result.stdout, result.stderr)))
-                delivery_success = iperf_delivery_success(result.returncode, report)
+                timed_out = False
+                try:
+                    result = subprocess.run(
+                        command,
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                        timeout=args.traffic_timeout_s,
+                    )
+                    returncode = result.returncode
+                    stdout = result.stdout
+                    stderr = result.stderr
+                except subprocess.TimeoutExpired as error:
+                    timed_out = True
+                    returncode = 124
+                    stdout = error.stdout or ""
+                    stderr = error.stderr or ""
+                    if isinstance(stdout, bytes):
+                        stdout = stdout.decode("utf-8", errors="replace")
+                    if isinstance(stderr, bytes):
+                        stderr = stderr.decode("utf-8", errors="replace")
+                    record["traffic_timeout_s"] = args.traffic_timeout_s
+                    evidence_errors.append(f"arrival {arrival_id}: iPerf2 timed out after {args.traffic_timeout_s:g} s")
+                record.update(returncode=returncode, stdout=stdout, stderr=stderr)
+                report = parse_iperf2_udp_report("\n".join((stdout, stderr)))
+                delivery_success = iperf_delivery_success(returncode, report)
                 if report is None:
                     record["iperf_metrics_error"] = "receiver_report_missing_or_invalid"
-                    evidence_errors.append(f"arrival {arrival_id}: iPerf2 UDP receiver report missing or invalid")
+                    if not timed_out:
+                        evidence_errors.append(f"arrival {arrival_id}: iPerf2 UDP receiver report missing or invalid")
                 else:
                     record["iperf_metrics"] = report
                 failures += not delivery_success
@@ -472,12 +610,15 @@ def main(argv: Iterable[str] | None = None) -> int:
                         "policy_version": current_policy_version,
                         "profile_id": current_profile.profile_id,
                         "client_launch_time_us": record["client_launch_time_us"],
-                        "iperf_returncode": result.returncode,
+                        "iperf_returncode": returncode,
                         **(report or {}),
                     }
                 )
-                completed_arrivals = arrival_id
+                if not timed_out:
+                    completed_arrivals = arrival_id
             stream.write(json.dumps(record, separators=(",", ":")) + "\n")
+            if args.execute and timed_out:
+                break
             if args.execute and arrival_id == WARMUP_ARRIVALS:
                 try:
                     warmup_stats = _query_ue_drx_stats(args.ue_control_host, args.ue_control_port, True)

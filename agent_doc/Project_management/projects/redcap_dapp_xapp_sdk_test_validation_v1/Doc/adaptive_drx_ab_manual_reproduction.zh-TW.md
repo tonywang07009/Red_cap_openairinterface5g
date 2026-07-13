@@ -199,7 +199,7 @@ python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_valid
 設定可由 UE data path 到達的 iPerf2 server address。Planning mode 寫完 330-command JSONL 後會刻意用 status 2 結束，因為此時沒有 runtime evidence：
 
 ```bash
-IPERF_SERVER=192.168.72.135
+IPERF_SERVER=192.168.72.136
 UE_PDU_ADDRESS=10.0.0.2
 
 for CAMPAIGN in arm-a-dl arm-b-dl arm-a-ul arm-b-ul; do
@@ -219,10 +219,22 @@ wc -l "$RUN_DIR"/*.plan.jsonl
 
 ### 5.2 啟動常駐 iPerf2 server
 
-在 external data-network namespace 執行 server，並讓它在單一 campaign 期間持續運作：
+在 external data network 啟動全新 server，並讓它在單一 campaign 期間持續
+運作。Server 與 UE client 必須回報相同 iPerf2 version；已驗證 RFsim path
+在兩端都使用相同 local OAI image 內的 `2.1.9`：
 
 ```bash
-iperf -s -u -i 1
+docker run --rm --name adaptive-drx-iperf-server \
+  --network oai-cn5g-traffic-net --ip 192.168.72.136 \
+  --entrypoint /usr/bin/iperf oai-nr-ue:latest -s -u -i 1
+```
+
+以前景模式執行 server，使其 log 保留為 artifact。每個 campaign 前都啟動
+新的 container，不重用累積的 server state。Traffic 前確認版本一致：
+
+```bash
+docker exec rfsim5g-oai-nr-ue1_redcap iperf --version
+docker exec adaptive-drx-iperf-server iperf --version
 ```
 
 UE-side runner 在 uplink 使用 normal mode，在 downlink 使用 `-R` reverse mode。使用 `--launch-lead-ms 250` 時，UL 會提前 250 ms 啟動 client，並由 `--txstart-time` 控制 source transmission timing。iPerf2 reverse server 不會遵守 client 的 `--txstart-time`，因此 DL 不使用 lead，會在 scheduled epoch 才啟動。不可把 process startup time 當成 arrival timestamp；generated CSV 仍是 timing source of truth。
@@ -238,12 +250,23 @@ export TAG=latest
 export GNB_IMG=oai-gnb
 export NRUE_IMG=oai-nr-ue
 export MMTC_GNB_EXTRA_OPTIONS="--telnetsrv --telnetsrv.shrmod ci --telnetsrv.listenaddr 192.168.70.140 --telnetsrv.listenport 9091 --gNBs.[0].do_CSIRS 0 --gNBs.[0].do_SRS 0"
+export MMTC_UE_EXTRA_OPTIONS="--telnetsrv.shrmod ciUE"
 
 docker compose \
   -f "$COMPOSE_DIR/docker-compose.yml" \
   -f "$COMPOSE_DIR/docker-compose.mmtc.yml" \
   up -d nearRT-RIC oai-gnb oai-nr-ue1
 ```
+
+產生任何 traffic 前，必須取得不重設 counter 的 UE 回覆：
+
+```bash
+printf 'ciUE drx_stats\n' | nc -w 3 192.168.71.150 8091 \
+  | grep -E '\[RedCap DRX\]\[UE stats\].*observed_slots=[0-9]+.*active_slots=[0-9]+'
+```
+
+若沒有 `[RedCap DRX][UE stats]` marker，請使用上方
+`MMTC_UE_EXTRA_OPTIONS` 重新建立 UE；只 restart container 不會改變原始啟動參數。
 
 在另一個 terminal 把 gNB 與 UE logs 持續追加到同一個檔案：
 
@@ -278,6 +301,7 @@ python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_valid
   --ue-control-port 8091 \
   --runtime-log "$RUN_DIR/runtime.log" \
   --control-timeout-s 10 \
+  --traffic-timeout-s 10 \
   --launch-lead-ms 250
 ```
 
@@ -285,7 +309,7 @@ python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_valid
 
 ### 5.5 執行單一 Arm B campaign
 
-只有在 SWIG import、共用 UE-traffic/FlexRIC namespace、E2 connection 與合法 rollback baseline 都獲得證明後，才能執行這個指令。請替換 example RRC UE ID：
+只有在 SWIG import、共用 UE-traffic/FlexRIC namespace、E2 connection 與合法 rollback baseline 都獲得證明後，才能執行這個指令；campaign 期間不可有另一個 RC controller 同時控制同一 UE。請替換 example RRC UE ID：
 
 ```bash
 export PYTHONPATH=/tmp/flexric-adaptive-drx-v3/src/xApp/swig
@@ -310,6 +334,7 @@ python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_valid
   --ue-control-port 8091 \
   --runtime-log "$RUN_DIR/runtime.log" \
   --control-timeout-s 10 \
+  --traffic-timeout-s 10 \
   --launch-lead-ms 250
 ```
 
@@ -320,14 +345,14 @@ python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_valid
 Campaign 前啟動一個已過濾的 capture。DL 在 UE 收包處擷取；UL 在常駐 server 收包處擷取：
 
 ```bash
-# DL example；UL 改在 oai-ext-dn 使用 `udp and dst port 5001`。
+# DL example；UL 改在 adaptive-drx-iperf-server 使用 `udp and dst port 5001`。
 docker exec rfsim5g-oai-nr-ue1_redcap \
   tcpdump -tt -n -l -i oaitun_ue1 'udp and src port 5001' \
   > "$RUN_DIR/arm-b-dl.receive.tcpdump.log" &
 CAPTURE_PID=$!
 ```
 
-Campaign 後停止 capture，並把每個 scored trace window 的第一個 packet 轉成 CSV：
+Campaign 後停止 capture，並把每個連續 iPerf2 flow 的第一個 packet 依序對應到 arrival ID：
 
 ```bash
 kill "$CAPTURE_PID"
@@ -338,7 +363,7 @@ python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_valid
   --output "$RUN_DIR/arm-b-dl.receive.csv"
 ```
 
-Capture 只能包含該 campaign 的 inbound iPerf2 UDP data；缺少或超出 window 的 timestamp 維持 `[PARTIAL]`。
+Capture 只能包含該 campaign 的 inbound iPerf2 UDP data。若 RRC control 延遲流量，receive timestamp 可晚於下一個排程 arrival，該延遲仍計入 metric；flow segment 缺少或多出時維持 `[PARTIAL]`。
 
 ## 6. 驗證 Evidence
 

@@ -20,7 +20,8 @@ latency proxies; it cannot prove physical UE power consumption.
 |---|---|---|---|
 | Trace and manifest | Campaign generator | File -> runner | Defines the replayable arrival population and Arm A schedule |
 | Window statistics and intent | Python predictor | Runner-local | Proposes a profile; it cannot apply radio configuration |
-| E2 request ID | FlexRIC | xApp -> E2 node | Runtime correlation key and live `policy_version` |
+| E42 request ID | FlexRIC xApp | Python -> local E42 connection | xApp-side RIC Request ID carried on E42, recorded as `e42_request_id`; not acceptance evidence |
+| Network RIC request ID | Near-RT RIC | RIC -> gNB E2 agent | Runtime marker correlation key and live `policy_version` |
 | RC decode | gNB E2 agent | E2 -> local C | Validates the wire format and approved long-cycle value |
 | DRX safety decision | In-process C dApp guard | Local C -> gNB MAC | Final local accept/reject boundary |
 | DRX configuration | gNB | gNB -> UE by RRC | Owns the RRC `DRX-Config` values |
@@ -115,8 +116,8 @@ the selected long cycle reach the live SWIG call.
 | `campaign_id` | Runner-selected campaign | Must match the manifest |
 | `direction` | `downlink` or `uplink` | Predictor rejects other values |
 | `window_id` | One-based scored policy window | Runner creates ten windows |
-| `policy_version` | Planned local window version | Replaced by the FlexRIC RIC request ID during execution |
-| `ric_request_id` | Planned local correlation value | Replaced by the FlexRIC RIC request ID during execution |
+| `policy_version` | Planned local window version | Replaced by the network RIC request ID after marker correlation |
+| `ric_request_id` | Planned local correlation value | Replaced by the network RIC request ID after marker correlation |
 | `rnti` | Misnamed local identity field | Arm B stores `--rrc-ue-id`, not authoritative C-RNTI `[Needs Verification]` |
 | `sample_count` | Committed history size | Fixed at `30` |
 | `prediction_status` | `predicted`, `fallback`, or `zero_variance` | Records selection outcome |
@@ -150,7 +151,7 @@ uint32_t control_drx_sm(global_e2_node_id_t *id,
 | `id` | Python -> SWIG | Non-null E2 node | `0` on local construction failure |
 | `rrc_ue_id` | Python -> RC header | Positive; encoded as GNB UE `ran_ue_id` | Resolved to C-RNTI in the gNB |
 | `long_cycle_ms` | Python -> RC Parameter 1 | One of six approved cycles | E2 ACK includes the decoded value |
-| return value | FlexRIC -> Python | Generated RIC request ID on transport success | `0` otherwise |
+| return value | FlexRIC -> Python | xApp-side RIC Request ID carried on E42 | `0` when no local procedure ID is returned; a positive value is not E2 acceptance evidence |
 
 ### 5.2 Fields Actually Encoded over E2
 
@@ -168,9 +169,11 @@ uint32_t control_drx_sm(global_e2_node_id_t *id,
 | Parameter | integer value | Approved `long_cycle_ms` |
 
 `policy_version`, prediction statistics, profile ID, On Duration, inactivity,
-start offset, and rollback data are not E2 RAN parameters. FlexRIC generates
-the RIC request ID starting at one, copies it through the agent, and the live
-gNB path uses it as `policy_version`.
+start offset, and rollback data are not E2 RAN parameters. The Python wrapper
+returns an xApp-local E42 request ID, while the Near-RT RIC independently
+assigns the network RIC request ID carried to the gNB. The runner records the
+former as `e42_request_id` and derives live `policy_version` from the latter's
+complete gNB marker chain.
 
 `[RedCap DRX][xApp request]` and `[RedCap DRX][E2 ACK]` are printed by the gNB
 RC handler. The latter proves decode acceptance, not dApp or RRC application.
@@ -186,7 +189,7 @@ The live RC path calls `redcap_dapp_guard_e2_drx_cycle()` with this request and 
 | Field | Owner / direction | Validation |
 |---|---|---|
 | `rnti` | gNB lookup -> dApp | Non-zero resolved C-RNTI |
-| `policy_version` | FlexRIC RIC request ID -> dApp | Non-zero and newer than current |
+| `policy_version` | Network RIC request ID -> dApp | Non-zero and newer than current |
 | `requested_long_cycle_ms` | E2 decode -> dApp | Must map to an approved profile |
 | `ue_connected` | gNB state snapshot -> dApp | Must be true |
 | `rrc_reconfiguration_cooldown_elapsed` | gNB state snapshot -> dApp | No pending CellGroup or RRC completion |

@@ -19,7 +19,8 @@ C dApp guard、gNB RRC/MAC 狀態、UE MAC 執行，以及 campaign 證據。
 |---|---|---|---|
 | Trace 與 manifest | Campaign generator | 檔案 -> runner | 定義可重播的到達母體與 Arm A schedule |
 | Window 統計與 intent | Python predictor | Runner 本地 | 提議 profile，不能套用無線電設定 |
-| E2 request ID | FlexRIC | xApp -> E2 node | Runtime correlation key 與實際 `policy_version` |
+| E42 request ID | FlexRIC xApp | Python -> 本地 E42 connection | E42 所攜帶的 xApp-side RIC Request ID，記錄為 `e42_request_id`；不代表 E2 已接受 |
+| Network RIC request ID | Near-RT RIC | RIC -> gNB E2 agent | Runtime marker correlation key 與實際 `policy_version` |
 | RC decode | gNB E2 agent | E2 -> 本地 C | 驗證 wire format 與 long-cycle 合法值 |
 | DRX 安全決策 | Process 內 C dApp guard | 本地 C -> gNB MAC | 最終本地 accept/reject 邊界 |
 | DRX 設定 | gNB | gNB -> UE，透過 RRC | 擁有 RRC `DRX-Config` 設定權 |
@@ -114,8 +115,8 @@ long cycle 會進入實際 SWIG call。
 | `campaign_id` | Runner 選擇的 campaign | 必須符合 manifest |
 | `direction` | `downlink` 或 `uplink` | Predictor 拒絕其他值 |
 | `window_id` | 一基底 scored policy window | Runner 產生十個 window |
-| `policy_version` | 本地規劃的 window version | Execute 時由 FlexRIC RIC request ID 取代 |
-| `ric_request_id` | 本地規劃的 correlation value | Execute 時由 FlexRIC RIC request ID 取代 |
+| `policy_version` | 本地規劃的 window version | Marker correlation 後由 network RIC request ID 取代 |
+| `ric_request_id` | 本地規劃的 correlation value | Marker correlation 後由 network RIC request ID 取代 |
 | `rnti` | 名稱不正確的本地 identity 欄位 | Arm B 放入 `--rrc-ue-id`，不是權威 C-RNTI `[Needs Verification]` |
 | `sample_count` | 已 commit history 大小 | 固定 `30` |
 | `prediction_status` | `predicted`、`fallback` 或 `zero_variance` | 記錄選擇結果 |
@@ -149,7 +150,7 @@ uint32_t control_drx_sm(global_e2_node_id_t *id,
 | `id` | Python -> SWIG | E2 node 不可為 null | 本地 request 建立失敗時回傳 `0` |
 | `rrc_ue_id` | Python -> RC header | 正值；編碼為 GNB UE `ran_ue_id` | 在 gNB 解析為 C-RNTI |
 | `long_cycle_ms` | Python -> RC Parameter 1 | 六種 approved cycle 之一 | E2 ACK 包含 decode 後的值 |
-| 回傳值 | FlexRIC -> Python | Transport 成功時為產生的 RIC request ID | 否則為 `0` |
+| 回傳值 | FlexRIC -> Python | E42 所攜帶的 xApp-side RIC Request ID | 未取得本地 procedure ID 時為 `0`；正值不代表 E2 接受 |
 
 ### 5.2 實際透過 E2 編碼的欄位
 
@@ -167,9 +168,10 @@ uint32_t control_drx_sm(global_e2_node_id_t *id,
 | Parameter | integer value | Approved `long_cycle_ms` |
 
 `policy_version`、prediction statistics、profile ID、On Duration、inactivity、
-start offset 與 rollback data 都不是 E2 RAN parameter。FlexRIC 從一開始產生
-RIC request ID，將其複製到 agent；live gNB path 使用該 ID 作為
-`policy_version`。
+start offset 與 rollback data 都不是 E2 RAN parameter。Python wrapper 回傳
+xApp-local E42 request ID；Near-RT RIC 另外配置送至 gNB 的 network RIC
+request ID。Runner 將前者記錄為 `e42_request_id`，並從後者的完整 gNB
+marker chain 取得 live `policy_version`。
 
 `[RedCap DRX][xApp request]` 與 `[RedCap DRX][E2 ACK]` 都由 gNB RC handler
 輸出。後者只證明 decode 被接受，不代表 dApp 或 RRC 已套用。
@@ -185,7 +187,7 @@ Live RC path 會使用此 request 與目前已套用的設定呼叫 `redcap_dapp
 | 欄位 | 擁有者 / 方向 | 驗證規則 |
 |---|---|---|
 | `rnti` | gNB lookup -> dApp | 非零且已解析的 C-RNTI |
-| `policy_version` | FlexRIC RIC request ID -> dApp | 非零且比 current 更新 |
+| `policy_version` | Network RIC request ID -> dApp | 非零且比 current 更新 |
 | `requested_long_cycle_ms` | E2 decode -> dApp | 必須映射到 approved profile |
 | `ue_connected` | gNB state snapshot -> dApp | 必須為 true |
 | `rrc_reconfiguration_cooldown_elapsed` | gNB state snapshot -> dApp | 不可有 pending CellGroup 或 RRC completion |

@@ -438,33 +438,39 @@ def write_receive_csv(manifest_path: Path, campaign_id: str, capture_path: Path,
         raise ValueError(f"trace checksum mismatch: {trace_path}")
     trace = read_trace(trace_path)
 
-    timestamp_pattern = re.compile(r"^\s*(\d+)(?:\.(\d+))?\s+")
+    packet_pattern = re.compile(r"^\s*(\d+)(?:\.(\d+))?\s+IP\s+\S+\.(\d+)\s+>\s+\S+\.(\d+):")
     receive_times_us: list[int] = []
+    previous_flow: tuple[int, int] | None = None
     for line in capture_path.read_text(encoding="utf-8", errors="replace").splitlines():
-        match = timestamp_pattern.match(line)
+        match = packet_pattern.match(line)
         if match is None:
+            continue
+        source_port = int(match.group(3))
+        destination_port = int(match.group(4))
+        if 5001 not in {source_port, destination_port}:
+            continue
+        flow = (source_port, destination_port)
+        if flow == previous_flow:
             continue
         fraction = (match.group(2) or "")[:6].ljust(6, "0")
         receive_times_us.append(int(match.group(1)) * 1_000_000 + int(fraction))
-    receive_times_us.sort()
+        previous_flow = flow
+
+    if len(receive_times_us) != ARRIVALS_PER_CAMPAIGN:
+        raise ValueError(
+            f"capture must contain {ARRIVALS_PER_CAMPAIGN} sequential iPerf2 flow starts, got {len(receive_times_us)}"
+        )
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    cursor = 0
     with output_path.open("w", encoding="utf-8", newline="") as stream:
         writer = csv.DictWriter(stream, fieldnames=("campaign_id", "arrival_id", "source_receive_time_us"))
         writer.writeheader()
-        for index, row in enumerate(trace[WARMUP_ARRIVALS:], start=WARMUP_ARRIVALS):
-            scheduled_us = int(row["scheduled_source_tx_time_us"])
-            next_us = int(trace[index + 1]["scheduled_source_tx_time_us"]) if index + 1 < len(trace) else None
-            while cursor < len(receive_times_us) and receive_times_us[cursor] < scheduled_us:
-                cursor += 1
-            if cursor == len(receive_times_us) or (next_us is not None and receive_times_us[cursor] >= next_us):
-                continue
+        for row, receive_time_us in zip(trace[WARMUP_ARRIVALS:], receive_times_us[WARMUP_ARRIVALS:]):
             writer.writerow(
                 {
                     "campaign_id": campaign_id,
                     "arrival_id": row["arrival_id"],
-                    "source_receive_time_us": receive_times_us[cursor],
+                    "source_receive_time_us": receive_time_us,
                 }
             )
 

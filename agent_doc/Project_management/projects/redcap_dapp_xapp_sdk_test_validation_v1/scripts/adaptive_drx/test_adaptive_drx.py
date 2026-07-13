@@ -7,9 +7,11 @@ import csv
 import contextlib
 import io
 import json
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from adaptive_drx import (
     ACTION_ID,
@@ -28,6 +30,7 @@ from adaptive_drx import (
 )
 from check_campaign import CONTROL_MARKERS, TIMEOUT_MARKER, check
 from run_campaign import (
+    _committed_policy_versions,
     iperf_command,
     iperf_delivery_success,
     main as run_campaign,
@@ -38,6 +41,41 @@ from run_campaign import (
 
 
 class AdaptiveDrxTest(unittest.TestCase):
+    def test_network_policy_version_is_correlated_separately_from_e42_request_id(self) -> None:
+        e42_request_id = 1
+        policy_version = 1021
+        log = "\n".join(
+            f"{marker} policy_version={policy_version} {suffix}"
+            for marker, suffix in (
+                ("[RedCap DRX][xApp request]", ""),
+                ("[RedCap DRX][E2 ACK]", ""),
+                ("[RedCap DRX][dApp ACCEPT]", ""),
+                ("[RedCap DRX][gNB applied]", ""),
+                ("[RedCap DRX][RRC complete]", "outcome success"),
+            )
+        )
+        self.assertNotEqual(e42_request_id, policy_version)
+        self.assertEqual(_committed_policy_versions(log, "B"), [policy_version])
+        self.assertEqual(_committed_policy_versions(log.replace("[RedCap DRX][E2 ACK]", "missing"), "B"), [])
+
+    def test_network_policy_version_matches_the_requested_ue_and_cycle(self) -> None:
+        def marker_chain(version: int, rrc_ue_id: int, rnti: int, cycle_ms: int) -> str:
+            return "\n".join(
+                (
+                    f"[RedCap DRX][xApp request] policy_version={version}",
+                    f"[RedCap DRX][E2 ACK] rrc_ue_id={rrc_ue_id} policy_version={version} long_cycle_ms={cycle_ms}",
+                    f"[RedCap DRX][dApp ACCEPT] rrc_ue_id={rrc_ue_id} rnti={rnti:04x} policy_version={version}",
+                    f"[RedCap DRX][gNB applied] RNTI {rnti:04x} policy_version {version} cycle_ms {cycle_ms}",
+                    f"[RedCap DRX][RRC complete] RNTI {rnti:04x} policy_version {version} outcome success",
+                )
+            )
+
+        log = marker_chain(1001, 7, 0x1111, 320) + "\n" + marker_chain(1002, 1, 0x9EC1, 1280)
+        self.assertEqual(
+            _committed_policy_versions(log, "B", rrc_ue_id=1, rnti=0x9EC1, long_cycle_ms=1280),
+            [1002],
+        )
+
     def test_iperf2_udp_receiver_report_is_parsed(self) -> None:
         output = """
 [ ID] Interval       Transfer     Bandwidth        Jitter   Lost/Total Datagrams
@@ -125,9 +163,10 @@ class AdaptiveDrxTest(unittest.TestCase):
             capture_path = root / "receiver.log"
             capture_path.write_text(
                 "\n".join(
-                    f"{(int(row['scheduled_source_tx_time_us']) + 1000) // 1_000_000}."
-                    f"{(int(row['scheduled_source_tx_time_us']) + 1000) % 1_000_000:06d} IP packet"
-                    for row in rows[30:]
+                    f"{(int(row['scheduled_source_tx_time_us']) + (2_000_000 if index == 30 else 1000)) // 1_000_000}."
+                    f"{(int(row['scheduled_source_tx_time_us']) + (2_000_000 if index == 30 else 1000)) % 1_000_000:06d} "
+                    f"IP 192.168.72.136.5001 > 10.0.0.2.{40000 + index}: UDP, length 1200"
+                    for index, row in enumerate(rows)
                 ),
                 encoding="utf-8",
             )
@@ -137,6 +176,10 @@ class AdaptiveDrxTest(unittest.TestCase):
                 receive_rows = list(csv.DictReader(stream))
             self.assertEqual(len(receive_rows), 300)
             self.assertEqual(receive_rows[0]["arrival_id"], "31")
+            self.assertGreater(
+                int(receive_rows[0]["source_receive_time_us"]),
+                int(rows[31]["scheduled_source_tx_time_us"]),
+            )
 
     def test_scored_csv_and_policy_markers_correlate(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -369,6 +412,110 @@ class AdaptiveDrxTest(unittest.TestCase):
                 )
             self.assertEqual(result, 2)
             self.assertIn("--launch-lead-ms must be non-negative", output.getvalue())
+
+    def test_runner_blocks_before_control_and_traffic_when_ue_stats_are_unavailable(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            manifest_path = write_campaign_manifest(root, 41, 1_800_000_000_000_000)
+            plan_path = root / "commands.jsonl"
+            metrics_path = root / "metrics.csv"
+            output = io.StringIO()
+            with (
+                mock.patch("run_campaign.shutil.which", return_value="/usr/bin/docker"),
+                mock.patch("run_campaign._query_ue_drx_stats", side_effect=RuntimeError("marker missing")) as stats,
+                mock.patch("run_campaign._send_local_drx_policy") as send_policy,
+                mock.patch("run_campaign.subprocess.run") as run_traffic,
+                contextlib.redirect_stdout(output),
+            ):
+                result = run_campaign(
+                    [
+                        "--manifest",
+                        str(manifest_path),
+                        "--campaign-id",
+                        "arm-a-dl",
+                        "--server",
+                        "10.0.0.2",
+                        "--bind-address",
+                        "10.0.0.3",
+                        "--traffic-prefix",
+                        "docker exec ue1",
+                        "--command-plan",
+                        str(plan_path),
+                        "--metrics-csv",
+                        str(metrics_path),
+                        "--runtime-log",
+                        str(root / "runtime.log"),
+                        "--rnti",
+                        "0x1234",
+                        "--execute",
+                    ]
+                )
+            self.assertEqual(result, 2)
+            self.assertIn("[BLOCKED] UE DRX stats preflight failed: marker missing", output.getvalue())
+            stats.assert_called_once_with("127.0.0.1", 8091, False)
+            send_policy.assert_not_called()
+            run_traffic.assert_not_called()
+            self.assertFalse(plan_path.exists())
+            self.assertFalse(metrics_path.exists())
+
+    def test_runner_stops_after_a_bounded_traffic_timeout(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            manifest_path = write_campaign_manifest(root, 41, 1_800_000_000_000_000)
+            plan_path = root / "commands.jsonl"
+            metrics_path = root / "metrics.csv"
+            summary_path = root / "summary.json"
+            stats = {"observed_slots": 0, "active_slots": 0}
+            with (
+                mock.patch("run_campaign.shutil.which", return_value="/usr/bin/docker"),
+                mock.patch("run_campaign._query_ue_drx_stats", return_value=stats),
+                mock.patch("run_campaign._send_local_drx_policy") as send_policy,
+                mock.patch("run_campaign._wait_for_commit", return_value=True),
+                mock.patch("run_campaign.time.sleep"),
+                mock.patch(
+                    "run_campaign.subprocess.run",
+                    side_effect=subprocess.TimeoutExpired(cmd=["docker"], timeout=3.5),
+                ) as run_traffic,
+                contextlib.redirect_stdout(io.StringIO()),
+            ):
+                result = run_campaign(
+                    [
+                        "--manifest",
+                        str(manifest_path),
+                        "--campaign-id",
+                        "arm-a-dl",
+                        "--server",
+                        "10.0.0.2",
+                        "--bind-address",
+                        "10.0.0.3",
+                        "--traffic-prefix",
+                        "docker exec ue1",
+                        "--command-plan",
+                        str(plan_path),
+                        "--metrics-csv",
+                        str(metrics_path),
+                        "--summary-json",
+                        str(summary_path),
+                        "--runtime-log",
+                        str(root / "runtime.log"),
+                        "--rnti",
+                        "0x1234",
+                        "--traffic-timeout-s",
+                        "3.5",
+                        "--execute",
+                    ]
+                )
+            self.assertEqual(result, 2)
+            send_policy.assert_called_once()
+            self.assertEqual(run_traffic.call_count, 1)
+            self.assertEqual(run_traffic.call_args.kwargs["timeout"], 3.5)
+            records = [json.loads(line) for line in plan_path.read_text(encoding="utf-8").splitlines()]
+            self.assertEqual(len(records), 1)
+            self.assertEqual(records[0]["returncode"], 124)
+            self.assertEqual(records[0]["traffic_timeout_s"], 3.5)
+            summary = json.loads(summary_path.read_text(encoding="utf-8"))
+            self.assertEqual(summary["completed_arrivals"], 0)
+            self.assertIn("arrival 1: iPerf2 timed out after 3.5 s", summary["errors"])
 
     def test_reverse_dl_launches_at_schedule_while_ul_uses_lead(self) -> None:
         row = {"scheduled_source_tx_time_us": "1800000000000000", "direction": "downlink"}

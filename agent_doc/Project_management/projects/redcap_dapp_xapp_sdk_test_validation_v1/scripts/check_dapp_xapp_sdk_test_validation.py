@@ -374,6 +374,10 @@ def check_docs(errors: list[str]) -> None:
             "generate_mmtc_overlay.sh missing dApp RA retry-priority env passthrough", errors)
     require("TOTAL_UES" in overlay_generator and "nrue${idx}.uicc.yaml" in overlay_generator,
             "generate_mmtc_overlay.sh missing scalable UE generation logic", errors)
+    require(overlay_generator.count("${MMTC_UE_EXTRA_OPTIONS:-}") == 2,
+            "generate_mmtc_overlay.sh must preserve the UE extra-options hook in both generation branches", errors)
+    require(mmtc_overlay.count("${MMTC_UE_EXTRA_OPTIONS:-}") == mmtc_overlay.count("MMTC_UE_INDEX:"),
+            "docker-compose.mmtc.yml must preserve the UE extra-options hook for every generated UE", errors)
     cn_db_generator = read("redcap_interface/bash_library/fc_generate_mmtc_cn_db_overlay.sh")
     require("AuthenticationSubscription" in cn_db_generator and "SessionManagementSubscriptionData" in cn_db_generator,
             "mMTC CN DB generator missing subscription rows", errors)
@@ -443,10 +447,16 @@ def check_adaptive_drx_docs(errors: list[str]) -> None:
             "--bind-address",
             "--receive-csv",
             "--summary-json",
+            "--traffic-timeout-s",
             "rebase",
             "check_campaign.py",
             "SWIG",
             "[BLOCKED]",
+            "adaptive-drx-iperf-server",
+            "iperf --version",
+            'export MMTC_UE_EXTRA_OPTIONS="--telnetsrv.shrmod ciUE"',
+            "ciUE drx_stats",
+            "[RedCap DRX][UE stats]",
         ]:
             require(needle in text, f"{path} missing manual text: {needle}", errors)
         for obsolete in ["--profile-seed", "arm_a_profile_seed", "profile_schedule[]"]:
@@ -484,6 +494,11 @@ def check_adaptive_drx_docs(errors: list[str]) -> None:
             "check_campaign.py",
             "PARTIAL",
             "BLOCKED",
+            'export MMTC_UE_EXTRA_OPTIONS="--telnetsrv.shrmod ciUE"',
+            "ciUE drx_stats",
+            "[RedCap DRX][UE stats]",
+            "adaptive-drx-iperf-server",
+            "iperf --version",
         ]:
             require(needle in text, f"{path} missing experiment dossier text: {needle}", errors)
         require("Experiment Design" in text or "實驗設計" in text,
@@ -494,6 +509,16 @@ def check_adaptive_drx_docs(errors: list[str]) -> None:
                 f"{path} missing human reproduction section", errors)
         require("physical-power" in text or "實體耗電" in text,
                 f"{path} missing physical-power claim boundary", errors)
+
+    runner = read(
+        "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/run_campaign.py"
+    )
+    require("_query_ue_drx_stats(args.ue_control_host, args.ue_control_port, False)" in runner,
+            "adaptive DRX runner missing non-resetting UE stats preflight", errors)
+    require("[BLOCKED] UE DRX stats preflight failed" in runner,
+            "adaptive DRX runner missing fail-fast UE stats outcome", errors)
+    require("timeout=args.traffic_timeout_s" in runner and "subprocess.TimeoutExpired" in runner,
+            "adaptive DRX runner missing bounded traffic subprocess execution", errors)
 
 
 def main() -> int:

@@ -1157,6 +1157,7 @@ sm_ag_if_ans_t write_ctrl_rc_sm(void const* data)
   }
 
 rc_control_done:
+  fflush(stdout);
   return ans;
 }
 
