@@ -77,9 +77,12 @@ Both arms require this surface: Arm A applies policy version 1 once, while Arm B
 
 ### 2.2 Arm B Python/FlexRIC requirement
 
-FlexRIC requires SWIG 4.1 or newer, and the same Python interpreter that runs `run_campaign.py` must import `xapp_sdk`:
+FlexRIC requires SWIG 4.1 or newer. The Python wrapper, service-model plugins, RIC, and gNB must all use `E2AP_V3` and `KPM_V3_00`. Use the isolated build and project configuration below; do not fall back to `/usr/local/lib/flexric`:
 
 ```bash
+export PYTHONPATH=/tmp/flexric-adaptive-drx-v3/src/xApp/swig
+export FLEXRIC_CONF_FILE=/home/tonywang/OAI/Red_cap_openairinterface5g/ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/conf/flexric.conf
+export FLEXRIC_LIBS_DIR=/tmp/flexric-adaptive-drx-v3/plugins/
 swig -version
 python3 -c 'import xapp_sdk; print(xapp_sdk.__file__)'
 ```
@@ -112,14 +115,20 @@ Build the Python xApp bridge with the repository SWIG 4.1.1 and one consistent P
 PYTHON_BIN=$(command -v python3)
 PYTHON_INCLUDE=$(python3 -c 'import sysconfig; print(sysconfig.get_path("include"))')
 PYTHON_LIBRARY=$(python3 -c 'import os,sysconfig; print(os.path.join(sysconfig.get_config_var("LIBDIR"),sysconfig.get_config_var("LDLIBRARY")))')
-cmake -S openair2/E2AP/flexric -B /tmp/flexric-adaptive-drx -GNinja \
+cmake -S openair2/E2AP/flexric -B /tmp/flexric-adaptive-drx-v3 -GNinja \
   -DXAPP_MULTILANGUAGE=ON -DUNIT_TEST=FALSE \
+  -DE2AP_VERSION=E2AP_V3 -DKPM_VERSION=KPM_V3_00 \
   -DSWIG_EXECUTABLE="$PWD/cmake_targets/swig/swig" \
   -DPython3_EXECUTABLE="$PYTHON_BIN" -DPYTHON_EXECUTABLE="$PYTHON_BIN" \
   -DPYTHON_INCLUDE_DIR="$PYTHON_INCLUDE" -DPYTHON_LIBRARY="$PYTHON_LIBRARY"
-cmake --build /tmp/flexric-adaptive-drx --target xapp_sdk -j2
-PYTHONPATH=/tmp/flexric-adaptive-drx/examples/xApp/python3 \
-  python3 -B -c 'import xapp_sdk; assert hasattr(xapp_sdk, "control_drx_sm")'
+cmake --build /tmp/flexric-adaptive-drx-v3 --target xapp_sdk -j2
+mkdir -p /tmp/flexric-adaptive-drx-v3/plugins
+find /tmp/flexric-adaptive-drx-v3/src/sm -type f -name 'lib*_sm.so' \
+  -exec ln -sft /tmp/flexric-adaptive-drx-v3/plugins {} +
+export PYTHONPATH=/tmp/flexric-adaptive-drx-v3/src/xApp/swig
+export FLEXRIC_CONF_FILE=/home/tonywang/OAI/Red_cap_openairinterface5g/ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/conf/flexric.conf
+export FLEXRIC_LIBS_DIR=/tmp/flexric-adaptive-drx-v3/plugins/
+python3 -B -c 'import xapp_sdk; assert hasattr(xapp_sdk, "control_drx_sm")'
 ```
 
 Build and run the focused C-DRX tests:
@@ -216,7 +225,7 @@ Run the server in the external data-network namespace and leave it running for o
 iperf -s -u -i 1
 ```
 
-The UE-side runner uses normal mode for uplink and `-R` reverse mode for downlink. Do not use iPerf process-start time as the arrival timestamp; the generated CSV is the timing source of truth.
+The UE-side runner uses normal mode for uplink and `-R` reverse mode for downlink. With `--launch-lead-ms 250`, UL starts the client 250 ms early and lets `--txstart-time` own source transmission timing. The iPerf2 reverse server does not honor the client's `--txstart-time`, so DL launches at the scheduled epoch with no lead. Do not use process-start time as the arrival timestamp; the generated CSV remains the timing source of truth.
 
 ### 5.3 Prepare the RFsim control surface
 
@@ -268,18 +277,20 @@ python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_valid
   --ue-control-host 192.168.71.150 \
   --ue-control-port 8091 \
   --runtime-log "$RUN_DIR/runtime.log" \
-  --control-timeout-s 10
+  --control-timeout-s 10 \
+  --launch-lead-ms 250
 ```
 
 Use `arm-a-ul` for the independent uplink campaign. Restart with fresh state and use `rebase` before the next sequential campaign.
 
 ### 5.5 Execute one Arm B campaign
 
-This command is valid only after the SWIG import, shared UE-traffic/FlexRIC namespace, E2 connection, and approved rollback baseline are proven. Replace the example RRC UE ID and FlexRIC module directory:
+This command is valid only after the SWIG import, shared UE-traffic/FlexRIC namespace, E2 connection, and approved rollback baseline are proven. Replace the example RRC UE ID:
 
 ```bash
-FLEXRIC_PYTHON_DIR=/path/to/flexric/build/examples/xApp/python3
-PYTHONPATH="$FLEXRIC_PYTHON_DIR${PYTHONPATH:+:$PYTHONPATH}" \
+export PYTHONPATH=/tmp/flexric-adaptive-drx-v3/src/xApp/swig
+export FLEXRIC_CONF_FILE=/home/tonywang/OAI/Red_cap_openairinterface5g/ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/conf/flexric.conf
+export FLEXRIC_LIBS_DIR=/tmp/flexric-adaptive-drx-v3/plugins/
 python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/run_campaign.py \
   --manifest "$RUN_DIR/adaptive_drx_campaign_manifest_v1.json" \
   --campaign-id arm-b-dl \
@@ -298,7 +309,8 @@ python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_valid
   --ue-control-host 192.168.71.150 \
   --ue-control-port 8091 \
   --runtime-log "$RUN_DIR/runtime.log" \
-  --control-timeout-s 10
+  --control-timeout-s 10 \
+  --launch-lead-ms 250
 ```
 
 Use `arm-b-ul` for the independent uplink campaign. On fresh DRX state, the runner automatically commits `drx-320-10` as reserved bootstrap version 0 before the first FlexRIC request. Reusing a configured stack must fail rather than overwrite its policy history.
@@ -400,6 +412,8 @@ stateDiagram-v2
 |---|---|
 | System `SWIG Version 4.0.2` | Use the repository SWIG 4.1.1 path recorded in the build section; do not lower the requirement. |
 | `No module named xapp_sdk` | Point `PYTHONPATH` at a successfully built FlexRIC Python module in the runner's interpreter. |
+| RIC/xApp crashes during E42 setup or control | A v2/v3 wrapper-plugin mismatch is likely. Confirm the CMake cache says `E2AP_V3` and `KPM_V3_00`, then export the exact `PYTHONPATH`, `FLEXRIC_CONF_FILE`, and `FLEXRIC_LIBS_DIR` from Section 2.2. Do not mix the v3 wrapper with v2 plugins under `/usr/local/lib/flexric`. |
+| Reverse DL sends before the scheduled epoch or yields only 299 receiver timestamps | Use the current runner with `--launch-lead-ms 250`. It applies the lead only to UL and launches reverse DL exactly at `scheduled_source_tx_time_us`; do not add a generic DL lead or edit the trace. |
 | `first --txstart-time is not in the future` | Use `rebase` with a future epoch; do not edit trace rows manually. |
 | gNB control connection refused | Enable `telnetsrv`, load `shrmod ci`, and pass the reachable gNB address and port. |
 | `rollback_unavailable` | Start from fresh DRX state and allow the runner's reserved version-0 bootstrap to complete. |

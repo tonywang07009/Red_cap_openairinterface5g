@@ -7,7 +7,20 @@ step, confirm the named input, output, and marker before moving to the next
 source location. Runtime `policy_version` is the FlexRIC RIC request ID, not
 necessarily the predictor's planned window number.
 
-## 2. End-to-End Source Route
+## 2. Runtime Prerequisites
+
+- Configure the FlexRIC Python wrapper and plugins with `-DE2AP_VERSION=E2AP_V3 -DKPM_VERSION=KPM_V3_00`; the RIC and gNB must use the same versions.
+- Run Arm B with this exact isolated environment:
+
+```bash
+export PYTHONPATH=/tmp/flexric-adaptive-drx-v3/src/xApp/swig
+export FLEXRIC_CONF_FILE=/home/tonywang/OAI/Red_cap_openairinterface5g/ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/conf/flexric.conf
+export FLEXRIC_LIBS_DIR=/tmp/flexric-adaptive-drx-v3/plugins/
+```
+
+- With `--launch-lead-ms 250`, UL launches 250 ms early and transmits at `--txstart-time`. Reverse DL launches exactly at `scheduled_source_tx_time_us` because the reverse server does not honor the client's `--txstart-time`.
+
+## 3. End-to-End Source Route
 
 | Step | Source and symbol | Input | Output | Expected marker | Next trace point |
 |---:|---|---|---|---|---|
@@ -15,15 +28,15 @@ necessarily the predictor's planned window number.
 | 2 | [`adaptive_drx.py:105`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/adaptive_drx.py#L105), `generate_intervals()` | Stable seed, eleven window means | 330 bounded inter-arrival values | None | `write_trace()` |
 | 3 | [`adaptive_drx.py:119`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/adaptive_drx.py#L119), `write_trace()` | Intervals and start epoch | Direction-owned trace CSV | None | `write_campaign_manifest()` |
 | 4 | [`adaptive_drx.py`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/adaptive_drx.py), `write_campaign_manifest()` / `rebase_campaign_manifest()` | Trace seed and future epoch | Four campaign records, verified/rebased checksums | None | `load_campaign()` |
-| 5 | [`run_campaign.py:53`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/run_campaign.py#L53), `load_campaign()` | Manifest and campaign ID | Verified campaign and 330 rows | BLOCKED/exception on invalid evidence | Main campaign loop |
-| 6 | [`run_campaign.py`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/run_campaign.py), `iperf_command()` | Trace row, server, UE PDU bind address, optional traffic prefix | Fixed-byte UDP command bound to the UE PDU-session address; DL adds `-R` | None | `subprocess.run()` |
+| 5 | [`run_campaign.py:142`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/run_campaign.py#L142), `load_campaign()` | Manifest and campaign ID | Verified campaign and 330 rows | BLOCKED/exception on invalid evidence | Main campaign loop |
+| 6 | [`run_campaign.py:105`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/run_campaign.py#L105), `iperf_command()`; [`run_campaign.py:134`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/run_campaign.py#L134), `traffic_process_launch_time_us()` | Trace row, server, UE PDU bind address, optional traffic prefix, launch lead | Fixed-byte UDP command; UL launch is 250 ms early by default, while reverse DL launch is at the scheduled epoch | None | [`run_campaign.py:455`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/run_campaign.py#L455), `subprocess.run()` |
 | 7 | [`adaptive_drx.py:306`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/adaptive_drx.py#L306), `AdaptiveDrxPredictor.observe()` | One `interval_us` after a burst | Retained 30-sample history | None | `propose()` at next boundary |
 | 8 | [`adaptive_drx.py:245`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/adaptive_drx.py#L245), `summarize_window()` | Exactly 30 bounded intervals | Mean, sample sigma, +/-3 sigma, median, p95, min/max | None | `select_profile()` |
 | 9 | [`adaptive_drx.py`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/adaptive_drx.py), `select_profile()` / `propose()` | Lower and upper 3-sigma bounds | Approved cycle or fallback before E2 when either bound is unreliable | None | Runner control branch |
 | 10 | [`adaptive_drx.py:313`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/adaptive_drx.py#L313), `propose()` | Campaign/window IDs, UE identity, previous profile | Local `PolicyIntent` and JSON request description | JSON `[xApp request]` label only | Runner control branch |
-| 11 | [`run_campaign.py`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/run_campaign.py), baseline/window branches | Fixed Arm A baseline or Arm B intent | One Arm A version or ten scored Arm B versions | None | Local telnet or SWIG |
-| 12A | [`run_campaign.py`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/run_campaign.py), `_send_local_drx_policy()` | C-RNTI and profile | Arm A version 1 or fresh-state Arm B bootstrap version 0 | gNB staged/applied | Step 20 |
-| 12B | [`run_campaign.py:226`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/run_campaign.py#L226), `ric.control_drx_sm()` | Arm B node, RRC UE ID, long cycle | FlexRIC-generated RIC request ID | None at caller | SWIG wrapper |
+| 11 | [`run_campaign.py:325`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/run_campaign.py#L325), baseline branch; [`run_campaign.py:367`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/run_campaign.py#L367), Arm B window branch | Fixed Arm A baseline or Arm B intent | One Arm A version or ten scored Arm B versions | None | Local telnet or SWIG |
+| 12A | [`run_campaign.py:180`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/run_campaign.py#L180), `_send_local_drx_policy()` | C-RNTI and profile | Arm A version 1 or fresh-state Arm B bootstrap version 0 | gNB staged/applied | Step 20 |
+| 12B | [`run_campaign.py:389`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/run_campaign.py#L389), `ric.control_drx_sm()` | Arm B node, RRC UE ID, long cycle | FlexRIC-generated RIC request ID | None at caller | SWIG wrapper |
 | 13 | [`swig_wrapper.cpp:459`](../../../../../openair2/E2AP/flexric/src/xApp/swig/swig_wrapper.cpp#L459), `control_drx_sm()` | E2 node, `rrc_ue_id`, cycle | Synchronous RC control and returned request ID | Generic FlexRIC response | C xApp request builder |
 | 14 | [`redcap_xapp_sdk.c:86`](../../../../../openair2/E2AP/REDCAP_SDK/xapp/redcap_xapp_sdk.c#L86), `redcap_xapp_make_drx_ctrl_req()` | RRC UE ID and approved cycle | RC Format 1 header/message, Style 2, Action 1, Parameter 1 | None | `control_sm_xapp_api()` |
 | 15 | [`msg_handler_agent.c:272`](../../../../../openair2/E2AP/flexric/src/agent/msg_handler_agent.c#L272), `e2ap_handle_control_request_agent()` | E2 control request | Request ID plus encoded RC buffers passed to service model | Generic E2 control acknowledge | `on_control_rc_sm_ag()` |
@@ -45,11 +58,11 @@ necessarily the predictor's planned window number.
 | 31 | [`nr_mac_drx.c:62`](../../../../../openair2/LAYER2/NR_MAC_gNB/nr_mac_drx.c#L62), stage/commit/complete state | Profile and RRC outcomes | `pending -> applied`, saved `previous`, cleared cooldown | `[gNB applied]` | RRC completion |
 | 32 | [`rrc_gNB.c:1973`](../../../../../openair2/RRC/NR/rrc_gNB.c#L1973), `handle_rrcReconfigurationComplete()` | UE RRC complete | F1 success indication to DU | `Received RRCReconfigurationComplete` | DU completion handler |
 | 33 | [`mac_rrc_dl_handler.c:767`](../../../../../openair2/LAYER2/NR_MAC_gNB/mac_rrc_dl_handler.c#L767), completion branch | F1 success/failure | Commit completion or automatic restore | `[RRC complete]`, optional `[rollback]` | Runner commit wait |
-| 34 | [`run_campaign.py:73`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/run_campaign.py#L73), `_wait_for_commit()` | Runtime log and request ID | Success only after full versioned marker chain | `[control timeout]` on expiry | `predictor.resolve()` |
-| 35 | [`run_campaign.py`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/run_campaign.py), resolve/record branch | Commit and traffic results | Clear on success; persist exact 30-sample failure evidence; metrics/summary | PASS/PARTIAL | Checker |
+| 34 | [`run_campaign.py:162`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/run_campaign.py#L162), `_wait_for_commit()` | Runtime log and request ID | Success only after full versioned marker chain | `[control timeout]` on expiry | `predictor.resolve()` |
+| 35 | [`run_campaign.py:402`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/run_campaign.py#L402), resolve/record branch | Commit and traffic results | Clear on success; persist exact 30-sample failure evidence; metrics/summary | PASS/PARTIAL | Checker |
 | 36 | [`check_campaign.py`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/check_campaign.py), `check()` | Manifest, metrics/receive CSVs, summary, logs | Population, latency, Active-Time, HARQ, version and marker issues | PASS or PARTIAL | Gate report |
 
-## 3. Success Marker Sequence
+## 4. Success Marker Sequence
 
 For Arm B, search the combined runtime log in this order using the same
 `policy_version`:
@@ -66,7 +79,7 @@ For Arm B, search the combined runtime log in this order using the same
 The E2 ACK alone is not a commit. The runner clears the predictor window only
 after steps 1-3, 5, and 8 correlate by runtime request ID.
 
-## 4. Failure and Rollback Route
+## 5. Failure and Rollback Route
 
 | Condition | Source | State action | Evidence |
 |---|---|---|---|
@@ -81,7 +94,7 @@ after steps 1-3, 5, and 8 correlate by runtime request ID.
 can stage the saved profile under a new version, but no live dApp/E2 caller is
 implemented.
 
-## 5. Optional DRX Command Route
+## 6. Optional DRX Command Route
 
 This route is separate from DRX reconfiguration and is disabled by both live
 dApp guards.
@@ -95,7 +108,7 @@ dApp guards.
 
 The command does not change long cycle, On Duration, or RRC configuration.
 
-## 6. Stop Points and `[Needs Verification]`
+## 7. Stop Points and `[Needs Verification]`
 
 - Stop if the fresh-state Arm B version-0 bootstrap does not complete; never
   reuse that reserved bootstrap to overwrite configured DRX state.
@@ -106,3 +119,10 @@ The command does not change long cycle, On Duration, or RRC configuration.
 - Require metrics/receive CSVs, the UE summary, RNTI-specific logs, and all
   marker chains before claiming latency, goodput, loss, HARQ, or Active-Time.
 - Keep the TS 38.473 integer mapping marked `[Needs Verification]`.
+
+## 8. Runtime Troubleshooting
+
+| Symptom | Trace action |
+|---|---|
+| RIC/xApp crashes during E42 setup or control | Check the FlexRIC CMake cache for `E2AP_V3` and `KPM_V3_00`. Then confirm `xapp_sdk.__file__` is under `/tmp/flexric-adaptive-drx-v3/src/xApp/swig` and `FLEXRIC_LIBS_DIR` does not resolve to v2 plugins under `/usr/local/lib/flexric`. |
+| Reverse DL is emitted before its trace epoch or the receiver records only 299 of 300 scored timestamps | Trace [`traffic_process_launch_time_us()`](../../../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/run_campaign.py#L134). Keep `--launch-lead-ms 250`; the helper must return the scheduled epoch unchanged for DL and apply the 250 ms lead only to UL. |

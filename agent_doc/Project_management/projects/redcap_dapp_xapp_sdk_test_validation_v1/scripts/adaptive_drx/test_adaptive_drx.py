@@ -33,6 +33,7 @@ from run_campaign import (
     main as run_campaign,
     parse_iperf2_udp_report,
     parse_ue_drx_stats,
+    traffic_process_launch_time_us,
 )
 
 
@@ -345,6 +346,35 @@ class AdaptiveDrxTest(unittest.TestCase):
             )
             self.assertTrue(all(record["policy_version"] == 1 for record in records))
             self.assertTrue(all(record["profile_id"] == FALLBACK_PROFILE.profile_id for record in records))
+
+    def test_runner_rejects_negative_launch_lead(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            manifest_path = write_campaign_manifest(root, 41, 1_800_000_000_000_000)
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                result = run_campaign(
+                    [
+                        "--manifest",
+                        str(manifest_path),
+                        "--campaign-id",
+                        "arm-a-dl",
+                        "--server",
+                        "10.0.0.2",
+                        "--command-plan",
+                        str(root / "commands.jsonl"),
+                        "--launch-lead-ms",
+                        "-1",
+                    ]
+                )
+            self.assertEqual(result, 2)
+            self.assertIn("--launch-lead-ms must be non-negative", output.getvalue())
+
+    def test_reverse_dl_launches_at_schedule_while_ul_uses_lead(self) -> None:
+        row = {"scheduled_source_tx_time_us": "1800000000000000", "direction": "downlink"}
+        self.assertEqual(traffic_process_launch_time_us(row, 250.0), 1_800_000_000_000_000)
+        row["direction"] = "uplink"
+        self.assertEqual(traffic_process_launch_time_us(row, 250.0), 1_799_999_999_750_000)
 
     def test_arm_b_runner_plans_ten_committed_windows(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

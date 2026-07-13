@@ -77,9 +77,12 @@ gNB 必須載入 telnet CI module。Campaign runner 預設的 `127.0.0.1:9091` �
 
 ### 2.2 Arm B Python/FlexRIC 需求
 
-FlexRIC 需要 SWIG 4.1 以上，而且執行 `run_campaign.py` 的同一個 Python interpreter 必須可以 import `xapp_sdk`：
+FlexRIC 需要 SWIG 4.1 以上。Python wrapper、service-model plugins、RIC 與 gNB 必須一致使用 `E2AP_V3` 與 `KPM_V3_00`。請使用下列隔離 build 與專案設定，不可 fallback 到 `/usr/local/lib/flexric`：
 
 ```bash
+export PYTHONPATH=/tmp/flexric-adaptive-drx-v3/src/xApp/swig
+export FLEXRIC_CONF_FILE=/home/tonywang/OAI/Red_cap_openairinterface5g/ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/conf/flexric.conf
+export FLEXRIC_LIBS_DIR=/tmp/flexric-adaptive-drx-v3/plugins/
 swig -version
 python3 -c 'import xapp_sdk; print(xapp_sdk.__file__)'
 ```
@@ -112,14 +115,20 @@ cmake --build /tmp/oai-e2-agent-build \
 PYTHON_BIN=$(command -v python3)
 PYTHON_INCLUDE=$(python3 -c 'import sysconfig; print(sysconfig.get_path("include"))')
 PYTHON_LIBRARY=$(python3 -c 'import os,sysconfig; print(os.path.join(sysconfig.get_config_var("LIBDIR"),sysconfig.get_config_var("LDLIBRARY")))')
-cmake -S openair2/E2AP/flexric -B /tmp/flexric-adaptive-drx -GNinja \
+cmake -S openair2/E2AP/flexric -B /tmp/flexric-adaptive-drx-v3 -GNinja \
   -DXAPP_MULTILANGUAGE=ON -DUNIT_TEST=FALSE \
+  -DE2AP_VERSION=E2AP_V3 -DKPM_VERSION=KPM_V3_00 \
   -DSWIG_EXECUTABLE="$PWD/cmake_targets/swig/swig" \
   -DPython3_EXECUTABLE="$PYTHON_BIN" -DPYTHON_EXECUTABLE="$PYTHON_BIN" \
   -DPYTHON_INCLUDE_DIR="$PYTHON_INCLUDE" -DPYTHON_LIBRARY="$PYTHON_LIBRARY"
-cmake --build /tmp/flexric-adaptive-drx --target xapp_sdk -j2
-PYTHONPATH=/tmp/flexric-adaptive-drx/examples/xApp/python3 \
-  python3 -B -c 'import xapp_sdk; assert hasattr(xapp_sdk, "control_drx_sm")'
+cmake --build /tmp/flexric-adaptive-drx-v3 --target xapp_sdk -j2
+mkdir -p /tmp/flexric-adaptive-drx-v3/plugins
+find /tmp/flexric-adaptive-drx-v3/src/sm -type f -name 'lib*_sm.so' \
+  -exec ln -sft /tmp/flexric-adaptive-drx-v3/plugins {} +
+export PYTHONPATH=/tmp/flexric-adaptive-drx-v3/src/xApp/swig
+export FLEXRIC_CONF_FILE=/home/tonywang/OAI/Red_cap_openairinterface5g/ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/conf/flexric.conf
+export FLEXRIC_LIBS_DIR=/tmp/flexric-adaptive-drx-v3/plugins/
+python3 -B -c 'import xapp_sdk; assert hasattr(xapp_sdk, "control_drx_sm")'
 ```
 
 編譯並執行 focused C-DRX tests：
@@ -216,7 +225,7 @@ wc -l "$RUN_DIR"/*.plan.jsonl
 iperf -s -u -i 1
 ```
 
-UE-side runner 在 uplink 使用 normal mode，在 downlink 使用 `-R` reverse mode。不可把 iPerf process startup time 當成 arrival timestamp；generated CSV 才是 timing source of truth。
+UE-side runner 在 uplink 使用 normal mode，在 downlink 使用 `-R` reverse mode。使用 `--launch-lead-ms 250` 時，UL 會提前 250 ms 啟動 client，並由 `--txstart-time` 控制 source transmission timing。iPerf2 reverse server 不會遵守 client 的 `--txstart-time`，因此 DL 不使用 lead，會在 scheduled epoch 才啟動。不可把 process startup time 當成 arrival timestamp；generated CSV 仍是 timing source of truth。
 
 ### 5.3 準備 RFsim control surface
 
@@ -268,18 +277,20 @@ python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_valid
   --ue-control-host 192.168.71.150 \
   --ue-control-port 8091 \
   --runtime-log "$RUN_DIR/runtime.log" \
-  --control-timeout-s 10
+  --control-timeout-s 10 \
+  --launch-lead-ms 250
 ```
 
 獨立的 uplink campaign 使用 `arm-a-ul`。依序執行下一個 campaign 前，要用全新的 state 並執行 `rebase`。
 
 ### 5.5 執行單一 Arm B campaign
 
-只有在 SWIG import、共用 UE-traffic/FlexRIC namespace、E2 connection 與合法 rollback baseline 都獲得證明後，才能執行這個指令。請替換 example RRC UE ID 與 FlexRIC module directory：
+只有在 SWIG import、共用 UE-traffic/FlexRIC namespace、E2 connection 與合法 rollback baseline 都獲得證明後，才能執行這個指令。請替換 example RRC UE ID：
 
 ```bash
-FLEXRIC_PYTHON_DIR=/path/to/flexric/build/examples/xApp/python3
-PYTHONPATH="$FLEXRIC_PYTHON_DIR${PYTHONPATH:+:$PYTHONPATH}" \
+export PYTHONPATH=/tmp/flexric-adaptive-drx-v3/src/xApp/swig
+export FLEXRIC_CONF_FILE=/home/tonywang/OAI/Red_cap_openairinterface5g/ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/conf/flexric.conf
+export FLEXRIC_LIBS_DIR=/tmp/flexric-adaptive-drx-v3/plugins/
 python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/adaptive_drx/run_campaign.py \
   --manifest "$RUN_DIR/adaptive_drx_campaign_manifest_v1.json" \
   --campaign-id arm-b-dl \
@@ -298,7 +309,8 @@ python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_valid
   --ue-control-host 192.168.71.150 \
   --ue-control-port 8091 \
   --runtime-log "$RUN_DIR/runtime.log" \
-  --control-timeout-s 10
+  --control-timeout-s 10 \
+  --launch-lead-ms 250
 ```
 
 獨立的 uplink campaign 使用 `arm-b-ul`。在 fresh DRX state 上，runner 會在第一個 FlexRIC request 前自動把 `drx-320-10` commit 為保留的 bootstrap version 0。重用已配置的 stack 必須失敗，不可覆寫既有 policy history。
@@ -400,6 +412,8 @@ stateDiagram-v2
 |---|---|
 | 系統 `SWIG Version 4.0.2` | 使用 build section 記錄的 repository SWIG 4.1.1；不可降低 requirement。 |
 | `No module named xapp_sdk` | 讓 `PYTHONPATH` 指向同一 interpreter 可使用的 FlexRIC Python build output。 |
+| RIC/xApp 在 E42 setup 或 control 時 crash | 很可能是 v2/v3 wrapper-plugin mismatch。確認 CMake cache 為 `E2AP_V3` 與 `KPM_V3_00`，再 export Section 2.2 的精確 `PYTHONPATH`、`FLEXRIC_CONF_FILE` 與 `FLEXRIC_LIBS_DIR`。不可混用 v3 wrapper 與 `/usr/local/lib/flexric` 下的 v2 plugins。 |
+| Reverse DL 在 scheduled epoch 前送出，或 receiver 只有 299 筆 timestamps | 使用目前 runner 與 `--launch-lead-ms 250`。Lead 只套用於 UL；reverse DL 必須在 `scheduled_source_tx_time_us` 才啟動。不可替 DL 加入通用 lead，也不可修改 trace。 |
 | `first --txstart-time is not in the future` | 使用 future epoch 執行 `rebase`，不可手動修改 trace rows。 |
 | gNB control connection refused | 啟用 `telnetsrv`、載入 `shrmod ci`，並傳入可到達的 gNB address 與 port。 |
 | `rollback_unavailable` | 從 fresh DRX state 啟動，讓 runner 的保留 version-0 bootstrap 完成。 |

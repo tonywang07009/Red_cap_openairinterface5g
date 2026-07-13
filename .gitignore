@@ -28,6 +28,10 @@ CMakeUserPresets.json
 .symdex/
 
 
-#
+# 
 node_modules/
 node_modules/
+
+#test log
+/test_log
+/test

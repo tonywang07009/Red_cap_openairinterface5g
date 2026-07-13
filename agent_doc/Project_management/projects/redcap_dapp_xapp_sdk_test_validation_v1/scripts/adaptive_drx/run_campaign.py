@@ -131,6 +131,14 @@ def iperf_command(
     return command
 
 
+def traffic_process_launch_time_us(row: dict[str, str], launch_lead_ms: float) -> int:
+    scheduled_us = int(row["scheduled_source_tx_time_us"])
+    # iPerf2's reverse server does not honor the client's --txstart-time.
+    if row["direction"] == "downlink":
+        return scheduled_us
+    return scheduled_us - round(launch_lead_ms * 1000)
+
+
 def load_campaign(manifest_path: Path, campaign_id: str) -> tuple[dict[str, object], list[dict[str, str]]]:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     campaign = find_campaign(manifest, campaign_id)
@@ -211,6 +219,12 @@ def main(argv: Iterable[str] | None = None) -> int:
     parser.add_argument("--runtime-log", type=Path, help="combined gNB/UE runtime log used for policy commit")
     parser.add_argument("--summary-json", type=Path, help="campaign-level DRX metric summary; defaults beside --command-plan")
     parser.add_argument("--control-timeout-s", type=float, default=5.0)
+    parser.add_argument(
+        "--launch-lead-ms",
+        type=float,
+        default=250.0,
+        help="start the UL iPerf2 process this long before --txstart-time; reverse DL starts at the scheduled time",
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -240,6 +254,9 @@ def main(argv: Iterable[str] | None = None) -> int:
         return 2
     if args.control_timeout_s <= 0:
         print("[BLOCKED] --control-timeout-s must be positive")
+        return 2
+    if args.launch_lead_ms < 0:
+        print("[BLOCKED] --launch-lead-ms must be non-negative")
         return 2
     if not 1 <= args.ue_control_port <= 65535:
         print("[BLOCKED] --ue-control-port must be between 1 and 65535")
@@ -430,6 +447,10 @@ def main(argv: Iterable[str] | None = None) -> int:
             elif control is not None:
                 record["control"] = control
             if args.execute:
+                launch_time_us = traffic_process_launch_time_us(row, args.launch_lead_ms)
+                delay_s = (launch_time_us - time.time_ns() // 1000) / 1_000_000
+                if delay_s > 0:
+                    time.sleep(delay_s)
                 record["client_launch_time_us"] = time.time_ns() // 1000
                 result = subprocess.run(command, capture_output=True, text=True, check=False)
                 record.update(returncode=result.returncode, stdout=result.stdout, stderr=result.stderr)
