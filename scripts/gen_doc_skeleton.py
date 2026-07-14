@@ -17,6 +17,7 @@ class Milestone:
     source_file: str
 
 
+# like for agnet used the doc mcp
 def parse_args() -> argparse.Namespace:
     """Build and parse CLI arguments."""
     parser = argparse.ArgumentParser(
@@ -60,11 +61,12 @@ def extract_milestones(path: Path) -> list[Milestone]:
         if not line.startswith("## Milestone"):
             continue
         title = line.lstrip("#").strip()
-        milestones.append(Milestone(title=title, source_file=str(path)))
+        milestones.append(Milestone(title=title, source_file=str(path))) # Instantiation line
 
     return milestones
 
 
+# The o^2 complexty -> can opt?
 def merge_milestones(*groups: list[Milestone]) -> list[Milestone]:
     """Merge milestone lists while preserving first-seen order."""
     merged: list[Milestone] = []

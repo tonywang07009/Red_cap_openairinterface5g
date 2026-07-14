@@ -439,7 +439,7 @@ def write_receive_csv(manifest_path: Path, campaign_id: str, capture_path: Path,
     trace = read_trace(trace_path)
 
     packet_pattern = re.compile(r"^\s*(\d+)(?:\.(\d+))?\s+IP\s+\S+\.(\d+)\s+>\s+\S+\.(\d+):")
-    receive_times_us: list[int] = []
+    packet_flows: list[list[int]] = []
     previous_flow: tuple[int, int] | None = None
     for line in capture_path.read_text(encoding="utf-8", errors="replace").splitlines():
         match = packet_pattern.match(line)
@@ -450,22 +450,27 @@ def write_receive_csv(manifest_path: Path, campaign_id: str, capture_path: Path,
         if 5001 not in {source_port, destination_port}:
             continue
         flow = (source_port, destination_port)
-        if flow == previous_flow:
-            continue
         fraction = (match.group(2) or "")[:6].ljust(6, "0")
-        receive_times_us.append(int(match.group(1)) * 1_000_000 + int(fraction))
-        previous_flow = flow
+        timestamp_us = int(match.group(1)) * 1_000_000 + int(fraction)
+        if flow != previous_flow:
+            packet_flows.append([])
+            previous_flow = flow
+        packet_flows[-1].append(timestamp_us)
 
-    if len(receive_times_us) != ARRIVALS_PER_CAMPAIGN:
+    if len(packet_flows) != ARRIVALS_PER_CAMPAIGN:
         raise ValueError(
-            f"capture must contain {ARRIVALS_PER_CAMPAIGN} sequential iPerf2 flow starts, got {len(receive_times_us)}"
+            f"capture must contain {ARRIVALS_PER_CAMPAIGN} sequential iPerf2 flows, got {len(packet_flows)}"
         )
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", encoding="utf-8", newline="") as stream:
         writer = csv.DictWriter(stream, fieldnames=("campaign_id", "arrival_id", "source_receive_time_us"))
         writer.writeheader()
-        for row, receive_time_us in zip(trace[WARMUP_ARRIVALS:], receive_times_us[WARMUP_ARRIVALS:]):
+        for row, packet_times_us in zip(trace[WARMUP_ARRIVALS:], packet_flows[WARMUP_ARRIVALS:]):
+            scheduled_us = int(row["scheduled_source_tx_time_us"])
+            receive_time_us = next((timestamp for timestamp in packet_times_us if timestamp >= scheduled_us), None)
+            if receive_time_us is None:
+                raise ValueError(f"capture flow for arrival {row['arrival_id']} has no packet at or after its scheduled epoch")
             writer.writerow(
                 {
                     "campaign_id": campaign_id,

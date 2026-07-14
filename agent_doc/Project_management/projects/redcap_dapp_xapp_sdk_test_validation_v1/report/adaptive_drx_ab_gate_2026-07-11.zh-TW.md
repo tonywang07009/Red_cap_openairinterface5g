@@ -2,13 +2,13 @@
 
 ## Gate 摘要
 
-- [日期]: 2026-07-11。
+- [Runtime 完成日期]: 2026-07-14。
 - [範圍]: 一台處於 `RRC_CONNECTED` 的 RedCap UE，DL 與 UL 分別執行 Arm A/B campaign。
-- [整體結果]: runtime A/B 驗證為 **BLOCKED**。
+- [整體結果]: 凍結範圍內的 RFsim runtime A/B 驗證為 **PASS**。
 - [Source Readiness]: E2-enabled gNB/UE、本地 gNB/UE 控制模組、Python xApp import、collectors、checker 與 focused tests 均通過。
 - [Runtime Smoke]: 重建 images 已通過單 UE attach/PDU/TUN/ping、E2 Setup、固定 Arm A apply/RRC completion、UE Active-Time export，以及雙向各一個 fixed-byte burst。
-- [Runtime 邊界]: 尚無完整 adaptive-DRX campaign artifact。每個 campaign 的可證明 scored population 為 `0/300`，總計 `0/1200`。
-- [宣告邊界]: Smoke values 只作 connectivity/control evidence；不宣稱 A/B latency、throughput、retransmission、monitoring-time、energy proxy 或實體耗電結果。
+- [Runtime 證據]: 四個 campaigns 各有 `300/300` scored arrivals 通過獨立 correlation，總計 `1200/1200`。
+- [宣告邊界]: latency、delivery、goodput、HARQ 與 Active-Time/PDCCH ratio 是 RFsim 行為證據；不宣稱實體耗電或電池壽命。
 
 ## 凍結的 Manifest
 
@@ -19,13 +19,18 @@
 
 | Campaign | Arm | 方向 | 控制模式 | 規劃 arrivals | Warm-up | 規劃 scored | 已有證據 scored | 狀態 |
 |---|---|---|---|---:|---:|---:|---:|---|
-| `arm-a-dl` | A | Downlink | 固定 `drx-320-10`，只套用一次 | 330 | 30 | 300 | 0 | BLOCKED / 尚未執行 |
-| `arm-b-dl` | B | Downlink | Adaptive E2SM-RC Style 2 / Action 1 | 330 | 30 | 300 | 0 | BLOCKED / 尚未執行 |
-| `arm-a-ul` | A | Uplink | 固定 `drx-320-10`，只套用一次 | 330 | 30 | 300 | 0 | BLOCKED / 尚未執行 |
-| `arm-b-ul` | B | Uplink | Adaptive E2SM-RC Style 2 / Action 1 | 330 | 30 | 300 | 0 | BLOCKED / 尚未執行 |
-| **總計** | | | | **1320** | **120** | **1200** | **0** | **BLOCKED** |
+| `arm-a-dl` | A | Downlink | 固定 `drx-320-10`，只套用一次 | 330 | 30 | 300 | 300 | PASS |
+| `arm-b-dl` | B | Downlink | Adaptive E2SM-RC Style 2 / Action 1 | 330 | 30 | 300 | 300 | PASS |
+| `arm-a-ul` | A | Uplink | 固定 `drx-320-10`，只套用一次 | 330 | 30 | 300 | 300 | PASS |
+| `arm-b-ul` | B | Uplink | Adaptive E2SM-RC Style 2 / Action 1 | 330 | 30 | 300 | 300 | PASS |
+| **總計** | | | | **1320** | **120** | **1200** | **1200** | **PASS** |
 
-Trace seed 仍為 `required_at_run`；Arm A 沒有 profile seed。四個 campaigns 的 generated runtime artifacts 尚未收集。
+Deterministic trace seed 為 `41`。Evidence directories：
+
+- `test_log/runtime_logs/adaptive_drx_2026-07-13_full_ab/arm-a-dl-run2`
+- `test_log/runtime_logs/adaptive_drx_2026-07-13_full_ab/arm-b-dl-run7`
+- `test_log/runtime_logs/adaptive_drx_2026-07-13_full_ab/arm-a-ul-run1`
+- `test_log/runtime_logs/adaptive_drx_2026-07-13_full_ab/arm-b-ul-run1`
 
 ## Build 與 Test 證據
 
@@ -43,7 +48,7 @@ Trace seed 仍為 `required_at_run`；Arm A 沒有 profile seed。四個 campaig
 | SDK contract self-test | PASS | `test_log/compiler_logs/dapp_xapp_contract_2026-07-11_01-05-00.log` |
 | E2-enabled gNB/UE 與 `telnetsrv_ci`/`ciUE` build | PASS | `test_log/build_logs/build_e2_agent_telnet_gnb_ue_2026-07-11_16-02-bootstrap-metrics.log` |
 | FlexRIC SWIG 4.1.1 Python bridge build/import | PASS | `test_log/build_logs/build_xapp_sdk_2026-07-11_15-13-45_swig411.log`；`test_log/compiler_logs/xapp_sdk_import_2026-07-11_15-13-45_swig411.log` |
-| Adaptive 與 evidence Python tests | PASS，10/10 與 3/3 | 本次 focused test run |
+| Adaptive 與 evidence Python tests | PASS，16/16 與 3/3 | `test_log/compiler_logs/adaptive_drx_python_tests_2026-07-14.log`；`test_log/compiler_logs/adaptive_drx_evidence_tests_2026-07-14.log` |
 | 本次 focused C-DRX rebuild/CTest | PASS，gNB 8/8、UE 9/9、RC 3/3 | `test_log/compiler_logs/adaptive_drx_focused_ctest_2026-07-11_20-05-02.log`；同 timestamp detailed suite logs |
 | E2-enabled RFsim image rebuild | PASS | `test_log/build_logs/rebuild_local_oai_images_2026-07-11_20-05-02_adaptive-drx.log` |
 | UE image receiver-capture dependency | PASS，已加入 `tcpdump` | `test_log/build_logs/rebuild_oai_nr_ue_tcpdump_2026-07-11_20-05-02.log` |
@@ -65,29 +70,29 @@ Smoke 發現並修正 route-integrity 問題：runtime execution 現在強制要
 
 ## Runtime Metrics
 
-由於沒有 observed scored rows 或 adaptive-DRX runtime logs，所有凍結的 metrics 均無法取得。
+下列每個數值都由獨立 checker 從 300 筆 scored arrivals 產生。
 
-| Metric | Arm A DL | Arm B DL | Arm A UL | Arm B UL | 證據狀態 |
-|---|---|---|---|---|---|
-| `scored_delivery_success_count` | N/A | N/A | N/A | N/A | Campaign 尚未執行 |
-| `scheduled_to_first_receive_latency_ms` | N/A | N/A | N/A | N/A | Collector/checker ready；尚無 campaign capture |
-| `latency_median_ms` | N/A | N/A | N/A | N/A | 沒有 scored latency population |
-| `latency_p95_ms` | N/A | N/A | N/A | N/A | 沒有 scored latency population |
-| `latency_max_ms` | N/A | N/A | N/A | N/A | 沒有 scored latency population |
-| `pdcch_monitoring_slot_ratio` | N/A | N/A | N/A | N/A | UE counter/export ready；尚無 campaign summary |
-| `drx_active_time_slot_ratio` | N/A | N/A | N/A | N/A | UE counter/export ready；尚無 campaign summary |
-| `burst_goodput_mbps` | N/A | N/A | N/A | N/A | Parser ready；尚無 campaign iPerf output |
-| `udp_loss_percent` | N/A | N/A | N/A | N/A | Parser ready；尚無 campaign iPerf output |
-| `udp_jitter_ms` | N/A | N/A | N/A | N/A | Parser ready；尚無 campaign iPerf output |
-| `dl_harq_retransmission_count` | N/A | N/A | N/A | N/A | Log-delta parser ready；尚無 campaign snapshots |
-| `ul_harq_retransmission_count` | N/A | N/A | N/A | N/A | Log-delta parser ready；尚無 campaign snapshots |
-| `policy_apply_latency_ms` | N/A | N/A | N/A | N/A | Timestamp correlation ready；尚無 runtime markers |
-| `policy_reject_count` | N/A | N/A | N/A | N/A | 沒有 runtime decisions |
-| `rollback_count` | N/A | N/A | N/A | N/A | 沒有 runtime decisions |
-| `rrc_reconfiguration_count` | N/A | N/A | N/A | N/A | 沒有 runtime marker population |
-| `rrc_reconfiguration_timeout_count` | N/A | N/A | N/A | N/A | 沒有 runtime marker population |
+| Metric | Arm A DL | Arm B DL | Arm A UL | Arm B UL |
+|---|---:|---:|---:|---:|
+| `delivery_success_count` | 300 | 300 | 300 | 300 |
+| `policy_versions` | 1 | 10 | 1 | 10 |
+| `scheduled_to_first_receive_median_ms` | 59.0125 | 58.891 | 5.2345 | 5.217 |
+| `scheduled_to_first_receive_p95_ms` | 67.991 | 71.028 | 5.768 | 5.853 |
+| `scheduled_to_first_receive_max_ms` | 75.193 | 3642.133 | 407.981 | 3206.300 |
+| `drx_active_slots / drx_observed_slots` | 1092797 / 14383008 | 419910 / 14292512 | 1124628 / 14247199 | 499363 / 14395015 |
+| `drx_active_time_slot_ratio` | 0.075978 | 0.029380 | 0.078937 | 0.034690 |
+| `pdcch_monitoring_slot_ratio` | 0.075978 | 0.029380 | 0.078937 | 0.034690 |
+| `burst_goodput_mean_mbps` | 10.229333 | 10.232600 | 9.749533 | 9.740133 |
+| `udp_jitter_mean_ms` | 0.050337 | 0.048847 | 0.193457 | 0.197967 |
+| `udp_loss_mean_percent` | 3.4 | 3.4 | 0.0 | 0.0 |
+| `DL / UL HARQ retransmission count` | 0 / 0 | 0 / 0 | 0 / 0 | 2 / 3 |
+| `policy_apply_latency_median / p95 / max_ms` | 5.025 / 5.025 / 5.025 | 38.470 / 184.165 / 184.165 | 4.338 / 4.338 / 4.338 | 2.259 / 3.871 / 3.871 |
+| `policy_reject / rollback / timeout count` | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 |
+| `rrc_reconfiguration_count` | 1 | 10 | 1 | 10 |
 
-`N/A` 表示尚未量測，不能解讀為事件數為零或傳送成功。
+Arm B 在 DL 與 UL 都降低 observed Active-Time ratio。其最大
+scheduled-to-first-receive latency 因 30-arrival 邊界的 RRC policy apply
+延遲部分 burst 而增加；這是量測結果的一部分，不當成 outlier 移除。
 
 ## Instrumentation Readiness
 
@@ -99,17 +104,17 @@ policy_version,profile_id,client_launch_time_us,iperf_returncode,
 burst_goodput_mbps,udp_jitter_ms,udp_lost_packets,udp_total_packets,udp_loss_percent
 ```
 
-`check_campaign.py` 可驗證 traffic metrics、receiver CSV、UE Active-Time summary、staged-to-RRC latency、RNTI-specific HARQ delta、versions、profiles 與 markers。`adaptive_drx.py receive-csv` 可轉換 filtered tcpdump log。這是 source readiness，不是已量測 RFsim evidence。
+`check_campaign.py` 可驗證 traffic metrics、receiver CSV、UE Active-Time summary、staged-to-RRC latency、RNTI-specific HARQ delta、versions、profiles 與 markers。`adaptive_drx.py receive-csv` 可轉換 filtered tcpdump log；上方四組量測結果都使用這條路徑。
 
 ## E2 與 SWIG 邊界
 
 - 系統 SWIG 是 4.0.2；repository SWIG 4.1.1 已成功為 Python 3.12 build/import `xapp_sdk`。
 - 隔離的 `/tmp/oai-e2-agent-build` 記錄 `E2_AGENT=ON`；兩個 softmodems 與兩個 telnet modules 都可 build。
-- gNB 已與 running Near-RT RIC 完成 E2 Setup。Live Arm B Python request 尚未驗證，因 workspace elevation credits 用盡後，受控 host-to-Docker bridge access 被拒絕。
+- Live Python xApp discovery 回傳 `nodes 1`。兩個 Arm B campaigns 各完成十次 E2 CONTROL request，request、ACK、dApp ACCEPT、gNB apply 與 RRC-complete markers 均已關聯。
 
 ## RFsim 與實體耗電邊界
 
-RFsim 不會量測 UE receiver current、watts、joules 或 battery life。完成的 RFsim campaign 最多只能把 `pdcch_monitoring_slot_ratio` 與 `drx_active_time_slot_ratio` 當作 energy-related behavior proxies，並同時呈現 latency、delivery、goodput、loss 與 retransmission 結果。Smoke counter 不是 scored A/B proxy population，因此本報告不宣稱節能，也不宣稱實體耗電改善。
+RFsim 不會量測 UE receiver current、watts、joules 或 battery life。本報告的 `pdcch_monitoring_slot_ratio` 與 `drx_active_time_slot_ratio` 只能作 energy-related behavior proxies；不宣稱實體耗電或電池壽命改善。
 
 ## 教育測試筆記
 
@@ -130,7 +135,7 @@ C-DRX 限制 `RRC_CONNECTED` UE 必須監聽 PDCCH 的時段。Network 配置合
 | gNB C-DRX state/guard | PASS 8/8 | N/A，未啟用 coverage | `test_nr_gnb_drx_2026-07-11_20-05-02.log` |
 | UE C-DRX Active Time | PASS 9/9 | N/A，未啟用 coverage | `test_nr_ue_drx_2026-07-11_20-05-02.log` |
 | RC request contract | PASS 3/3 | N/A，未啟用 coverage | `test_nr_redcap_rc_ctrl_2026-07-11_20-05-02.log` |
-| 單 UE RFsim smoke | PASS；A/B Gate 仍 BLOCKED | N/A，runtime proxy | `adaptive_drx_rfsim_prereq_2026-07-11_20-05-02.log` |
+| 四個單 UE RFsim campaigns | PASS，1200/1200 scored | N/A，runtime proxy | `test_log/runtime_logs/adaptive_drx_2026-07-13_full_ab/` |
 
 ### 4. 3GPP Specification Mapping
 
@@ -143,14 +148,9 @@ C-DRX 限制 `RRC_CONNECTED` UE 必須監聽 PDCCH 的時段。Network 配置合
 2. [Applied]：從 telnet request trace policy version 1 到 RRC-complete marker。
 3. [Advanced]：設計 failure test，證明 rejected Arm B window 會保留且 rollback state 不變。
 
-## 下一個 Evidence Gate
+## Gate 關閉
 
-只有完成並保存下列證據後，runtime Gate 才能從 BLOCKED 改變：
-
-1. 恢復受控 host-to-Docker bridge access，並證明 Python `xapp_sdk` node discovery。
-2. 產生/rebase future JSON manifest，使用 `--bind-address` 執行四個 campaigns。
-3. 每個 campaign 保存正好 330 個 arrivals，並以 arrivals 31 至 330 形成 300 筆已關聯的 scored rows。
-4. 依 policy version 關聯 request、E2 acknowledgement、dApp decision、gNB apply、UE configuration 與 RRC completion markers。
-5. 對每個 campaign 執行 `check_campaign.py`，四個結果都必須 PASS，之後才能計算或比較 Arm A/B statistics。
-
-OpenSpec task 2.11 已完成 source implementation。Task 2.12 與 adaptive C-DRX runtime Gate 要等上述證據完成。
+- 四個 campaigns 都保留 330 arrivals 與 300 scored receiver records。
+- 每個 Arm B direction 都保留十個 30-arrival policy windows。
+- Traffic、UE counters、HARQ、E2/dApp/gNB、UE configuration 與 RRC completion evidence 全部通過 correlation。
+- OpenSpec task 2.12 已完成；adaptive C-DRX runtime Gate 在本報告 RFsim 範圍內關閉。

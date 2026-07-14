@@ -345,8 +345,7 @@ arrival range, and all 30 retained intervals for deterministic retry.
    be inferred from the complete marker chain.
 6. The checker correlates the versioned custom RRC marker, but the UE config
    and ordinary RRC completion strings are only required globally.
-7. The collectors and checker now support receiver latency, iPerf metrics,
-   HARQ deltas, policy latency, and UE Active-Time ratios, but no four-campaign
-   RFsim result has been collected yet.
+7. The collectors and checker produced four PASS results with `1200/1200`
+   scored arrivals for the frozen DL/UL RFsim campaigns.
 8. Automatic failure rollback exists, but no dApp rollback-decision marker
     or live caller of `nr_mac_rollback_drx_policy()` exists.

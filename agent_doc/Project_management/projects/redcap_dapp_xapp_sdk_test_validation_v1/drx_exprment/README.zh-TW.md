@@ -98,30 +98,41 @@ RFsim 無法量測電流、瓦特、焦耳、電池壽命或 receiver-chain powe
 | gNB 與 UE softmodem builds | PASS |
 | Telnet CI DRX control module | PASS |
 | Focused UE DRX、RC 與 gNB DRX CTest targets | PASS，3/3 |
-| Trace、predictor、window 與 checker tests | PASS，10/10 加 evidence 3/3 |
+| Trace、predictor、window、receiver 與 checker tests | PASS，16/16 加 evidence 3/3 |
 | C dApp 與 C xApp self-checks | PASS |
 | 產生的 Python FlexRIC module | Repository SWIG 4.1.1 + Python 3.12 PASS |
 | 隔離的 E2 build path | `E2_AGENT=ON`，gNB/UE、`telnetsrv_ci`、`ciUE` PASS |
 | 單 UE RFsim C-DRX smoke | PASS：attach/PDU/TUN/ping、E2 Setup、Arm A apply/RRC complete、UE counters、UL/DL bursts |
-| 四個 RFsim campaigns | BLOCKED / 尚未執行 |
+| 四個 RFsim campaigns | PASS，1200/1200 scored arrivals |
 
-Smoke 證明固定 Arm A local control 與 traffic path，不代表 live Arm B Python E2 request、adaptive A/B 結果或 traffic 改善。
+Live Python xApp discovery 回傳 `nodes 1`。每個 Arm B campaign 都完成十次
+E2 CONTROL request 與 RRC reconfiguration，沒有 reject、rollback 或 timeout。
 
 ### 2.2 Scored Population
 
 | Campaign | Planned scored | Evidenced scored | 結果 |
 |---|---:|---:|---|
-| `arm-a-dl` | 300 | 0 | BLOCKED |
-| `arm-b-dl` | 300 | 0 | BLOCKED |
-| `arm-a-ul` | 300 | 0 | BLOCKED |
-| `arm-b-ul` | 300 | 0 | BLOCKED |
-| **Total** | **1200** | **0** | **BLOCKED** |
+| `arm-a-dl` | 300 | 300 | PASS |
+| `arm-b-dl` | 300 | 300 | PASS |
+| `arm-a-ul` | 300 | 300 | PASS |
+| `arm-b-ul` | 300 | 300 | PASS |
+| **Total** | **1200** | **1200** | **PASS** |
 
-目前整體可證明的 scored population 是 `0/1200`。
+最終可證明的 scored population 是 `1200/1200`，trace seed 為 `41`。
 
-目前所有 latency、goodput、loss、jitter、HARQ、monitoring、Active-Time、reject 與 rollback metrics 都是 `N/A`。`N/A` 代表尚未量測，不是零，也不是成功結果。
+| Metric | Arm A DL | Arm B DL | Arm A UL | Arm B UL |
+|---|---:|---:|---:|---:|
+| First-receive median / p95 ms | 59.0125 / 67.991 | 58.891 / 71.028 | 5.2345 / 5.768 | 5.217 / 5.853 |
+| Active-Time ratio | 0.075978 | 0.029380 | 0.078937 | 0.034690 |
+| Mean goodput Mbps | 10.229333 | 10.232600 | 9.749533 | 9.740133 |
+| Mean loss percent | 3.4 | 3.4 | 0.0 | 0.0 |
+| DL / UL HARQ retransmissions | 0 / 0 | 0 / 0 | 0 / 0 | 2 / 3 |
 
-目前 images、iPerf2 與 tcpdump 已就緒。剩餘 blocker 是 Python xApp node discovery 所需的受控 host-to-Docker bridge access，之後還要完成四個 330-arrival campaigns 與完整 marker/evidence packages。
+Canonical evidence 位於
+`test_log/runtime_logs/adaptive_drx_2026-07-13_full_ab/` 的
+`arm-a-dl-run2`、`arm-b-dl-run7`、`arm-a-ul-run1` 與 `arm-b-ul-run1`。
+先前 Arm B/DL attempts 因 UE counters 無效、timeout 或不完整而排除。耗電不列入
+本次驗收；本報告只確認 DRX uplink 與 downlink 行為完成。
 
 ## 3. 無 AI 工具的人工重建步驟
 

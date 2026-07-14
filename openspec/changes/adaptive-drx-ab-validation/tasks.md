@@ -22,10 +22,10 @@
 - [x] 2.9 Add focused unit/contract tests for prediction bounds, stale-version rejection, rollback, window retention, deterministic seeds, complete Active Time, frame wrap, and DRX Command guard conditions.
 - [x] 2.10 Add RFsim campaign runners and checkers for Arm A and Arm B, including CSV correlation by policy version and a clear PARTIAL/BLOCKED result when any required marker is missing.
 - [x] 2.11 Update the campaign runtime for the fixed Arm A baseline, sequential trace rebasing, bounded prediction fallback, and the frozen metric outputs.
-- [ ] 2.12 Build the affected gNB and UE targets with the live E2/xApp path, run the focused tests, and save timestamped compiler, runtime, and marker evidence.
-  - Verified: repository SWIG 4.1.1 `xapp_sdk` build/import, E2-enabled gNB/UE and telnet-module builds, 8/8 gNB DRX tests, 9/9 UE DRX tests, 10/10 adaptive Python tests, and 3/3 evidence tests.
+- [x] 2.12 Build the affected gNB and UE targets with the live E2/xApp path, run the focused tests, and save timestamped compiler, runtime, and marker evidence.
+  - Verified: repository SWIG 4.1.1 `xapp_sdk` build/import, E2-enabled gNB/UE and telnet-module builds, 8/8 gNB DRX tests, 9/9 UE DRX tests, 16/16 adaptive Python tests, and 3/3 evidence tests.
   - Verified runtime smoke: rebuilt images, one-UE attach/PDU/TUN/ping, E2 Setup, fixed Arm A apply/RRC completion, UE Active-Time counters, and bound fixed-byte UL/DL bursts.
-  - Pending: restore controlled host-to-Docker bridge access for live Python xApp node discovery, then collect request/ACK/dApp/apply/RRC, traffic, receiver, Active-Time, and HARQ evidence for all four campaigns.
+  - Verified runtime: live Python xApp node discovery returned one node; Arm A/B DL and UL each completed 330 arrivals and 300 scored receiver records, for `1200/1200` total, with correlated request/ACK/dApp/apply/RRC, traffic, Active-Time, and HARQ evidence under `test_log/runtime_logs/adaptive_drx_2026-07-13_full_ab/`.
 
 > **Model checkpoint - use GPT-5.6 Sol / ultra for multi-module C/E2/E3 integration and RFsim blocker analysis.** Use Sol / max for smaller source changes; do not use Terra to decide protocol behavior.
 

@@ -163,10 +163,16 @@ class AdaptiveDrxTest(unittest.TestCase):
             capture_path = root / "receiver.log"
             capture_path.write_text(
                 "\n".join(
-                    f"{(int(row['scheduled_source_tx_time_us']) + (2_000_000 if index == 30 else 1000)) // 1_000_000}."
-                    f"{(int(row['scheduled_source_tx_time_us']) + (2_000_000 if index == 30 else 1000)) % 1_000_000:06d} "
-                    f"IP 192.168.72.136.5001 > 10.0.0.2.{40000 + index}: UDP, length 1200"
+                    line
                     for index, row in enumerate(rows)
+                    for timestamp in (
+                        int(row["scheduled_source_tx_time_us"]) - 200_000,
+                        int(row["scheduled_source_tx_time_us"]) + (2_000_000 if index == 30 else 1000),
+                    )
+                    for line in (
+                        f"{timestamp // 1_000_000}.{timestamp % 1_000_000:06d} "
+                        f"IP 192.168.72.136.5001 > 10.0.0.2.{40000 + index}: UDP, length 1200",
+                    )
                 ),
                 encoding="utf-8",
             )

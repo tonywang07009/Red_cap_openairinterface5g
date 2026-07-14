@@ -340,7 +340,7 @@ retained intervals，供 deterministic retry。
    marker chain 判斷。
 6. Checker 會依 version correlate custom RRC marker，但 UE config 與一般 RRC
    completion string 只做全域存在檢查。
-7. Collectors 與 checker 已支援 receiver latency、iPerf metrics、HARQ delta、
-   policy latency 與 UE Active-Time ratio，但尚未取得四個 RFsim campaign result。
+7. Collectors 與 checker 已對凍結的 DL/UL RFsim campaigns 產生四個 PASS
+   結果，共 `1200/1200` scored arrivals。
 8. 已有自動 failure rollback，但沒有 dApp rollback-decision marker，也沒有
     `nr_mac_rollback_drx_policy()` 的 live caller。

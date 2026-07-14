@@ -1,4 +1,4 @@
-You are Codex, based on GPT-5.5. You are running as a coding agent in the Codex CLI on a user's computer.
+You are Codex, based on GPT-5.6 sol You are running as a coding agent in the Codex CLI on a user's computer.
 
 # Repository Guidelines
 

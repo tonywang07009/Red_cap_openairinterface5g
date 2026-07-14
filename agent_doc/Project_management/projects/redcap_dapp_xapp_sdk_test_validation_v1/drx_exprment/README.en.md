@@ -124,35 +124,43 @@ power states. Active-Time and PDCCH-monitoring ratios are behavior proxies only.
 | gNB and UE softmodem builds | PASS |
 | Telnet CI DRX control module | PASS |
 | Focused UE DRX, RC, and gNB DRX CTest targets | PASS, 3/3 |
-| Trace, predictor, window, and checker tests | PASS, 10/10 plus evidence 3/3 |
+| Trace, predictor, window, receiver, and checker tests | PASS, 16/16 plus evidence 3/3 |
 | C dApp and C xApp self-checks | PASS |
 | Generated Python FlexRIC module | PASS with repository SWIG 4.1.1 and Python 3.12 |
 | Isolated E2 build path | PASS with `E2_AGENT=ON`, gNB/UE, `telnetsrv_ci`, and `ciUE` |
 | One-UE RFsim C-DRX smoke | PASS: attach/PDU/TUN/ping, E2 Setup, Arm A apply/RRC complete, UE counters, UL/DL bursts |
-| Four RFsim campaigns | BLOCKED / not executed |
+| Four RFsim campaigns | PASS, 1200/1200 scored arrivals |
 
-The smoke proves the fixed Arm A local control and traffic path, not a live Arm
-B Python E2 request, an adaptive A/B result, or traffic benefit.
+Live Python xApp discovery returned `nodes 1`. Each Arm B campaign completed ten
+correlated E2 CONTROL requests and RRC reconfigurations without reject,
+rollback, or timeout.
 
 ### 2.2 Scored population
 
 | Campaign | Planned scored | Evidenced scored | Result |
 |---|---:|---:|---|
-| `arm-a-dl` | 300 | 0 | BLOCKED |
-| `arm-b-dl` | 300 | 0 | BLOCKED |
-| `arm-a-ul` | 300 | 0 | BLOCKED |
-| `arm-b-ul` | 300 | 0 | BLOCKED |
-| **Total** | **1200** | **0** | **BLOCKED** |
+| `arm-a-dl` | 300 | 300 | PASS |
+| `arm-b-dl` | 300 | 300 | PASS |
+| `arm-a-ul` | 300 | 300 | PASS |
+| `arm-b-ul` | 300 | 300 | PASS |
+| **Total** | **1200** | **1200** | **PASS** |
 
-The current overall evidenced scored population is `0/1200`.
+The final evidenced scored population is `1200/1200`, using trace seed `41`.
 
-All latency, goodput, loss, jitter, HARQ, monitoring, Active-Time, reject, and
-rollback metrics are currently `N/A`. `N/A` means not measured; it is not zero
-and it is not a successful result.
+| Metric | Arm A DL | Arm B DL | Arm A UL | Arm B UL |
+|---|---:|---:|---:|---:|
+| First-receive median / p95 ms | 59.0125 / 67.991 | 58.891 / 71.028 | 5.2345 / 5.768 | 5.217 / 5.853 |
+| Active-Time ratio | 0.075978 | 0.029380 | 0.078937 | 0.034690 |
+| Mean goodput Mbps | 10.229333 | 10.232600 | 9.749533 | 9.740133 |
+| Mean loss percent | 3.4 | 3.4 | 0.0 | 0.0 |
+| DL / UL HARQ retransmissions | 0 / 0 | 0 / 0 | 0 / 0 | 2 / 3 |
 
-The current images, iPerf2, and tcpdump are ready. The remaining blocker is
-controlled host-to-Docker bridge access for Python xApp node discovery, followed
-by the four 330-arrival campaigns and complete marker/evidence packages.
+Canonical evidence is under
+`test_log/runtime_logs/adaptive_drx_2026-07-13_full_ab/` in
+`arm-a-dl-run2`, `arm-b-dl-run7`, `arm-a-ul-run1`, and `arm-b-ul-run1`.
+Earlier Arm B/DL attempts remain excluded because they lacked valid UE counters,
+timed out, or were incomplete. Physical-power measurement remains N/A in RFsim;
+the Active-Time ratio is a behavior proxy only.
 
 ## 3. Human-Only Step-by-Step Reproduction
 

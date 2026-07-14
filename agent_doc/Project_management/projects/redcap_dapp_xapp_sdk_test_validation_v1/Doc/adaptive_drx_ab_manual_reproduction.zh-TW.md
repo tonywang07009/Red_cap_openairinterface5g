@@ -42,7 +42,7 @@ flowchart LR
   M -->|Commit| N[收集下一批 30 筆]
 ```
 
-目前 evidence 已證明 focused tests、Python 3.12 可 import FlexRIC bridge，以及 E2-enabled gNB/UE build；尚未證明完整 RFsim A/B campaign或實體耗電下降。
+目前 evidence 已證明 focused tests、Python 3.12 可 import FlexRIC bridge、E2-enabled gNB/UE build，以及四個完成的 RFsim DRX campaigns，共 `1200/1200` scored arrivals。實體耗電不在本 Gate 範圍。
 
 ## 2. 前置需求
 

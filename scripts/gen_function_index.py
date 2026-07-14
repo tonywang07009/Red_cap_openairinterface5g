@@ -87,6 +87,7 @@ def normalize_extensions(raw: str) -> tuple[str, ...]:
         if not token:
             continue
         values.append(token if token.startswith(".") else f".{token}")
+
     if not values:
         raise ValueError("At least one file extension must be provided")
     return tuple(values)
@@ -96,27 +97,32 @@ def list_changed_source_files(base_ref: str, head_ref: str, extensions: tuple[st
     """List changed source files between refs filtered by extension."""
     output = run_git(["diff", "--name-only", "--diff-filter=ACMRT", f"{base_ref}..{head_ref}"])
     files = []
+
     for line in output.splitlines():
         path = line.strip()
         if path.endswith(extensions):
             files.append(path)
+
     return files
 
 
 def parse_added_ranges(patch_text: str) -> list[AddedRange]:
     """Parse unified diff text and return added-line ranges from hunk headers."""
     ranges: list[AddedRange] = []
+
     for line in patch_text.splitlines():
         match = HUNK_RE.match(line)
+
         if not match:
             continue
 
         start = int(match.group("start"))
-        count = int(match.group("count") or "1")
+        count = int(match.group("count") or "1") 
         if count <= 0:
             continue
 
         ranges.append(AddedRange(start=start, end=start + count - 1))
+
     return ranges
 
 
@@ -170,13 +176,13 @@ def keep_added_functions(functions: Iterable[dict[str, object]], added_ranges: l
 def build_index(base_ref: str, head_ref: str, extensions: tuple[str, ...]) -> dict[str, object]:
     """Build full function index payload for changed files."""
     entries: list[dict[str, object]] = []
-
     changed_files = list_changed_source_files(base_ref, head_ref, extensions)
+     
     for path in changed_files:
         added_ranges = get_added_ranges_for_file(base_ref, head_ref, path)
+
         if not added_ranges:
             continue
-
         try:
             content = read_file_at_ref(head_ref, path)
         except subprocess.CalledProcessError:

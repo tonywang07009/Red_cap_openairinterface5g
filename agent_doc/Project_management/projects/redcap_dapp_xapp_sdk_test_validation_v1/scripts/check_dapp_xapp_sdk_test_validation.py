@@ -25,10 +25,16 @@ def require_path(path: str, errors: list[str]) -> None:
 
 
 def require_text(path: str, needle: str, errors: list[str]) -> None:
+    if not (ROOT / path).is_file():
+        require_path(path, errors)
+        return
     require(needle in read(path), f"{path} missing text: {needle}", errors)
 
 
 def reject_text(path: str, needle: str, errors: list[str]) -> None:
+    if not (ROOT / path).is_file():
+        require_path(path, errors)
+        return
     require(needle not in read(path), f"{path} has stale text: {needle}", errors)
 
 
@@ -394,12 +400,9 @@ def check_docs(errors: list[str]) -> None:
                 "oai-cn5g compose missing oai-amf service", errors)
         require("mysql:" in cn_compose_text and "oai-upf:" in cn_compose_text,
                 "oai-cn5g compose missing mysql/oai-upf services", errors)
-    require("--num-prbs" in read("dev_refer/dapp_dev_need/E3Controller/README.md"),
-            "E3Controller README missing --num-prbs reference for dApp PRB gate", errors)
-    require("DecompressedSample" in read("dev_refer/dapp_dev_need/E3Controller/src/e3sm/iq_pipeline.h"),
-            "E3Controller iq_pipeline.h missing I/Q sample reference", errors)
-    require("SlotSample" in read("dev_refer/dapp_dev_need/E3Controller/src/e3sm/slot_iq_pipeline.h"),
-            "E3Controller slot_iq_pipeline.h missing slot I/Q sample reference", errors)
+    require_text("dev_refer/dapp_dev_need/E3Controller/README.md", "--num-prbs", errors)
+    require_text("dev_refer/dapp_dev_need/E3Controller/src/e3sm/iq_pipeline.h", "DecompressedSample", errors)
+    require_text("dev_refer/dapp_dev_need/E3Controller/src/e3sm/slot_iq_pipeline.h", "SlotSample", errors)
 
 
 def check_adaptive_drx_docs(errors: list[str]) -> None:
@@ -465,7 +468,15 @@ def check_adaptive_drx_docs(errors: list[str]) -> None:
 
     for path in paths[2:4]:
         text = read(path)
-        for needle in ["PolicyIntent", "control_drx_sm", "redcap_dapp_guard_e2_drx_cycle", "rollback", "[Needs Verification]"]:
+        for needle in [
+            "PolicyIntent",
+            "control_drx_sm",
+            "redcap_dapp_guard_e2_drx_cycle",
+            "rollback",
+            "[Needs Verification]",
+            "e42_request_id",
+            "Network RIC request ID",
+        ]:
             require(needle in text, f"{path} missing adaptive DRX contract text: {needle}", errors)
 
     for path in paths[4:6]:
@@ -477,7 +488,7 @@ def check_adaptive_drx_docs(errors: list[str]) -> None:
 
     for path in paths[6:8]:
         text = read(path)
-        for needle in ["BLOCKED", "0/1200", "N/A", "SWIG", "E2_AGENT=ON"]:
+        for needle in ["PASS", "1200/1200", "16/16", "trace seed", "arm-a-dl-run2", "arm-b-ul-run1", "SWIG", "E2_AGENT=ON"]:
             require(needle in text, f"{path} missing Gate evidence boundary: {needle}", errors)
         require("physical-power" in text or "實體耗電" in text,
                 f"{path} missing physical-power claim boundary", errors)
@@ -487,8 +498,8 @@ def check_adaptive_drx_docs(errors: list[str]) -> None:
         for needle in [
             "RRC_CONNECTED",
             "drx-320-10",
-            "0/1200",
-            "N/A",
+            "1200/1200",
+            "16/16",
             "SWIG",
             "E2_AGENT",
             "check_campaign.py",
@@ -499,6 +510,8 @@ def check_adaptive_drx_docs(errors: list[str]) -> None:
             "[RedCap DRX][UE stats]",
             "adaptive-drx-iperf-server",
             "iperf --version",
+            "arm-a-dl-run2",
+            "arm-b-ul-run1",
         ]:
             require(needle in text, f"{path} missing experiment dossier text: {needle}", errors)
         require("Experiment Design" in text or "實驗設計" in text,

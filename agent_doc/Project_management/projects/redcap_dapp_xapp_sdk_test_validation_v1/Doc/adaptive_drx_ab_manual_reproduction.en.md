@@ -42,7 +42,7 @@ flowchart LR
   M -->|Commit| N[Collect next 30 samples]
 ```
 
-The current evidence proves focused tests, an importable Python 3.12 FlexRIC bridge, and E2-enabled gNB/UE builds. It does **not** prove a completed RFsim A/B campaign or physical power reduction.
+The current evidence proves focused tests, an importable Python 3.12 FlexRIC bridge, E2-enabled gNB/UE builds, and four completed RFsim DRX campaigns with `1200/1200` scored arrivals. Physical power is outside this Gate.
 
 ## 2. Prerequisites
 

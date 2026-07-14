@@ -2,13 +2,13 @@
 
 ## Gate Summary
 
-- [Date]: 2026-07-11.
+- [Runtime completion date]: 2026-07-14.
 - [Scope]: one RedCap UE in `RRC_CONNECTED`, with separate downlink and uplink Arm A/B campaigns.
-- [Overall Result]: **BLOCKED** for runtime A/B validation.
+- [Overall Result]: **PASS** for the frozen RFsim runtime A/B validation.
 - [Source Readiness]: E2-enabled gNB/UE, local gNB/UE control modules, Python xApp import, collectors, checker, and focused tests pass.
 - [Runtime Smoke]: rebuilt images passed one-UE attach/PDU/TUN/ping, E2 Setup, fixed Arm A apply/RRC completion, UE Active-Time export, and one fixed-byte burst in each direction.
-- [Runtime Boundary]: no complete adaptive-DRX campaign artifact is available. The evidenced scored population is `0/300` for each campaign and `0/1200` overall.
-- [Claim Boundary]: smoke values are connectivity/control evidence only; no A/B latency, throughput, retransmission, monitoring-time, energy-proxy, or physical-power result is claimed.
+- [Runtime Evidence]: all four campaigns passed independent correlation with `300/300` scored arrivals each and `1200/1200` overall.
+- [Claim Boundary]: latency, delivery, goodput, HARQ, and Active-Time/PDCCH ratios are RFsim behavior evidence. No physical-power or battery-life result is claimed.
 
 ## Frozen Manifest
 
@@ -19,13 +19,18 @@ The reviewed experiment contract is frozen in:
 
 | Campaign | Arm | Direction | Control mode | Planned arrivals | Warm-up | Planned scored | Evidenced scored | Status |
 |---|---|---|---|---:|---:|---:|---:|---|
-| `arm-a-dl` | A | Downlink | Fixed `drx-320-10`, applied once | 330 | 30 | 300 | 0 | BLOCKED / not run |
-| `arm-b-dl` | B | Downlink | Adaptive E2SM-RC Style 2 / Action 1 | 330 | 30 | 300 | 0 | BLOCKED / not run |
-| `arm-a-ul` | A | Uplink | Fixed `drx-320-10`, applied once | 330 | 30 | 300 | 0 | BLOCKED / not run |
-| `arm-b-ul` | B | Uplink | Adaptive E2SM-RC Style 2 / Action 1 | 330 | 30 | 300 | 0 | BLOCKED / not run |
-| **Total** | | | | **1320** | **120** | **1200** | **0** | **BLOCKED** |
+| `arm-a-dl` | A | Downlink | Fixed `drx-320-10`, applied once | 330 | 30 | 300 | 300 | PASS |
+| `arm-b-dl` | B | Downlink | Adaptive E2SM-RC Style 2 / Action 1 | 330 | 30 | 300 | 300 | PASS |
+| `arm-a-ul` | A | Uplink | Fixed `drx-320-10`, applied once | 330 | 30 | 300 | 300 | PASS |
+| `arm-b-ul` | B | Uplink | Adaptive E2SM-RC Style 2 / Action 1 | 330 | 30 | 300 | 300 | PASS |
+| **Total** | | | | **1320** | **120** | **1200** | **1200** | **PASS** |
 
-The trace seed remains `required_at_run`; Arm A has no profile seed. Generated runtime artifacts remain external evidence and have not been collected for the four campaigns.
+The deterministic trace seed is `41`. Evidence directories are:
+
+- `test_log/runtime_logs/adaptive_drx_2026-07-13_full_ab/arm-a-dl-run2`
+- `test_log/runtime_logs/adaptive_drx_2026-07-13_full_ab/arm-b-dl-run7`
+- `test_log/runtime_logs/adaptive_drx_2026-07-13_full_ab/arm-a-ul-run1`
+- `test_log/runtime_logs/adaptive_drx_2026-07-13_full_ab/arm-b-ul-run1`
 
 ## Build And Test Evidence
 
@@ -43,7 +48,7 @@ The trace seed remains `required_at_run`; Arm A has no profile seed. Generated r
 | SDK contract self-test | PASS | `test_log/compiler_logs/dapp_xapp_contract_2026-07-11_01-05-00.log` |
 | E2-enabled gNB/UE plus `telnetsrv_ci`/`ciUE` build | PASS | `test_log/build_logs/build_e2_agent_telnet_gnb_ue_2026-07-11_16-02-bootstrap-metrics.log` |
 | FlexRIC SWIG 4.1.1 Python bridge build/import | PASS | `test_log/build_logs/build_xapp_sdk_2026-07-11_15-13-45_swig411.log`; `test_log/compiler_logs/xapp_sdk_import_2026-07-11_15-13-45_swig411.log` |
-| Adaptive and evidence Python tests | PASS, 10/10 and 3/3 | Current focused test run |
+| Adaptive and evidence Python tests | PASS, 16/16 and 3/3 | `test_log/compiler_logs/adaptive_drx_python_tests_2026-07-14.log`; `test_log/compiler_logs/adaptive_drx_evidence_tests_2026-07-14.log` |
 | Current focused C-DRX rebuild/CTest | PASS, gNB 8/8, UE 9/9, RC 3/3 | `test_log/compiler_logs/adaptive_drx_focused_ctest_2026-07-11_20-05-02.log`; detailed suite logs with the same timestamp |
 | E2-enabled RFsim image rebuild | PASS | `test_log/build_logs/rebuild_local_oai_images_2026-07-11_20-05-02_adaptive-drx.log` |
 | UE image receiver-capture dependency | PASS, `tcpdump` added | `test_log/build_logs/rebuild_oai_nr_ue_tcpdump_2026-07-11_20-05-02.log` |
@@ -67,29 +72,30 @@ UE PDU-session route through container `eth0`.
 
 ## Runtime Metrics
 
-All frozen metrics are unavailable because there are no observed scored rows or adaptive-DRX runtime logs.
+Each value below is emitted by the independent checker from 300 scored arrivals.
 
-| Metric | Arm A DL | Arm B DL | Arm A UL | Arm B UL | Evidence status |
-|---|---|---|---|---|---|
-| `scored_delivery_success_count` | N/A | N/A | N/A | N/A | No campaign run |
-| `scheduled_to_first_receive_latency_ms` | N/A | N/A | N/A | N/A | Collector/checker ready; no campaign capture |
-| `latency_median_ms` | N/A | N/A | N/A | N/A | No scored latency population |
-| `latency_p95_ms` | N/A | N/A | N/A | N/A | No scored latency population |
-| `latency_max_ms` | N/A | N/A | N/A | N/A | No scored latency population |
-| `pdcch_monitoring_slot_ratio` | N/A | N/A | N/A | N/A | UE counter/export ready; no campaign summary |
-| `drx_active_time_slot_ratio` | N/A | N/A | N/A | N/A | UE counter/export ready; no campaign summary |
-| `burst_goodput_mbps` | N/A | N/A | N/A | N/A | Parser ready; no campaign iPerf output |
-| `udp_loss_percent` | N/A | N/A | N/A | N/A | Parser ready; no campaign iPerf output |
-| `udp_jitter_ms` | N/A | N/A | N/A | N/A | Parser ready; no campaign iPerf output |
-| `dl_harq_retransmission_count` | N/A | N/A | N/A | N/A | Log-delta parser ready; no campaign snapshots |
-| `ul_harq_retransmission_count` | N/A | N/A | N/A | N/A | Log-delta parser ready; no campaign snapshots |
-| `policy_apply_latency_ms` | N/A | N/A | N/A | N/A | Timestamp correlation ready; no runtime markers |
-| `policy_reject_count` | N/A | N/A | N/A | N/A | No runtime decisions |
-| `rollback_count` | N/A | N/A | N/A | N/A | No runtime decisions |
-| `rrc_reconfiguration_count` | N/A | N/A | N/A | N/A | No runtime marker population |
-| `rrc_reconfiguration_timeout_count` | N/A | N/A | N/A | N/A | No runtime marker population |
+| Metric | Arm A DL | Arm B DL | Arm A UL | Arm B UL |
+|---|---:|---:|---:|---:|
+| `delivery_success_count` | 300 | 300 | 300 | 300 |
+| `policy_versions` | 1 | 10 | 1 | 10 |
+| `scheduled_to_first_receive_median_ms` | 59.0125 | 58.891 | 5.2345 | 5.217 |
+| `scheduled_to_first_receive_p95_ms` | 67.991 | 71.028 | 5.768 | 5.853 |
+| `scheduled_to_first_receive_max_ms` | 75.193 | 3642.133 | 407.981 | 3206.300 |
+| `drx_active_slots / drx_observed_slots` | 1092797 / 14383008 | 419910 / 14292512 | 1124628 / 14247199 | 499363 / 14395015 |
+| `drx_active_time_slot_ratio` | 0.075978 | 0.029380 | 0.078937 | 0.034690 |
+| `pdcch_monitoring_slot_ratio` | 0.075978 | 0.029380 | 0.078937 | 0.034690 |
+| `burst_goodput_mean_mbps` | 10.229333 | 10.232600 | 9.749533 | 9.740133 |
+| `udp_jitter_mean_ms` | 0.050337 | 0.048847 | 0.193457 | 0.197967 |
+| `udp_loss_mean_percent` | 3.4 | 3.4 | 0.0 | 0.0 |
+| `DL / UL HARQ retransmission count` | 0 / 0 | 0 / 0 | 0 / 0 | 2 / 3 |
+| `policy_apply_latency_median / p95 / max_ms` | 5.025 / 5.025 / 5.025 | 38.470 / 184.165 / 184.165 | 4.338 / 4.338 / 4.338 | 2.259 / 3.871 / 3.871 |
+| `policy_reject / rollback / timeout count` | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 |
+| `rrc_reconfiguration_count` | 1 | 10 | 1 | 10 |
 
-`N/A` means not measured. It must not be interpreted as zero events or successful delivery.
+Arm B reduced the observed Active-Time ratio in both directions. Its maximum
+scheduled-to-first-receive latency increased because RRC policy application at
+30-arrival boundaries delayed some bursts; this is part of the measured result,
+not discarded as an outlier.
 
 ## Instrumentation Readiness
 
@@ -101,17 +107,17 @@ policy_version,profile_id,client_launch_time_us,iperf_returncode,
 burst_goodput_mbps,udp_jitter_ms,udp_lost_packets,udp_total_packets,udp_loss_percent
 ```
 
-`check_campaign.py` validates traffic metrics, receiver CSV, UE Active-Time summary, staged-to-RRC latency, RNTI-specific HARQ deltas, versions, profiles, and markers. `adaptive_drx.py receive-csv` converts a filtered tcpdump log. This is source readiness, not measured RFsim evidence.
+`check_campaign.py` validates traffic metrics, receiver CSV, UE Active-Time summary, staged-to-RRC latency, RNTI-specific HARQ deltas, versions, profiles, and markers. `adaptive_drx.py receive-csv` converts a filtered tcpdump log; the four measured results above use this path.
 
 ## E2 And SWIG Boundary
 
 - The system SWIG is 4.0.2, while the repository SWIG 4.1.1 successfully builds `xapp_sdk` for Python 3.12.
 - The isolated `/tmp/oai-e2-agent-build` cache records `E2_AGENT=ON`; both softmodems and both telnet modules build.
-- The gNB completed E2 Setup with the running Near-RT RIC. A live Arm B Python request is still unverified because controlled host-to-Docker bridge access was denied when workspace elevation credits were exhausted.
+- Live Python xApp discovery returned `nodes 1`. Both Arm B campaigns completed ten E2 CONTROL requests with correlated request, ACK, dApp ACCEPT, gNB apply, and RRC-complete markers.
 
 ## RFsim And Physical-Power Boundary
 
-RFsim does not measure UE receiver current, watts, joules, or battery life. A completed RFsim campaign may report `pdcch_monitoring_slot_ratio` and `drx_active_time_slot_ratio` only as energy-related behavior proxies, alongside latency, delivery, goodput, loss, and retransmission results. The smoke counter is not a scored A/B proxy population, so this report makes neither an energy-saving claim nor a physical-power claim.
+RFsim does not measure UE receiver current, watts, joules, or battery life. The reported `pdcch_monitoring_slot_ratio` and `drx_active_time_slot_ratio` are energy-related behavior proxies only. This report makes no physical-power or battery-life claim.
 
 ## Educational Test Note
 
@@ -137,7 +143,7 @@ policy, but RFsim counters remain behavior proxies rather than power readings.
 | gNB C-DRX state/guard | PASS 8/8 | N/A, not instrumented | `test_nr_gnb_drx_2026-07-11_20-05-02.log` |
 | UE C-DRX Active Time | PASS 9/9 | N/A, not instrumented | `test_nr_ue_drx_2026-07-11_20-05-02.log` |
 | RC request contract | PASS 3/3 | N/A, not instrumented | `test_nr_redcap_rc_ctrl_2026-07-11_20-05-02.log` |
-| One-UE RFsim smoke | PASS; A/B Gate still BLOCKED | N/A, runtime proxy | `adaptive_drx_rfsim_prereq_2026-07-11_20-05-02.log` |
+| Four one-UE RFsim campaigns | PASS, 1200/1200 scored | N/A, runtime proxy | `test_log/runtime_logs/adaptive_drx_2026-07-13_full_ab/` |
 
 ### 4. 3GPP Specification Mapping
 
@@ -153,14 +159,9 @@ policy, but RFsim counters remain behavior proxies rather than power readings.
 2. [Applied]: Trace policy version 1 from telnet request to the RRC-complete marker.
 3. [Advanced]: Design a failure test proving a rejected Arm B window is retained and rollback state is unchanged.
 
-## Next Evidence Gate
+## Gate Closure
 
-The runtime Gate can change from BLOCKED only after all of the following evidence is saved:
-
-1. Restore controlled host-to-Docker bridge access and prove Python `xapp_sdk` node discovery.
-2. Generate/rebase a future JSON manifest and run all four campaigns with `--bind-address`.
-3. Retain exactly 330 arrivals per campaign, with arrivals 31 through 330 forming 300 correlated scored rows.
-4. Correlate request, E2 acknowledgement, dApp decision, gNB apply, UE configuration, and RRC completion markers by policy version.
-5. Run `check_campaign.py` for each campaign and require four PASS results before calculating or comparing Arm A/B statistics.
-
-OpenSpec task 2.11 is source-complete. Task 2.12 and the adaptive C-DRX runtime Gate remain incomplete until this evidence exists.
+- All four campaigns preserve 330 arrivals and 300 scored receiver records.
+- Arm B preserves ten 30-arrival policy windows per direction.
+- All required traffic, UE counter, HARQ, E2/dApp/gNB, UE configuration, and RRC completion evidence passed correlation.
+- OpenSpec task 2.12 is complete; the adaptive C-DRX runtime Gate is closed for the stated RFsim scope.
