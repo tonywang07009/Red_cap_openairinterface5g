@@ -5,20 +5,24 @@ set -euo pipefail
 SCRIPT_DIR=$(dirname "$(realpath "$0")")
 INTERFACE_DIR=$(realpath "${SCRIPT_DIR}/..")
 REPO_ROOT=$(realpath "${INTERFACE_DIR}/..")
+TIMESTAMP=$(date +%F_%H-%M-%S)
 
 DEFAULT_GNB_CONFIG="${REPO_ROOT}/redcap_library/library_gnb_config/gnb_redcap_mmtc_case_b_final.yaml"
 GNB_CONFIG_106PRB="${REPO_ROOT}/ci-scripts/conf_files/gnb.sa.band78.fr1.106PRB.usrpb210.redcap.yaml"
 GNB_CONFIG_51PRB="${REPO_ROOT}/ci-scripts/conf_files/gnb.sa.band78.fr1.51PRB.usrpb210.redcap.yaml"
-DEFAULT_CN_COMPOSE="/home/tonywang/OAI/oai-cn5g/docker-compose.yaml"
+DEFAULT_CN_COMPOSE="${REPO_ROOT}/oai-cn5g/docker-compose.yaml"
 BASE_COMPOSE="${REPO_ROOT}/ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.yml"
-OVERLAY_COMPOSE="${REPO_ROOT}/ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.mmtc.yml"
-OVERLAY_GENERATOR="${REPO_ROOT}/ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/scripts/generate_mmtc_overlay.sh"
+RUNTIME_CONFIG_DIR="${REPO_ROOT}/test_log/runtime_configs"
+OVERLAY_COMPOSE="${MMTC_OVERLAY_COMPOSE:-${RUNTIME_CONFIG_DIR}/runtime_menu_${TIMESTAMP}_overlay.yml}"
+OVERLAY_GENERATOR="${REPO_ROOT}/redcap_interface/bash_library/generate_mmtc_overlay.sh"
 SMOKE_SCRIPT="${REPO_ROOT}/redcap_interface/redcap_mmtc_smoke_validation.sh"
 PAPER11_SCRIPT="${REPO_ROOT}/redcap_interface/paper11_iperf_live_demo.sh"
 PAPER11_TABLE3_SCRIPT="${REPO_ROOT}/redcap_interface/paper11_table3_peak_reproduction.sh"
 IPERF_PANEL_SCRIPT="${REPO_ROOT}/redcap_interface/iperf_live_panel.py"
 EVALUATION_RECOVER_DIR="${REPO_ROOT}/redcap_doc/evluation_recover"
 LOG_DIR="${REPO_ROOT}/test_log/compiler_logs"
+
+mkdir -p "${RUNTIME_CONFIG_DIR}"
 
 normalize_iperf_rate()
 {
@@ -54,9 +58,9 @@ N_RB_DL="${MMTC_N_RB_DL:-106}"
 RF_FREQ="${MMTC_RF_FREQ:-3630360000}"
 SSB_START="${MMTC_SSB_START:-144}"
 CN_COMPOSE="${MMTC_CN_COMPOSE:-${DEFAULT_CN_COMPOSE}}"
-TOTAL_UES="${MMTC_TOTAL_UES:-29}"
-SAMPLE_UES="${MMTC_SAMPLE_UES:-1}"
-IPERF_SAMPLE_UES="${MMTC_IPERF_SAMPLE_UES:-${SAMPLE_UES}}"
+TOTAL_UES=56
+ACTIVE_UES="${MMTC_ACTIVE_UES-1}"
+IPERF_SAMPLE_UES="${MMTC_IPERF_SAMPLE_UES:-${ACTIVE_UES}}"
 IPERF_RATE="$(normalize_iperf_rate "${MMTC_IPERF_RATE:-85M}")"
 IPERF_DURATION="${MMTC_IPERF_DURATION:-30}"
 DL_IPERF_SERVER_IP="${MMTC_DL_IPERF_SERVER_IP:-${MMTC_IPERF_SERVER_IP:-192.168.72.135}}"
@@ -92,8 +96,8 @@ UE -r PRB      : ${N_RB_DL}
 UE RF freq     : ${RF_FREQ}
 UE SSB start   : ${SSB_START}
 CN compose     : ${CN_COMPOSE}
-Total UEs      : ${TOTAL_UES}
-Sample UEs     : ${SAMPLE_UES}
+UE capacity    : ${TOTAL_UES}
+Active UEs     : ${ACTIVE_UES}
 iperf UEs      : ${IPERF_SAMPLE_UES}
 iperf rate     : ${IPERF_RATE}
 iperf duration : ${IPERF_DURATION}s
@@ -170,7 +174,7 @@ run_smoke()
     MMTC_RF_FREQ="${RF_FREQ}" \
     MMTC_SSB_START="${SSB_START}" \
     MMTC_TOTAL_UES="${TOTAL_UES}" \
-    MMTC_SAMPLE_UES="${SAMPLE_UES}" \
+    MMTC_ACTIVE_UES="${ACTIVE_UES}" \
     MMTC_IPERF_SAMPLE_UES="${IPERF_SAMPLE_UES}" \
     MMTC_CN_COMPOSE="${CN_COMPOSE}" \
     MMTC_USE_EXISTING_CN_DB=1 \
@@ -226,11 +230,8 @@ configure_values()
   read -r -p "CN compose [${CN_COMPOSE}]: " value
   CN_COMPOSE="${value:-${CN_COMPOSE}}"
 
-  read -r -p "Total UEs [${TOTAL_UES}]: " value
-  TOTAL_UES="${value:-${TOTAL_UES}}"
-
-  read -r -p "Sample UEs, numbers only [${SAMPLE_UES}]: " value
-  SAMPLE_UES="${value:-${SAMPLE_UES}}"
+  read -r -p "Active UEs, numbers only [${ACTIVE_UES}]: " value
+  ACTIVE_UES="${value:-${ACTIVE_UES}}"
 
   read -r -p "iperf sample UEs [${IPERF_SAMPLE_UES}]: " value
   IPERF_SAMPLE_UES="${value:-${IPERF_SAMPLE_UES}}"
@@ -713,7 +714,7 @@ main_menu()
     cat <<EOF
 Select action:
   1) Check gNB config mount
-  2) Run single-sample baseline, no iperf
+  2) Run single-active-UE baseline, no iperf
   3) Run UDP uplink iperf with current rate
   4) Run UDP uplink iperf with custom rate
   5) Show latest UE1 iperf log

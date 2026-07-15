@@ -31,6 +31,6 @@ description: Use when cleaning RedCap OAI test_log artifacts into redcap_library
 7. Verify with `rg` for stale final-path references and `git diff --check`.
 
 ## Guardrails
-- Do not mutate external `/home/tonywang/OAI/oai-cn5g` DB or compose files unless explicitly requested.
+- Treat repository root `oai-cn5g/` as the active runtime; do not create a parallel CN5G asset library.
 - Keep new runtime logs in `test_log/`; promote only final evidence.
 - If an old report keeps historical `test_log/...` citations, explain that they are original evidence references.

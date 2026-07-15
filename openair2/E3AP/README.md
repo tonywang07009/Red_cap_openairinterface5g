@@ -4,7 +4,7 @@
 
 - [dApp]: first OAI-side channel for future RedCap dApp / E3AP work.
 - [Scope]: guard SDK skeleton only; no E3 transport, libe3 binding, or RFsim runtime integration yet.
-- [Reference]: `dev_refer/dapp_dev_need/libe3/`, `dev_refer/dapp_dev_need/E3Controller/`, and `dev_refer/dapp_dev_need/dApp-library/`.
+- [Reference]: `Apps_dev/dapp_dev_need/libe3/`, `Apps_dev/dapp_dev_need/E3Controller/`, and `Apps_dev/dapp_dev_need/dApp-library/`.
 
 ## Current SDK Slice
 

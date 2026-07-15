@@ -9,5 +9,5 @@
 - Use current commands in new reports.
 
 ## Current Command Preference
-- Daily RFsim: `redcap_interface/mmtc.menu.bash`.
+- Daily RFsim: root `mmtc.menu.bash`.
 - Paper/demo: `redcap_interface/mmtc.display.bash`.

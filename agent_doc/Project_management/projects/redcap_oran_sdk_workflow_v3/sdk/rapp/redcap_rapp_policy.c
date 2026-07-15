@@ -16,7 +16,7 @@ redcap_rapp_policy_package_t redcap_rapp_policy_case_b(void)
   return (redcap_rapp_policy_package_t){
       .policy_version = "case_b_oran_control_v1",
       .rapp_role = "long_term_policy",
-      .control_contract = "ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/control/redcap_control_contract.yaml",
+      .control_contract = "redcap_interface/control/redcap_control_contract.yaml",
       .allowed_runtime_parameters = redcap_case_b_allowed_parameters,
       .allowed_runtime_parameters_len =
           sizeof(redcap_case_b_allowed_parameters) / sizeof(redcap_case_b_allowed_parameters[0]),

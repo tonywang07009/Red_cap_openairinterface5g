@@ -10,14 +10,15 @@ This repository is an OpenAirInterface5G-based research workspace for RedCap, mM
 
 | Goal | First File |
 |---|---|
-| Install and build from zero | [Begin from zero](./redcap_doc/manuals/install/redcap_begin_from_zero.en.md) |
+| Build and reproduce the 29 UE beginner flow | [Beginner build and 29 UE reproduction](./redcap_doc/manuals/install/redcap_begin_from_zero.en.md) |
+| Configure the 56 UE profile and dApp/xApp experiment | [56 UE experiment tutorial](./agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/gate_e_core56_manual_reproduction.en.md) |
+| Develop or trace the dApp/xApp SDK | [SDK development guide](./agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/sdk_development_guide.en.md) |
+| Look up the active RedCap L1-L3 control path | [L1-L3 function lookup](./redcap_doc/specs/function_reference/redcap_l1_l3_function_lookup.md) |
 | Rebuild after C, xApp, rApp, dApp, or library changes | [Rebuild after changes](./redcap_doc/manuals/install/redcap_rebuild_after_changes.en.md) |
-| Run the newcomer validation gate | [Newcomer runtime gate](./redcap_doc/manuals/install/redcap_newcomer_runtime_gate.en.md) |
 | Find all install manuals | [Install manual index](./redcap_doc/manuals/install/README.en.md) |
 | Run daily RedCap/mMTC operations | [RedCap interface docs](./redcap_interface/Doc/README.en.md) |
 | Read stable RedCap documentation | [RedCap stable docs](./redcap_doc/Doc/README.en.md) |
 | Find curated evidence and reusable assets | [RedCap library docs](./redcap_library/Doc/README.en.md) |
-| Study dApp/xApp SDK and reproduce Gate E-Core | [SDK scenario](./agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/README.en.md), [developer guide](./agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/sdk_development_guide.en.md), and [manual reproduction](./agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/gate_e_core56_manual_reproduction.en.md) |
 
 ## Quick Commands
 
@@ -27,12 +28,23 @@ Run from the repository root unless a step changes directory.
 # Validate the RedCap public operator interface without starting RFsim.
 bash redcap_interface/validate_redcap_interface.sh
 
-# Open the daily RedCap/mMTC operator menu.
-bash redcap_interface/mmtc.menu.bash
+# Open the unified RedCap entry for introduction, evidence, experiment setup, and advanced RFsim.
+./mmtc.menu.bash
 
-# Open paper/demo display tools.
-bash redcap_interface/mmtc.display.bash
+# Show accepted paper/performance evidence without starting Docker.
+./mmtc.menu.bash performance
 ```
+
+## Verified Experiment Profile
+
+| Field | Current contract | Source |
+|---|---|---|
+| Service ceiling | `MMTC_TOTAL_UES=56` | `redcap_interface/bash_library/fc_mmtc_smoke_validation.sh` |
+| Active UE selection | `MMTC_ACTIVE_UES`, unique indices in `1..56` | `redcap_interface/bash_library/fc_mmtc_smoke_validation.sh` |
+| Topology | One gNB with RFsim | `redcap_interface/Doc/README.en.md` |
+| Multiple gNBs or CU/DU split | Unsupported by experiment profile v1 | `redcap_interface/Doc/README.en.md` |
+
+The older proposed name `MMTC_ACTIVATE_UE` is not the current script contract.
 
 ## Documentation Routes
 
@@ -44,6 +56,16 @@ bash redcap_interface/mmtc.display.bash
 | Curated reusable evidence | Final configs, CN5G overlays, runtime probes, and accepted reports | [redcap_library/Doc/README.en.md](./redcap_library/Doc/README.en.md) |
 | Active project management | Milestones, validation plans, and analysis records | [agent_doc/Project_management/](./agent_doc/Project_management/) |
 | dApp/xApp SDK | SDK scenario, API behavior, developer guide, and 56 UE Gate E-Core manual reproduction | [agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/README.en.md](./agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/README.en.md) |
+
+## Documentation and Evidence Layers
+
+| Layer | Use it for | Route |
+|---|---|---|
+| Reference | Signatures, callers, guards, apply points, and runtime markers | [L1-L3 lookup](./redcap_doc/specs/function_reference/redcap_l1_l3_function_lookup.md) |
+| Guide | How to extend and validate the dApp/xApp SDK | [SDK development guide](./agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/sdk_development_guide.en.md) |
+| Example | Reproducible beginner and 56 UE experiments | [29 UE](./redcap_doc/manuals/install/redcap_begin_from_zero.en.md) / [56 UE](./agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/gate_e_core56_manual_reproduction.en.md) |
+
+Evidence labels are independent: `Public` means declared, `Integrated` requires a production caller and apply path, `Runtime-evidenced` requires a matching retained marker, and `Dormant/blocked` means the public or implemented path lacks active integration or proof. Missing evidence or standards mappings are marked `[Needs Verification]`.
 
 ## Build and Test
 
@@ -79,8 +101,8 @@ bash redcap_interface/redcap_inspect_gnb_image.sh
 
 | Task | Command or File |
 |---|---|
-| Daily RFsim and mMTC operation | `bash redcap_interface/mmtc.menu.bash` |
-| Paper reproduction and display panels | `bash redcap_interface/mmtc.display.bash` |
+| Daily RFsim and mMTC operation | `./mmtc.menu.bash` |
+| Paper/performance evidence and explicit reproduction entry | `./mmtc.menu.bash performance` |
 | Functional script implementation | `redcap_interface/bash_library/` |
 | Interface validation | `bash redcap_interface/validate_redcap_interface.sh` |
 | Current RFsim YAML source of truth | `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/` |
@@ -91,7 +113,7 @@ bash redcap_interface/redcap_inspect_gnb_image.sh
 |---|---|
 | RedCap stable docs | [redcap_doc/Doc/README.en.md](./redcap_doc/Doc/README.en.md) |
 | Spec notes | [redcap_doc/specs/Doc/README.en.md](./redcap_doc/specs/Doc/README.en.md) |
-| Function reference route | [redcap_doc/function_reference/Doc/README.en.md](./redcap_doc/function_reference/Doc/README.en.md) |
+| RedCap L1-L3 function lookup | [redcap_doc/specs/function_reference/redcap_l1_l3_function_lookup.md](./redcap_doc/specs/function_reference/redcap_l1_l3_function_lookup.md) |
 
 ## Repository Map
 

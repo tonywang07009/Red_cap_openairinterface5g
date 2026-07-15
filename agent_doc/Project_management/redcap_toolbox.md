@@ -111,17 +111,17 @@ rtk ctest --test-dir cmake_targets/ran_build/build_test --output-on-failure
 
 ```bash
 rtk bash redcap_interface/validate_redcap_interface.sh
-rtk bash redcap_interface/mmtc.menu.bash
-rtk bash redcap_interface/mmtc.menu.bash status
-rtk bash redcap_interface/mmtc.menu.bash smoke
-rtk bash redcap_interface/mmtc.menu.bash gate3
-rtk bash redcap_interface/mmtc.menu.bash gate4
-rtk bash redcap_interface/mmtc.menu.bash redcap-vs-normal
-rtk bash redcap_interface/mmtc.menu.bash rebuild
-rtk bash redcap_interface/mmtc.menu.bash inspect
+rtk bash mmtc.menu.bash
+rtk bash mmtc.menu.bash status
+rtk bash mmtc.menu.bash smoke
+rtk bash mmtc.menu.bash gate3
+rtk bash mmtc.menu.bash gate4
+rtk bash mmtc.menu.bash redcap-vs-normal
+rtk bash mmtc.menu.bash rebuild
+rtk bash mmtc.menu.bash inspect
 ```
 
-- [Daily RFsim]: prefer `redcap_interface/mmtc.menu.bash`.
+- [Daily RFsim]: prefer root `mmtc.menu.bash`.
 - [Paper/demo]: prefer `redcap_interface/mmtc.display.bash`.
 - [Legacy shims]: keep existing compatibility scripts when old reports reference them.
 

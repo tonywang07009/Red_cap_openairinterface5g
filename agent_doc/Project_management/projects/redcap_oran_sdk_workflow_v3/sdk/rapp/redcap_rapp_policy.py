@@ -50,7 +50,7 @@ def validate_policy_package(policy: Mapping[str, Any]) -> list[str]:
 def build_case_b_policy() -> RedCapRappPolicyPackage:
     return RedCapRappPolicyPackage(
         policy_version="case_b_oran_control_v1",
-        control_contract="ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/control/redcap_control_contract.yaml",
+        control_contract="redcap_interface/control/redcap_control_contract.yaml",
         allowed_runtime_parameters=(
             "redcap_ul_prb_cap",
             "drx_profile",

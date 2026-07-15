@@ -91,7 +91,7 @@
 | `test_log/runtime_artifacts/` | `471M`, `1629` files before cleanup | [Generated Artifact] | Superseded: preserve summaries in `redcap_library/library_reports_summary/`, then clean raw runtime folders after approval. |
 | `test_log/build_logs/` | `44M`, `185` files before cleanup | [Generated Artifact] | Superseded: promote final build evidence to `redcap_library/library_build_evidence/`, then clean old build logs after approval. |
 | `test_log/report/` | `2.2M` before cleanup | [Generated Artifact] | Superseded: promote high-value reports to `redcap_library/library_reports_summary/`. |
-| `test_log/runtime_configs/` | `1008K` before cleanup | [Generated Artifact] | Superseded: promote final reusable configs to `redcap_library/library_gnb_config/` and `library_cn5g/`. |
+| `test_log/runtime_configs/` | `1008K` before cleanup | [Generated Artifact] | Superseded: promote final reusable gNB configs to `redcap_library/library_gnb_config/`; keep the active CN5G baseline in `oai-cn5g/`. |
 | `test_log/runtime_bins/` | `6.7M` before cleanup | [Generated Artifact] | Superseded: generated xApp binaries can be rebuilt and were not retained as source-of-truth. |
 | `cmake_targets/ran_build/` | `3.5G` | [Generated Artifact] | Can be regenerated, but cleaning requires rebuild cost acceptance. |
 | `cmake_targets/log/` | `60M` | [Generated Artifact] | Active XML scenario evidence; keep unless archived with validation context. |

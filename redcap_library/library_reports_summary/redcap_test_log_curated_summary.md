@@ -22,7 +22,7 @@
 ## Promoted Library Counts
 | Library | Count | Meaning |
 |---|---:|---|
-| `library_cn5g/` | 6 | README plus CN5G static backup, 50/64 UE SQL seeds, and compose overrides |
+| `library_cn5g/` (historical) | 6 | At the time of promotion: README plus CN5G static backup, 50/64 UE SQL seeds, and Compose overrides; removed with explicit approval on 2026-07-15 |
 | `library_gnb_config/` | 6 | README plus five reusable gNB runtime configs |
 | `library_runtime_probe/` | 24 | README, Paper 07 raw evidence, RedCap/non-RedCap probe, and FlexRIC plugin symlinks |
 | `library_build_evidence/` | 3 | README plus retained 256QAM build/rebuild evidence |

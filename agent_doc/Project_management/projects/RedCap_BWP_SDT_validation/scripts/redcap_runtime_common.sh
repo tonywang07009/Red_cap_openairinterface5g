@@ -41,11 +41,12 @@ redcap_export_rf_defaults()
 redcap_compose_up()
 {
   local compose_dir="$1"
+  local overlay_compose="${REDCAP_OVERLAY_COMPOSE:?REDCAP_OVERLAY_COMPOSE must be set}"
   shift
 
   (
     cd "${compose_dir}"
-    local compose_args=(-f docker-compose.yml -f docker-compose.mmtc.yml up -d)
+    local compose_args=(-f docker-compose.yml -f "${overlay_compose}" up -d)
     if [[ "${REDCAP_COMPOSE_FORCE_RECREATE:-0}" == "1" ]]; then
       compose_args+=(--force-recreate)
     fi
@@ -56,21 +57,23 @@ redcap_compose_up()
 redcap_compose_ps()
 {
   local compose_dir="$1"
+  local overlay_compose="${REDCAP_OVERLAY_COMPOSE:?REDCAP_OVERLAY_COMPOSE must be set}"
 
   (
     cd "${compose_dir}"
-    docker compose -f docker-compose.yml -f docker-compose.mmtc.yml ps
+    docker compose -f docker-compose.yml -f "${overlay_compose}" ps
   )
 }
 
 redcap_compose_stop()
 {
   local compose_dir="$1"
+  local overlay_compose="${REDCAP_OVERLAY_COMPOSE:?REDCAP_OVERLAY_COMPOSE must be set}"
   shift
 
   (
     cd "${compose_dir}"
-    docker compose -f docker-compose.yml -f docker-compose.mmtc.yml stop "$@"
+    docker compose -f docker-compose.yml -f "${overlay_compose}" stop "$@"
   )
 }
 

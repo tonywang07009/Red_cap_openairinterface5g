@@ -11,4 +11,4 @@
 
 ## 目前邊界
 - 新 paper/demo 指令優先使用 `redcap_interface/mmtc.display.bash`。
-- 日常 RFsim setup 指令優先使用 `redcap_interface/mmtc.menu.bash`。
+- 日常 RFsim setup 指令優先使用根目錄 `mmtc.menu.bash`。

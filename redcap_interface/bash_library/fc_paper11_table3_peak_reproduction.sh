@@ -83,8 +83,8 @@ setup_profile()
       MMTC_N_RB_DL="$(profile_value n_rb)" \
       MMTC_RF_FREQ="$(profile_value rf_freq)" \
       MMTC_SSB_START="$(profile_value ssb_start)" \
-      MMTC_TOTAL_UES=29 \
-      MMTC_SAMPLE_UES="${UE_INDEX}" \
+      MMTC_TOTAL_UES=56 \
+      MMTC_ACTIVE_UES="${UE_INDEX}" \
       MMTC_IPERF_SAMPLE_UES="${UE_INDEX}" \
       MMTC_IPERF_ENABLE=0 \
       MMTC_FORWARD_PING_MODE=parallel \

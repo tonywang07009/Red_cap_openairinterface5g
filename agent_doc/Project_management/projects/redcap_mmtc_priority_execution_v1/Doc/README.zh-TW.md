@@ -10,5 +10,5 @@
 4. 目標 validation file
 
 ## 目前邊界
-- 新操作文件應指向 `redcap_interface/mmtc.menu.bash`。
+- 新操作文件應指向根目錄 `mmtc.menu.bash`。
 - 歷史 evidence 可能仍引用舊相容 shim。

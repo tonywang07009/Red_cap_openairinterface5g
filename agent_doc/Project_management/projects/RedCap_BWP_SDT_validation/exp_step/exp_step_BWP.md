@@ -71,7 +71,7 @@
 2. [Config inventory] Use `symdex` before raw search for BWP source paths:
    - `rtk /home/tonywang/miniforge3/bin/symdex --state-dir .symdex search nr_mac_trigger_reconfiguration --repo redcap_oai`
    - `rtk /home/tonywang/miniforge3/bin/symdex --state-dir .symdex search configure_UE_BWP --repo redcap_oai`
-3. [Runtime] Start from `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.mmtc.yml`.
+3. [Runtime] Generate a run-specific overlay under `test_log/runtime_configs/` with `redcap_interface/bash_library/generate_mmtc_overlay.sh`.
    - `run_bwp_validation.sh` remains a paper-specific wrapper because BWP telnet trigger and BWP residency metrics are not owned by the SDT Gate 3 project.
    - Shared compose/image/default extraction behavior is centralized in `scripts/redcap_runtime_common.sh`.
 4. [Wrapper dry-run] Record the runnable manifest before starting Docker:

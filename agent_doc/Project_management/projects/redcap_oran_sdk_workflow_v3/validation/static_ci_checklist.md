@@ -10,7 +10,7 @@
 ## Stage 1 Now Checks
 
 - Required Workflow 3.0 docs, templates, OpenSpec artifacts, and control policy files.
-- `dev_refer/` reference-map docs and legacy relative reference paths.
+- `Apps_dev/` reference-map docs and stale relative reference paths.
 - SDK channel decisions:
   - xApp: `openair2/E2AP/flexric/`
   - dApp: `openair2/E3AP/`

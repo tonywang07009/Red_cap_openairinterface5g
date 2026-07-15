@@ -25,7 +25,7 @@ description: Use when updating RedCap/OAI documentation for this repo, especiall
    - expected markers,
    - links to source files instead of copied logs.
 5. Use current entrypoints:
-   - daily RFsim: `redcap_interface/mmtc.menu.bash`,
+   - daily RFsim: root `mmtc.menu.bash`,
    - paper/demo: `redcap_interface/mmtc.display.bash`,
    - implementation helpers: `redcap_interface/bash_library/fc_*`.
 6. Preserve historical evidence:
@@ -34,6 +34,24 @@ description: Use when updating RedCap/OAI documentation for this repo, especiall
 7. Handle standards carefully:
    - cite exact local notes or exact 3GPP clause numbers only after verification,
    - write `[Needs Verification]` when the clause mapping is uncertain.
+
+## API Documentation Rules
+
+1. Use the existing Markdown destinations:
+   - canonical L1-L3 lookup: `redcap_doc/specs/function_reference/redcap_l1_l3_function_lookup.md`,
+   - dApp/xApp guide: the active project's paired `sdk_development_guide.*.md` files.
+2. Organize content as:
+   - Reference: signatures, state, guards, callers, callees, apply points, markers, next trace,
+   - Guide: task-oriented development and validation flow,
+   - Example: the existing 29 UE and 56 UE tutorials.
+3. Put C and Python mirrors in the same API card when both exist. State behavioral differences; do not imply parity from matching names.
+4. Record evidence independently:
+   - `Public`: declaration or supported Python module,
+   - `Integrated`: production caller plus identifiable apply path,
+   - `Runtime-evidenced`: matching retained runtime marker,
+   - `Dormant/blocked`: missing caller, apply path, or runtime proof.
+5. Keep missing caller, callee, apply point, marker, or standards mapping visible as `[Needs Verification]`.
+6. Do not add OpenAPI, hosted Stoplight configuration, a generator, or a parallel stable API tree unless a later change proves the need.
 
 ## Beginner Build/Run Guide Rules
 
@@ -57,6 +75,7 @@ Use this workflow when writing a guide for a first-time user:
 6. Put logs behind paths and marker names.
    - Do not paste raw runtime logs into the stable guide.
 7. When a guide has an English page and a Traditional Chinese page, update both in the same change.
+8. Keep the beginner target at build plus 29 UE reproduction; route 56 UE and dApp/xApp experiments to the existing Gate E-Core manual.
 
 ## Public Bilingual Documentation Rules
 
@@ -69,6 +88,7 @@ Use these rules for public RedCap documentation entrypoints:
 5. Use `redcap_doc/evluation_recover/README.en.md` and `README.zh-TW.md` for paper recovery tutorial routing.
 6. Preserve historical reports as evidence and link to them from tutorials instead of rewriting their contents.
 7. Public user-facing Markdown must not include Codex-only command wrappers.
+8. Keep root `README.md` selector-only; place project routes and evidence definitions in `README.en.md` and `README.zh-TW.md`.
 
 ## Validation
 
@@ -90,7 +110,7 @@ bash redcap_interface/bash_library/fc_doc_newcomer_gate_check.sh
 For script edits:
 
 ```bash
-bash -n redcap_interface/mmtc.menu.bash
+bash -n mmtc.menu.bash
 bash -n redcap_interface/mmtc.display.bash
 python3 -c 'import ast,pathlib,sys; [ast.parse(pathlib.Path(p).read_text(), filename=p) for p in sys.argv[1:]]' redcap_interface/iperf_live_panel.py redcap_interface/bash_library/fc_iperf_live_panel.py
 ```

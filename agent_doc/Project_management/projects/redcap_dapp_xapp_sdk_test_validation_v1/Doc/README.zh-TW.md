@@ -1,17 +1,21 @@
 # RedCap dApp/xApp SDK 測試驗證
 
+[English](./README.en.md) | [繁體中文](./README.zh-TW.md)
+
 ## Scope
 
 - 本頁說明 RedCap dApp/xApp SDK slice 的測試方式。
-- 主要參考來源是 `dev_refer/`。
+- 主要參考來源是 `Apps_dev/`。
 - 靜態檢查不代表 64 UE / staged 5 MHz-to-20 MHz BWP runtime PASS。
 
 ## SDK routes
 
 | 需求 | 檔案 |
 |---|---|
+| 入門建置與 29 UE 重現 | [redcap_begin_from_zero.zh-TW.md](../../../../../redcap_doc/manuals/install/redcap_begin_from_zero.zh-TW.md) |
 | 場景、API 行為、開發注意事項與目前證據 | [README.zh-TW.md](./README.zh-TW.md) |
 | SDK 開發流程 | [sdk_development_guide.zh-TW.md](./sdk_development_guide.zh-TW.md) |
+| 正式 RedCap L1-L3 函式索引 | [redcap_l1_l3_function_lookup.md](../../../../../redcap_doc/specs/function_reference/redcap_l1_l3_function_lookup.md) |
 | 36 UE zero-gap pressure gate | `MMTC_STAGE_PROFILE=core36_pressure` 搭配 `gate_e_64ue_stage_check.py --stage core36-pressure` |
 | 56 UE Gate E-Core 手動復現 | [gate_e_core56_manual_reproduction.zh-TW.md](./gate_e_core56_manual_reproduction.zh-TW.md) |
 | 最終 Gate E-Core accepted report | [gate_e_core56_ab_latency_2026-07-09.md](../report/gate_e_core56_ab_latency_2026-07-09.md) |
@@ -21,19 +25,25 @@
 | Adaptive C-DRX 原始碼 Trace Code Guide | [adaptive_drx_trace_code_guide.zh-TW.md](./adaptive_drx_trace_code_guide.zh-TW.md) |
 | Adaptive C-DRX 證據 Gate 報告 | [adaptive_drx_ab_gate_2026-07-11.zh-TW.md](../report/adaptive_drx_ab_gate_2026-07-11.zh-TW.md) |
 
+依三個層級使用文件：
+
+| 層級 | 文件 |
+|---|---|
+| 參考 | [正式 L1-L3 函式索引](../../../../../redcap_doc/specs/function_reference/redcap_l1_l3_function_lookup.md) 與 SDK guide API cards |
+| 指南 | [SDK 開發指南](./sdk_development_guide.zh-TW.md) |
+| 範例 | [29 UE 入門教學](../../../../../redcap_doc/manuals/install/redcap_begin_from_zero.zh-TW.md) 與 [56 UE 實驗教學](./gate_e_core56_manual_reproduction.zh-TW.md) |
+
+證據標籤彼此獨立：`Public`、`Integrated`、`Runtime-evidenced`、`Dormant/blocked`。缺少正式呼叫端、套用點、保留 marker 或規格對應時標記 `[Needs Verification]`。
+
 ## API / config behavior
 
 | API | 語言 | 功能 | 目前證據 |
 |---|---|---|---|
-| `redcap_xapp_make_priority_hint` | C | 依 UL buffer 與權重建立單一 UE priority hint | 語法檢查目標 |
-| `redcap_xapp_select_top_priority_hint` | C | 選出最高優先 UE；同分時使用較小 RNTI | 語法檢查目標 |
-| `make_priority_hint` | Python | C priority hint builder 的 Python 對應版本 | self-test |
-| `select_top_priority_hint` | Python | top UE 選擇的 Python 對應版本 | self-test |
-| `redcap_dapp_guard_prb_allocation` | C | 驗證 5 MHz BWP profile、I/Q presence、PUCCH/PUSCH ratio intent | 語法檢查目標 |
-| `redcap_dapp_guard_prb_allocation` | Python | dApp allocation guard 的 Python 對應版本 | self-test |
-| `redcap_dapp_access_pressure_policy` | C | 將 RA/PUCCH collision proxy counter 轉成受限的 PUCCH/PUSCH ratio intent，並呼叫 dApp allocation guard | 語法檢查目標 |
-| `redcap_dapp_access_pressure_policy` | Python | access-pressure policy 的 Python 對應版本 | self-test |
-| `redcap_dapp_select_ra_pressure_priority` | C / Python | 先選出 RA retry count 最高的 UE，再用 pressure/priority/RNTI tie-break | self-test |
+| `redcap_xapp_make_priority_hint` | C / Python | 依 UL buffer 與權重建立單一 UE priority hint | `Public`；沒有正式控制呼叫端，因此為 `Dormant/blocked` |
+| `redcap_xapp_select_top_priority_hint` | C / Python | 選出最高優先 UE；同分時使用較小 RNTI | `Public`；只有 self-test；`Dormant/blocked` |
+| `redcap_dapp_guard_prb_allocation` | C / Python | 驗證 BWP profile、I/Q presence、PUCCH/PUSCH ratio intent | `Public`、`Integrated`、`Runtime-evidenced`；目前 scheduler hook 只證明觀測與記錄，不證明 allocation mutation |
+| `redcap_dapp_access_pressure_policy` | C / Python | 將 access-pressure counter 轉成受限 PUCCH/PUSCH ratio intent | `Public`；有 self-test 與實驗證據；正式 apply path 為 `[Needs Verification]` |
+| `redcap_dapp_select_ra_pressure_priority` | C / Python | 先選出 RA retry count 最高 UE，再用 pressure/priority/RNTI tie-break | `Public`；Python 實驗流程已接線；C production caller 為 `[Needs Verification]` |
 
 重要欄位：
 
@@ -83,7 +93,7 @@ openspec validate redcap-dapp-xapp-sdk-test-validation --strict
 python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/gate_c_e3_loopback_check.py
 ```
 
-當 `dev_refer/dapp_dev_need/libe3` 沒有既有 loopback binary，或本機缺少必要 build 依賴時，Gate C 會回報 `blocked`；這不等於失敗，也不等於 PASS。
+當 `Apps_dev/dapp_dev_need/libe3` 沒有既有 loopback binary，或本機缺少必要 build 依賴時，Gate C 會回報 `blocked`；這不等於失敗，也不等於 PASS。
 
 保存 Gate C configure 證據：
 
@@ -96,7 +106,7 @@ python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_valid
 若允許 network FetchContent，請使用乾淨 build directory：
 
 ```bash
-python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/gate_c_e3_loopback_check.py --try-configure --allow-fetch --build-dir dev_refer/dapp_dev_need/libe3/build/redcap-gate-c-fetch
+python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/gate_c_e3_loopback_check.py --try-configure --allow-fetch --build-dir Apps_dev/dapp_dev_need/libe3/build/redcap-gate-c-fetch
 ```
 
 目前 fetch 證據位於 `test_log/compiler_logs/gate_c_libe3_configure_fetch_2026-07-05_18-46-35.log`；sandbox DNS 無法解析 `github.com`，且 escalation 因 workspace credits 不足被拒絕。
@@ -104,7 +114,7 @@ python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_valid
 使用 project-local expected shim 執行 Gate C：
 
 ```bash
-python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/gate_c_e3_loopback_check.py --try-configure --use-local-expected-stub --try-build --build-dir dev_refer/dapp_dev_need/libe3/build/redcap-gate-c-local-expected
+python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/gate_c_e3_loopback_check.py --try-configure --use-local-expected-stub --try-build --build-dir Apps_dev/dapp_dev_need/libe3/build/redcap-gate-c-local-expected
 ```
 
 目前 Gate C runtime 證據：
@@ -205,24 +215,26 @@ python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_valid
   --dapp-gnb-log test_log/compiler_logs/mmtc_smoke_<dapp>_gnb.log
 ```
 
-準備 Gate E 64 UE preflight：
+準備現行支援的 Gate E 56 UE preflight：
 
 ```bash
-bash ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/scripts/generate_mmtc_overlay.sh 64
-bash redcap_interface/generate_mmtc_cn_db_overlay.sh 64
+RUN_ID=gate_e_56ue
+OVERLAY="$PWD/test_log/runtime_configs/${RUN_ID}_overlay.yml"
+bash redcap_interface/bash_library/generate_mmtc_overlay.sh 56 "$OVERLAY"
+bash redcap_interface/generate_mmtc_cn_db_overlay.sh 56
 python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/gate_e_64ue_stage_check.py
 ```
 
 目前 Gate E preflight 證據：
 
-- RFsim overlay：`ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.mmtc.yml` 已包含 UE1..UE64。
+- RFsim overlay：`test_log/runtime_configs/` 下的 run-specific 檔案包含 UE1..UE56。
 - RFsim base compose：`ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.yml`。
-- CN/AMF 來源：`redcap_interface/redcap_mmtc_smoke_validation.sh` 預設將 `CN_COMPOSE` 指到 `/home/tonywang/OAI/oai-cn5g/docker-compose.yaml`，該 compose service list 包含 `oai-amf`、`mysql`、`oai-smf` 與 `oai-upf`。
-- CN DB overlay：`test_log/runtime_configs/oai_db_mmtc_64.sql` 與 `test_log/runtime_configs/oai-cn5g_mmtc_64.override.yml`。
-- Config merge 證據：`docker compose -f /home/tonywang/OAI/oai-cn5g/docker-compose.yaml -f test_log/runtime_configs/oai-cn5g_mmtc_64.override.yml config --services` 會列出 `oai-amf`；在 RFsim RedCap 目錄執行 `docker compose -f docker-compose.yml -f docker-compose.mmtc.yml config --services` 會列出 64 個 `oai-nr-ue*` service。
+- CN/AMF 來源：`redcap_interface/redcap_mmtc_smoke_validation.sh` 預設將 `CN_COMPOSE` 指到 `oai-cn5g/docker-compose.yaml`，該 compose service list 包含 `oai-amf`、`mysql`、`oai-smf` 與 `oai-upf`。
+- CN DB overlay：`test_log/runtime_configs/oai_db_mmtc_56.sql` 與 `test_log/runtime_configs/oai-cn5g_mmtc_56.override.yml`。
+- Config merge 證據：`docker compose -f oai-cn5g/docker-compose.yaml -f test_log/runtime_configs/oai-cn5g_mmtc_56.override.yml config --services` 會列出 `oai-amf`；執行 `docker compose -f ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.yml -f "$OVERLAY" config --services` 會列出 56 個 `oai-nr-ue*` service。
 - 第一階段 profile：`gnb.sa.band78.fr1.106PRB.usrpb210.redcap.5mhz-bwp.yaml` 保留 106 PRB RF carrier，並將 RedCap active/initial BWP 設為 12 PRBs。
 - 第二階段 proxy profile：`gnb.sa.band78.fr1.51PRB.usrpb210.redcap.yaml` 作為 51 PRB 的 20 MHz proxy `[Needs Verification]`。
-- checker 結果：`gate_e_64ue_stage_check.py` 回報 `[PASS] Gate E static preflight is ready for 64 UE staged RFsim`。
+- checker 結果：`gate_e_64ue_stage_check.py` 回報 `[PASS] Gate E static preflight is ready for two-tier RFsim validation`。
 - Runtime evidence checker 格式：
 
 ```bash
@@ -295,7 +307,7 @@ python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_valid
 
 ## Step-by-step recap
 
-1. 確認本地 `dev_refer/` 參考資料存在。
+1. 確認本地 `Apps_dev/` 參考資料存在。
 2. 確認 xApp priority hint API 同時存在於 C 與 Python。
 3. 確認 dApp PRB allocation API 同時存在於 C 與 Python。
 4. 確認 `libe3` 與 I/Q saver 的 SWIG definition 檔存在。
@@ -318,7 +330,7 @@ python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_valid
 
 ## Visualization
 
-- 參考 `dev_refer/dapp_dev_need/dApp-library/examples/spectrum_dapp.py` 的可視化模式。
+- 參考 `Apps_dev/dapp_dev_need/dApp-library/examples/spectrum_dapp.py` 的可視化模式。
 - 相關選項包含：
   - `--demo-gui`
   - `--iq-plotter-gui`
@@ -335,16 +347,16 @@ python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_valid
 - `[RedCap RA][gNB DL TDA]`
 - `[RedCap dApp Gate D][gNB MAC UL] gNB-side apply marker`
 - `[RedCap dApp Gate D][gNB MAC PUCCH] gNB-side PUCCH marker`
-- Gate C source path：`dev_refer/dapp_dev_need/libe3/tests/integration/test_role_pair_posix.cpp`
+- Gate C source path：`Apps_dev/dapp_dev_need/libe3/tests/integration/test_role_pair_posix.cpp`
 - Gate D source path：`openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_ulsch.c`
 - Gate D PUCCH source path：`openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_uci.c`
 - Gate D 5 MHz BWP profile：`ci-scripts/conf_files/gnb.sa.band78.fr1.106PRB.usrpb210.redcap.5mhz-bwp.yaml`
-- Gate D runtime env passthrough：`ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.mmtc.yml` 的 `OAI_REDCAP_DAPP_GATE_D_MARKER`
+- Gate D runtime env passthrough：`redcap_interface/bash_library/generate_mmtc_overlay.sh` 產生的 overlay 中的 `OAI_REDCAP_DAPP_GATE_D_MARKER`
 - Gate E preflight checker：`agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/gate_e_64ue_stage_check.py`
 - Gate E runtime summary：`test_log/compiler_logs/mmtc_stage_scan_<timestamp>_summary.log`
-- Gate E 64 UE overlay：`ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.mmtc.yml`
-- Gate E CN DB overlay：`test_log/runtime_configs/oai_db_mmtc_64.sql`
-- Gate D I/Q reference：`dev_refer/dapp_dev_need/E3Controller/src/e3sm/iq_pipeline.h` 與 `slot_iq_pipeline.h`
+- Gate E 現行支援的 56 UE overlay：run-specific `test_log/runtime_configs/<run-id>_overlay.yml`
+- Gate E CN DB overlay：`test_log/runtime_configs/oai_db_mmtc_56.sql`
+- Gate D I/Q reference：`Apps_dev/dapp_dev_need/E3Controller/src/e3sm/iq_pipeline.h` 與 `slot_iq_pipeline.h`
 - PDCCH command path：ULSCH path 中 `config_uldci()` 後接 `fill_dci_pdu_rel15()` `[Needs Verification: TS 38.212 Section 7.3.1.1 / TS 38.214 Section 6.1]`
 
 ## Limitations

@@ -1,137 +1,242 @@
-You are Codex, based on GPT-5.6 sol You are running as a coding agent in the Codex CLI on a user's computer.
+You are Codex, based on GPT-5.6. You are running as a coding agent in
+the Codex CLI on a user's computer.
 
 # Repository Guidelines
 
 ## Project Structure & Module Organization
 
-Core RAN code is split by layer: `openair1/` for PHY, `openair2/` for MAC/RLC/PDCP/RRC and E2AP, and `openair3/` for NGAP/GTP/NAS and related control-plane code. Shared utilities live in `common/`, top-level softmodem entry points are in `executables/`, and radio back ends are in `radio/` (`USRP/`, `rfsimulator/`, `fhi_72/`, etc.). Build helpers and generated build trees live under `cmake_targets/`. Project documentation is in `doc/`; CI orchestration and test assets are in `ci-scripts/`.
+Core RAN code is split by layer: `openair1/` for PHY, `openair2/` for
+MAC/RLC/PDCP/RRC and E2AP, and `openair3/` for NGAP/GTP/NAS and related
+control-plane code. Shared utilities live in `common/`, top-level
+softmodem entry points are in `executables/`, and radio back ends are
+in `radio/` (`USRP/`, `rfsimulator/`, `fhi_72/`, etc.). Build helpers
+and generated build trees live under `cmake_targets/`. Project
+documentation is in `doc/`; CI orchestration and test assets are in
+`ci-scripts/`.
+
+## OpenSpec Planning Trigger
+
+Always open `@/openspec/AGENTS.md` when the request:
+- Mentions planning, proposals, spec, change, or plan.
+- Introduces new capabilities, breaking changes, architecture shifts,
+  or large performance/scheduling work (e.g. DRX, multi-Tag scheduling).
+- Is ambiguous and needs an authoritative spec before coding.
+
+Do not duplicate OpenSpec workflow details here; `openspec/AGENTS.md`
+is the source of truth and is refreshed by `openspec update`.
+
+## No-New-File Policy (RedCap modifications)
+
+Before creating any file:
+1. Search `openair1/`, `openair2/`, `openair3/` for the module that
+   already owns this behavior. Use `symdex` first.
+2. If an owning module exists, edit it in place. Do not create a
+   parallel implementation elsewhere.
+3. New files are permitted only when no existing module owns the
+   behavior, and only inside the correct `openair{1,2,3}` subdirectory
+   matching its layer (PHY / MAC-RLC-PDCP-RRC / NGAP-GTP-NAS).
+4. `redcap_interface/` and `redcap_library/` are staging and reference
+   only. Once a change is verified and merged, it must live in
+   `openair1/2/3`, not in these directories.
+5. This policy is effective immediately for all modules, starting
+   with DRX-related changes.
 
 ## File Query Workflow
 
-- When querying files, symbols, call relationships, or repository structure in this repo, use the `symdex` MCP tools first. Only fall back to raw filesystem or shell-based search if `symdex` does not cover the needed lookup.
-
-- For file contents, project documents, generated headers, logs, and local spec artifacts, use the filesystem MCP tools whenever possible before falling back to shell commands.
+- For files, symbols, call relationships, or repository structure,
+  use the `symdex` MCP tools first. Fall back to raw filesystem or
+  shell search only if `symdex` does not cover the lookup.
+- For file contents, project documents, generated headers, logs, and
+  local spec artifacts, use filesystem MCP tools before shell commands.
 
 ## Build, Test, and Development Commands
 
-Prefer the preset-based CMake flow for local work:
+Prefer the preset-based CMake flow (native JSON via `CMakePresets.json`,
+do not re-wrap):
 
 ```bash
-
 cmake --preset default
 cmake --build --preset default
 cmake --preset tests
 cmake --build --preset tests
 cd cmake_targets/ran_build/build_test && ctest --output-on-failure
-
 ```
 
-Use `cmake_targets/build_oai` when you need the repository’s standard wrapper or dependency install flow:
-
-```bash
-
-cd cmake_targets
-./build_oai -I --install-optional-packages -w USRP
-./build_oai --ninja --gNB --nrUE
-./build_oai --phy_simulators
-
-```
+For `build_oai` wrapper invocations, look up the target by semantic
+name in `redcap_library/bash_tool/registry.json` before running
+manually. Add a new entry there instead of inventing a flag
+combination inline. Do not guess flags directly.
 
 Artifacts are written below `cmake_targets/ran_build/build*`.
 
+## Bash Tool Registry (repetitive test/build workflows)
+
+- Location: `redcap_library/bash_tool/registry.json`
+- Scripts: `redcap_library/bash_tool/scripts/`
+- Every registry entry declares:
+  - `description`
+  - `script_path`
+  - `input` (parameters the script expects)
+  - `output` (log_path, exit_code, status_field written to
+    `task_log/tasks.json`)
+  - `side_effects` (whether it writes source, only logs, or is
+    read-only — required for safe parallel scheduling)
+- Do not call a script not registered here without first adding an
+  entry. This keeps the tool set self-documenting for skill lookup.
+
+## Skill Composition Layer
+
+- Location: `redcap_library/skills/`
+- Skills compose one or more Bash Tool Registry entries to accomplish
+  a task; skills do not execute shell commands directly.
+- Every skill declares in frontmatter:
+  - `input`: what the caller must provide
+  - `output`: what the skill returns (report path, pass/fail,
+    next_action)
+  - `tool_dependencies`: which `registry.json` entries it calls
+- Skills reference the OpenSpec change they were created to serve, if
+  applicable.
+
+## Long-Running Command Protocol (Bash + Task Manifest)
+
+Any build, test, or batch verification command running longer than a
+few seconds must be tracked through a task manifest, so documentation
+work can proceed instead of blocking on wall-clock wait time.
+
+1. Before running, write or update `task_log/tasks.json`:
+   ```json
+   {
+     "task_id": "drx-onduration-boundary-fix",
+     "status": "pending",
+     "command": "cmake --build --preset tests",
+     "log_path": "test_log/build_logs/<timestamp>.log",
+     "started_at": null,
+     "completed_at": null,
+     "next_action": "update_doc"
+   }
+   ```
+2. Run the command, redirecting output to the declared `log_path`.
+3. Set `status` to `running`, then `passed` or `failed` on exit code.
+4. While `status` is `running`, proceed with the documentation phase
+   for the already-completed sub-task instead of waiting idle.
+5. Never mark `status: passed` without reading the log file content.
+
 ## Coding Style & Naming Conventions
 
-Follow the root `.clang-format` and `doc/code-style-contrib.md`. Use 2-space indentation, no tabs, and keep C/C++ lines within 132 columns. Function opening braces go on the next line; control-flow braces stay on the same line. Prefer strong OAI types, named constants over magic numbers, `const` for input pointers, and `AssertFatal()` / `DevAssert()` for invariants. Test binaries and many helpers use descriptive snake_case names such as `test_nr_common` or `nr-softmodem`.
+Follow the root `.clang-format` and `doc/code-style-contrib.md`. Use
+2-space indentation, no tabs, keep C/C++ lines within 132 columns.
+Function opening braces go on the next line; control-flow braces stay
+on the same line. Prefer strong OAI types, named constants over magic
+numbers, `const` for input pointers, and `AssertFatal()` / `DevAssert()`
+for invariants. Test binaries and helpers use descriptive snake_case
+names such as `test_nr_common` or `nr-softmodem`.
+
+## RedCap Spec-Driven Change Loop
+
+Any modification to DRX, RRC, MAC scheduling, or PHY resource
+allocation follows this loop before code is written:
+
+1. Query — locate the governing clause under
+   `redcap_doc/specs/redcap_3gpp/` (e.g. TS 38.331, TS 38.321). Mark
+   `[Needs Verification]` if the clause is ambiguous or absent.
+2. Design — state the intended behavior change, citing the clause.
+   If this is a new capability or architecture shift, route through
+   the OpenSpec Planning Trigger above first.
+3. Build — implement inside the existing `openair1/2/3` module per
+   the No-New-File Policy above.
+4. Test — extend the nearest existing `tests/` unit test.
+5. Verify — confirm output against the clause's stated behavior, not
+   just against compilation success.
+6. Fix — on failure, return to step 1, not step 3.
 
 ## Testing Guidelines
 
-Enable tests with `cmake --preset tests` or `-DENABLE_TESTS=ON`. Most unit tests are declared in nearby `tests/` directories and registered with CTest; common names start with `test_` or `<module>_test`. Add or update the closest module test when changing shared logic, protocol encoding, or PHY utilities. For simulator changes, validate the affected `physim` or RF simulator target before sending for review.
+Enable tests with `cmake --preset tests` or `-DENABLE_TESTS=ON`. Unit
+tests are declared in nearby `tests/` directories and registered with
+CTest; common names start with `test_` or `<module>_test`. Add or
+update the closest module test when changing shared logic, protocol
+encoding, or PHY utilities. Validate the affected `physim` or RF
+simulator target before review.
+
+### RedCap-Specific Boundary Cases
+
+When modifying On Duration, DRX timer, or multi-Tag scheduling logic,
+explicitly test:
+- On Duration window edges: slot N-1, N, N+1.
+- DRX timer at min/max configured cycle values (TS 38.331).
+- Simultaneous Tag arrival at the same scheduling window boundary.
+- Timer expiry coinciding with a paging occasion.
+
+## Documentation Style
+
+Match `doc/BUILD.md` and `doc/code-style-contrib.md` conventions:
+- Imperative, terse sentences. No quality adjectives.
+- Lead with the command or fact, not with framing sentences.
+- Code blocks over prose whenever a command or config is referenced.
+- No emoji, no decorative headers.
+- Every claim about behavior cites the source file, clause, or module.
 
 ## Commit & Pull Request Guidelines
 
-Reference only unless the user explicitly asks for commit or MR preparation. Target `develop`. Keep branch history linear and rebase instead of merging. Each commit should be a small logical change, compile on its own, and explain why the change is correct. Merge requests go to Eurecom GitLab, require the proper CI label (`~documentation`, `~BUILD-ONLY`, `~4G-LTE`, `~5G-NR`), and should include the scope, validation performed, and any config or test impact.
+Reference only unless explicitly asked for commit or MR preparation.
+Target `develop`. Keep branch history linear; rebase instead of
+merging. Each commit is a small logical change, compiles on its own,
+and explains why the change is correct. Merge requests go to Eurecom
+GitLab, require the proper CI label (`~documentation`, `~BUILD-ONLY`,
+`~4G-LTE`, `~5G-NR`), and include scope, validation performed, and any
+config or test impact.
 
 ---
 
 ## 3GPP Specs Available Locally
 
-- Local RedCap and 3GPP project references live under `redcap_doc/specs/redcap_3gpp/`.
+- Local RedCap and 3GPP references: `redcap_doc/specs/redcap_3gpp/`.
 - Primary RedCap behavior notes:
   - `redcap_doc/specs/redcap_3gpp/spec.md`
   - `redcap_doc/specs/redcap_3gpp/redcap5g_spec.md`
-- MinerU Markdown cache and scan manifest:
-  - `redcap_doc/mineru_markdown/scan_manifest.md`
-- For RedCap, mMTC, PHY, MAC, RRC, or NAS changes, check the relevant local spec notes before implementation.
-- Mark uncertain clause interpretation as `[Needs Verification]`.
-- `@spec-38.331` means: look under `redcap_doc/specs/redcap_3gpp/` for the local TS 38.331 reference or project note.
-
----
+- MinerU Markdown cache: `redcap_doc/mineru_markdown/scan_manifest.md`.
+- `@spec-38.331` means: look under `redcap_doc/specs/redcap_3gpp/` for
+  the local TS 38.331 reference.
 
 ## Project Router
 
-- Project management root:
-  - `agent_doc/Project_management/`
-- RedCap operator interface:
-  - `redcap_interface/`
-- Common logging rules:
-  - `agent_doc/Project_management/logging_rules.md`
-- AI-native review and validation workflow:
-  - `agent_doc/Project_management/redcap_ai_native_review_validation_workflow.md`
-- RedCap MCP and command toolbox:
-  - `agent_doc/Project_management/redcap_toolbox.md`
-- Curated RedCap reusable artifacts:
-  - `redcap_library/`
-- Stable RedCap docs:
-  - `redcap_doc/`
-- RedCap PDF Markdown cache:
-  - `redcap_doc/mineru_markdown/scan_manifest.md`
-- RedCap onboarding tutorial:
-  - `redcap_doc/manuals/redcap_project_onboarding_step_by_step.md`
+- Project management root: `agent_doc/Project_management/`.
+- Repository-owned CN5G deployment infrastructure: `oai-cn5g/`.
+- RedCap operator interface (staging only, see No-New-File Policy):
+  `redcap_interface/`.
+- Curated reusable artifacts, bash tool registry, and skills (staging
+  layer): `redcap_library/`.
+- Stable RedCap docs: `redcap_doc/`.
 - RedCap L1-L3 function lookup:
-  - `redcap_doc/function_reference/redcap_l1_l3_function_lookup.md`
+  `redcap_doc/specs/function_reference/redcap_l1_l3_function_lookup.md`.
+- OpenSpec proposals and specs: `openspec/` (see OpenSpec Planning
+  Trigger above).
 
 ## Initial RedCap Project Menu
 
-- At the beginning of a new RedCap project discussion, if the user has not selected a mode, ask which entry they want:
-  1. `進入專案`
-  2. `開啟教學`
-  3. `函式介紹與查詢`
-- If the user directly asks for a concrete task, do the task instead of forcing the menu.
+At the start of a new RedCap project discussion, if no mode is
+selected, ask which entry the user wants:
+1. `進入專案`
+2. `開啟教學`
+3. `函式介紹與查詢`
+
+If the user directly asks for a concrete task, do the task instead of
+forcing the menu.
 
 ## Active Project Entries
 
 | Project | Plan | Project Rules |
 |---|---|---|
-| RedCap mMTC execution | `agent_doc/Project_management/projects/redcap_mmtc_priority_execution_v1/project_plan.md` | `agent_doc/Project_management/projects/redcap_mmtc_priority_execution_v1/agent_rules.md` |
-| RedCap simulator performance evaluation | `agent_doc/Project_management/projects/redcap_simulator_performance_eval_v1/project_plan.md` | `agent_doc/Project_management/projects/redcap_simulator_performance_eval_v1/agent_rules.md` |
-| RedCap O-RAN SDK workflow 3.0 | `agent_doc/Project_management/projects/redcap_oran_sdk_workflow_v3/project_plan.md` | `agent_doc/Project_management/projects/redcap_oran_sdk_workflow_v3/agent_rules.md` |
-
-## Context Loading Rule
-
-- For project work, keep the context pack small:
-  1. root `AGENTS.md`
-  2. active `project_plan.md`
-  3. active project `agent_rules.md`
-  4. target milestone file
-  5. relevant validation file
-  6. latest `test_log/work_daily/*.md`
-- Do not read unrelated milestones, historical reports, PDFs, logs, or generated artifacts unless the active task needs them.
-- Do not add milestone details, validation matrices, paper extraction details, repo audit checklists, or visualization rules back into root `AGENTS.md`.
+| RedCap mMTC execution | `agent_doc/Project_management/projects/redcap_mmtc_priority_execution_v1/project_plan.md` | `.../agent_rules.md` |
+| RedCap simulator performance evaluation | `agent_doc/Project_management/projects/redcap_simulator_performance_eval_v1/project_plan.md` | `.../agent_rules.md` |
+| RedCap O-RAN SDK workflow 3.0 | `agent_doc/Project_management/projects/redcap_oran_sdk_workflow_v3/project_plan.md` | `.../agent_rules.md` |
 
 ## Build And Test Logs
 
-- CTest logs go under `test_log/compiler_logs/`.
-- Build logs go under `test_log/build_logs/`.
-- Prefer timestamped log files when running builds or tests.
-- When analyzing test failures, open the most recent relevant log and summarize failures in Traditional Chinese.
-- Reusable final configs/reports/evidence promoted from generated logs live under `redcap_library/`; read `redcap_library/README.md` before scanning old `test_log/` artifacts.
-
-## Cleanup Rule
-
-- Do not delete, move, or rewrite files unless the user explicitly asks for that exact cleanup or approves a specific cleanup batch.
-- For unused-file audits, produce an inventory first:
-  - path
-  - reason
-  - references checked
-  - expected impact
-  - recommendation
+- CTest logs: `test_log/compiler_logs/`.
+- Build logs: `test_log/build_logs/`.
+- Use timestamped log files.
+- Summarize test failures in Traditional Chinese, from the most
+  recent relevant log.
+- Reusable final configs/reports promoted from logs live under
+  `redcap_library/`; read `redcap_library/README.md` first.

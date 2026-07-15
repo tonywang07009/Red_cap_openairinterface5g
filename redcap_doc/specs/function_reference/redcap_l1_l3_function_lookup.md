@@ -1,4 +1,30 @@
-# RedCap L1-L3 函式查詢手冊
+# RedCap L1-L3 Function Lookup / 函式查詢手冊
+
+## Active dApp/xApp Control Paths / 作用中控制路徑
+
+Use this table to enter the current control flow. Read the bilingual [SDK development guide](../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/sdk_development_guide.en.md) for full API cards.
+
+使用此表進入目前控制流程。完整 API 卡片請閱讀雙語 [SDK 開發指南](../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/sdk_development_guide.zh-TW.md)。
+
+| Function | Layer and owner | Caller → callee / apply point | Runtime marker or next trace | Evidence status |
+|---|---|---|---|---|
+| `redcap_xapp_find_rc_ran_func_idx` | xApp E2 discovery | `redcap_ul_prb_ctrl_xapp.c` → RC function selection | Continue to RC subscription/control setup | `Public`, `Integrated`; runtime control evidence is indirect |
+| `redcap_xapp_make_ul_prb_ctrl_req` | xApp RC request builder | `redcap_ul_prb_ctrl_xapp.c` → E2SM-RC request | `CONTROL ACK rx`; then `apply_redcap_ul_prb_control` | `Public`, `Integrated`, `Runtime-evidenced` |
+| `redcap_xapp_make_drx_ctrl_req` | xApp DRX request helper | Focused C test → request allocation | Live runner uses a separate Python/SWIG path | `Public`, `Dormant/blocked` |
+| `redcap_xapp_make_priority_hint` | xApp policy helper | Top-hint selector → result only | `RedCap xApp priority hint`; production emitter `[Needs Verification]` | `Public`, `Dormant/blocked` |
+| `redcap_xapp_select_top_priority_hint` | xApp policy helper | Static/self-test callers → single-hint builder | Production RC conversion `[Needs Verification]` | `Public`, `Dormant/blocked` |
+| `nr_redcap_parse_ul_prb_ctrl_message` | E2SM-RC decode | RC write path → parsed RNTI/cap | Continue to `apply_redcap_ul_prb_control` | `Integrated`; O-RAN mapping `[Needs Verification]` |
+| `apply_redcap_ul_prb_control` | gNB RC-to-MAC apply | RC write path → UE context cap state | `RedCap UL PRB control ... effective ...` | `Integrated`, `Runtime-evidenced` |
+| `nr_redcap_sanitize_ul_prb_cap` | gNB MAC guard | RC apply → bounded cap | Continue to UE context state | `Integrated`; local scheduler rule |
+| `nr_redcap_effective_ul_prb_cap` | gNB UL scheduler | UL grant path → effective RB cap | Trace the grant RB count | `Integrated`; matching per-grant proof `[Needs Verification]` |
+| `redcap_dapp_guard_prb_allocation` | dApp allocation guard | PUCCH/UL marker hooks → ACK/NACK and PRB metadata | `RedCap dApp PRB decision` | `Public`, `Integrated`, `Runtime-evidenced`; allocation mutation unproven |
+| `redcap_dapp_access_pressure_policy` | dApp policy helper | RA selector/self-tests → allocation guard | `RedCap dApp access pressure policy`; production apply marker absent | `Public`, `Dormant/blocked` |
+| `redcap_dapp_select_ra_pressure_priority` | dApp selection helper | Core36 Python experiment → selected UE | `MMTC_DAPP_PRIORITY_UES`; C scheduler caller `[Needs Verification]` | `Public`; experiment-integrated only |
+| `redcap_dapp_guard_drx_policy` | dApp prediction guard | Focused C tests → DRX result | `[RedCap DRX][dApp ACCEPT/REJECT]`; exact function runtime proof absent | `Public`, `Dormant/blocked` |
+| `redcap_dapp_guard_e2_drx_cycle` | dApp live E2 guard | `ran_func_rc.c` → `nr_mac_apply_drx_policy` | `[RedCap DRX][dApp ACCEPT/REJECT]` | `Public`, `Integrated`, `Runtime-evidenced` |
+| `nr_mac_apply_drx_policy` | gNB MAC/RRC state owner | RC/telnet apply → staged policy and RRC reconfiguration | gNB apply and RRC-complete markers | `Integrated`, `Runtime-evidenced` |
+
+No L1 function is required to enter these current policy/control traces. Add L1 only when a control changes PHY-owned resource state; do not infer a PHY apply point from an L2 marker.
 
 ## 使用方式
 - 先依層級找函式，再用檔案路徑追 code。

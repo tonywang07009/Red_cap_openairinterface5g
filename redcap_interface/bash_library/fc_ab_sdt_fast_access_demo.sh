@@ -11,7 +11,7 @@ RUN_ID=${AB_SDT_RUN_ID:-"ab_sdt_fast_access_${TIMESTAMP}"}
 OUT_DIR=${AB_SDT_OUTPUT_DIR:-"${REPO_ROOT}/test_log/ab_sdt_fast_access"}
 COMPILER_LOG_DIR="${REPO_ROOT}/test_log/compiler_logs"
 SMOKE_SCRIPT="${SCRIPT_DIR}/fc_mmtc_smoke_validation.sh"
-POLICY_HOST_FILE=${AB_SDT_POLICY_HOST_FILE:-"./control/redcap_policy_case_a.yaml"}
+POLICY_HOST_FILE=${AB_SDT_POLICY_HOST_FILE:-"${REPO_ROOT}/redcap_interface/control/redcap_policy_case_a.yaml"}
 
 RUN_EXPERIMENTS=${AB_SDT_RUN_EXPERIMENTS:-1}
 if [ "${AB_SDT_USE_EXISTING_LOGS:-0}" = "1" ]; then
@@ -20,9 +20,9 @@ fi
 RUN_A=${AB_SDT_RUN_A:-1}
 RUN_B=${AB_SDT_RUN_B:-1}
 
-TOTAL_UES=${AB_SDT_TOTAL_UES:-${MMTC_TOTAL_UES:-29}}
+TOTAL_UES=${AB_SDT_TOTAL_UES:-${MMTC_TOTAL_UES:-56}}
 SAMPLE_UE=${AB_SDT_SAMPLE_UE:-1}
-SAMPLE_UES_RAW=${AB_SDT_SAMPLE_UES:-${MMTC_SAMPLE_UES:-"${SAMPLE_UE}"}}
+SAMPLE_UES_RAW=${AB_SDT_SAMPLE_UES:-${MMTC_ACTIVE_UES:-"${SAMPLE_UE}"}}
 SLEEP_AFTER_UP=${AB_SDT_SLEEP_AFTER_UP:-${MMTC_SLEEP_AFTER_UP:-25}}
 GNB_WARMUP=${AB_SDT_GNB_WARMUP:-${MMTC_GNB_WARMUP:-5}}
 UE_START_GAP=${AB_SDT_UE_START_GAP:-${MMTC_UE_START_GAP:-0}}
@@ -95,7 +95,7 @@ Useful environment variables:
   AB_SDT_B_GNB_LOG=<path>        Case B gNB log for analysis mode
   AB_SDT_B_UE_LOG=<path>         Case B UE log for analysis mode
   AB_SDT_B_PING_LOG=<path>       Case B ping log for analysis mode
-  AB_SDT_TOTAL_UES=29
+  AB_SDT_TOTAL_UES=56
   AB_SDT_SAMPLE_UE=1
   AB_SDT_PING_COUNT=10
 EOF
@@ -155,7 +155,7 @@ first_sample_ue()
 
 FIRST_SAMPLE_UE=$(first_sample_ue "${SAMPLE_UES_RAW}")
 if [ -z "${FIRST_SAMPLE_UE}" ]; then
-  echo "No UE index found in AB_SDT_SAMPLE_UES/MMTC_SAMPLE_UES" >&2
+  echo "No UE index found in AB_SDT_SAMPLE_UES/MMTC_ACTIVE_UES" >&2
   exit 1
 fi
 
@@ -409,7 +409,7 @@ run_smoke_case()
     REDCAP_CASE=case_a \
     REDCAP_POLICY_HOST_FILE="${POLICY_HOST_FILE}" \
     MMTC_TOTAL_UES="${TOTAL_UES}" \
-    MMTC_SAMPLE_UES="${SAMPLE_UES_RAW}" \
+    MMTC_ACTIVE_UES="${SAMPLE_UES_RAW}" \
     MMTC_SLEEP_AFTER_UP="${SLEEP_AFTER_UP}" \
     MMTC_GNB_WARMUP="${GNB_WARMUP}" \
     MMTC_UE_START_GAP="${UE_START_GAP}" \

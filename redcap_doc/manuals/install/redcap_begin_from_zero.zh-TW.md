@@ -1,15 +1,26 @@
-# RedCap 從零開始安裝
+# RedCap 入門建置與 29 UE 重現
 
 [English](./redcap_begin_from_zero.en.md) | [繁體中文](./redcap_begin_from_zero.zh-TW.md)
 
 ## 目標
 
+- 對象：尚未操作 dApp/xApp 控制路徑的新手。
 - 從 repository root 開始操作。
 - 驗證公開 RedCap 操作介面。
 - 編譯本機 gNB 與 NR UE binaries。
 - 重建本機 RFsim Docker images。
 - 執行 29 UE RedCap/mMTC RFsim 驗證。
 - 用 summary markers 判斷結果，不用 raw log 長度判斷。
+- 第一個 layer 失敗就停止；本教學不宣稱 scheduler 或 dApp/xApp 效果。
+
+## 前置需求
+
+| 需求 | 檢查 | 停止條件 |
+|---|---|---|
+| OAI build 支援的 Ubuntu host | `lsb_release -ds` | Host 不支援或沒有 package-manager 權限 |
+| Docker 與 Compose | `docker ps`、`docker compose version` | 任一指令失敗 |
+| Repository 管理的 CN5G | `test -f oai-cn5g/docker-compose.yaml` | Compose 檔案不存在 |
+| 足夠的 log 空間 | `df -h test_log` | Filesystem 無法保存 build 與 runtime log |
 
 ## 1. 進入專案
 
@@ -39,13 +50,13 @@ docker ps
 docker compose version
 ```
 
-確認 RedCap RFsim 腳本會使用的本機 CN5G compose：
+確認 RedCap RFsim 腳本會使用、由 repository 管理的 CN5G compose：
 
 ```bash
-ls /home/tonywang/OAI/oai-cn5g/docker-compose.yaml
+ls oai-cn5g/docker-compose.yaml
 ```
 
-如果 CN5G 檔案不存在，先停止。請先恢復本機 CN5G workspace，再執行 29 UE 驗證。
+如果 CN5G 檔案不存在，先停止。請先恢復 repository 管理的 CN5G runtime，再執行 29 UE 驗證。
 
 ## 3. 驗證 RedCap 介面
 
@@ -169,12 +180,26 @@ gnb_restart=0
 failures=0
 ```
 
-## 9. 下一步
+保留 `test_log/compiler_logs/` 內的 summary 與相同 timestamp stage log。Attach、PDU、TUN 與 ping 是不同驗收邊界；任一數量不足都不是 PASS。
+
+## 9. 依第一個失敗點查詢
+
+| 第一個失敗邊界 | 下一個檢查位置 | 不可宣稱 |
+|---|---|---|
+| CN services | CN Compose output 與 AMF/SMF/UPF logs | RF 或 RRC failure |
+| RF synchronization 或 RA | 相同 timestamp 的 gNB 與 UE logs | attach success |
+| RRC attach | gNB/UE RRC markers | PDU 或 tunnel success |
+| PDU session | SMF/UPF 與 UE NAS logs | TUN readiness |
+| TUN 或 forward ping | 每個 UE 的 tunnel 與 ping evidence | 完成 29 UE 重現 |
+
+輸入會在 runtime 前檢查：UE 清單不可為空、index 不可重複、有效 service index 為 `1..56`。本教學執行前 29 個 service；UE `0`、負數、重複 index 與 UE `57` 都是無效輸入。
+
+## 10. 下一步
 
 29 UE path 可用後，開啟日常操作選單：
 
 ```bash
-bash redcap_interface/mmtc.menu.bash
+./mmtc.menu.bash
 ```
 
-修改後重建請看 [redcap_rebuild_after_changes.zh-TW.md](./redcap_rebuild_after_changes.zh-TW.md)。
+接著執行 [56 UE 實驗設定檔與 dApp/xApp 教學](../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/gate_e_core56_manual_reproduction.zh-TW.md)。修改後重建請看 [redcap_rebuild_after_changes.zh-TW.md](./redcap_rebuild_after_changes.zh-TW.md)。

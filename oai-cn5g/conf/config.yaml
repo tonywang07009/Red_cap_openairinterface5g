@@ -34,7 +34,7 @@ log_level:
 
 # If you enable registration, the other NFs will use the NRF discovery mechanism
 register_nf:
-  general: yes
+  general: no
   
 http_version: 2
 
@@ -126,7 +126,7 @@ amf:
   support_features_options:
     enable_simple_scenario: no
     enable_nssf: no
-    enable_smf_selection: yes
+    enable_smf_selection: no
     use_external_udm: no
   relative_capacity: 30
   statistics_timer_interval: 20  #in seconds
@@ -159,6 +159,7 @@ smf:
   # we resolve from NRF, this is just to configure usage_reporting
   upfs:
     - host: oai-upf
+      port: 8805
       config:
         enable_usage_reporting: no
   ue_dns:

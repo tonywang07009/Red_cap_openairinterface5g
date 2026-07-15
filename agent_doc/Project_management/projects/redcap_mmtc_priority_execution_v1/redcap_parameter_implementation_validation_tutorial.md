@@ -68,9 +68,9 @@
 | 變數 | Accepted 56 UE 建議值 | 作用 | 驗證重點 |
 |---|---|---|---|
 | `GNB_REDCAP_CONFIG` | `redcap_library/library_gnb_config/gnb_redcap_mmtc_case_b_final.yaml` | 指定 Case B gNB runtime config | 確認 `coreset0_redcap_mode_r17: 1` |
-| `MMTC_TOTAL_UES` | `64` | overlay 產生 UE1..UE64 | 可 sample 56，不必只產生 56 |
-| `MMTC_SAMPLE_UES` | `1..56` | 指定要驗證的 UE 清單 | accepted run 是 56 個 sample 全 pass |
-| `MMTC_CN_COMPOSE` | `/home/tonywang/OAI/oai-cn5g/docker-compose.yaml` | 指定外部 CN compose | CN/UPF 必須已修正 interface 與 static discovery |
+| `MMTC_TOTAL_UES` | `56` | 固定產生 UE1..UE56 service | 其他值會被現行 runtime 拒絕 |
+| `MMTC_ACTIVE_UES` | `1..56` | 指定本次實際啟動的 UE 清單 | 可用逗號、空白或混合分隔，不可重複 |
+| `MMTC_CN_COMPOSE` | `oai-cn5g/docker-compose.yaml` | 覆寫 repo 內 CN compose | 未設定時使用此 repo-relative 預設路徑 |
 | `MMTC_USE_EXISTING_CN_DB` | `1` | 使用既有 CN DB，不產生 mMTC subscriber overlay | 避免覆蓋目前可用 DB |
 | `MMTC_UE_START_GAP` | `8` | UE 啟動間距 | 降低同時 RA/CN 壓力 |
 | `MMTC_FORWARD_PING_MODE` | `parallel` | forward ping 同步驗證 | 最終 `forward_ping_ok=56` |
@@ -194,7 +194,7 @@
 | 3 | 確認 local image marker | 確認 gNB binary 有最新 Msg4 allocation marker | `strings /opt/oai-gnb/bin/nr-softmodem` 可看到 `pair-pack alloc` |
 | 4 | 確認 CN config | 移除 NRF/SMF dynamic discovery 壓力 | `register_nf.general=no`, `enable_smf_selection=no`, UPF `port=8805` |
 | 5 | 確認 Case B gNB config | 啟用 RedCap Case B | `coreset0_redcap_mode_r17: 1` |
-| 6 | 設定 56 UE sample | 驗證 accepted capacity | `MMTC_SAMPLE_UES=1..56` |
+| 6 | 設定 56 個 active UE | 驗證 accepted capacity | `MMTC_ACTIVE_UES=1..56` |
 | 7 | 關閉 reverse ping/iperf | 避免非必要壓力 | `MMTC_RUN_REVERSE_PING=0`, `MMTC_IPERF_ENABLE=0` |
 | 8 | 跑 smoke validation | 產出 compiler log、gNB log、UE logs | summary 顯示 `56/56` |
 
@@ -204,9 +204,9 @@ cd /home/tonywang/OAI/Red_cap_openairinterface5g
 
 sudo env \
   GNB_REDCAP_CONFIG=/home/tonywang/OAI/Red_cap_openairinterface5g/redcap_library/library_gnb_config/gnb_redcap_mmtc_case_b_final.yaml \
-  MMTC_TOTAL_UES=64 \
-  MMTC_SAMPLE_UES="$(seq -s ' ' 1 56)" \
-  MMTC_CN_COMPOSE=/home/tonywang/OAI/oai-cn5g/docker-compose.yaml \
+  MMTC_TOTAL_UES=56 \
+  MMTC_ACTIVE_UES="$(seq -s ' ' 1 56)" \
+  MMTC_CN_COMPOSE=/home/tonywang/OAI/Red_cap_openairinterface5g/oai-cn5g/docker-compose.yaml \
   MMTC_USE_EXISTING_CN_DB=1 \
   MMTC_UE_START_GAP=8 \
   MMTC_FORWARD_PING_MODE=parallel \
@@ -218,7 +218,7 @@ sudo env \
 
 ### 如果 shell 不想用 `seq`
 ```bash
-MMTC_SAMPLE_UES="1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56"
+MMTC_ACTIVE_UES="1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56"
 ```
 
 ### Accepted 56 UE 應看到的結果
@@ -332,7 +332,7 @@ MMTC_SAMPLE_UES="1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 
 - [要讀的檔案]：
   - `openair2/LAYER2/NR_MAC_UE/nr_ue_procedures.c`
   - `redcap_interface/redcap_mmtc_smoke_validation.sh`
-  - `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.mmtc.yml`
+  - `redcap_interface/bash_library/generate_mmtc_overlay.sh`
 ### 導讀任務
 - [Step 1]：找到 `mmtc_pucch_common_fallback_bwp0_enabled()`，確認它讀 `MMTC_PUCCH_COMMON_FALLBACK_BWP0`。
 - [Step 2]：找到 `find_ul_bwp_by_id(mac, 0)`，理解 fallback 只找 BWP0 common resource。

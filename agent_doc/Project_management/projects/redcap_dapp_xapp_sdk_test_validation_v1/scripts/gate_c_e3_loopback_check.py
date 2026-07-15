@@ -12,7 +12,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[5]
-LIBE3 = ROOT / "dev_refer/dapp_dev_need/libe3"
+LIBE3 = ROOT / "Apps_dev/dapp_dev_need/libe3"
 
 ROLE_PAIR_SOURCE = LIBE3 / "tests/integration/test_role_pair_posix.cpp"
 BENCH_SOURCE = LIBE3 / "tests/integration/bench_full_loop_latency.cpp"
@@ -267,7 +267,7 @@ def try_build(build_dir: Path, log_dir: Path) -> int:
 
 
 def print_build_hint() -> None:
-    build_dir = "dev_refer/dapp_dev_need/libe3/build/redcap-gate-c"
+    build_dir = "Apps_dev/dapp_dev_need/libe3/build/redcap-gate-c"
     print("[INFO] suggested Gate C build/run commands:")
     print(
         "  python3 -B "
@@ -285,7 +285,7 @@ def print_build_hint() -> None:
         "gate_c_e3_loopback_check.py --try-configure --use-local-expected-stub"
     )
     print(
-        "  cmake -S dev_refer/dapp_dev_need/libe3 "
+        "  cmake -S Apps_dev/dapp_dev_need/libe3 "
         f"-B {build_dir} "
         "-DLIBE3_BUILD_INTEGRATION_TESTS=ON "
         "-DLIBE3_ENABLE_ZMQ=OFF "
@@ -315,7 +315,7 @@ def main(argv: list[str]) -> int:
             print(f"[FAIL] {error}")
         return 1
 
-    print("[PASS] Gate C source evidence is present under dev_refer/dapp_dev_need/libe3")
+    print("[PASS] Gate C source evidence is present under Apps_dev/dapp_dev_need/libe3")
 
     blockers, warnings = dependency_status()
     for warning in warnings:

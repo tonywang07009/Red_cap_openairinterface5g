@@ -46,8 +46,8 @@ run_optional_setup()
   log "Running RFsim setup through redcap_mmtc_smoke_validation.sh"
   (
     cd "${REPO_ROOT}"
-    MMTC_TOTAL_UES=${P11_SETUP_TOTAL_UES:-29} \
-    MMTC_SAMPLE_UES="${UE_INDEX}" \
+    MMTC_TOTAL_UES=56 \
+    MMTC_ACTIVE_UES="${UE_INDEX}" \
     MMTC_IPERF_ENABLE=0 \
     MMTC_FORWARD_PING_MODE=parallel \
     MMTC_RUN_REVERSE_PING=0 \

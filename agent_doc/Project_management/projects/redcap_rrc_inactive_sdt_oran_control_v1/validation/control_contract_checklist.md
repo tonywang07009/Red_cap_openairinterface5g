@@ -5,9 +5,9 @@
 - Prevent xApp/rApp/dApp ownership conflicts.
 
 ## Required Files
-- [MUST] `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/control/redcap_control_contract.yaml`
-- [MUST] `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/control/redcap_policy_case_a.yaml`
-- [MUST] `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/control/redcap_policy_case_b.yaml`
+- [MUST] `redcap_interface/control/redcap_control_contract.yaml`
+- [MUST] `redcap_interface/control/redcap_policy_case_a.yaml`
+- [MUST] `redcap_interface/control/redcap_policy_case_b.yaml`
 
 ## Contract Field Requirements
 - [MUST] `name`

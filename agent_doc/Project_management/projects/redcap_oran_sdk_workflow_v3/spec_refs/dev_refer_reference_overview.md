@@ -1,8 +1,8 @@
-# dev_refer Reference Overview
+# Apps_dev Reference Overview
 
 ## Purpose
 
-- [Goal]: explain how the updated `dev_refer/` library supports future RedCap xApp, dApp, and rApp SDK work.
+- [Goal]: explain how the `Apps_dev/` library supports future RedCap xApp, dApp, and rApp SDK work.
 - [Scope]: planning and SDK layout only; this file does not claim runtime behavior or O-RAN clause compliance.
 - [Verification Rule]: exact O-RAN clause mappings remain `[Needs Verification]` until the local PDF/DOCX text is extracted and reviewed.
 
@@ -10,12 +10,12 @@
 
 | Family | Path | What It Is For | Workflow Use |
 |---|---|---|---|
-| [Formal xApp references] | `dev_refer/develop_refer_doc/xapp/` | O-RAN WG3 documents for Near-RT RIC, E2, E2SM-KPM, E2SM-RC, E2SM-CCC, and ETSI PAS E2 service-model material | Use before defining xApp SDK behavior, KPM observation, or RC/custom-SM control |
-| [Formal dApp references] | `dev_refer/develop_refer_doc/dapp/` | nGRG dApps architecture and interfaces reference | Use before defining dApp/E3 runtime boundaries |
-| [Formal rApp references] | `dev_refer/develop_refer_doc/rapp/` | O-RAN WG2 Non-RT RIC, A1, O1, and use-case requirement references | Use for rApp policy and management-interface planning only |
-| [xApp SDK references] | `dev_refer/xapp_dev_need/` | xDevSM framework and example xApps | Use as external SDK design input, not as code to copy into OAI |
-| [dApp SDK references] | `dev_refer/dapp_dev_need/` | FlexRIC, E3Controller, libe3, dApp library, and dApp-oriented OAI fork references | Use to extend the `openair2/E3AP/` scaffold |
-| [rApp SDK references] | `dev_refer/rapp_dev_need/` | OpenAPI Generator reference for API client/server/document generation | Use only for rApp-facing API packaging after the runtime boundary is defined |
+| [Formal xApp references] | `Apps_dev/develop_refer_doc/xapp/` | O-RAN WG3 documents for Near-RT RIC, E2, E2SM-KPM, E2SM-RC, E2SM-CCC, and ETSI PAS E2 service-model material | Use before defining xApp SDK behavior, KPM observation, or RC/custom-SM control |
+| [Formal dApp references] | `Apps_dev/develop_refer_doc/dapp/` | nGRG dApps architecture and interfaces reference | Use before defining dApp/E3 runtime boundaries |
+| [Formal rApp references] | `Apps_dev/develop_refer_doc/rapp/` | O-RAN WG2 Non-RT RIC, A1, O1, and use-case requirement references | Use for rApp policy and management-interface planning only |
+| [xApp SDK references] | `Apps_dev/xapp_dev_need/` | xDevSM framework and example xApps | Use as external SDK design input, not as code to copy into OAI |
+| [dApp SDK references] | `Apps_dev/dapp_dev_need/` | FlexRIC, E3Controller, libe3, dApp library, and dApp-oriented OAI fork references | Use to extend the `openair2/E3AP/` scaffold |
+| [rApp SDK references] | `Apps_dev/rapp_dev_need/` | OpenAPI Generator reference for API client/server/document generation | Use only for rApp-facing API packaging after the runtime boundary is defined |
 
 ## Practical Interpretation
 

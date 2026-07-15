@@ -22,7 +22,7 @@ CONTROL = ROOT / "ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/control"
 XAPP_SDK = ROOT / "openair2/E2AP/REDCAP_SDK"
 DAPP_SDK = ROOT / "openair2/E3AP"
 RAPP_SDK = PROJECT / "sdk/rapp"
-LEGACY_DEV_REFER = "../" + "dev_refer/develop_refer_doc"
+LEGACY_APPS_DEV = "../" + "Apps_dev/develop_refer_doc"
 
 
 def read(path: Path) -> str:
@@ -160,15 +160,15 @@ def check_reference_and_channel_layout(errors: list[str]) -> None:
     spec_map = read(PROJECT / "spec_refs/oran_spec_usage_map.md")
     overview = read(PROJECT / "spec_refs/dev_refer_reference_overview.md")
 
-    require(LEGACY_DEV_REFER not in combined,
-            "stale dev_refer path still present in workflow docs", errors)
-    require("dev_refer/" in combined, "workflow docs missing dev_refer root reference", errors)
-    require("dev_refer/develop_refer_doc/xapp/" in spec_map, "spec map missing xApp reference path", errors)
-    require("dev_refer/develop_refer_doc/dapp/" in spec_map, "spec map missing dApp reference path", errors)
-    require("dev_refer/develop_refer_doc/rapp/" in spec_map, "spec map missing rApp reference path", errors)
-    require("dev_refer/xapp_dev_need/" in overview, "reference overview missing xApp SDK input path", errors)
-    require("dev_refer/dapp_dev_need/" in overview, "reference overview missing dApp SDK input path", errors)
-    require("dev_refer/rapp_dev_need/" in overview, "reference overview missing rApp SDK input path", errors)
+    require(LEGACY_APPS_DEV not in combined,
+            "stale parent-relative Apps_dev path still present in workflow docs", errors)
+    require("Apps_dev/" in combined, "workflow docs missing Apps_dev root reference", errors)
+    require("Apps_dev/develop_refer_doc/xapp/" in spec_map, "spec map missing xApp reference path", errors)
+    require("Apps_dev/develop_refer_doc/dapp/" in spec_map, "spec map missing dApp reference path", errors)
+    require("Apps_dev/develop_refer_doc/rapp/" in spec_map, "spec map missing rApp reference path", errors)
+    require("Apps_dev/xapp_dev_need/" in overview, "reference overview missing xApp SDK input path", errors)
+    require("Apps_dev/dapp_dev_need/" in overview, "reference overview missing dApp SDK input path", errors)
+    require("Apps_dev/rapp_dev_need/" in overview, "reference overview missing rApp SDK input path", errors)
     require("openair2/E2AP/REDCAP_SDK/" in layout, "SDK layout missing RedCap xApp wrapper target", errors)
     require("openair2/E2AP/flexric/" in layout, "SDK layout missing xApp E2AP/flexric target", errors)
     require("openair2/E3AP/" in layout, "SDK layout missing dApp E3AP target", errors)

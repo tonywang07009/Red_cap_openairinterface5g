@@ -19,9 +19,9 @@
 
 - [Scope]: prove whether Python is backed by C/C++ binding.
 - [Evidence]:
-  - `dev_refer/dapp_dev_need/libe3/swig/libe3.i`
-  - `dev_refer/dapp_dev_need/libe3/cmake/libe3SWIG.cmake`
-  - `dev_refer/dapp_dev_need/dApp-library/libiqsaver/swig/iqsaver.i`
+  - `Apps_dev/dapp_dev_need/libe3/swig/libe3.i`
+  - `Apps_dev/dapp_dev_need/libe3/cmake/libe3SWIG.cmake`
+  - `Apps_dev/dapp_dev_need/dApp-library/libiqsaver/swig/iqsaver.i`
   - generated/importable modules only when built locally.
 - [Limitation]: if generated modules are absent, status is definition-only, not SWIG runtime PASS.
 
@@ -29,8 +29,8 @@
 
 - [Scope]: local RAN-role and DAPP-role E3 agents exchange data.
 - [Reference Source]:
-  - `dev_refer/dapp_dev_need/libe3/tests/integration/test_role_pair_posix.cpp`
-  - `dev_refer/dapp_dev_need/libe3/tests/integration/bench_full_loop_latency.cpp`
+  - `Apps_dev/dapp_dev_need/libe3/tests/integration/test_role_pair_posix.cpp`
+  - `Apps_dev/dapp_dev_need/libe3/tests/integration/bench_full_loop_latency.cpp`
 - [Runner]:
   - `python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/gate_c_e3_loopback_check.py`
 - [Evidence]:
@@ -64,15 +64,15 @@
   - PUCCH path: `openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_uci.c`
   - Build path: `CMakeLists.txt` compiles `openair2/E3AP/sdk/redcap_dapp_sdk.c` into `MAC_NR_SRC`.
   - Runtime switch: `OAI_REDCAP_DAPP_GATE_D_MARKER=1`
-  - Runtime env passthrough: `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.mmtc.yml` and `scripts/generate_mmtc_overlay.sh` expose `OAI_REDCAP_DAPP_GATE_D_MARKER` to the gNB container with default `0`.
+  - Runtime env passthrough: `redcap_interface/bash_library/generate_mmtc_overlay.sh` emits `OAI_REDCAP_DAPP_GATE_D_MARKER` into each run-specific overlay with default `0`.
   - 5 MHz BWP profile: `ci-scripts/conf_files/gnb.sa.band78.fr1.106PRB.usrpb210.redcap.5mhz-bwp.yaml` keeps the 106 PRB RF carrier and configures BWP1 plus RedCap DL/UL initial BWP as 12 PRBs at 30 kHz SCS `[Needs Verification]`.
   - ULSCH hook point: `post_process_ulsch()` calls the dApp PRB guard after `config_uldci()` and before `fill_dci_pdu_rel15()`.
   - PUCCH hook point: `nr_fill_nfapi_pucch()` calls the dApp PRB guard after `nr_configure_pucch()`.
 - [dev_refer References]:
-  - `dev_refer/dapp_dev_need/E3Controller/README.md` for `--num-prbs`, link layer, transport, and timing log shape.
-  - `dev_refer/dapp_dev_need/E3Controller/src/e3sm/iq_pipeline.h` for per-section I/Q sample input.
-  - `dev_refer/dapp_dev_need/E3Controller/src/e3sm/slot_iq_pipeline.h` for per-slot I/Q sample input.
-  - `dev_refer/dapp_dev_need/dApp-library/README.md` for OpenRAN Gym dApp usage, `--num-prbs`, control, and visualization flags.
+  - `Apps_dev/dapp_dev_need/E3Controller/README.md` for `--num-prbs`, link layer, transport, and timing log shape.
+  - `Apps_dev/dapp_dev_need/E3Controller/src/e3sm/iq_pipeline.h` for per-section I/Q sample input.
+  - `Apps_dev/dapp_dev_need/E3Controller/src/e3sm/slot_iq_pipeline.h` for per-slot I/Q sample input.
+  - `Apps_dev/dapp_dev_need/dApp-library/README.md` for OpenRAN Gym dApp usage, `--num-prbs`, control, and visualization flags.
 - [Source Readiness Runner]:
   - `python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/gate_d_rfsim_marker_check.py`
 - [Build Evidence]:
@@ -149,13 +149,13 @@
   - one-UE 51PRB RF/SSB smoke PASS.
   - one-RNTI xApp/RIC/gNB control path PASS.
 - [Preflight Evidence]:
-  - `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/scripts/generate_mmtc_overlay.sh 64` generated `docker-compose.mmtc.yml` with UE1..UE64 services.
-  - `docker compose ... config --services` confirms 64 `oai-nr-ue*` services after merging base compose plus mMTC overlay.
-  - `ci-scripts/conf_files/nrue_recap/` contains UE1..UE64 RedCap UICC configs with unique IMSIs.
-  - The RFsim test topology is based on `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.yml` plus `docker-compose.mmtc.yml`.
-  - The CN/AMF topology is based on `/home/tonywang/OAI/oai-cn5g/docker-compose.yaml`; its service list includes `oai-amf`, `mysql`, `oai-smf`, and `oai-upf`.
-  - `redcap_interface/generate_mmtc_cn_db_overlay.sh 64` generated `test_log/runtime_configs/oai_db_mmtc_64.sql` and `test_log/runtime_configs/oai-cn5g_mmtc_64.override.yml`.
-  - `docker compose -f /home/tonywang/OAI/oai-cn5g/docker-compose.yaml -f test_log/runtime_configs/oai-cn5g_mmtc_64.override.yml config --services` lists `oai-amf`, and the RFsim RedCap compose merge lists 64 UE services.
+  - `redcap_interface/bash_library/generate_mmtc_overlay.sh 56 test_log/runtime_configs/<run-id>_overlay.yml` generates UE1..UE56 services.
+  - `docker compose ... config --services` confirms 56 `oai-nr-ue*` services after merging base compose plus mMTC overlay.
+  - `ci-scripts/conf_files/nrue_recap/` contains UE1..UE56 RedCap UICC configs with unique IMSIs.
+  - The RFsim test topology is based on `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.yml` plus a run-specific overlay in `test_log/runtime_configs/`.
+  - The CN/AMF topology is based on `oai-cn5g/docker-compose.yaml`; its service list includes `oai-amf`, `mysql`, `oai-smf`, and `oai-upf`.
+  - `redcap_interface/generate_mmtc_cn_db_overlay.sh 56` generates `test_log/runtime_configs/oai_db_mmtc_56.sql` and `test_log/runtime_configs/oai-cn5g_mmtc_56.override.yml`.
+  - `docker compose -f oai-cn5g/docker-compose.yaml -f test_log/runtime_configs/oai-cn5g_mmtc_56.override.yml config --services` lists `oai-amf`, and the RFsim RedCap compose merge lists 56 UE services.
   - `gate_e_64ue_stage_check.py` confirms the 5 MHz / 12 PRB first-stage profile, the 51 PRB 20 MHz proxy profile `[Needs Verification]`, the generated CN DB overlay, and prior Gate D marker evidence.
 - [Preflight Command]:
   - `python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/gate_e_64ue_stage_check.py`

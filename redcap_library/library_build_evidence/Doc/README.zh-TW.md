@@ -5,8 +5,8 @@
 
 ## Bash 連結
 ```bash
-bash redcap_interface/mmtc.menu.bash rebuild
-bash redcap_interface/mmtc.menu.bash inspect
+./mmtc.menu.bash rebuild
+./mmtc.menu.bash inspect
 ```
 
 ## 規則

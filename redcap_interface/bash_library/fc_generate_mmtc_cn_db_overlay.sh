@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-TOTAL_UES="${1:-64}"
+TOTAL_UES="${1:-56}"
 OUTPUT_SQL="${2:-}"
 OUTPUT_COMPOSE="${3:-}"
 
@@ -13,6 +13,11 @@ RUNTIME_DIR="${REPO_ROOT}/test_log/runtime_configs"
 
 if ! [[ "${TOTAL_UES}" =~ ^[0-9]+$ ]]; then
   echo "TOTAL_UES must be an integer, got: ${TOTAL_UES}" >&2
+  exit 1
+fi
+
+if (( TOTAL_UES < 1 || TOTAL_UES > 56 )); then
+  echo "TOTAL_UES must be in the supported range 1..56, got: ${TOTAL_UES}" >&2
   exit 1
 fi
 
@@ -59,7 +64,7 @@ cat > "${OUTPUT_SQL}" <<'EOF'
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
 
--- The CN baseline mounted by doc/tutorial_resources/oai-cn5g/docker-compose.yaml
+-- The CN baseline mounted by oai-cn5g/docker-compose.yaml
 -- defines AuthenticationSubscription and SessionManagementSubscriptionData,
 -- but it does not define the legacy `users` table from ci-scripts/yaml_files/5g_rfsimulator/oai_db.sql.
 -- Keep this overlay aligned with the actual CN schema to avoid failing MySQL init.

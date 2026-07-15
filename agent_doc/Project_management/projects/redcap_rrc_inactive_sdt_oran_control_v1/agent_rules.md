@@ -5,7 +5,7 @@
 - [Milestones]: `agent_doc/Project_management/projects/redcap_rrc_inactive_sdt_oran_control_v1/milestones/`
 - [Validation]: `agent_doc/Project_management/projects/redcap_rrc_inactive_sdt_oran_control_v1/validation/`
 - [Runtime Source of Truth]: `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/`
-- [Control YAML]: `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/control/`
+- [Control YAML]: `redcap_interface/control/`
 
 ## Token-Efficient Context Pack
 - [MUST] For protocol implementation, read only:

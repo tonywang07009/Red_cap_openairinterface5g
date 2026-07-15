@@ -5,6 +5,8 @@ set -euo pipefail
 SCRIPT_DIR=$(dirname "$(realpath "$0")")
 REPO_ROOT=$(realpath "${SCRIPT_DIR}/..")
 LIB_DIR="${SCRIPT_DIR}/bash_library"
+MAIN_MENU="${REPO_ROOT}/mmtc.menu.bash"
+LEGACY_MAIN_MENU="${SCRIPT_DIR}/mmtc.menu.bash"
 failures=0
 
 check_file()
@@ -64,12 +66,60 @@ PY
   fi
 }
 
+check_command_success()
+{
+  local label="$1"
+  shift
+
+  if "$@" >/dev/null 2>&1; then
+    echo "[OK] ${label}"
+  else
+    echo "[FAIL] ${label}" >&2
+    failures=$((failures + 1))
+  fi
+}
+
+check_command_failure()
+{
+  local label="$1"
+  shift
+
+  if "$@" >/dev/null 2>&1; then
+    echo "[FAIL] ${label}: command unexpectedly succeeded" >&2
+    failures=$((failures + 1))
+  else
+    echo "[OK] ${label}"
+  fi
+}
+
+check_bilingual_help()
+{
+  local path="$1"
+  local label="$2"
+  local output
+
+  if ! output=$(bash "${path}" --help 2>&1); then
+    echo "[FAIL] ${label}: --help returned non-zero" >&2
+    failures=$((failures + 1))
+    return
+  fi
+
+  if [[ "${output}" == *"用法"* ]] && [[ "${output}" == *"Usage"* ]] && [[ "${output}" == *"MMTC_ACTIVE_UES"* ]]; then
+    echo "[OK] bilingual help: ${path}"
+  else
+    echo "[FAIL] ${label}: bilingual help content is incomplete" >&2
+    failures=$((failures + 1))
+  fi
+}
+
 for script in "${SCRIPT_DIR}"/*.sh "${SCRIPT_DIR}"/*.bash "${LIB_DIR}"/fc_*.sh "${LIB_DIR}"/fc_*.bash; do
   [ -f "${script}" ] || continue
   check_syntax "${script}"
 done
 
-check_file "${SCRIPT_DIR}/mmtc.menu.bash" "daily RFsim menu"
+check_syntax "${MAIN_MENU}"
+check_file "${MAIN_MENU}" "root daily RFsim menu"
+check_file "${LEGACY_MAIN_MENU}" "legacy daily RFsim menu shim"
 check_file "${SCRIPT_DIR}/mmtc.display.bash" "paper/demo display menu"
 check_file "${SCRIPT_DIR}/mmtc.ment.bash" "legacy menu spelling alias"
 check_file "${SCRIPT_DIR}/redcap_runtime_menu.sh" "legacy runtime menu shim"
@@ -119,8 +169,16 @@ check_file "${REPO_ROOT}/ci-scripts/run_locally.sh" "OAI local CI runner"
 check_file "${REPO_ROOT}/ci-scripts/conf_files/gnb.sa.band78.fr1.106PRB.usrpb210.redcap.yaml" "106PRB gNB config"
 check_file "${REPO_ROOT}/ci-scripts/conf_files/gnb.sa.band78.fr1.51PRB.usrpb210.redcap.yaml" "51PRB gNB config"
 check_file "${REPO_ROOT}/ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.yml" "base RFsim compose"
-check_file "${REPO_ROOT}/ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.mmtc.yml" "mMTC compose overlay"
-check_file "${REPO_ROOT}/ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/scripts/generate_mmtc_overlay.sh" "mMTC overlay generator"
+check_file "${REPO_ROOT}/oai-cn5g/docker-compose.yaml" "repository-owned CN5G compose"
+check_file "${REPO_ROOT}/oai-cn5g/conf/config.yaml" "repository-owned CN5G config"
+check_file "${REPO_ROOT}/oai-cn5g/database/oai_db.sql" "repository-owned CN5G database baseline"
+check_file "${REPO_ROOT}/oai-cn5g/database/oai_db_mmtc_56.sql" "fixed 56-UE CN5G seed"
+check_file "${REPO_ROOT}/oai-cn5g/healthscripts/mysql-healthcheck.sh" "repository-owned CN5G healthcheck"
+check_file "${LIB_DIR}/generate_mmtc_overlay.sh" "mMTC overlay generator"
+check_file "${LIB_DIR}/ue_mmtc_entrypoint.sh" "mMTC UE entrypoint"
+check_file "${SCRIPT_DIR}/control/redcap_control_contract.yaml" "RedCap control contract"
+check_file "${SCRIPT_DIR}/control/redcap_policy_case_a.yaml" "RedCap Case A policy"
+check_file "${SCRIPT_DIR}/control/redcap_policy_case_b.yaml" "RedCap Case B policy"
 check_file "${REPO_ROOT}/ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/conf/flexric.conf" "FlexRIC config"
 
 check_file "${REPO_ROOT}/redcap_library/library_gnb_config/gnb_redcap_mmtc_case_b_final.yaml" "default curated gNB config"
@@ -136,10 +194,115 @@ check_python_syntax "${REPO_ROOT}/agent_doc/Project_management/projects/redcap_o
 
 tmp_sql=$(mktemp /tmp/redcap_mmtc_overlay.XXXXXX.sql)
 tmp_yml=$(mktemp /tmp/redcap_mmtc_overlay.XXXXXX.yml)
-bash "${LIB_DIR}/fc_generate_mmtc_cn_db_overlay.sh" 1 "${tmp_sql}" "${tmp_yml}" >/dev/null
-check_file "${tmp_sql}" "generated one-UE SQL overlay smoke output"
-check_file "${tmp_yml}" "generated one-UE compose overlay smoke output"
+bash "${LIB_DIR}/fc_generate_mmtc_cn_db_overlay.sh" 56 "${tmp_sql}" "${tmp_yml}" >/dev/null
+check_file "${tmp_sql}" "generated 56-UE SQL overlay smoke output"
+check_file "${tmp_yml}" "generated 56-UE compose overlay smoke output"
+if cmp -s "${tmp_sql}" "${REPO_ROOT}/oai-cn5g/database/oai_db_mmtc_56.sql"; then
+  echo "[OK] fixed 56-UE seed matches generator output"
+else
+  echo "[FAIL] fixed 56-UE seed differs from generator output" >&2
+  failures=$((failures + 1))
+fi
 rm -f "${tmp_sql}" "${tmp_yml}"
+
+check_bilingual_help "${MAIN_MENU}" "daily RFsim menu help"
+check_bilingual_help "${LEGACY_MAIN_MENU}" "legacy daily RFsim menu shim help"
+check_bilingual_help "${LIB_DIR}/fc_mmtc_smoke_validation.sh" "mMTC smoke help"
+check_command_failure "menu rejects unknown option" bash "${MAIN_MENU}" --unknown
+check_command_failure "smoke rejects unknown option" bash "${LIB_DIR}/fc_mmtc_smoke_validation.sh" --unknown
+
+read_only_id="validate_read_only_$$"
+read_only_profile="${REPO_ROOT}/test_log/runtime_configs/${read_only_id}.profile.env"
+read_only_overlay="${REPO_ROOT}/test_log/runtime_configs/${read_only_id}_overlay.yml"
+rm -f "${read_only_profile}" "${read_only_overlay}"
+check_command_success "side-effect-free project introduction" env MMTC_RUN_ID="${read_only_id}" bash "${MAIN_MENU}" intro
+check_command_success "side-effect-free performance evidence" env MMTC_RUN_ID="${read_only_id}" bash "${MAIN_MENU}" performance
+if [ -e "${read_only_profile}" ] || [ -e "${read_only_overlay}" ]; then
+  echo "[FAIL] read-only menu route created a runtime file" >&2
+  failures=$((failures + 1))
+  rm -f "${read_only_profile}" "${read_only_overlay}"
+else
+  echo "[OK] read-only menu routes have no generated-file side effect"
+fi
+
+profile_id="validate_profile_$$"
+profile_path="${REPO_ROOT}/test_log/runtime_configs/${profile_id}.profile.env"
+profile_overlay="${REPO_ROOT}/test_log/runtime_configs/${profile_id}_overlay.yml"
+invalid_profile="${REPO_ROOT}/test_log/runtime_configs/${profile_id}_invalid.profile.env"
+rm -f "${profile_path}" "${profile_overlay}" "${invalid_profile}"
+if printf '%s\n' "${profile_id}" "1,56" "106" "" "" "" "" "1" "1" \
+  | bash "${MAIN_MENU}" experiment "${profile_path}" >/dev/null 2>&1; then
+  echo "[OK] create versioned experiment profile"
+else
+  echo "[FAIL] create versioned experiment profile" >&2
+  failures=$((failures + 1))
+fi
+check_file "${profile_path}" "versioned experiment profile"
+check_command_failure "avoid experiment profile overwrite" bash "${MAIN_MENU}" experiment "${profile_path}"
+
+if preview_output=$(bash "${MAIN_MENU}" preview-profile "${profile_path}" 2>/dev/null) \
+  && [[ "${preview_output}" == *"REDCAP_EXPERIMENT_PROFILE_VERSION=1"* ]] \
+  && [[ "${preview_output}" == *"MMTC_ACTIVE_UES=1,56"* ]] \
+  && [[ "${preview_output}" == *"MMTC_START_XAPP=1"* ]] \
+  && [[ "${preview_output}" == *"OAI_REDCAP_DAPP_GATE_D_MARKER=1"* ]]; then
+  echo "[OK] validate and preview experiment profile"
+else
+  echo "[FAIL] validate and preview experiment profile" >&2
+  failures=$((failures + 1))
+fi
+
+sed 's/REDCAP_CU_DU_SPLIT=0/REDCAP_CU_DU_SPLIT=1/' "${profile_path}" > "${invalid_profile}"
+check_command_failure "reject CU/DU split profile" bash "${MAIN_MENU}" preview-profile "${invalid_profile}"
+sed 's/REDCAP_GNB_COUNT=1/REDCAP_GNB_COUNT=2/' "${profile_path}" > "${invalid_profile}"
+check_command_failure "reject multiple-gNB profile" bash "${MAIN_MENU}" preview-profile "${invalid_profile}"
+sed 's/REDCAP_EXPERIMENT_PROFILE_VERSION=1/REDCAP_EXPERIMENT_PROFILE_VERSION=2/' "${profile_path}" > "${invalid_profile}"
+check_command_failure "reject future profile version" bash "${MAIN_MENU}" preview-profile "${invalid_profile}"
+sed 's/MMTC_ACTIVE_UES=1,56/MMTC_ACTIVE_UES=0/' "${profile_path}" > "${invalid_profile}"
+check_command_failure "reject profile UE0" bash "${MAIN_MENU}" preview-profile "${invalid_profile}"
+sed 's/MMTC_ACTIVE_UES=1,56/MMTC_ACTIVE_UES=57/' "${profile_path}" > "${invalid_profile}"
+check_command_failure "reject profile UE57" bash "${MAIN_MENU}" preview-profile "${invalid_profile}"
+sed 's/MMTC_ACTIVE_UES=1,56/MMTC_ACTIVE_UES=1,1/' "${profile_path}" > "${invalid_profile}"
+check_command_failure "reject duplicate UE in profile" bash "${MAIN_MENU}" preview-profile "${invalid_profile}"
+cp "${profile_path}" "${invalid_profile}"
+printf 'MMTC_ACTIVE_UES=2\n' >> "${invalid_profile}"
+check_command_failure "reject duplicate profile key" bash "${MAIN_MENU}" preview-profile "${invalid_profile}"
+cp "${profile_path}" "${invalid_profile}"
+printf 'UNSUPPORTED_PROFILE_KEY=1\n' >> "${invalid_profile}"
+check_command_failure "reject unknown profile key" bash "${MAIN_MENU}" preview-profile "${invalid_profile}"
+
+if run_output=$(MMTC_SMOKE_PREPARE_ONLY=1 bash "${MAIN_MENU}" run-profile "${profile_path}" smoke 2>&1) \
+  && [[ "${run_output}" == *"Active UE selection : 1 56"* ]] \
+  && [[ "${run_output}" == *"xapp-rc-moni"* ]] \
+  && [[ "${run_output}" == *"Prepare-only mode active"* ]]; then
+  echo "[OK] profile adapter reaches existing smoke path"
+else
+  echo "[FAIL] profile adapter did not reach expected smoke prepare-only path" >&2
+  failures=$((failures + 1))
+fi
+check_command_failure "reject invalid profile run mode" bash "${MAIN_MENU}" run-profile "${profile_path}" unsupported
+rm -f "${profile_path}" "${profile_overlay}" "${invalid_profile}"
+
+invalid_overlay="/tmp/redcap_invalid_active_ues_$$.yml"
+rm -f "${invalid_overlay}"
+check_command_failure "reject empty MMTC_ACTIVE_UES" env MMTC_TOTAL_UES=56 MMTC_ACTIVE_UES= MMTC_OVERLAY_COMPOSE="${invalid_overlay}" bash "${LIB_DIR}/fc_mmtc_smoke_validation.sh"
+check_command_failure "reject malformed MMTC_ACTIVE_UES" env MMTC_TOTAL_UES=56 MMTC_ACTIVE_UES=abc MMTC_OVERLAY_COMPOSE="${invalid_overlay}" bash "${LIB_DIR}/fc_mmtc_smoke_validation.sh"
+check_command_failure "reject UE0" env MMTC_TOTAL_UES=56 MMTC_ACTIVE_UES=0 MMTC_OVERLAY_COMPOSE="${invalid_overlay}" bash "${LIB_DIR}/fc_mmtc_smoke_validation.sh"
+check_command_failure "reject negative UE" env MMTC_TOTAL_UES=56 MMTC_ACTIVE_UES=-1 MMTC_OVERLAY_COMPOSE="${invalid_overlay}" bash "${LIB_DIR}/fc_mmtc_smoke_validation.sh"
+check_command_failure "reject duplicate UE" env MMTC_TOTAL_UES=56 MMTC_ACTIVE_UES=1,1 MMTC_OVERLAY_COMPOSE="${invalid_overlay}" bash "${LIB_DIR}/fc_mmtc_smoke_validation.sh"
+check_command_failure "reject UE57" env MMTC_TOTAL_UES=56 MMTC_ACTIVE_UES=57 MMTC_OVERLAY_COMPOSE="${invalid_overlay}" bash "${LIB_DIR}/fc_mmtc_smoke_validation.sh"
+if [ -e "${invalid_overlay}" ]; then
+  echo "[FAIL] invalid active UE input created a runtime overlay" >&2
+  failures=$((failures + 1))
+  rm -f "${invalid_overlay}"
+else
+  echo "[OK] invalid active UE input has no generated-file side effect"
+fi
+
+mkdir -p "${REPO_ROOT}/test_log/runtime_configs"
+valid_overlay=$(mktemp "${REPO_ROOT}/test_log/runtime_configs/validate_active_ues.XXXXXX.yml")
+check_command_success "accept UE1 and UE56" env MMTC_TOTAL_UES=56 MMTC_ACTIVE_UES="1, 56" MMTC_SMOKE_PREPARE_ONLY=1 MMTC_OVERLAY_COMPOSE="${valid_overlay}" bash "${LIB_DIR}/fc_mmtc_smoke_validation.sh"
+check_file "${valid_overlay}" "validated UE1/UE56 prepare-only overlay"
+rm -f "${valid_overlay}"
 
 if [ "${failures}" -ne 0 ]; then
   echo "[FAIL] RedCap interface validation found ${failures} issue(s)" >&2

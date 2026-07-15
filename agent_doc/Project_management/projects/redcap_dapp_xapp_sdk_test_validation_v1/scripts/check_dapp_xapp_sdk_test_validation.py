@@ -4,11 +4,15 @@
 from __future__ import annotations
 
 import re
+import os
+import subprocess
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[5]
 PROJECT = ROOT / "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1"
+OVERLAY_GENERATOR = ROOT / "redcap_interface/bash_library/generate_mmtc_overlay.sh"
+STATIC_OVERLAY = ROOT / "test_log/runtime_configs" / f"dapp_xapp_static_{os.getpid()}_overlay.yml"
 
 
 def read(path: str) -> str:
@@ -38,12 +42,26 @@ def reject_text(path: str, needle: str, errors: list[str]) -> None:
     require(needle not in read(path), f"{path} has stale text: {needle}", errors)
 
 
+def generate_static_overlay(errors: list[str]) -> None:
+    if not OVERLAY_GENERATOR.exists():
+        errors.append(f"missing overlay generator: {OVERLAY_GENERATOR.relative_to(ROOT)}")
+        return
+    result = subprocess.run(
+        [str(OVERLAY_GENERATOR), "56", str(STATIC_OVERLAY)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    require(result.returncode == 0,
+            f"static 56 UE overlay generation failed: {result.stderr.strip() or result.stdout.strip()}", errors)
+
+
 def check_reference_paths(errors: list[str]) -> None:
     for path in [
-        "dev_refer/dapp_dev_need/libe3",
-        "dev_refer/dapp_dev_need/dApp-library",
-        "dev_refer/dapp_dev_need/dApp-openairinterface5g",
-        "dev_refer/xapp_dev_need",
+        "Apps_dev/dapp_dev_need/libe3",
+        "Apps_dev/dapp_dev_need/dApp-library",
+        "Apps_dev/dapp_dev_need/dApp-openairinterface5g",
+        "Apps_dev/xapp_dev_need",
         "openair2/E2AP/flexric",
     ]:
         require_path(path, errors)
@@ -93,20 +111,20 @@ def check_sdk_symbols(errors: list[str]) -> None:
 
 def check_swig_evidence(errors: list[str]) -> list[str]:
     for path in [
-        "dev_refer/dapp_dev_need/libe3/swig/libe3.i",
-        "dev_refer/dapp_dev_need/libe3/cmake/libe3SWIG.cmake",
-        "dev_refer/dapp_dev_need/dApp-library/libiqsaver/swig/iqsaver.i",
-        "dev_refer/dapp_dev_need/dApp-library/libiqsaver/CMakeLists.txt",
+        "Apps_dev/dapp_dev_need/libe3/swig/libe3.i",
+        "Apps_dev/dapp_dev_need/libe3/cmake/libe3SWIG.cmake",
+        "Apps_dev/dapp_dev_need/dApp-library/libiqsaver/swig/iqsaver.i",
+        "Apps_dev/dapp_dev_need/dApp-library/libiqsaver/CMakeLists.txt",
     ]:
         require_path(path, errors)
 
-    require_text("dev_refer/dapp_dev_need/libe3/cmake/libe3SWIG.cmake", "LIBE3_ENABLE_SWIG", errors)
-    require_text("dev_refer/dapp_dev_need/dApp-library/libiqsaver/CMakeLists.txt", "LIBIQSAVER_ENABLE_SWIG", errors)
+    require_text("Apps_dev/dapp_dev_need/libe3/cmake/libe3SWIG.cmake", "LIBE3_ENABLE_SWIG", errors)
+    require_text("Apps_dev/dapp_dev_need/dApp-library/libiqsaver/CMakeLists.txt", "LIBIQSAVER_ENABLE_SWIG", errors)
 
     generated = [
-        "dev_refer/dapp_dev_need/libe3/build/swig/libe3py.py",
-        "dev_refer/dapp_dev_need/libe3/build/swig/_libe3py.so",
-        "dev_refer/dapp_dev_need/dApp-library/build/libiqsaver/swig/iqsaver_native.py",
+        "Apps_dev/dapp_dev_need/libe3/build/swig/libe3py.py",
+        "Apps_dev/dapp_dev_need/libe3/build/swig/_libe3py.so",
+        "Apps_dev/dapp_dev_need/dApp-library/build/libiqsaver/swig/iqsaver_native.py",
     ]
     return [path for path in generated if (ROOT / path).exists()]
 
@@ -138,13 +156,16 @@ def check_docs(errors: list[str]) -> None:
         "openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_uci.c",
         "openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_primitives.c",
         "openair2/LAYER2/NR_MAC_gNB/nr_radio_config.c",
-        "ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.mmtc.yml",
-        "ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/scripts/generate_mmtc_overlay.sh",
+        "redcap_interface/bash_library/generate_mmtc_overlay.sh",
+        "redcap_interface/bash_library/ue_mmtc_entrypoint.sh",
+        "redcap_interface/control/redcap_control_contract.yaml",
+        "redcap_interface/control/redcap_policy_case_a.yaml",
+        "redcap_interface/control/redcap_policy_case_b.yaml",
         "redcap_interface/generate_mmtc_cn_db_overlay.sh",
         "redcap_interface/bash_library/fc_generate_mmtc_cn_db_overlay.sh",
-        "dev_refer/dapp_dev_need/E3Controller/README.md",
-        "dev_refer/dapp_dev_need/E3Controller/src/e3sm/iq_pipeline.h",
-        "dev_refer/dapp_dev_need/E3Controller/src/e3sm/slot_iq_pipeline.h",
+        "Apps_dev/dapp_dev_need/E3Controller/README.md",
+        "Apps_dev/dapp_dev_need/E3Controller/src/e3sm/iq_pipeline.h",
+        "Apps_dev/dapp_dev_need/E3Controller/src/e3sm/slot_iq_pipeline.h",
     ]:
         require_path(path, errors)
 
@@ -194,13 +215,13 @@ def check_docs(errors: list[str]) -> None:
                 f"{doc} missing Gate C configure evidence command/blocker", errors)
         require("gate_d_rfsim_marker_check.py" in text and "OAI_REDCAP_DAPP_GATE_D_MARKER" in text,
                 f"{doc} missing Gate D marker checker/env usage", errors)
-        require("gate_e_64ue_stage_check.py" in text and "generate_mmtc_overlay.sh 64" in text,
-                f"{doc} missing Gate E 64 UE preflight command", errors)
+        require("gate_e_64ue_stage_check.py" in text and "generate_mmtc_overlay.sh 56" in text,
+                f"{doc} missing Gate E 56 UE preflight command", errors)
         require("--summary-log" in text and "mmtc_stage_scan" in text,
                 f"{doc} missing Gate E runtime summary-log command/evidence", errors)
-        require("generate_mmtc_cn_db_overlay.sh 64" in text and "oai_db_mmtc_64.sql" in text,
+        require("generate_mmtc_cn_db_overlay.sh 56" in text and "oai_db_mmtc_56.sql" in text,
                 f"{doc} missing Gate E CN DB overlay command/evidence", errors)
-        require("/home/tonywang/OAI/oai-cn5g/docker-compose.yaml" in text and "oai-amf" in text,
+        require("oai-cn5g/docker-compose.yaml" in text and "oai-amf" in text,
                 f"{doc} missing Gate E oai-cn5g AMF source evidence", errors)
         require("Gate E-Core" in text and ("Gate E-Stretch" in text or "64 UE" in text),
                 f"{doc} missing Gate E two-tier Core/Stretch boundary", errors)
@@ -209,21 +230,19 @@ def check_docs(errors: list[str]) -> None:
         require("[RedCap RA][gNB DCI BWP]" in text and "Docker image rebuild" in text,
                 f"{doc} missing Gate E DCI BWP source-build/runtime boundary evidence", errors)
 
-    for path in [
-        "README.md",
-        "README.en.md",
-        "README.zh-TW.md",
-    ]:
+    for path in ["README.en.md", "README.zh-TW.md"]:
         text = read(path)
         require("redcap_dapp_xapp_sdk_test_validation_v1/Doc/README" in text,
                 f"{path} missing dApp/xApp SDK Doc README route", errors)
+
+    root_readme = read("README.md")
+    require("README.en.md" in root_readme and "README.zh-TW.md" in root_readme,
+            "README.md missing English/Traditional Chinese selector routes", errors)
 
     require("gate_e_core56_manual_reproduction.en.md" in read("README.en.md"),
             "README.en.md missing Gate E-Core manual reproduction route", errors)
     require("gate_e_core56_manual_reproduction.zh-TW.md" in read("README.zh-TW.md"),
             "README.zh-TW.md missing Gate E-Core manual reproduction route", errors)
-    require("sdk_development_guide.en.md" in read("README.md") and "sdk_development_guide.zh-TW.md" in read("README.md"),
-            "README.md missing SDK development guide routes", errors)
     require("sdk_development_guide.en.md" in read("README.en.md"),
             "README.en.md missing SDK development guide route", errors)
     require("sdk_development_guide.zh-TW.md" in read("README.zh-TW.md"),
@@ -364,18 +383,18 @@ def check_docs(errors: list[str]) -> None:
             "mMTC smoke wrapper missing dApp RA retry-priority log marker", errors)
     require("redcap_dapp_sdk.c" in read("CMakeLists.txt"),
             "CMakeLists.txt missing redcap_dapp_sdk.c in build source list", errors)
-    require("OAI_REDCAP_DAPP_GATE_D_MARKER" in read("ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.mmtc.yml"),
-            "docker-compose.mmtc.yml missing Gate D marker env passthrough", errors)
-    mmtc_overlay = read("ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.mmtc.yml")
+    mmtc_overlay = STATIC_OVERLAY.read_text(encoding="utf-8") if STATIC_OVERLAY.exists() else ""
+    require("OAI_REDCAP_DAPP_GATE_D_MARKER" in mmtc_overlay,
+            "generated mMTC overlay missing Gate D marker env passthrough", errors)
     require("OAI_REDCAP_DAPP_RA_RETRY_PRIORITY" in mmtc_overlay,
-            "docker-compose.mmtc.yml missing dApp RA retry-priority env passthrough", errors)
+            "generated mMTC overlay missing dApp RA retry-priority env passthrough", errors)
     require("oai-nr-ue56:" in mmtc_overlay and 'MMTC_UE_INDEX: "56"' in mmtc_overlay,
-            "docker-compose.mmtc.yml missing generated UE56 service/index", errors)
+            "generated mMTC overlay missing UE56 service/index", errors)
     require("nrue56.uicc.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro" in mmtc_overlay,
-            "docker-compose.mmtc.yml missing UE56 RedCap config mount", errors)
-    require("OAI_REDCAP_DAPP_GATE_D_MARKER" in read("ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/scripts/generate_mmtc_overlay.sh"),
+            "generated mMTC overlay missing UE56 RedCap config mount", errors)
+    require("OAI_REDCAP_DAPP_GATE_D_MARKER" in OVERLAY_GENERATOR.read_text(encoding="utf-8"),
             "generate_mmtc_overlay.sh missing Gate D marker env passthrough", errors)
-    overlay_generator = read("ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/scripts/generate_mmtc_overlay.sh")
+    overlay_generator = OVERLAY_GENERATOR.read_text(encoding="utf-8")
     require("OAI_REDCAP_DAPP_RA_RETRY_PRIORITY" in overlay_generator,
             "generate_mmtc_overlay.sh missing dApp RA retry-priority env passthrough", errors)
     require("TOTAL_UES" in overlay_generator and "nrue${idx}.uicc.yaml" in overlay_generator,
@@ -383,26 +402,28 @@ def check_docs(errors: list[str]) -> None:
     require(overlay_generator.count("${MMTC_UE_EXTRA_OPTIONS:-}") == 2,
             "generate_mmtc_overlay.sh must preserve the UE extra-options hook in both generation branches", errors)
     require(mmtc_overlay.count("${MMTC_UE_EXTRA_OPTIONS:-}") == mmtc_overlay.count("MMTC_UE_INDEX:"),
-            "docker-compose.mmtc.yml must preserve the UE extra-options hook for every generated UE", errors)
+            "generated mMTC overlay must preserve the UE extra-options hook for every generated UE", errors)
     cn_db_generator = read("redcap_interface/bash_library/fc_generate_mmtc_cn_db_overlay.sh")
     require("AuthenticationSubscription" in cn_db_generator and "SessionManagementSubscriptionData" in cn_db_generator,
             "mMTC CN DB generator missing subscription rows", errors)
-    require("CN_COMPOSE=${MMTC_CN_COMPOSE:-/home/tonywang/OAI/oai-cn5g/docker-compose.yaml}" in smoke_runner,
+    require("CN_COMPOSE=${MMTC_CN_COMPOSE:-${REPO_ROOT}/oai-cn5g/docker-compose.yaml}" in smoke_runner,
             "mMTC smoke runner missing oai-cn5g CN compose default", errors)
+    require("MMTC_ACTIVE_UES" in smoke_runner and "MMTC_SAMPLE_UES" not in smoke_runner,
+            "mMTC smoke runner missing MMTC_ACTIVE_UES migration", errors)
     require("5g_rfsimulator_flexric_redcap/docker-compose.yml" in smoke_runner
-            and "5g_rfsimulator_flexric_redcap/docker-compose.mmtc.yml" in smoke_runner,
-            "mMTC smoke runner missing RFsim FlexRIC RedCap compose paths", errors)
-    cn_compose = Path("/home/tonywang/OAI/oai-cn5g/docker-compose.yaml")
-    require(cn_compose.exists(), "missing CN compose: /home/tonywang/OAI/oai-cn5g/docker-compose.yaml", errors)
+            and "MMTC_OVERLAY_COMPOSE" in smoke_runner,
+            "mMTC smoke runner missing base compose or isolated overlay support", errors)
+    cn_compose = ROOT / "oai-cn5g/docker-compose.yaml"
+    require(cn_compose.exists(), "missing CN compose: oai-cn5g/docker-compose.yaml", errors)
     if cn_compose.exists():
         cn_compose_text = cn_compose.read_text(encoding="utf-8")
         require("oai-amf:" in cn_compose_text and 'container_name: "oai-amf"' in cn_compose_text,
                 "oai-cn5g compose missing oai-amf service", errors)
         require("mysql:" in cn_compose_text and "oai-upf:" in cn_compose_text,
                 "oai-cn5g compose missing mysql/oai-upf services", errors)
-    require_text("dev_refer/dapp_dev_need/E3Controller/README.md", "--num-prbs", errors)
-    require_text("dev_refer/dapp_dev_need/E3Controller/src/e3sm/iq_pipeline.h", "DecompressedSample", errors)
-    require_text("dev_refer/dapp_dev_need/E3Controller/src/e3sm/slot_iq_pipeline.h", "SlotSample", errors)
+    require_text("Apps_dev/dapp_dev_need/E3Controller/README.md", "--num-prbs", errors)
+    require_text("Apps_dev/dapp_dev_need/E3Controller/src/e3sm/iq_pipeline.h", "DecompressedSample", errors)
+    require_text("Apps_dev/dapp_dev_need/E3Controller/src/e3sm/slot_iq_pipeline.h", "SlotSample", errors)
 
 
 def check_adaptive_drx_docs(errors: list[str]) -> None:
@@ -536,6 +557,7 @@ def check_adaptive_drx_docs(errors: list[str]) -> None:
 
 def main() -> int:
     errors: list[str] = []
+    generate_static_overlay(errors)
     check_reference_paths(errors)
     check_sdk_symbols(errors)
     generated_swig = check_swig_evidence(errors)

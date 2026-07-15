@@ -1,17 +1,21 @@
 # RedCap dApp/xApp SDK Test Validation
 
+[English](./README.en.md) | [繁體中文](./README.zh-TW.md)
+
 ## Scope
 
 - This page explains how to test the RedCap dApp/xApp SDK slice.
-- Primary references are under `dev_refer/`.
+- Primary references are under `Apps_dev/`.
 - Static checks do not claim 64 UE / staged 5 MHz-to-20 MHz BWP runtime PASS.
 
 ## SDK routes
 
 | Need | File |
 |---|---|
+| Beginner build and 29 UE reproduction | [redcap_begin_from_zero.en.md](../../../../../redcap_doc/manuals/install/redcap_begin_from_zero.en.md) |
 | Scenario, API behavior, developer notes, and current evidence | [README.en.md](./README.en.md) |
 | SDK development workflow | [sdk_development_guide.en.md](./sdk_development_guide.en.md) |
+| Canonical RedCap L1-L3 function lookup | [redcap_l1_l3_function_lookup.md](../../../../../redcap_doc/specs/function_reference/redcap_l1_l3_function_lookup.md) |
 | 36 UE zero-gap pressure gate | `MMTC_STAGE_PROFILE=core36_pressure` with `gate_e_64ue_stage_check.py --stage core36-pressure` |
 | 56 UE Gate E-Core manual reproduction | [gate_e_core56_manual_reproduction.en.md](./gate_e_core56_manual_reproduction.en.md) |
 | Final Gate E-Core accepted report | [gate_e_core56_ab_latency_2026-07-09.md](../report/gate_e_core56_ab_latency_2026-07-09.md) |
@@ -21,19 +25,25 @@
 | Adaptive C-DRX source Trace Code Guide | [adaptive_drx_trace_code_guide.en.md](./adaptive_drx_trace_code_guide.en.md) |
 | Adaptive C-DRX evidence Gate report | [adaptive_drx_ab_gate_2026-07-11.en.md](../report/adaptive_drx_ab_gate_2026-07-11.en.md) |
 
+Use the documents in three layers:
+
+| Layer | Document |
+|---|---|
+| Reference | [Canonical L1-L3 lookup](../../../../../redcap_doc/specs/function_reference/redcap_l1_l3_function_lookup.md) and API cards in the SDK guide |
+| Guide | [SDK development guide](./sdk_development_guide.en.md) |
+| Example | [29 UE beginner tutorial](../../../../../redcap_doc/manuals/install/redcap_begin_from_zero.en.md) and [56 UE experiment tutorial](./gate_e_core56_manual_reproduction.en.md) |
+
+Evidence labels are independent: `Public`, `Integrated`, `Runtime-evidenced`, and `Dormant/blocked`. A missing production caller, apply point, retained marker, or standards mapping is `[Needs Verification]`.
+
 ## API / config behavior
 
 | API | Language | Purpose | Current evidence |
 |---|---|---|---|
-| `redcap_xapp_make_priority_hint` | C | Build one UE priority hint from UL buffer and weights | syntax check target |
-| `redcap_xapp_select_top_priority_hint` | C | Select the highest-priority UE; ties use lower RNTI | syntax check target |
-| `make_priority_hint` | Python | Python equivalent of the C priority hint builder | self-test |
-| `select_top_priority_hint` | Python | Python equivalent of top-UE selection | self-test |
-| `redcap_dapp_guard_prb_allocation` | C | Validate a 5 MHz BWP profile, I/Q presence, and PUCCH/PUSCH ratio intent | syntax check target |
-| `redcap_dapp_guard_prb_allocation` | Python | Python equivalent of the dApp allocation guard | self-test |
-| `redcap_dapp_access_pressure_policy` | C | Convert RA/PUCCH collision proxy counters into bounded PUCCH/PUSCH ratio intent, then call the dApp allocation guard | syntax check target |
-| `redcap_dapp_access_pressure_policy` | Python | Python equivalent of the access-pressure policy | self-test |
-| `redcap_dapp_select_ra_pressure_priority` | C / Python | Select the UE with the highest RA retry count before tie-breaking by pressure and priority | self-test |
+| `redcap_xapp_make_priority_hint` | C / Python | Build one UE priority hint from UL buffer and weights | `Public`; `Dormant/blocked` without a production control caller |
+| `redcap_xapp_select_top_priority_hint` | C / Python | Select the highest-priority UE; ties use lower RNTI | `Public`; self-test only; `Dormant/blocked` |
+| `redcap_dapp_guard_prb_allocation` | C / Python | Validate BWP profile, I/Q presence, and PUCCH/PUSCH ratio intent | `Public`, `Integrated`, `Runtime-evidenced`; current scheduler hooks observe/log but do not prove allocation mutation |
+| `redcap_dapp_access_pressure_policy` | C / Python | Convert access-pressure counters into bounded PUCCH/PUSCH ratio intent | `Public`; self-test and experiment evidence; production apply path `[Needs Verification]` |
+| `redcap_dapp_select_ra_pressure_priority` | C / Python | Select the UE with the highest RA retry count before tie-breaking by pressure and priority | `Public`; Python experiment workflow integrated; C production caller `[Needs Verification]` |
 
 Key fields:
 
@@ -83,7 +93,7 @@ Run Gate C E3 loopback dependency/runtime check:
 python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/gate_c_e3_loopback_check.py
 ```
 
-Gate C returns `blocked` when `dev_refer/dapp_dev_need/libe3` has no existing loopback binary or required local build dependencies are absent.
+Gate C returns `blocked` when `Apps_dev/dapp_dev_need/libe3` has no existing loopback binary or required local build dependencies are absent.
 
 Capture Gate C configure evidence:
 
@@ -96,7 +106,7 @@ Current configure evidence is saved at `test_log/compiler_logs/gate_c_libe3_conf
 If network FetchContent is allowed, use a clean build directory:
 
 ```bash
-python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/gate_c_e3_loopback_check.py --try-configure --allow-fetch --build-dir dev_refer/dapp_dev_need/libe3/build/redcap-gate-c-fetch
+python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/gate_c_e3_loopback_check.py --try-configure --allow-fetch --build-dir Apps_dev/dapp_dev_need/libe3/build/redcap-gate-c-fetch
 ```
 
 Current fetch evidence is saved at `test_log/compiler_logs/gate_c_libe3_configure_fetch_2026-07-05_18-46-35.log`; sandbox DNS could not resolve `github.com`, and escalation was rejected because workspace credits are unavailable.
@@ -104,7 +114,7 @@ Current fetch evidence is saved at `test_log/compiler_logs/gate_c_libe3_configur
 Run Gate C with the project-local expected shim:
 
 ```bash
-python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/gate_c_e3_loopback_check.py --try-configure --use-local-expected-stub --try-build --build-dir dev_refer/dapp_dev_need/libe3/build/redcap-gate-c-local-expected
+python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/gate_c_e3_loopback_check.py --try-configure --use-local-expected-stub --try-build --build-dir Apps_dev/dapp_dev_need/libe3/build/redcap-gate-c-local-expected
 ```
 
 Current Gate C runtime evidence:
@@ -205,24 +215,26 @@ python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_valid
   --dapp-gnb-log test_log/compiler_logs/mmtc_smoke_<dapp>_gnb.log
 ```
 
-Prepare Gate E 64 UE preflight:
+Prepare the supported Gate E 56 UE preflight:
 
 ```bash
-bash ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/scripts/generate_mmtc_overlay.sh 64
-bash redcap_interface/generate_mmtc_cn_db_overlay.sh 64
+RUN_ID=gate_e_56ue
+OVERLAY="$PWD/test_log/runtime_configs/${RUN_ID}_overlay.yml"
+bash redcap_interface/bash_library/generate_mmtc_overlay.sh 56 "$OVERLAY"
+bash redcap_interface/generate_mmtc_cn_db_overlay.sh 56
 python3 -B agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/gate_e_64ue_stage_check.py
 ```
 
 Current Gate E preflight evidence:
 
-- RFsim overlay: `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.mmtc.yml` now exposes UE1..UE64.
+- RFsim overlay: a run-specific file under `test_log/runtime_configs/` exposes UE1..UE56.
 - RFsim base compose: `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.yml`.
-- CN/AMF source: `redcap_interface/redcap_mmtc_smoke_validation.sh` defaults `CN_COMPOSE` to `/home/tonywang/OAI/oai-cn5g/docker-compose.yaml`, whose service list includes `oai-amf`, `mysql`, `oai-smf`, and `oai-upf`.
-- CN DB overlay: `test_log/runtime_configs/oai_db_mmtc_64.sql` and `test_log/runtime_configs/oai-cn5g_mmtc_64.override.yml`.
-- Config merge evidence: `docker compose -f /home/tonywang/OAI/oai-cn5g/docker-compose.yaml -f test_log/runtime_configs/oai-cn5g_mmtc_64.override.yml config --services` lists `oai-amf`; `docker compose -f docker-compose.yml -f docker-compose.mmtc.yml config --services` under the RFsim RedCap directory lists 64 `oai-nr-ue*` services.
+- CN/AMF source: `redcap_interface/redcap_mmtc_smoke_validation.sh` defaults `CN_COMPOSE` to `oai-cn5g/docker-compose.yaml`, whose service list includes `oai-amf`, `mysql`, `oai-smf`, and `oai-upf`.
+- CN DB overlay: `test_log/runtime_configs/oai_db_mmtc_56.sql` and `test_log/runtime_configs/oai-cn5g_mmtc_56.override.yml`.
+- Config merge evidence: `docker compose -f oai-cn5g/docker-compose.yaml -f test_log/runtime_configs/oai-cn5g_mmtc_56.override.yml config --services` lists `oai-amf`; `docker compose -f ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.yml -f "$OVERLAY" config --services` lists 56 `oai-nr-ue*` services.
 - First-stage profile: `gnb.sa.band78.fr1.106PRB.usrpb210.redcap.5mhz-bwp.yaml` keeps the RF carrier at 106 PRBs and sets the RedCap active/initial BWP to 12 PRBs.
 - Later-stage proxy profile: `gnb.sa.band78.fr1.51PRB.usrpb210.redcap.yaml` provides a 51 PRB 20 MHz proxy `[Needs Verification]`.
-- Checker result: `gate_e_64ue_stage_check.py` reports `[PASS] Gate E static preflight is ready for 64 UE staged RFsim`.
+- Checker result: `gate_e_64ue_stage_check.py` reports `[PASS] Gate E static preflight is ready for two-tier RFsim validation`.
 - Runtime evidence checker shape:
 
 ```bash
@@ -295,7 +307,7 @@ Gate E-Core 56 UE A/B runtime on 2026-07-09:
 
 ## Step-by-step recap
 
-1. Confirm local `dev_refer/` references exist.
+1. Confirm local `Apps_dev/` references exist.
 2. Confirm xApp priority hint APIs exist in C and Python.
 3. Confirm dApp PRB allocation APIs exist in C and Python.
 4. Confirm SWIG definition files exist for `libe3` and I/Q saver.
@@ -318,7 +330,7 @@ Gate E-Core 56 UE A/B runtime on 2026-07-09:
 
 ## Visualization
 
-- Use `dev_refer/dapp_dev_need/dApp-library/examples/spectrum_dapp.py` as the reference for visualization mode.
+- Use `Apps_dev/dapp_dev_need/dApp-library/examples/spectrum_dapp.py` as the reference for visualization mode.
 - Relevant options from that reference include:
   - `--demo-gui`
   - `--iq-plotter-gui`
@@ -335,16 +347,16 @@ Gate E-Core 56 UE A/B runtime on 2026-07-09:
 - `[RedCap RA][gNB DL TDA]`
 - `[RedCap dApp Gate D][gNB MAC UL] gNB-side apply marker`
 - `[RedCap dApp Gate D][gNB MAC PUCCH] gNB-side PUCCH marker`
-- Gate C source path: `dev_refer/dapp_dev_need/libe3/tests/integration/test_role_pair_posix.cpp`
+- Gate C source path: `Apps_dev/dapp_dev_need/libe3/tests/integration/test_role_pair_posix.cpp`
 - Gate D source path: `openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_ulsch.c`
 - Gate D PUCCH source path: `openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_uci.c`
 - Gate D 5 MHz BWP profile: `ci-scripts/conf_files/gnb.sa.band78.fr1.106PRB.usrpb210.redcap.5mhz-bwp.yaml`
-- Gate D runtime env passthrough: `OAI_REDCAP_DAPP_GATE_D_MARKER` in `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.mmtc.yml`
+- Gate D runtime env passthrough: `OAI_REDCAP_DAPP_GATE_D_MARKER` in the overlay generated by `redcap_interface/bash_library/generate_mmtc_overlay.sh`
 - Gate E preflight checker: `agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/gate_e_64ue_stage_check.py`
 - Gate E runtime summary: `test_log/compiler_logs/mmtc_stage_scan_<timestamp>_summary.log`
-- Gate E 64 UE overlay: `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.mmtc.yml`
-- Gate E CN DB overlay: `test_log/runtime_configs/oai_db_mmtc_64.sql`
-- Gate D I/Q reference: `dev_refer/dapp_dev_need/E3Controller/src/e3sm/iq_pipeline.h` and `slot_iq_pipeline.h`
+- Gate E supported 56 UE overlay: run-specific `test_log/runtime_configs/<run-id>_overlay.yml`
+- Gate E CN DB overlay: `test_log/runtime_configs/oai_db_mmtc_56.sql`
+- Gate D I/Q reference: `Apps_dev/dapp_dev_need/E3Controller/src/e3sm/iq_pipeline.h` and `slot_iq_pipeline.h`
 - PDCCH command path: `config_uldci()` followed by `fill_dci_pdu_rel15()` in the ULSCH path `[Needs Verification: TS 38.212 Section 7.3.1.1 / TS 38.214 Section 6.1]`
 
 ## Limitations

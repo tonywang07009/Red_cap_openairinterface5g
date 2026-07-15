@@ -1,15 +1,26 @@
-# RedCap Begin From Zero
+# RedCap Beginner Build and 29 UE Reproduction
 
 [English](./redcap_begin_from_zero.en.md) | [繁體中文](./redcap_begin_from_zero.zh-TW.md)
 
 ## Goal
 
+- Audience: a newcomer who has not yet worked with the dApp/xApp control path.
 - Start from the repository root.
 - Validate the public RedCap operator interface.
 - Build the local gNB and NR UE binaries.
 - Rebuild the local RFsim Docker images.
 - Run a 29 UE RedCap/mMTC RFsim validation.
 - Judge the run by summary markers, not by raw log length.
+- Stop at the first failed layer; this tutorial does not claim scheduler or dApp/xApp effectiveness.
+
+## Prerequisites
+
+| Requirement | Check | Stop condition |
+|---|---|---|
+| Ubuntu host supported by the OAI build | `lsb_release -ds` | Unsupported host or missing package-manager access |
+| Docker and Compose | `docker ps` and `docker compose version` | Either command fails |
+| Repository-owned CN5G | `test -f oai-cn5g/docker-compose.yaml` | Compose file is missing |
+| Free log space | `df -h test_log` | The filesystem cannot retain build and runtime logs |
 
 ## 1. Enter The Repository
 
@@ -39,13 +50,13 @@ docker ps
 docker compose version
 ```
 
-Check the local CN5G compose file used by the RedCap RFsim scripts:
+Check the repository-owned CN5G compose file used by the RedCap RFsim scripts:
 
 ```bash
-ls /home/tonywang/OAI/oai-cn5g/docker-compose.yaml
+ls oai-cn5g/docker-compose.yaml
 ```
 
-If the CN5G file is missing, stop and restore the local CN5G workspace before running the 29 UE validation.
+If the CN5G file is missing, stop and restore the repository-owned CN5G runtime before running the 29 UE validation.
 
 ## 3. Validate The RedCap Interface
 
@@ -169,12 +180,26 @@ gnb_restart=0
 failures=0
 ```
 
-## 9. Next Step
+Retain both the summary and its timestamp-matched stage log under `test_log/compiler_logs/`. Attach, PDU, TUN, and ping counts are separate acceptance boundaries; a partial count is not a PASS.
+
+## 9. Route A Failure
+
+| First failed boundary | Inspect next | Do not claim |
+|---|---|---|
+| CN services | CN Compose output and AMF/SMF/UPF logs | RF or RRC failure |
+| RF synchronization or RA | timestamp-matched gNB and UE logs | attach success |
+| RRC attach | gNB/UE RRC markers | PDU or tunnel success |
+| PDU session | SMF/UPF and UE NAS logs | TUN readiness |
+| TUN or forward ping | per-UE tunnel and ping evidence | full 29 UE reproduction |
+
+Input boundaries are enforced before runtime: the UE set must not be empty, indices must be unique, and valid service indices are `1..56`. This tutorial runs the first 29 services; UE `0`, negative indices, duplicates, and UE `57` are invalid.
+
+## 10. Next Step
 
 After the 29 UE path works, use the daily operator menu:
 
 ```bash
-bash redcap_interface/mmtc.menu.bash
+./mmtc.menu.bash
 ```
 
-For rebuilds after changes, use [redcap_rebuild_after_changes.en.md](./redcap_rebuild_after_changes.en.md).
+Continue with the [56 UE experiment-profile and dApp/xApp tutorial](../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/gate_e_core56_manual_reproduction.en.md). For rebuilds after changes, use [redcap_rebuild_after_changes.en.md](./redcap_rebuild_after_changes.en.md).

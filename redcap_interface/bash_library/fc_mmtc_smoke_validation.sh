@@ -2,13 +2,58 @@
 
 set -euo pipefail
 
+show_help()
+{
+  cat <<'EOF'
+RedCap mMTC smoke 驗證
+
+用法：
+  redcap_interface/bash_library/fc_mmtc_smoke_validation.sh [--help]
+
+主要環境變數：
+  MMTC_TOTAL_UES=56          固定的 service 上限；其他值會被拒絕。
+  MMTC_ACTIVE_UES="1"       本次啟動的 UE；可用逗號或空白分隔，範圍 1..56。
+  MMTC_CN_COMPOSE=<path>     覆寫 CN5G Compose；預設使用 repo root/oai-cn5g。
+  MMTC_SMOKE_PREPARE_ONLY=1  只產生並檢查 RFsim overlay，不啟動 Docker。
+
+範例：
+  MMTC_ACTIVE_UES="1" redcap_interface/redcap_mmtc_smoke_validation.sh
+  MMTC_ACTIVE_UES="1,29,56" redcap_interface/redcap_mmtc_smoke_validation.sh
+
+RedCap mMTC smoke validation
+
+Usage:
+  redcap_interface/bash_library/fc_mmtc_smoke_validation.sh [--help]
+
+Primary environment variables:
+  MMTC_TOTAL_UES=56          Fixed service ceiling; other values are rejected.
+  MMTC_ACTIVE_UES="1"       UEs activated for this run; comma/space separated, 1..56.
+  MMTC_CN_COMPOSE=<path>     Override CN5G Compose; defaults to repo root/oai-cn5g.
+  MMTC_SMOKE_PREPARE_ONLY=1  Generate and check the RFsim overlay without Docker startup.
+
+Examples:
+  MMTC_ACTIVE_UES="1" redcap_interface/redcap_mmtc_smoke_validation.sh
+  MMTC_ACTIVE_UES="1,29,56" redcap_interface/redcap_mmtc_smoke_validation.sh
+EOF
+}
+
+case "${1:-}" in
+  "") ;;
+  -h|--help) show_help; exit 0 ;;
+  *)
+    echo "[ERROR] 不支援的參數 / unsupported option: $1" >&2
+    echo "Use --help / 使用 --help 查看說明。" >&2
+    exit 2
+    ;;
+esac
+
 SCRIPT_DIR=$(dirname "$(realpath "$0")")
 INTERFACE_DIR=$(realpath "${SCRIPT_DIR}/..")
 REPO_ROOT=$(realpath "${INTERFACE_DIR}/..")
 TIMESTAMP=$(date +%F_%H-%M-%S)
 
-TOTAL_UES=${MMTC_TOTAL_UES:-64}
-SAMPLE_UES_RAW=${MMTC_SAMPLE_UES:-"29 32 64"}
+TOTAL_UES=${MMTC_TOTAL_UES:-56}
+ACTIVE_UES_RAW=${MMTC_ACTIVE_UES-1}
 EXT_DN_IP=${MMTC_EXT_DN_IP:-}
 LEGACY_EXT_DN_IP=${MMTC_LEGACY_EXT_DN_IP:-12.1.1.1}
 PING_COUNT=${MMTC_PING_COUNT:-10}
@@ -38,7 +83,7 @@ UE_START_BURST_SIZE=${MMTC_UE_START_BURST_SIZE:-8}
 UE_START_BURST_PAUSE=${MMTC_UE_START_BURST_PAUSE:-2}
 UE_START_BURST_THRESHOLD=${MMTC_UE_START_BURST_THRESHOLD:-32}
 IPERF_ENABLE=${MMTC_IPERF_ENABLE:-0}
-IPERF_SAMPLE_UES_RAW=${MMTC_IPERF_SAMPLE_UES:-"${SAMPLE_UES_RAW}"}
+IPERF_SAMPLE_UES_RAW=${MMTC_IPERF_SAMPLE_UES:-"${ACTIVE_UES_RAW}"}
 IPERF_RATE=${MMTC_IPERF_RATE:-30M}
 IPERF_DURATION=${MMTC_IPERF_DURATION:-20}
 IPERF_UDP=${MMTC_IPERF_UDP:-1}
@@ -60,13 +105,13 @@ USE_EXISTING_CN_DB=${MMTC_USE_EXISTING_CN_DB:-1}
 MMTC_PUCCH_COMMON_FALLBACK_BWP0=${MMTC_PUCCH_COMMON_FALLBACK_BWP0:-1}
 export MMTC_PUCCH_COMMON_FALLBACK_BWP0
 
-OVERLAY_GENERATOR="${REPO_ROOT}/ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/scripts/generate_mmtc_overlay.sh"
-CN_DB_GENERATOR="${REPO_ROOT}/redcap_interface/generate_mmtc_cn_db_overlay.sh"
+OVERLAY_GENERATOR="${REPO_ROOT}/redcap_interface/bash_library/generate_mmtc_overlay.sh"
+CN_DB_GENERATOR="${REPO_ROOT}/redcap_interface/bash_library/fc_generate_mmtc_cn_db_overlay.sh"
 BASE_COMPOSE="${REPO_ROOT}/ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.yml"
-OVERLAY_COMPOSE="${REPO_ROOT}/ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.mmtc.yml"
-CN_COMPOSE=${MMTC_CN_COMPOSE:-/home/tonywang/OAI/oai-cn5g/docker-compose.yaml}
+CN_COMPOSE=${MMTC_CN_COMPOSE:-${REPO_ROOT}/oai-cn5g/docker-compose.yaml}
 LOG_DIR="${REPO_ROOT}/test_log/compiler_logs"
 RUNTIME_CONFIG_DIR="${REPO_ROOT}/test_log/runtime_configs"
+OVERLAY_COMPOSE="${MMTC_OVERLAY_COMPOSE:-${RUNTIME_CONFIG_DIR}/mmtc_smoke_${TIMESTAMP}_overlay.yml}"
 FAILURES=0
 GNB_RESTART_COUNT=0
 UE_RUNNING_COUNT=0
@@ -78,9 +123,6 @@ UE_REVERSE_PING_OK_COUNT=0
 UE_IPERF_OK_COUNT=0
 UE_IPERF_RUN_COUNT=0
 RECOVERY_RESTARTED_UES=0
-
-mkdir -p "${LOG_DIR}"
-mkdir -p "${RUNTIME_CONFIG_DIR}"
 
 declare -a PING_UE_INDICES=()
 declare -a PING_CONTAINER_NAMES=()
@@ -626,7 +668,7 @@ EOF
 start_sample_ues()
 {
   local compose_args=("$@")
-  local sample_count=${#SAMPLE_UES[@]}
+  local sample_count=${#ACTIVE_UES[@]}
   local adaptive_burst=0
   local burst_size=0
   local burst_pause=0
@@ -648,30 +690,30 @@ start_sample_ues()
     local batch_epoch_ms
     batch_epoch_ms=$(epoch_ms)
     local -a service_names=()
-    for idx in "${!SAMPLE_UES[@]}"; do
-      local service_name="oai-nr-ue${SAMPLE_UES[$idx]}"
-      UE_LAUNCH_EPOCH_MS["${SAMPLE_UES[$idx]}"]=${batch_epoch_ms}
+    for idx in "${!ACTIVE_UES[@]}"; do
+      local service_name="oai-nr-ue${ACTIVE_UES[$idx]}"
+      UE_LAUNCH_EPOCH_MS["${ACTIVE_UES[$idx]}"]=${batch_epoch_ms}
       service_names+=("${service_name}")
     done
-    echo "[INFO] Starting sampled UE services in one zero-gap compose call: ${service_names[*]}"
+    echo "[INFO] Starting active UE services in one zero-gap compose call: ${service_names[*]}"
     compose_with_images "${compose_args[@]}" up -d "${service_names[@]}"
     return
   fi
 
-  for idx in "${!SAMPLE_UES[@]}"; do
-    local service_name="oai-nr-ue${SAMPLE_UES[$idx]}"
-    echo "[INFO] Starting sampled UE service: ${service_name}"
-    UE_LAUNCH_EPOCH_MS["${SAMPLE_UES[$idx]}"]=$(epoch_ms)
+  for idx in "${!ACTIVE_UES[@]}"; do
+    local service_name="oai-nr-ue${ACTIVE_UES[$idx]}"
+    echo "[INFO] Starting active UE service: ${service_name}"
+    UE_LAUNCH_EPOCH_MS["${ACTIVE_UES[$idx]}"]=$(epoch_ms)
     compose_with_images "${compose_args[@]}" up -d "${service_name}"
 
     if [ "${UE_START_GAP}" -gt 0 ] && [ $((idx + 1)) -lt "${sample_count}" ]; then
-      echo "[INFO] Waiting ${UE_START_GAP}s before launching the next sampled UE"
+      echo "[INFO] Waiting ${UE_START_GAP}s before launching the next active UE"
       sleep "${UE_START_GAP}"
     elif [ "${adaptive_burst}" = "1" ] && \
          [ "${burst_pause}" -gt 0 ] && \
          [ $((idx + 1)) -lt "${sample_count}" ] && \
          [ $(((idx + 1) % burst_size)) -eq 0 ]; then
-      echo "[INFO] Adaptive burst pause ${burst_pause}s after launching $((idx + 1))/${sample_count} sampled UEs"
+      echo "[INFO] Adaptive burst pause ${burst_pause}s after launching $((idx + 1))/${sample_count} active UEs"
       sleep "${burst_pause}"
     fi
   done
@@ -682,7 +724,7 @@ restart_non_running_sample_ues()
   local compose_args=("$@")
   local restarted=0
 
-  for ue_idx in "${SAMPLE_UES[@]}"; do
+  for ue_idx in "${ACTIVE_UES[@]}"; do
     local service_name="oai-nr-ue${ue_idx}"
     local container_name="rfsim5g-oai-nr-ue${ue_idx}_redcap"
     local ue_state
@@ -695,13 +737,13 @@ restart_non_running_sample_ues()
     compose_with_images "${compose_args[@]}" up -d "${service_name}"
     restarted=$((restarted + 1))
 
-    if [ "${RECOVERY_UE_GAP}" -gt 0 ] && [ "${restarted}" -lt "${#SAMPLE_UES[@]}" ]; then
+    if [ "${RECOVERY_UE_GAP}" -gt 0 ] && [ "${restarted}" -lt "${#ACTIVE_UES[@]}" ]; then
       sleep "${RECOVERY_UE_GAP}"
     fi
   done
 
   RECOVERY_RESTARTED_UES=${restarted}
-  echo "[INFO] Recovery restarted ${RECOVERY_RESTARTED_UES} sampled UE container(s)"
+  echo "[INFO] Recovery restarted ${RECOVERY_RESTARTED_UES} active UE container(s)"
 }
 
 extract_tun_ipv4()
@@ -753,19 +795,30 @@ EOF
   [ "${l1}.${l2}.${l3}" = "${r1}.${r2}.${r3}" ]
 }
 
-mapfile -t SAMPLE_UES < <(printf '%s\n' "${SAMPLE_UES_RAW}" | tr ', ' '\n' | sed '/^$/d')
+mapfile -t ACTIVE_UES < <(printf '%s\n' "${ACTIVE_UES_RAW}" | tr ', ' '\n' | sed '/^$/d')
 mapfile -t IPERF_SAMPLE_UES < <(printf '%s\n' "${IPERF_SAMPLE_UES_RAW}" | tr ', ' '\n' | sed '/^$/d')
 
-if [ "${#SAMPLE_UES[@]}" -eq 0 ]; then
-  echo "No sample UEs specified via MMTC_SAMPLE_UES" >&2
-  exit 1
+if ! [[ "${TOTAL_UES}" =~ ^[0-9]+$ ]] || [ "${TOTAL_UES}" -ne 56 ]; then
+  echo "[ERROR] MMTC_TOTAL_UES 必須固定為 56 / must be fixed at 56; got '${TOTAL_UES}'." >&2
+  exit 2
 fi
 
-for ue_idx in "${SAMPLE_UES[@]}"; do
-  if ! [[ "${ue_idx}" =~ ^[0-9]+$ ]]; then
-    echo "Invalid UE index in MMTC_SAMPLE_UES: ${ue_idx}" >&2
-    exit 1
+if [ "${#ACTIVE_UES[@]}" -eq 0 ]; then
+  echo "[ERROR] MMTC_ACTIVE_UES 不可為空 / must not be empty." >&2
+  exit 2
+fi
+
+declare -A active_ue_seen=()
+for ue_idx in "${ACTIVE_UES[@]}"; do
+  if ! [[ "${ue_idx}" =~ ^[0-9]+$ ]] || (( ue_idx < 1 || ue_idx > TOTAL_UES )); then
+    echo "[ERROR] 無效的 UE 編號 / invalid UE index '${ue_idx}'; expected 1..${TOTAL_UES}." >&2
+    exit 2
   fi
+  if [ -n "${active_ue_seen[${ue_idx}]:-}" ]; then
+    echo "[ERROR] UE 編號不可重複 / duplicate UE index: ${ue_idx}." >&2
+    exit 2
+  fi
+  active_ue_seen[${ue_idx}]=1
 done
 
 if [ "${IPERF_SAMPLE_UES_RAW}" != "all" ]; then
@@ -807,6 +860,9 @@ if [ ! -f "${CN_COMPOSE}" ]; then
   exit 1
 fi
 
+mkdir -p "${LOG_DIR}"
+mkdir -p "${RUNTIME_CONFIG_DIR}"
+
 apply_radio_profile_defaults
 
 "${OVERLAY_GENERATOR}" "${TOTAL_UES}" "${OVERLAY_COMPOSE}"
@@ -823,12 +879,12 @@ SERVICE_LIST=(nearRT-RIC oai-gnb)
 if [ "${START_XAPP}" = "1" ]; then
   SERVICE_LIST+=(xapp-rc-moni)
 fi
-for ue_idx in "${SAMPLE_UES[@]}"; do
+for ue_idx in "${ACTIVE_UES[@]}"; do
   SERVICE_LIST+=("oai-nr-ue${ue_idx}")
 done
 
 echo "[INFO] Total UE target      : ${TOTAL_UES}"
-echo "[INFO] Sample UE selection : ${SAMPLE_UES[*]}"
+echo "[INFO] Active UE selection : ${ACTIVE_UES[*]}"
 if [ -n "${EXT_DN_IP}" ]; then
   echo "[INFO] ext-dn IP           : ${EXT_DN_IP} (env override)"
 else
@@ -881,7 +937,7 @@ fi
 
 start_sample_ues -f "${BASE_COMPOSE}" -f "${OVERLAY_COMPOSE}"
 
-echo "[INFO] Waiting ${SLEEP_AFTER_UP}s for sampled UEs to settle"
+echo "[INFO] Waiting ${SLEEP_AFTER_UP}s for active UEs to settle"
 sleep "${SLEEP_AFTER_UP}"
 
 PRECHECK_GNB_RESTART_COUNT=$(docker inspect rfsim5g-oai-gnb_redcap --format '{{.RestartCount}}' 2>/dev/null || echo 0)
@@ -967,7 +1023,7 @@ fi
 
 {
   echo "-- mysql_status ${MYSQL_STATUS}"
-  for ue_idx in "${SAMPLE_UES[@]}"; do
+  for ue_idx in "${ACTIVE_UES[@]}"; do
     imsi=$(printf '001010%09d' "${ue_idx}")
     echo "-- ${imsi}"
     if [ "${MYSQL_STATUS}" = "running" ]; then
@@ -984,7 +1040,7 @@ SELECT ueid FROM SessionManagementSubscriptionData WHERE ueid = '${imsi}';
 
 echo "ue,imsi,launch_epoch_ms,tun_observed_epoch_ms,launch_to_tun_ms,status" > "${LATENCY_CSV}"
 
-for ue_idx in "${SAMPLE_UES[@]}"; do
+for ue_idx in "${ACTIVE_UES[@]}"; do
   imsi=$(printf '001010%09d' "${ue_idx}")
   container_name="rfsim5g-oai-nr-ue${ue_idx}_redcap"
   tun_log="${LOG_DIR}/mmtc_smoke_${TIMESTAMP}_ue${ue_idx}_tun.log"
@@ -1118,7 +1174,7 @@ fi
 
 run_iperf_for_selected_ues
 
-echo "[SUMMARY] sample=${#SAMPLE_UES[@]} running=${UE_RUNNING_COUNT} attach=${UE_ATTACH_COUNT} pdu=${UE_PDU_ACCEPT_COUNT} tun=${UE_TUN_COUNT} forward_ping_ok=${UE_FORWARD_PING_OK_COUNT} reverse_ping_ok=${UE_REVERSE_PING_OK_COUNT} iperf_ul_ok=${UE_IPERF_OK_COUNT} iperf_ul_run=${UE_IPERF_RUN_COUNT} gnb_restart=${GNB_RESTART_COUNT} failures=${FAILURES} mode=${FORWARD_PING_MODE}"
+echo "[SUMMARY] sample=${#ACTIVE_UES[@]} active=${#ACTIVE_UES[@]} running=${UE_RUNNING_COUNT} attach=${UE_ATTACH_COUNT} pdu=${UE_PDU_ACCEPT_COUNT} tun=${UE_TUN_COUNT} forward_ping_ok=${UE_FORWARD_PING_OK_COUNT} reverse_ping_ok=${UE_REVERSE_PING_OK_COUNT} iperf_ul_ok=${UE_IPERF_OK_COUNT} iperf_ul_run=${UE_IPERF_RUN_COUNT} gnb_restart=${GNB_RESTART_COUNT} failures=${FAILURES} mode=${FORWARD_PING_MODE}"
 echo "[INFO] Access latency CSV: ${LATENCY_CSV}"
 echo "[INFO] Smoke validation completed"
 echo "[INFO] Logs stored under ${LOG_DIR}"

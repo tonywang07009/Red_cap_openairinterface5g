@@ -8,9 +8,9 @@
 
 ## Target Inputs
 
-- `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/control/redcap_control_contract.yaml`
-- `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/control/redcap_policy_case_a.yaml`
-- `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/control/redcap_policy_case_b.yaml`
+- `redcap_interface/control/redcap_control_contract.yaml`
+- `redcap_interface/control/redcap_policy_case_a.yaml`
+- `redcap_interface/control/redcap_policy_case_b.yaml`
 - `ci-scripts/redcap_ul_prb_ctrl_xapp.c`
 - `openair2/E2AP/RAN_FUNCTION/O-RAN/ran_func_rc.c`
 

@@ -15,8 +15,9 @@
 - If a file is replaced by a newer final artifact, update the relevant `README.md` and standardize the filename without timestamps.
 
 ## CN5G Rule
-- Do not modify `/home/tonywang/OAI/oai-cn5g` database or compose files from this library automatically.
-- Use `library_cn5g/` as the reusable source of SQL and compose overlay evidence.
+- The active CN5G runtime lives at repository root `oai-cn5g/`.
+- Generate run-specific SQL and Compose overlays under `test_log/runtime_configs/`.
+- Do not create a parallel CN5G asset library; Git history and the migration report retain removed legacy evidence.
 
 ## Naming Rule
 - Use lowercase snake case.

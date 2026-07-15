@@ -8,7 +8,7 @@
 ## 2. Key Runtime Components / Data Structures
 - [gNB runtime config]: `redcap_library/library_gnb_config/gnb_redcap_mmtc_case_b_final.yaml`.
 - [CN runtime config]: `/home/tonywang/OAI/oai-cn5g/conf/config.yaml`.
-- [CN backup]: `redcap_library/library_cn5g/oai_cn5g_static_config_backup_final.yaml`.
+- [CN pre-mitigation baseline]: `register_nf.general=yes`, `enable_smf_selection=yes`, and no explicit UPF `port: 8805`; the removed backup is recoverable from Git history and its comparison is retained in `cn5g_runtime_migration_report.md`.
 - [mMTC script]: `redcap_interface/redcap_mmtc_smoke_validation.sh`.
 - [Docker compose source]: `/home/tonywang/OAI/oai-cn5g/docker-compose.yaml`.
 

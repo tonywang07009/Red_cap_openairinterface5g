@@ -5,9 +5,9 @@
 - [Project Path]: `agent_doc/Project_management/projects/redcap_oran_sdk_workflow_v3/project_plan.md`
 - [Agent Rules]: `agent_doc/Project_management/projects/redcap_oran_sdk_workflow_v3/agent_rules.md`
 - [OpenSpec Change]: `openspec/changes/redcap-oran-sdk-workflow-v3/`
-- [O-RAN References]: `dev_refer/`
+- [O-RAN References]: `Apps_dev/`
 - [Runtime Source of Truth]: `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/`
-- [Control Contract]: `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/control/redcap_control_contract.yaml`
+- [Control Contract]: `redcap_interface/control/redcap_control_contract.yaml`
 - [Created Date]: 2026-07-04
 - [Objective]: Use a pull-based workflow to develop RedCap xApp/dApp/rApp SDK capability without weakening validated Case A protocol behavior.
 
@@ -46,7 +46,7 @@
 |---|---|---|---|---|
 | WF3-G0 | Plan/Design | English plan accepted, SLM removed | OpenSpec + project scaffold | [x] |
 | WF3-G1 | Design | Existing control contract and xApp seed inspected | SDK ownership contract | [x] |
-| WF3-G1A | Design | Updated `dev_refer/` library inspected | Reference map + SDK channel layout | [x] |
+| WF3-G1A | Design | Updated `Apps_dev/` library inspected | Reference map + SDK channel layout | [x] |
 | WF3-G1B | Build | SDK channel layout selected | xApp/dApp/rApp scaffold slice | [x] syntax PASS |
 | WF3-G1C | Build | C SDK scaffold exists | Python SDK pair for xApp/dApp/rApp | [x] self-check PASS |
 | WF3-G2 | Build | First runtime parameter selected and validation marker defined | Minimal SDK runtime path | [~] build/dry-run PASS |

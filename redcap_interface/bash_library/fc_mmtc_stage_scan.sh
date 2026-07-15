@@ -62,6 +62,11 @@ fi
 REBUILD_IMAGES_BEFORE_SCAN=${MMTC_REBUILD_IMAGES_BEFORE_SCAN:-1}
 REBUILD_SCRIPT="${REPO_ROOT}/redcap_interface/redcap_rebuild_local_oai_images.sh"
 
+if ! [[ "${TOTAL_UES_TARGET}" =~ ^[0-9]+$ ]] || (( TOTAL_UES_TARGET < 1 || TOTAL_UES_TARGET > 56 )); then
+  echo "MMTC_TOTAL_UES_TARGET must be in the supported range 1..56, got: ${TOTAL_UES_TARGET}" >&2
+  exit 2
+fi
+
 mkdir -p "${LOG_DIR}"
 
 case "${MMTC_IPERF_PROFILE}" in
@@ -133,14 +138,19 @@ for stage in "${STAGES[@]}"; do
     continue
   fi
 
+  if [ "${stage}" -gt 56 ]; then
+    echo "[WARN] Skip stage ${stage}: exceeds supported 56-UE ceiling" | tee -a "${SUMMARY_LOG}"
+    continue
+  fi
+
   sample_ues=$(seq -s, 1 "${stage}")
   run_log="${LOG_DIR}/mmtc_stage_scan_${TIMESTAMP}_ue${stage}.log"
-  echo "[INFO] Stage ${stage}: MMTC_SAMPLE_UES=1..${stage}" | tee -a "${SUMMARY_LOG}"
+  echo "[INFO] Stage ${stage}: MMTC_ACTIVE_UES=1..${stage}" | tee -a "${SUMMARY_LOG}"
 
   set +e
   env \
-    MMTC_TOTAL_UES="${TOTAL_UES_TARGET}" \
-    MMTC_SAMPLE_UES="${sample_ues}" \
+    MMTC_TOTAL_UES=56 \
+    MMTC_ACTIVE_UES="${sample_ues}" \
     MMTC_START_XAPP="${START_XAPP}" \
     MMTC_FORWARD_PING_MODE="${FORWARD_PING_MODE}" \
     MMTC_RUN_REVERSE_PING="${RUN_REVERSE_PING}" \

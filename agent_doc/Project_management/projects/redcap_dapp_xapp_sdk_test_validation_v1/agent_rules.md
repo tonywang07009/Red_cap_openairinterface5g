@@ -4,7 +4,7 @@
 
 - [MUST] Read this project `project_plan.md`.
 - [MUST] Read `openspec/changes/redcap-dapp-xapp-sdk-test-validation/` before changing tasks.
-- [MUST] Read only targeted `dev_refer/` files needed for the active gate.
+- [MUST] Read only targeted `Apps_dev/` files needed for the active gate.
 - [MUST] Use `symdex` first for OAI/FlexRIC source or symbol lookup.
 - [MUST] Use normal shell commands in stable user-facing docs; keep `rtk` for Codex-side validation notes only.
 
@@ -13,7 +13,7 @@
 - [xApp] computes and emits UE priority hints.
 - [dApp] owns I/Q observation handling, PRB ratio decision, apply/reject, and marker evidence.
 - [KPM] remains observation only; do not describe KPM as a control path.
-- [E3] is the expected dApp channel, using `dev_refer/dapp_dev_need/libe3/` as the reference.
+- [E3] is the expected dApp channel, using `Apps_dev/dapp_dev_need/libe3/` as the reference.
 - [SWIG] must be proven by interface files plus generated/importable module evidence before claiming Python-to-C/C++ binding.
 
 ## Reporting Rules

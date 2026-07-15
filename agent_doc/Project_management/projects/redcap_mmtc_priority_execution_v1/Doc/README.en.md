@@ -10,5 +10,5 @@
 4. Target validation file
 
 ## Current Boundary
-- New operator docs should point to `redcap_interface/mmtc.menu.bash`.
+- New operator docs should point to root `mmtc.menu.bash`.
 - Historical evidence may still reference old compatibility shims.

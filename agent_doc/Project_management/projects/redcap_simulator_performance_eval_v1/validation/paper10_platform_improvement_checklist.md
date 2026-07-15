@@ -18,7 +18,7 @@
 | Improvement Area | File / Flow | Change Effect | PAPER-10 Relevance |
 |---|---|---|---|
 | RedCap BWP PUCCH reservation fit | `openair2/LAYER2/NR_MAC_gNB/nr_radio_config.c`, `get_max_supported_ues_for_pucch()` | avoids legacy full `MAX_MOBILES_PER_GNB` PUCCH reservation abort for smaller RedCap BWPs | improves multi-UE startup stability and RedCap BWP validity |
-| PUCCH BWP0 fallback wiring | `redcap_interface/redcap_mmtc_smoke_validation.sh`; `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/scripts/generate_mmtc_overlay.sh` | makes UE runtime default to stable common-BWP PUCCH behavior for the RFsim scenario | reduces attach/user-plane instability during scaled tests |
+| PUCCH BWP0 fallback wiring | `redcap_interface/redcap_mmtc_smoke_validation.sh`; `redcap_interface/bash_library/generate_mmtc_overlay.sh` | makes UE runtime default to stable common-BWP PUCCH behavior for the RFsim scenario | reduces attach/user-plane instability during scaled tests |
 | RedCap UE capability YAML | `openair3/UICC/nr_redcap_config.c`; runtime YAML `/tmp/nr-ue-mmtc.yaml` | makes RedCap capability, Rx branch count, PUSCH/PDSCH 256QAM flags reproducible per UE | enables controlled UL/DL throughput comparisons |
 | Full-carrier 51PRB profile | `ci-scripts/conf_files/gnb.sa.band78.fr1.51PRB.usrpb210.redcap.yaml`; runtime menu options 13/14 | aligns UE `-r`, RF frequency, SSB, and gNB 51PRB carrier semantics | improves RedCap 20MHz experiment validity |
 | mMTC overlay and CN subscriber generation | `redcap_interface/redcap_mmtc_smoke_validation.sh`; generated CN DB overlays | allows repeatable 29/32/56 UE-scale experiments instead of manual static compose edits | supports PAPER-10 multi-UE stability tests |

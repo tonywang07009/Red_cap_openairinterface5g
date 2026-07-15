@@ -10,14 +10,15 @@
 
 | 目標 | 第一個檔案 |
 |---|---|
-| 從 0 安裝、編譯、執行 | [從零開始安裝](./redcap_doc/manuals/install/redcap_begin_from_zero.zh-TW.md) |
+| 建置並重現 29 UE 入門流程 | [入門建置與 29 UE 重現](./redcap_doc/manuals/install/redcap_begin_from_zero.zh-TW.md) |
+| 設定 56 UE profile 與 dApp/xApp 實驗 | [56 UE 實驗教學](./agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/gate_e_core56_manual_reproduction.zh-TW.md) |
+| 開發或追蹤 dApp/xApp SDK | [SDK 開發指南](./agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/sdk_development_guide.zh-TW.md) |
+| 查詢作用中 RedCap L1-L3 控制路徑 | [L1-L3 函式索引](./redcap_doc/specs/function_reference/redcap_l1_l3_function_lookup.md) |
 | 修改 C、xApp、rApp、dApp 或函式庫後重建 | [修改後重建流程](./redcap_doc/manuals/install/redcap_rebuild_after_changes.zh-TW.md) |
-| 執行新手複現驗證 | [新手複現 Gate](./redcap_doc/manuals/install/redcap_newcomer_runtime_gate.zh-TW.md) |
 | 查看所有安裝文件 | [安裝文件入口](./redcap_doc/manuals/install/README.zh-TW.md) |
 | 執行日常 RedCap/mMTC 操作 | [RedCap 介面文件](./redcap_interface/Doc/README.zh-TW.md) |
 | 閱讀穩定 RedCap 文件 | [RedCap 穩定文件](./redcap_doc/Doc/README.zh-TW.md) |
 | 查找可重用 evidence 與設定 | [RedCap library 文件](./redcap_library/Doc/README.zh-TW.md) |
-| 學習 dApp/xApp SDK 並復現 Gate E-Core | [SDK 場景](./agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/README.zh-TW.md)、[開發指南](./agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/sdk_development_guide.zh-TW.md) 與 [手動復現](./agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/gate_e_core56_manual_reproduction.zh-TW.md) |
 
 ## 快速指令
 
@@ -27,12 +28,23 @@
 # 驗證 RedCap 公開操作介面，不啟動 RFsim。
 bash redcap_interface/validate_redcap_interface.sh
 
-# 開啟日常 RedCap/mMTC 操作選單。
-bash redcap_interface/mmtc.menu.bash
+# 開啟統一 RedCap 操作入口：專案介紹、效能證據、實驗設定與進階 RFsim。
+./mmtc.menu.bash
 
-# 開啟 paper/demo 顯示工具。
-bash redcap_interface/mmtc.display.bash
+# 只顯示已驗證 paper/效能證據，不啟動 Docker。
+./mmtc.menu.bash performance
 ```
+
+## 已驗證實驗設定檔
+
+| 欄位 | 目前契約 | 來源 |
+|---|---|---|
+| Service 上限 | `MMTC_TOTAL_UES=56` | `redcap_interface/bash_library/fc_mmtc_smoke_validation.sh` |
+| Active UE 選擇 | `MMTC_ACTIVE_UES`，不可重複且範圍為 `1..56` | `redcap_interface/bash_library/fc_mmtc_smoke_validation.sh` |
+| 拓樸 | 單一 gNB RFsim | `redcap_interface/Doc/README.zh-TW.md` |
+| 多 gNB 或 CU/DU split | 實驗設定檔 v1 尚未支援 | `redcap_interface/Doc/README.zh-TW.md` |
+
+先前提議的 `MMTC_ACTIVATE_UE` 不是目前腳本契約。
 
 ## 文件路由
 
@@ -44,6 +56,16 @@ bash redcap_interface/mmtc.display.bash
 | 可重用 evidence | final configs、CN5G overlays、runtime probes、accepted reports | [redcap_library/Doc/README.zh-TW.md](./redcap_library/Doc/README.zh-TW.md) |
 | 專案管理 | milestones、validation plans、analysis records | [agent_doc/Project_management/](./agent_doc/Project_management/) |
 | dApp/xApp SDK | SDK 場景、API 行為、開發指南、56 UE Gate E-Core 手動復現 | [agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/README.zh-TW.md](./agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/README.zh-TW.md) |
+
+## 文件與證據分層
+
+| 層級 | 用途 | 路徑 |
+|---|---|---|
+| 參考 | 簽章、呼叫端、防護、套用點與 runtime marker | [L1-L3 函式索引](./redcap_doc/specs/function_reference/redcap_l1_l3_function_lookup.md) |
+| 指南 | 如何擴充與驗證 dApp/xApp SDK | [SDK 開發指南](./agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/sdk_development_guide.zh-TW.md) |
+| 範例 | 可重現的入門與 56 UE 實驗 | [29 UE](./redcap_doc/manuals/install/redcap_begin_from_zero.zh-TW.md) / [56 UE](./agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/gate_e_core56_manual_reproduction.zh-TW.md) |
+
+證據標籤彼此獨立：`Public` 代表已有公開宣告；`Integrated` 必須有正式呼叫端與套用路徑；`Runtime-evidenced` 必須有對應且保留的 marker；`Dormant/blocked` 代表公開或已實作路徑仍缺正式接線或證據。缺少證據或規格對應時標記 `[Needs Verification]`。
 
 ## 編譯與測試
 
@@ -79,8 +101,8 @@ bash redcap_interface/redcap_inspect_gnb_image.sh
 
 | 任務 | 指令或檔案 |
 |---|---|
-| 日常 RFsim 與 mMTC 操作 | `bash redcap_interface/mmtc.menu.bash` |
-| Paper reproduction 與 display panels | `bash redcap_interface/mmtc.display.bash` |
+| 日常 RFsim 與 mMTC 操作 | `./mmtc.menu.bash` |
+| Paper/效能證據與明確重現入口 | `./mmtc.menu.bash performance` |
 | 功能腳本實作 | `redcap_interface/bash_library/` |
 | 介面驗證 | `bash redcap_interface/validate_redcap_interface.sh` |
 | 目前 RFsim YAML source of truth | `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/` |
@@ -91,7 +113,7 @@ bash redcap_interface/redcap_inspect_gnb_image.sh
 |---|---|
 | RedCap 穩定文件 | [redcap_doc/Doc/README.zh-TW.md](./redcap_doc/Doc/README.zh-TW.md) |
 | Spec notes | [redcap_doc/specs/Doc/README.zh-TW.md](./redcap_doc/specs/Doc/README.zh-TW.md) |
-| Function reference 路由 | [redcap_doc/function_reference/Doc/README.zh-TW.md](./redcap_doc/function_reference/Doc/README.zh-TW.md) |
+| RedCap L1-L3 函式索引 | [redcap_doc/specs/function_reference/redcap_l1_l3_function_lookup.md](./redcap_doc/specs/function_reference/redcap_l1_l3_function_lookup.md) |
 
 ## Repository Map
 

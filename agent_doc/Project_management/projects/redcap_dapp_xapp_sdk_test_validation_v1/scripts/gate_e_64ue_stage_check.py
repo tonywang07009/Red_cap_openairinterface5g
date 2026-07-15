@@ -5,15 +5,17 @@ from __future__ import annotations
 
 import argparse
 import csv
+import os
 import re
+import subprocess
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[5]
 PROJECT = ROOT / "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1"
 COMPOSE_DIR = ROOT / "ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap"
-COMPOSE_OVERLAY = COMPOSE_DIR / "docker-compose.mmtc.yml"
-OVERLAY_GENERATOR = COMPOSE_DIR / "scripts/generate_mmtc_overlay.sh"
+COMPOSE_OVERLAY = ROOT / "test_log/runtime_configs" / f"gate_e_static_{os.getpid()}_overlay.yml"
+OVERLAY_GENERATOR = ROOT / "redcap_interface/bash_library/generate_mmtc_overlay.sh"
 NRUE_RECAP_DIR = ROOT / "ci-scripts/conf_files/nrue_recap"
 GNB_5MHZ_PROFILE = ROOT / "ci-scripts/conf_files/gnb.sa.band78.fr1.106PRB.usrpb210.redcap.5mhz-bwp.yaml"
 GNB_20MHZ_PROXY_PROFILE = ROOT / "ci-scripts/conf_files/gnb.sa.band78.fr1.51PRB.usrpb210.redcap.yaml"
@@ -58,6 +60,20 @@ def read(path: Path) -> str:
 def require(condition: bool, message: str, errors: list[str]) -> None:
     if not condition:
         errors.append(message)
+
+
+def generate_overlay(expected_ue_count: int, errors: list[str]) -> None:
+    if not OVERLAY_GENERATOR.exists():
+        errors.append(f"missing Gate E overlay generator: {rel(OVERLAY_GENERATOR)}")
+        return
+    result = subprocess.run(
+        [str(OVERLAY_GENERATOR), str(expected_ue_count), str(COMPOSE_OVERLAY)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    require(result.returncode == 0,
+            f"Gate E overlay generation failed: {result.stderr.strip() or result.stdout.strip()}", errors)
 
 
 def ue_indices_from_compose(text: str) -> set[int]:
@@ -266,6 +282,7 @@ def check_core36_pressure(args: argparse.Namespace, errors: list[str]) -> None:
 
 
 def check_static_preflight(errors: list[str], expected_ue_count: int) -> None:
+    generate_overlay(expected_ue_count, errors)
     cn_db_sql = cn_db_sql_path(expected_ue_count)
     cn_db_compose = cn_db_compose_path(expected_ue_count)
     for path in [
@@ -290,11 +307,11 @@ def check_static_preflight(errors: list[str], expected_ue_count: int) -> None:
         indices = ue_indices_from_compose(overlay)
         expected = set(range(1, expected_ue_count + 1))
         missing = sorted(expected - indices)
-        extra = sorted(index for index in indices if index > EXPECTED_UE_COUNT)
+        extra = sorted(index for index in indices if index > CORE_UE_COUNT)
         require(len(indices) >= expected_ue_count,
                 f"mMTC overlay exposes {len(indices)} UE services, expected at least {expected_ue_count}", errors)
         require(not missing, f"mMTC overlay missing UE services: {missing}", errors)
-        require(not extra, f"mMTC overlay has unexpected UE services above 64: {extra}", errors)
+        require(not extra, f"mMTC overlay has unexpected UE services above 56: {extra}", errors)
         require(f"oai-nr-ue{expected_ue_count}:" in overlay,
                 f"mMTC overlay missing oai-nr-ue{expected_ue_count} service", errors)
         require(f'MMTC_UE_INDEX: "{expected_ue_count}"' in overlay,
@@ -439,12 +456,11 @@ def check_runtime_log(
 
 def print_next_commands() -> None:
     services_first = " ".join(f"oai-nr-ue{i}" for i in range(1, FIRST_STAGE_UE_COUNT + 1))
-    services_all = " ".join(f"oai-nr-ue{i}" for i in range(1, EXPECTED_UE_COUNT + 1))
     print("[INFO] Gate E preflight command:")
     print("  python3 -B "
           "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/"
           "gate_e_64ue_stage_check.py")
-    print("[INFO] Gate E runtime evidence check command shape:")
+    print("[INFO] Historical Gate E-Stretch full64 log check (does not launch UE services):")
     print("  python3 -B "
           "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/"
           "gate_e_64ue_stage_check.py --stage full64 \\")
@@ -476,12 +492,12 @@ def print_next_commands() -> None:
     print("  MMTC_N_RB_DL=51 GNB_REDCAP_CONFIG=../../conf_files/gnb.sa.band78.fr1.51PRB.usrpb210.redcap.yaml \\")
     print('  MMTC_GNB_EXTRA_OPTIONS="--gNBs.[0].do_CSIRS 0 --gNBs.[0].do_SRS 0" \\')
     print("  bash redcap_interface/redcap_mmtc_stage_scan.sh")
-    print("[INFO] regenerate 64 UE overlay:")
-    print("  bash ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/scripts/generate_mmtc_overlay.sh 64")
-    print("[INFO] regenerate 64 UE CN DB overlay:")
-    print("  bash redcap_interface/generate_mmtc_cn_db_overlay.sh 64")
+    print("[INFO] regenerate supported 56 UE overlay:")
+    print("  bash redcap_interface/bash_library/generate_mmtc_overlay.sh 56 test_log/runtime_configs/<run-id>_overlay.yml")
+    print("[INFO] regenerate supported 56 UE CN DB overlay:")
+    print("  bash redcap_interface/generate_mmtc_cn_db_overlay.sh 56")
     print("[INFO] one-UE 51PRB RF/SSB alignment smoke command shape:")
-    print("  MMTC_TOTAL_UES=64 MMTC_SAMPLE_UES=1 MMTC_START_XAPP=1 MMTC_USE_EXISTING_CN_DB=0 \\")
+    print("  MMTC_TOTAL_UES=56 MMTC_ACTIVE_UES=1 MMTC_START_XAPP=1 MMTC_USE_EXISTING_CN_DB=0 \\")
     print("  MMTC_N_RB_DL=51 GNB_REDCAP_CONFIG=../../conf_files/gnb.sa.band78.fr1.51PRB.usrpb210.redcap.yaml \\")
     print("  OAI_REDCAP_DAPP_GATE_D_MARKER=1 \\")
     print('  MMTC_GNB_EXTRA_OPTIONS="--gNBs.[0].do_CSIRS 0 --gNBs.[0].do_SRS 0" \\')
@@ -492,13 +508,8 @@ def print_next_commands() -> None:
     print("  GNB_REDCAP_CONFIG=../../conf_files/gnb.sa.band78.fr1.106PRB.usrpb210.redcap.5mhz-bwp.yaml \\")
     print("  MMTC_N_RB_DL=106 OAI_REDCAP_DAPP_GATE_D_MARKER=1 \\")
     print('  MMTC_GNB_EXTRA_OPTIONS="--gNBs.[0].do_CSIRS 0 --gNBs.[0].do_SRS 0" \\')
-    print(f"  docker compose -f docker-compose.yml -f docker-compose.mmtc.yml up -d --force-recreate oai-gnb {services_first}")
-    print("[INFO] later-stage 64 UE / 20 MHz proxy command shape:")
-    print("  REGISTRY= TAG=latest GNB_IMG=oai-gnb NRUE_IMG=oai-nr-ue \\")
-    print("  GNB_REDCAP_CONFIG=../../conf_files/gnb.sa.band78.fr1.51PRB.usrpb210.redcap.yaml \\")
-    print("  MMTC_N_RB_DL=51 OAI_REDCAP_DAPP_GATE_D_MARKER=1 \\")
-    print('  MMTC_GNB_EXTRA_OPTIONS="--gNBs.[0].do_CSIRS 0 --gNBs.[0].do_SRS 0" \\')
-    print(f"  docker compose -f docker-compose.yml -f docker-compose.mmtc.yml up -d --force-recreate oai-gnb {services_all}")
+    print(f"  docker compose -f docker-compose.yml -f ../../../test_log/runtime_configs/<run-id>_overlay.yml up -d --force-recreate oai-gnb {services_first}")
+    print("[INFO] 64 UE remains historical Gate E-Stretch evidence; the active runtime does not generate services above UE56.")
 
 
 def main() -> int:
@@ -521,8 +532,7 @@ def main() -> int:
 
     errors: list[str] = []
     required_ue_count = args.required_ue_count or STAGE_EXPECTED_UE_COUNT[args.stage]
-    has_runtime_evidence = args.gnb_log is not None or args.baseline_summary_log is not None
-    static_ue_count = EXPECTED_UE_COUNT if has_runtime_evidence and args.stage == "full64" else CORE_UE_COUNT
+    static_ue_count = CORE_UE_COUNT
     check_static_preflight(errors, static_ue_count)
 
     if args.stage == "core36-pressure":

@@ -11,6 +11,8 @@ CONFIG_FILE="${PROJECT_DIR}/configs/BWP_local_matrix.yaml"
 RUN_MODE="${1:---dry-run}"
 RUN_ID="${RUN_ID:-$(date +%Y%m%d_%H%M%S)}"
 LOG_DIR="${REPO_ROOT}/test_log/redcap_bwp_sdt_validation/${RUN_ID}_bwp"
+OVERLAY_GENERATOR="${REPO_ROOT}/redcap_interface/bash_library/generate_mmtc_overlay.sh"
+export REDCAP_OVERLAY_COMPOSE="${REDCAP_OVERLAY_COMPOSE:-${REPO_ROOT}/test_log/runtime_configs/${RUN_ID}_bwp_overlay.yml}"
 SERVICES="${SERVICES:-nearRT-RIC oai-gnb oai-nr-ue2 xapp-kpm-rc}"
 RUN_WAIT_SECONDS="${RUN_WAIT_SECONDS:-35}"
 STOP_AFTER_RUN="${STOP_AFTER_RUN:-0}"
@@ -23,6 +25,7 @@ RUNTIME_FAILURES=0
 redcap_validate_run_mode "${RUN_MODE}"
 
 mkdir -p "${LOG_DIR}"
+"${OVERLAY_GENERATOR}" "${MMTC_TOTAL_UES:-29}" "${REDCAP_OVERLAY_COMPOSE}"
 
 redcap_export_local_image_defaults
 redcap_export_rf_defaults
@@ -39,6 +42,7 @@ cat > "${LOG_DIR}/run_manifest.txt" <<EOF
 experiment=BWP_switching_with_DRX
 config=${CONFIG_FILE}
 compose_root=${COMPOSE_DIR}
+overlay=${REDCAP_OVERLAY_COMPOSE}
 run_mode=${RUN_MODE}
 services=${SERVICES}
 REGISTRY=${REGISTRY}

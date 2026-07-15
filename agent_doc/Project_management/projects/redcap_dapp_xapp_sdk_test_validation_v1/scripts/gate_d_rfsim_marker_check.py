@@ -52,14 +52,13 @@ def check_source_hook(errors: list[str]) -> None:
         CMAKE,
         ROOT / "openair2/E3AP/sdk/redcap_dapp_sdk.c",
         ROOT / "openair2/E3AP/sdk/redcap_dapp_sdk.h",
-        ROOT / "dev_refer/dapp_dev_need/E3Controller/README.md",
-        ROOT / "dev_refer/dapp_dev_need/E3Controller/src/e3sm/iq_pipeline.h",
-        ROOT / "dev_refer/dapp_dev_need/E3Controller/src/e3sm/slot_iq_pipeline.h",
-        ROOT / "dev_refer/dapp_dev_need/libe3/README.md",
-        ROOT / "dev_refer/dapp_dev_need/dApp-library/README.md",
+        ROOT / "Apps_dev/dapp_dev_need/E3Controller/README.md",
+        ROOT / "Apps_dev/dapp_dev_need/E3Controller/src/e3sm/iq_pipeline.h",
+        ROOT / "Apps_dev/dapp_dev_need/E3Controller/src/e3sm/slot_iq_pipeline.h",
+        ROOT / "Apps_dev/dapp_dev_need/libe3/README.md",
+        ROOT / "Apps_dev/dapp_dev_need/dApp-library/README.md",
         GNB_5MHZ_BWP_PROFILE,
-        ROOT / "ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.mmtc.yml",
-        ROOT / "ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/scripts/generate_mmtc_overlay.sh",
+        ROOT / "redcap_interface/bash_library/generate_mmtc_overlay.sh",
     ]:
         require(path.exists(), f"missing source/reference path: {rel(path)}", errors)
 
@@ -110,14 +109,9 @@ def check_source_hook(errors: list[str]) -> None:
     ]:
         require(needle in ue_dci, f"UE RA DCI BWP-size alignment missing text: {needle}", errors)
 
-    compose = read(ROOT / "ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.mmtc.yml")
-    generator = read(ROOT / "ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/scripts/generate_mmtc_overlay.sh")
-    for path_name, text in [
-        ("docker-compose.mmtc.yml", compose),
-        ("generate_mmtc_overlay.sh", generator),
-    ]:
-        require("OAI_REDCAP_DAPP_GATE_D_MARKER" in text,
-                f"{path_name} must expose OAI_REDCAP_DAPP_GATE_D_MARKER to the gNB container", errors)
+    generator = read(ROOT / "redcap_interface/bash_library/generate_mmtc_overlay.sh")
+    require("OAI_REDCAP_DAPP_GATE_D_MARKER" in generator,
+            "generate_mmtc_overlay.sh must expose OAI_REDCAP_DAPP_GATE_D_MARKER to the gNB container", errors)
 
     profile = read(GNB_5MHZ_BWP_PROFILE)
     for needle in [

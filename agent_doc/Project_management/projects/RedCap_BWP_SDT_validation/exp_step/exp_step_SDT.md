@@ -70,11 +70,11 @@
    - `rtk cmake --build --preset default --target nr-softmodem`
    - `rtk cmake --build --preset default --target nr-uesoftmodem`
 2. [Config] Use existing RedCap policy files:
-   - `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/control/redcap_policy_case_a.yaml`
-   - `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/control/redcap_control_contract.yaml`
+   - `redcap_interface/control/redcap_policy_case_a.yaml`
+   - `redcap_interface/control/redcap_control_contract.yaml`
 3. [Runtime baseline] Use the existing [RRC_INACTIVE + SDT] Gate 3 flow:
    - `REDCAP_CASE=case_a`
-   - `REDCAP_POLICY_HOST_FILE=ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/control/redcap_policy_case_a.yaml`
+   - `REDCAP_POLICY_HOST_FILE=redcap_interface/control/redcap_policy_case_a.yaml`
    - `MMTC_RRC_INACTIVE_GATE1_TRIGGER=1`
    - `MMTC_RRC_INACTIVE_GATE2_RESUME_TRIGGER=0`
    - `MMTC_RRC_INACTIVE_GATE3_CG_CONFIG=1`
@@ -112,7 +112,7 @@
 |---|---|
 | gNB runtime log | Original: `test_log/compiler_logs/mmtc_smoke_*_gnb.log`; paper copy: `test_log/redcap_bwp_sdt_validation/*_sdt/container_logs/full/gnb.log` |
 | UE runtime log | `test_log/redcap_bwp_sdt_validation/*_sdt/container_logs/ue2_tail.log` |
-| policy snapshot | `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/control/*.yaml` |
+| policy snapshot | `redcap_interface/control/*.yaml` |
 | wrapper manifest | `test_log/redcap_bwp_sdt_validation/*_sdt/run_manifest.txt` |
 | delegate console | `test_log/redcap_bwp_sdt_validation/*_sdt/redcap_interface_*_console.log`; 2026-06-27 matrix bundles used the legacy `redcap_interface_gate3_console.log` filename |
 | comparison CSV | `agent_doc/Project_management/projects/RedCap_BWP_SDT_validation/exp_result/SDT_results.csv` |

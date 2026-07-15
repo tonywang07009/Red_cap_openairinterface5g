@@ -55,6 +55,10 @@
 - If cleanup touches RFsim scripts or compose-related files, run the closest prepare-only or smoke validation before marking complete.
 
 ## Current Evidence
+- 2026-07-15 CN5G migration inventory-only batch:
+  - Report: `redcap_library/library_reports_summary/cn5g_runtime_migration_report.md`.
+  - The external runtime and retained 50/64 UE library artifacts are cleanup candidates only.
+  - No file was deleted; every candidate remains pending explicit user approval.
 - 2026-05-25 approved cleanup batch:
   - User approved removal of low-value `test_log` work logs and promotion of reusable artifacts into `redcap_library/`.
   - Curated library root: `redcap_library/`.
@@ -68,7 +72,7 @@
   - Work daily inventory count: `175`.
 - Legacy reference scan highlights:
   - `agent_doc/Project_management/Simluation_v2.md` is referenced as baseline archive and must be preserved.
-  - `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.mmtc.yml` is runtime source-of-truth/generated overlay and must be preserved.
+  - `redcap_interface/bash_library/generate_mmtc_overlay.sh` is the overlay source of truth; generated run-specific overlays belong under `test_log/runtime_configs/`.
   - `test_log/work_daily/` remains the only temporary work-log store.
   - Heavy generated `test_log/` artifacts are no longer treated as permanent evidence once promoted into `redcap_library/`.
 - The 2026-05-08 closure was inventory-only; the 2026-05-25 cleanup supersedes that retention decision for the approved target folders.

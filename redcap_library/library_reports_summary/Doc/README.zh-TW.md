@@ -9,5 +9,5 @@
 - 新 report 使用目前指令。
 
 ## 目前指令偏好
-- 日常 RFsim：`redcap_interface/mmtc.menu.bash`。
+- 日常 RFsim：根目錄 `mmtc.menu.bash`。
 - Paper/demo：`redcap_interface/mmtc.display.bash`。

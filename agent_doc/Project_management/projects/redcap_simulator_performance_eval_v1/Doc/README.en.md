@@ -11,4 +11,4 @@
 
 ## Current Boundary
 - New paper/demo commands should prefer `redcap_interface/mmtc.display.bash`.
-- Daily RFsim setup commands should prefer `redcap_interface/mmtc.menu.bash`.
+- Daily RFsim setup commands should prefer root `mmtc.menu.bash`.

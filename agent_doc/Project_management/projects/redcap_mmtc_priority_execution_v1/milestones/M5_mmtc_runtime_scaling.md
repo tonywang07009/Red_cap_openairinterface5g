@@ -3,7 +3,7 @@
 ## 2026-05-25 Evidence Cleanup Note
 - Raw `test_log` runtime/build/compiler evidence referenced below was summarized and cleaned after user approval.
 - Current retained M5 evidence is under `redcap_library/library_reports_summary/`.
-- Reusable CN5G overlays are under `redcap_library/library_cn5g/`.
+- Active CN5G runtime and UE1..UE56 baseline are under `oai-cn5g/`; legacy library overlays were removed with explicit approval on 2026-07-15.
 - Historical `test_log/...` paths below describe original run provenance only.
 
 ## Scope
@@ -27,10 +27,14 @@
   - `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/`
 - Primary fixed-UE compose file:
   - `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.yml`
-- Primary mMTC compose overlay:
-  - `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/docker-compose.mmtc.yml`
+- Primary mMTC compose overlay generator:
+  - `redcap_interface/bash_library/generate_mmtc_overlay.sh`
 - Primary mMTC script:
   - `redcap_interface/redcap_mmtc_smoke_validation.sh`
+- Primary CN5G runtime:
+  - `oai-cn5g/docker-compose.yaml` with the fixed UE1..UE56 subscriber seed.
+- CN5G migration evidence:
+  - `redcap_library/library_reports_summary/cn5g_runtime_migration_report.md`.
 - Runtime-generated config path:
   - `test_log/runtime_configs/`
 
@@ -112,8 +116,8 @@
   - Ping logs with `0% packet loss`: `56/56`.
   - Ping RTT aggregate from 56 logs: min-min `54.676 ms`, avg-of-avg `864.775 ms`, max-max `2000.904 ms`.
   - CN mitigation:
-    - External config: `/home/tonywang/OAI/oai-cn5g/conf/config.yaml`.
-    - Backup: `redcap_library/library_cn5g/oai_cn5g_static_config_backup_final.yaml`.
+    - Current config: `oai-cn5g/conf/config.yaml`.
+    - Pre-mitigation baseline retained in the migration report: `register_nf.general=yes`, `enable_smf_selection=yes`, no explicit UPF `port: 8805`.
     - `register_nf.general=no`.
     - `amf.support_features_options.enable_smf_selection=no`.
     - Static SMF UPF endpoint includes `host: oai-upf` and `port: 8805`.

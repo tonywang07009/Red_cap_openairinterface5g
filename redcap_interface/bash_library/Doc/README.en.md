@@ -1,7 +1,7 @@
 # Bash Library Docs
 
 ## Purpose
-- This folder contains implementation scripts called by the two public menus.
+- This folder contains implementations called by the unified main entry, the internal display dispatcher, and compatibility shims.
 - Files use the `fc_` prefix to mark function-level helpers.
 
 ## Naming Rule
@@ -10,5 +10,5 @@
 - `fc_*.py`: Python function script.
 
 ## Usage Rule
-- Prefer calling `redcap_interface/mmtc.menu.bash` or `redcap_interface/mmtc.display.bash`.
+- Prefer root `mmtc.menu.bash`; `redcap_interface/mmtc.menu.bash` and direct `mmtc.display.bash` calls remain compatible.
 - Call `fc_*` directly only when debugging a specific implementation.

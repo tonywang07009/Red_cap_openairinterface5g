@@ -1,0 +1,118 @@
+{
+  "version": 1,
+  "tools": {
+    "mmtc_menu": {
+      "description": "Open the RedCap mMTC operator menu or dispatch a supported subcommand.",
+      "script_path": "mmtc.menu.bash",
+      "input": {
+        "subcommand": "Optional menu subcommand or --help.",
+        "MMTC_ACTIVE_UES": "Comma or whitespace separated UE indices in the supported range 1 through 56."
+      },
+      "output": {
+        "log_path": "Interactive output or caller-selected log.",
+        "exit_code": "Process exit code.",
+        "status_field": "Caller-managed task_log/tasks.json status for long subcommands."
+      },
+      "side_effects": "Help is read-only; runtime subcommands may start or stop Docker services and write logs."
+    },
+    "generate_mmtc_cn_db_overlay": {
+      "description": "Generate an idempotent CN5G subscriber SQL seed and Compose override.",
+      "script_path": "redcap_interface/bash_library/fc_generate_mmtc_cn_db_overlay.sh",
+      "input": {
+        "total_ues": "Supported UE count, 1 through 56 for the current runtime contract.",
+        "output_sql": "Destination SQL path.",
+        "output_compose": "Destination Compose override path."
+      },
+      "output": {
+        "log_path": "Caller-selected command log when tracked.",
+        "exit_code": "Process exit code.",
+        "status_field": "Caller-managed task_log/tasks.json status."
+      },
+      "side_effects": "Writes only the requested SQL and Compose override files."
+    },
+    "validate_cn5g_clean_seed": {
+      "description": "Validate the repository-owned CN5G base and UE1..UE56 seed in an isolated clean MySQL instance.",
+      "script_path": "redcap_library/bash_tool/scripts/validate_cn5g_clean_seed.sh",
+      "input": {
+        "base_sql": "Fixed path oai-cn5g/database/oai_db.sql.",
+        "seed_sql": "Fixed path oai-cn5g/database/oai_db_mmtc_56.sql."
+      },
+      "output": {
+        "log_path": "Timestamped path declared in task_log/tasks.json.",
+        "exit_code": "Process exit code.",
+        "status_field": "task_log/tasks.json status."
+      },
+      "side_effects": "Creates and removes one uniquely named temporary MySQL container; does not attach to or modify existing containers or volumes."
+    },
+    "mmtc_smoke_validation": {
+      "description": "Run tracked CN5G and RFsim validation for the selected active UE set.",
+      "script_path": "redcap_interface/bash_library/fc_mmtc_smoke_validation.sh",
+      "input": {
+        "MMTC_ACTIVE_UES": "Comma or whitespace separated UE indices in the supported range 1 through 56.",
+        "MMTC_TOTAL_UES": "Fixed service ceiling; must be 56.",
+        "MMTC_CN_COMPOSE": "Optional CN5G Compose override path."
+      },
+      "output": {
+        "log_path": "Timestamped path declared in task_log/tasks.json.",
+        "exit_code": "Process exit code.",
+        "status_field": "task_log/tasks.json status."
+      },
+      "side_effects": "Starts and stops Docker Compose services and writes runtime logs; does not edit source files."
+    },
+    "validate_redcap_interface": {
+      "description": "Run syntax, path, help, generator, and active-UE boundary checks for the RedCap operator interface.",
+      "script_path": "redcap_interface/validate_redcap_interface.sh",
+      "input": {},
+      "output": {
+        "log_path": "Caller-selected validation log.",
+        "exit_code": "Process exit code.",
+        "status_field": "Caller-managed task_log/tasks.json status."
+      },
+      "side_effects": "Creates and removes only validation-owned temporary files; does not start Docker services."
+    },
+    "validate_redcap_public_docs": {
+      "description": "Validate required bilingual public docs, routes, encoding, and 29 UE acceptance markers.",
+      "script_path": "redcap_interface/bash_library/fc_doc_newcomer_gate_check.sh",
+      "input": {},
+      "output": {
+        "log_path": "Caller-selected validation log.",
+        "exit_code": "Process exit code.",
+        "status_field": "Caller-managed task_log/tasks.json status."
+      },
+      "side_effects": "Read-only documentation and path checks; does not start Docker services."
+    },
+    "validate_dapp_xapp_sdk_docs": {
+      "description": "Run the project static source, documentation, path, and evidence-contract checker.",
+      "script_path": "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/check_dapp_xapp_sdk_test_validation.py",
+      "input": {},
+      "output": {
+        "log_path": "Caller-selected validation log.",
+        "exit_code": "Process exit code.",
+        "status_field": "Caller-managed task_log/tasks.json status."
+      },
+      "side_effects": "Read-only static checks; does not start Docker services."
+    },
+    "selftest_dapp_xapp_sdk_contract": {
+      "description": "Run the Python dApp/xApp SDK contract self-test.",
+      "script_path": "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/dapp_xapp_sdk_contract_selftest.py",
+      "input": {},
+      "output": {
+        "log_path": "Caller-selected validation log.",
+        "exit_code": "Process exit code.",
+        "status_field": "Caller-managed task_log/tasks.json status."
+      },
+      "side_effects": "Read-only self-test; does not start Docker services."
+    },
+    "validate_redcap_oran_sdk_workflow_v3": {
+      "description": "Run the RedCap O-RAN SDK Workflow 3.0 static documentation, contract, and source checks.",
+      "script_path": "agent_doc/Project_management/projects/redcap_oran_sdk_workflow_v3/scripts/check_workflow_v3_static.py",
+      "input": {},
+      "output": {
+        "log_path": "Caller-selected validation log.",
+        "exit_code": "Process exit code.",
+        "status_field": "Caller-managed task_log/tasks.json status."
+      },
+      "side_effects": "Read-only static checks; does not start Docker services."
+    }
+  }
+}

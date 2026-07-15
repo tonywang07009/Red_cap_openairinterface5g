@@ -45,7 +45,7 @@
 ## Runtime YAML Model
 - [MUST] `docker-compose.mmtc.yml` remains a runtime entrypoint and must only mount/select policy files.
 - [MUST NOT] Embed policy content directly inside `docker-compose.mmtc.yml`.
-- [MUST] Case policies live under `ci-scripts/yaml_files/5g_rfsimulator_flexric_redcap/control/`.
+- [MUST] Case policies live under `redcap_interface/control/`.
 - [SHOULD] `redcap_library/` should receive only final reusable configs, reports, and evidence after validation.
 
 ## Milestone Index

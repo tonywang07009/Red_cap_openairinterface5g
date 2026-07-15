@@ -110,6 +110,7 @@
 - M5 closure decision:
   - User accepted the 56 UE Case B static CN run as sufficient for simulation scope.
   - Therefore M5 closes on `56/56` attach/PDU/tunnel/forward ping plus documented 64 UE upper-bound failure classification.
+  - The repository-owned CN5G runtime migration revalidated `56/56` on 2026-07-15; evidence and cleanup candidates are in `redcap_library/library_reports_summary/cn5g_runtime_migration_report.md`.
 - M6 closure decision:
   - Evidence package summary, report existence check, and spec traceability review completed.
 - M7 closure decision:

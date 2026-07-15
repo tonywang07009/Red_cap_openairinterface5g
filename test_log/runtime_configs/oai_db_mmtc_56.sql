@@ -1,7 +1,7 @@
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
 
--- The CN baseline mounted by doc/tutorial_resources/oai-cn5g/docker-compose.yaml
+-- The CN baseline mounted by oai-cn5g/docker-compose.yaml
 -- defines AuthenticationSubscription and SessionManagementSubscriptionData,
 -- but it does not define the legacy `users` table from ci-scripts/yaml_files/5g_rfsimulator/oai_db.sql.
 -- Keep this overlay aligned with the actual CN schema to avoid failing MySQL init.

@@ -7,7 +7,7 @@
 - This is the first lookup point for configs, evidence, probes, and final summaries.
 
 ## Folder Split
-- `library_cn5g/`: CN5G overlays and DB seeds.
+- `../oai-cn5g/`: repository-owned CN5G runtime and UE1..UE56 baseline.
 - `library_gnb_config/`: final gNB config baselines.
 - `library_runtime_probe/`: retained runtime probe evidence.
 - `library_build_evidence/`: retained build evidence.

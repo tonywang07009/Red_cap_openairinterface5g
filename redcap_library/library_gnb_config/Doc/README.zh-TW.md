@@ -9,5 +9,5 @@
 
 ## Bash 連結
 ```bash
-bash redcap_interface/mmtc.menu.bash status
+./mmtc.menu.bash status
 ```

@@ -7,7 +7,7 @@
 - 查 config、evidence、probe、final summary 時先看這裡。
 
 ## 資料夾分區
-- `library_cn5g/`：CN5G overlay 與 DB seed。
+- `../oai-cn5g/`：repo 管理的 CN5G runtime 與 UE1..UE56 baseline。
 - `library_gnb_config/`：final gNB config baseline。
 - `library_runtime_probe/`：保留的 runtime probe evidence。
 - `library_build_evidence/`：保留的 build evidence。
