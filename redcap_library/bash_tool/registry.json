@@ -1,6 +1,35 @@
 {
   "version": 1,
   "tools": {
+    "install_redcap": {
+      "description": "Check or interactively prepare the RedCap workspace and accept it with a clean 1 UE smoke.",
+      "script_path": "redcap_interface/bash_library/fc_install_redcap.sh",
+      "input": {
+        "mode": "No argument for interactive installation, --check for read-only preflight, or --help.",
+        "REDCAP_INSTALL_MIN_FREE_GB": "Optional minimum free-space threshold; defaults to 40 GiB and may only raise the documented baseline."
+      },
+      "output": {
+        "log_path": "Timestamped test_log/compiler_logs/redcap_install_*.log for an accepted interactive run.",
+        "exit_code": "Zero only when the selected check or workflow completes.",
+        "status_field": "task_log/tasks.json status for the interactive preparation and 1 UE smoke."
+      },
+      "side_effects": "--check and --help are read-only. Interactive mode may install uv, synchronize .venv, run the upstream OAI dependency installer, pull images, build project-local RedCap images and the declared FlexRIC service, start and stop installer-owned Compose services, and write logs."
+    },
+    "rebuild_local_redcap_images": {
+      "description": "Build ran-build, oai-gnb, and oai-nr-ue local images from the current workspace.",
+      "script_path": "redcap_interface/bash_library/fc_rebuild_local_oai_images.sh",
+      "input": {
+        "REDCAP_REBUILD_RAN_BASE": "Set to 1 to rebuild ran-base instead of reusing it when present.",
+        "REDCAP_DOCKER_NO_CACHE": "Set to 1 to disable Docker build cache.",
+        "REDCAP_BUILD_OPTION": "Optional build argument forwarded to the existing Docker build contract."
+      },
+      "output": {
+        "log_path": "Caller-selected timestamped build log.",
+        "exit_code": "Docker build process exit code.",
+        "status_field": "Caller-managed task_log/tasks.json status."
+      },
+      "side_effects": "Builds or replaces local ran-base, ran-build, oai-gnb, and oai-nr-ue images; does not start containers or edit source files."
+    },
     "mmtc_menu": {
       "description": "Open the RedCap mMTC operator menu or dispatch a supported subcommand.",
       "script_path": "mmtc.menu.bash",
@@ -13,7 +42,7 @@
         "exit_code": "Process exit code.",
         "status_field": "Caller-managed task_log/tasks.json status for long subcommands."
       },
-      "side_effects": "Help is read-only; runtime subcommands may start or stop Docker services and write logs."
+      "side_effects": "Help is read-only; install and runtime subcommands may prepare dependencies, pull or build images, start or stop Docker services, and write logs."
     },
     "generate_mmtc_cn_db_overlay": {
       "description": "Generate an idempotent CN5G subscriber SQL seed and Compose override.",

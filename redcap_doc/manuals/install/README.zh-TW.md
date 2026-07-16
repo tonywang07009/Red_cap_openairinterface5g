@@ -16,6 +16,8 @@
 
 ## 閱讀順序
 
-1. 新機器或新 checkout 先看 [從零開始安裝](./redcap_begin_from_zero.zh-TW.md)。
+1. 新機器或新 checkout 先執行 `./mmtc.menu.bash install`；安裝器細節或手動 fallback 請看 [從零開始安裝](./redcap_begin_from_zero.zh-TW.md)。
 2. 修改 code 或 config 後看 [修改後重建流程](./redcap_rebuild_after_changes.zh-TW.md)。
 3. 要驗證文件是否能被新手複現時，看 [新手複現 Gate](./redcap_newcomer_runtime_gate.zh-TW.md)。
+
+安裝器驗收只執行 1 UE smoke；29 UE newcomer gate 是另一項獨立驗證。

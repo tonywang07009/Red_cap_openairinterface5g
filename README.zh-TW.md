@@ -2,6 +2,26 @@
 
 [English](./README.en.md) | [繁體中文](./README.zh-TW.md)
 
+## 先安裝
+
+從 repository root 執行互動安裝器：
+
+```bash
+./mmtc.menu.bash install
+```
+
+第一版支援基線為 Ubuntu 22.04、Python 3.12 以上、Docker Compose v2 語法、可存取 Docker API，以及至少 40 GiB 可用空間。安裝器會先檢查 host，再經確認同步鎖定的 `uv` 環境、拉取 Compose 宣告的 images、建置或沿用專案本機 RedCap gNB/UE images、建置 Compose 宣告的 FlexRIC image，最後執行乾淨的 1 UE smoke。
+
+只有 summary 同時包含 `sample=1`、`running=1`、`attach=1`、`pdu=1`、`tun=1`、`forward_ping_ok=1`、`gnb_restart=0` 與 `failures=0` 才算安裝通過。這個結果不代表已通過獨立的 29 UE newcomer gate。
+
+執行唯讀 preflight，或開啟手動 fallback：
+
+```bash
+./mmtc.menu.bash install --check
+```
+
+[安裝器細節與手動 fallback](./redcap_doc/manuals/install/redcap_begin_from_zero.zh-TW.md)
+
 ## 專案概述
 
 這個 repository 是以 OpenAirInterface5G 為基礎的 RedCap 研究工作區，主要用於 RedCap、mMTC、RRC_INACTIVE、SDT、O-RAN/FlexRIC 實驗。上游 OAI RAN codebase 盡量保持原狀，本地新增 RedCap 操作腳本、文件路由、可重用 runtime evidence 與專案管理紀錄。
@@ -10,6 +30,7 @@
 
 | 目標 | 第一個檔案 |
 |---|---|
+| 安裝並以 1 UE 驗收 workspace | [安裝器細節](./redcap_doc/manuals/install/redcap_begin_from_zero.zh-TW.md#先安裝) |
 | 建置並重現 29 UE 入門流程 | [入門建置與 29 UE 重現](./redcap_doc/manuals/install/redcap_begin_from_zero.zh-TW.md) |
 | 設定 56 UE profile 與 dApp/xApp 實驗 | [56 UE 實驗教學](./agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/gate_e_core56_manual_reproduction.zh-TW.md) |
 | 開發或追蹤 dApp/xApp SDK | [SDK 開發指南](./agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/sdk_development_guide.zh-TW.md) |
@@ -25,6 +46,9 @@
 除非步驟中特別切換目錄，否則請從 repository root 執行。
 
 ```bash
+# 唯讀檢查安裝前置需求，不下載、不 build、不啟動 container。
+./mmtc.menu.bash install --check
+
 # 驗證 RedCap 公開操作介面，不啟動 RFsim。
 bash redcap_interface/validate_redcap_interface.sh
 

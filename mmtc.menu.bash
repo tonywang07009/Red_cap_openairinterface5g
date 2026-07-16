@@ -17,6 +17,7 @@ OVERLAY_COMPOSE="${MMTC_OVERLAY_COMPOSE:-${RUNTIME_CONFIG_DIR}/${RUN_ID}_overlay
 DEFAULT_POLICY="${REPO_ROOT}/redcap_interface/control/redcap_policy_case_a.yaml"
 CONTRACT_FILE="${REPO_ROOT}/redcap_interface/control/redcap_control_contract.yaml"
 DISPLAY_MENU="${INTERFACE_DIR}/mmtc.display.bash"
+INSTALLER="${LIB_DIR}/fc_install_redcap.sh"
 PROFILE_VERSION=1
 
 show_help()
@@ -28,6 +29,7 @@ RedCap mMTC RFsim 操作選單
   ./mmtc.menu.bash [子命令]
 
 主要子命令：
+  install [--check|--help]       互動安裝，預設以乾淨 1 UE smoke 驗收
   intro                         顯示安全的專案介紹與文件入口
   performance                   顯示已驗證的 paper/效能證據
   performance reproduce         明確進入既有重現工具
@@ -50,6 +52,7 @@ Usage:
   ./mmtc.menu.bash [subcommand]
 
 Primary subcommands:
+  install [--check|--help]       Install interactively; accept with a clean 1 UE smoke
   intro                         Show the safe project introduction and doc routes
   performance                   Show accepted paper/performance evidence
   performance reproduce         Explicitly enter the existing reproduction tools
@@ -588,6 +591,11 @@ dispatch_cli()
 {
   case "${1:-}" in
     -h|--help) show_help ;;
+    install)
+      [ "$#" -le 2 ] || { echo "[ERROR] Use: install [--check|--help]" >&2; return 2; }
+      shift
+      bash "${INSTALLER}" "$@"
+      ;;
     intro) show_intro ;;
     performance)
       if [ "${2:-}" = "reproduce" ]; then
@@ -689,22 +697,24 @@ main_menu()
 RedCap Main Menu / 主選單
 Repo: ${REPO_ROOT}
 
-1) 開始專案介紹 / Project introduction
-2) 展示已驗證效能 / Accepted performance evidence
-3) 設定實驗 profile / Configure experiment profile
-4) 進階 RFsim 操作 / Advanced RFsim operations
+1) 安裝並執行 1 UE 驗收 / Install and run 1 UE acceptance
+2) 開始專案介紹 / Project introduction
+3) 展示已驗證效能 / Accepted performance evidence
+4) 設定實驗 profile / Configure experiment profile
+5) 進階 RFsim 操作 / Advanced RFsim operations
 q) Quit
 EOF
     read -r -p "Choice: " choice
     case "${choice}" in
-      1) show_intro; pause_for_enter ;;
-      2)
+      1) bash "${INSTALLER}"; pause_for_enter ;;
+      2) show_intro; pause_for_enter ;;
+      3)
         show_performance_evidence
         read -r -p "Open reproduction tools? 0/1 [0]: " choice
         [ "${choice:-0}" = "1" ] && bash "${DISPLAY_MENU}"
         ;;
-      3) create_experiment_profile; pause_for_enter ;;
-      4) advanced_menu ;;
+      4) create_experiment_profile; pause_for_enter ;;
+      5) advanced_menu ;;
       q|Q) exit 0 ;;
       *) echo "[WARN] Unknown choice: ${choice}" ;;
     esac

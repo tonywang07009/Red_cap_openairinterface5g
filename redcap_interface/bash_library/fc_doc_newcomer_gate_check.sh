@@ -20,6 +20,9 @@ required_files=(
   "redcap_doc/manuals/install/redcap_rebuild_after_changes.zh-TW.md"
   "redcap_doc/manuals/install/redcap_newcomer_runtime_gate.en.md"
   "redcap_doc/manuals/install/redcap_newcomer_runtime_gate.zh-TW.md"
+  "redcap_interface/bash_library/fc_install_redcap.sh"
+  "pyproject.toml"
+  "uv.lock"
 )
 
 markers=(
@@ -98,5 +101,21 @@ for marker in "${markers[@]}"; do
     exit 1
   fi
 done
+
+echo "[Doc Gate] Checking install-first routes and 1 UE boundary"
+for path in README.md README.en.md README.zh-TW.md redcap_doc/manuals/install/README.en.md redcap_doc/manuals/install/README.zh-TW.md redcap_doc/manuals/install/redcap_begin_from_zero.en.md redcap_doc/manuals/install/redcap_begin_from_zero.zh-TW.md; do
+  if ! rg -q 'mmtc\.menu\.bash install|README\.(en|zh-TW)\.md#' "${path}"; then
+    echo "Missing install-first route: ${path}" >&2
+    exit 1
+  fi
+done
+for marker in sample=1 running=1 attach=1 pdu=1 tun=1 forward_ping_ok=1 gnb_restart=0 failures=0; do
+  if ! rg -q "${marker}" README.en.md README.zh-TW.md redcap_doc/manuals/install/redcap_begin_from_zero.en.md redcap_doc/manuals/install/redcap_begin_from_zero.zh-TW.md; then
+    echo "Missing installer marker: ${marker}" >&2
+    exit 1
+  fi
+done
+rg -q 'uv sync --locked' redcap_doc/manuals/install/redcap_begin_from_zero.en.md
+rg -q 'uv sync --locked' redcap_doc/manuals/install/redcap_begin_from_zero.zh-TW.md
 
 echo "[Doc Gate] PASS"

@@ -16,6 +16,8 @@ This folder contains the public install and rebuild path for the RedCap/OAI work
 
 ## Reading Order
 
-1. Use [Begin from zero](./redcap_begin_from_zero.en.md) on a new machine or new checkout.
+1. Run `./mmtc.menu.bash install`; use [Begin from zero](./redcap_begin_from_zero.en.md) for installer details or the manual fallback.
 2. Use [Rebuild after changes](./redcap_rebuild_after_changes.en.md) after code or configuration edits.
 3. Use [Newcomer runtime gate](./redcap_newcomer_runtime_gate.en.md) to verify that the documentation is reproducible.
+
+The installer acceptance is a 1 UE smoke. The 29 UE newcomer gate remains a separate validation.

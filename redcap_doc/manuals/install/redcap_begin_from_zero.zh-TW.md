@@ -2,6 +2,47 @@
 
 [English](./redcap_begin_from_zero.en.md) | [繁體中文](./redcap_begin_from_zero.zh-TW.md)
 
+## 先安裝
+
+從 repository root 執行：
+
+```bash
+./mmtc.menu.bash install --help
+./mmtc.menu.bash install --check
+./mmtc.menu.bash install
+```
+
+`install --check` 為唯讀。互動安裝會在 network download、上游 OAI host 依賴安裝、本機 image build 與 runtime smoke 前分別確認。它可能建立 `.venv`、依 `uv.lock` 同步環境、拉取 images、建置專案本機 RedCap gNB/UE 與 FlexRIC images、啟停 installer-owned Compose services，並寫入 timestamped logs 與 `task_log/tasks.json` 狀態。
+
+預設驗收邊界為 1 UE：
+
+```text
+sample=1
+running=1
+attach=1
+pdu=1
+tun=1
+forward_ping_ok=1
+gnb_restart=0
+failures=0
+```
+
+這不是 29 UE newcomer gate。安裝通過後，繼續執行第 7 節的獨立 gate。若互動安裝器無法使用，依序執行第 1 至第 6 節作為手動 fallback。
+
+## 安裝器程式追蹤
+
+| 階段 | 負責路徑或函式 | 證據 |
+|---|---|---|
+| Root route | `mmtc.menu.bash` → `install` | 雙語 help 與 exit code |
+| Host 與 lock preflight | `fc_install_redcap.sh` → `check_host` | `[OK]` 或 `[BLOCKED]`；`uv lock --check` |
+| Python 同步 | `fc_install_redcap.sh` → `uv sync --locked` | `test_log/compiler_logs/` 內的 installer log |
+| Compose asset discovery | `compose_metadata`、`ran_image_contract` | 含 timestamp 的 resolved pull/build commands |
+| 本機 RedCap image build | `fc_rebuild_local_oai_images.sh` | `oai-gnb:latest`、`oai-nr-ue:latest` |
+| 1 UE start 與 marker path | `run_one_ue_smoke` → `fc_mmtc_smoke_validation.sh` | 上列 summary markers |
+| Cleanup 與 task 狀態 | `cleanup_smoke`、`update_task` | 無 installer-owned containers；`task_log/tasks.json` |
+
+功能安裝器位於 `redcap_interface/bash_library/fc_install_redcap.sh`。Bash Tool Registry entry 是 `redcap_library/bash_tool/registry.json` 內的 `install_redcap`。
+
 ## 目標
 
 - 對象：尚未操作 dApp/xApp 控制路徑的新手。
@@ -21,6 +62,7 @@
 | Docker 與 Compose | `docker ps`、`docker compose version` | 任一指令失敗 |
 | Repository 管理的 CN5G | `test -f oai-cn5g/docker-compose.yaml` | Compose 檔案不存在 |
 | 足夠的 log 空間 | `df -h test_log` | Filesystem 無法保存 build 與 runtime log |
+| 安裝器支援基線 | Ubuntu 22.04、Python 3.12+、Docker Compose v2、40 GiB free | `install --check` 回報 `BLOCKED` |
 
 ## 1. 進入專案
 

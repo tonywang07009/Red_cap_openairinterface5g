@@ -15,6 +15,7 @@
 | Runtime probes | `library_runtime_probe/` | Paper 07 iperf/ping/gNB/UE logs, RedCap vs non-RedCap live probe, FlexRIC service-model libs |
 | Build evidence | `library_build_evidence/` | Final build/rebuild logs tied to retained runtime claims |
 | Report summaries | `library_reports_summary/` | Curated M3-M7 reports, M5 scaling evidence, latency RCA, validation rerun |
+| Documentation workflow | `redcap_doc_writer_skill/SKILL.md` | Bilingual docs, API guides, OpenSpec doc changes, and canonical-path migration workflow |
 
 ## Retention Rule
 - Keep: configs that can reproduce a scenario, final accepted reports, current Paper 07 raw evidence, FlexRIC service-model libraries used by runtime probe scripts.

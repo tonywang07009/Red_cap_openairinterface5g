@@ -2,6 +2,26 @@
 
 [English](./README.en.md) | [繁體中文](./README.zh-TW.md)
 
+## Install First
+
+Run the interactive installer from the repository root:
+
+```bash
+./mmtc.menu.bash install
+```
+
+The supported first baseline is Ubuntu 22.04, Python 3.12 or newer, Docker with Compose v2 syntax, Docker API access, and at least 40 GiB free. The installer checks the host, synchronizes the locked `uv` environment, pulls Compose-declared images, builds or reuses the project-local RedCap gNB/UE images, builds the Compose-declared FlexRIC image, and runs a clean 1 UE smoke after confirmation.
+
+The installation passes only with `sample=1`, `running=1`, `attach=1`, `pdu=1`, `tun=1`, `forward_ping_ok=1`, `gnb_restart=0`, and `failures=0`. This result does not prove the separate 29 UE newcomer gate.
+
+Use the read-only preflight or open the manual fallback:
+
+```bash
+./mmtc.menu.bash install --check
+```
+
+[Installer details and manual fallback](./redcap_doc/manuals/install/redcap_begin_from_zero.en.md)
+
 ## Overview
 
 This repository is an OpenAirInterface5G-based research workspace for RedCap, mMTC, RRC_INACTIVE, SDT, and O-RAN/FlexRIC experiments. It keeps the upstream OAI RAN codebase intact while adding local RedCap operator scripts, documentation routes, reusable runtime evidence, and project management records.
@@ -10,6 +30,7 @@ This repository is an OpenAirInterface5G-based research workspace for RedCap, mM
 
 | Goal | First File |
 |---|---|
+| Install and accept the workspace with 1 UE | [Installer details](./redcap_doc/manuals/install/redcap_begin_from_zero.en.md#install-first) |
 | Build and reproduce the 29 UE beginner flow | [Beginner build and 29 UE reproduction](./redcap_doc/manuals/install/redcap_begin_from_zero.en.md) |
 | Configure the 56 UE profile and dApp/xApp experiment | [56 UE experiment tutorial](./agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/gate_e_core56_manual_reproduction.en.md) |
 | Develop or trace the dApp/xApp SDK | [SDK development guide](./agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/sdk_development_guide.en.md) |
@@ -25,6 +46,9 @@ This repository is an OpenAirInterface5G-based research workspace for RedCap, mM
 Run from the repository root unless a step changes directory.
 
 ```bash
+# Check installation prerequisites without downloads, builds, or containers.
+./mmtc.menu.bash install --check
+
 # Validate the RedCap public operator interface without starting RFsim.
 bash redcap_interface/validate_redcap_interface.sh
 

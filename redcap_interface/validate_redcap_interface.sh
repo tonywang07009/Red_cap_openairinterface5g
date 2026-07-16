@@ -112,6 +112,21 @@ check_bilingual_help()
   fi
 }
 
+check_installer_help()
+{
+  local output
+  if output=$(bash "${LIB_DIR}/fc_install_redcap.sh" --help 2>&1) \
+    && [[ "${output}" == *"用法"* ]] \
+    && [[ "${output}" == *"Usage"* ]] \
+    && [[ "${output}" == *"install --check"* ]] \
+    && [[ "${output}" == *"1 UE"* ]]; then
+    echo "[OK] bilingual installer help"
+  else
+    echo "[FAIL] bilingual installer help is incomplete" >&2
+    failures=$((failures + 1))
+  fi
+}
+
 for script in "${SCRIPT_DIR}"/*.sh "${SCRIPT_DIR}"/*.bash "${LIB_DIR}"/fc_*.sh "${LIB_DIR}"/fc_*.bash; do
   [ -f "${script}" ] || continue
   check_syntax "${script}"
@@ -136,6 +151,7 @@ check_file "${SCRIPT_DIR}/redcap_inspect_gnb_image.sh" "gNB image inspector shim
 check_dir "${LIB_DIR}" "functional script library"
 check_file "${LIB_DIR}/fc_runtime_menu_legacy.sh" "legacy runtime menu implementation"
 check_file "${LIB_DIR}/fc_mmtc_smoke_validation.sh" "mMTC smoke implementation"
+check_file "${LIB_DIR}/fc_install_redcap.sh" "interactive installer implementation"
 check_file "${LIB_DIR}/fc_mmtc_stage_scan.sh" "mMTC stage scan implementation"
 check_file "${LIB_DIR}/fc_generate_mmtc_cn_db_overlay.sh" "CN DB overlay implementation"
 check_file "${LIB_DIR}/fc_rebuild_local_oai_images.sh" "local image rebuild implementation"
@@ -208,8 +224,55 @@ rm -f "${tmp_sql}" "${tmp_yml}"
 check_bilingual_help "${MAIN_MENU}" "daily RFsim menu help"
 check_bilingual_help "${LEGACY_MAIN_MENU}" "legacy daily RFsim menu shim help"
 check_bilingual_help "${LIB_DIR}/fc_mmtc_smoke_validation.sh" "mMTC smoke help"
+check_installer_help
+check_command_success "menu installer help route" bash "${MAIN_MENU}" install --help
 check_command_failure "menu rejects unknown option" bash "${MAIN_MENU}" --unknown
 check_command_failure "smoke rejects unknown option" bash "${LIB_DIR}/fc_mmtc_smoke_validation.sh" --unknown
+check_command_failure "installer rejects unknown option" bash "${LIB_DIR}/fc_install_redcap.sh" --unknown
+check_command_success "installer initial confirmation decline" bash -c "printf 'n\\n' | bash '$LIB_DIR/fc_install_redcap.sh'"
+check_command_failure "installer rejects a concurrent interactive run" flock "${TMPDIR:-/tmp}/redcap-interactive-install.lock" bash -c "printf 'y\\n' | bash '$LIB_DIR/fc_install_redcap.sh'"
+
+check_command_success "installer accepts 40 GiB minimum boundary" env REDCAP_INSTALL_MIN_FREE_GB=40 bash "${LIB_DIR}/fc_install_redcap.sh" --help
+check_command_failure "installer rejects 39 GiB minimum boundary" env REDCAP_INSTALL_MIN_FREE_GB=39 bash "${LIB_DIR}/fc_install_redcap.sh" --help
+check_command_failure "installer rejects negative disk threshold" env REDCAP_INSTALL_MIN_FREE_GB=-1 bash "${LIB_DIR}/fc_install_redcap.sh" --help
+check_command_failure "installer rejects non-numeric disk threshold" env REDCAP_INSTALL_MIN_FREE_GB=invalid bash "${LIB_DIR}/fc_install_redcap.sh" --help
+
+missing_uv_output=$(PATH=/usr/bin:/bin bash "${LIB_DIR}/fc_install_redcap.sh" --check 2>&1 || true)
+if [[ "${missing_uv_output}" == *"uv is not installed"* ]]; then
+  echo "[OK] installer reports missing uv"
+else
+  echo "[FAIL] installer did not report missing uv" >&2
+  failures=$((failures + 1))
+fi
+
+check_command_failure "installer rejects a stale uv lock" bash -c '
+  source "$1"
+  docker() { return 0; }
+  uv() { [ "${1:-}" != "lock" ]; }
+  check_host interactive
+' _ "${LIB_DIR}/fc_install_redcap.sh"
+
+check_command_failure "installer reports missing Docker API access" bash -c '
+  source "$1"
+  docker() { [ "${1:-}" != "info" ]; }
+  uv() { return 0; }
+  check_host interactive
+' _ "${LIB_DIR}/fc_install_redcap.sh"
+
+if bash -c 'source "$1"; build_services | rg -qx nearRT-RIC' _ "${LIB_DIR}/fc_install_redcap.sh"; then
+  echo "[OK] installer detects Compose-declared local FlexRIC build"
+else
+  echo "[FAIL] installer did not detect the Compose-declared local build" >&2
+  failures=$((failures + 1))
+fi
+
+valid_summary=$(mktemp /tmp/redcap_install_summary.XXXXXX.log)
+invalid_summary=$(mktemp /tmp/redcap_install_summary.XXXXXX.log)
+printf '%s\n' '[SUMMARY] sample=1 active=1 running=1 attach=1 pdu=1 tun=1 forward_ping_ok=1 reverse_ping_ok=0 iperf_ok=0 gnb_restart=0 failures=0 log=x' > "${valid_summary}"
+printf '%s\n' '[SUMMARY] sample=1 active=1 running=1 attach=1 pdu=1 tun=0 forward_ping_ok=0 reverse_ping_ok=0 iperf_ok=0 gnb_restart=0 failures=1 log=x' > "${invalid_summary}"
+check_command_success "installer accepts complete 1 UE markers" bash -c 'source "$1"; smoke_summary_passes "$2"' _ "${LIB_DIR}/fc_install_redcap.sh" "${valid_summary}"
+check_command_failure "installer rejects incomplete 1 UE markers" bash -c 'source "$1"; smoke_summary_passes "$2"' _ "${LIB_DIR}/fc_install_redcap.sh" "${invalid_summary}"
+rm -f "${valid_summary}" "${invalid_summary}"
 
 read_only_id="validate_read_only_$$"
 read_only_profile="${REPO_ROOT}/test_log/runtime_configs/${read_only_id}.profile.env"

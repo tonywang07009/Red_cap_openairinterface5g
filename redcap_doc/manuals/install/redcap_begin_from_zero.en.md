@@ -2,6 +2,47 @@
 
 [English](./redcap_begin_from_zero.en.md) | [繁體中文](./redcap_begin_from_zero.zh-TW.md)
 
+## Install First
+
+Run from the repository root:
+
+```bash
+./mmtc.menu.bash install --help
+./mmtc.menu.bash install --check
+./mmtc.menu.bash install
+```
+
+`install --check` is read-only. Interactive installation asks before network downloads, the upstream OAI host-dependency installer, local image builds, and the runtime smoke. It may create `.venv`, synchronize `uv.lock`, pull images, build project-local RedCap gNB/UE and FlexRIC images, start and stop installer-owned Compose services, and write timestamped logs plus `task_log/tasks.json` state.
+
+The default acceptance boundary is one UE:
+
+```text
+sample=1
+running=1
+attach=1
+pdu=1
+tun=1
+forward_ping_ok=1
+gnb_restart=0
+failures=0
+```
+
+This is not the 29 UE newcomer gate. After installation passes, continue with section 7 to run that separate gate. If interactive installation is unavailable, use sections 1 through 6 as the manual fallback.
+
+## Installer Code Trace
+
+| Stage | Owning path or function | Evidence |
+|---|---|---|
+| Root route | `mmtc.menu.bash` → `install` | Bilingual help and exit code |
+| Host and lock preflight | `fc_install_redcap.sh` → `check_host` | `[OK]` or `[BLOCKED]`; `uv lock --check` |
+| Python synchronization | `fc_install_redcap.sh` → `uv sync --locked` | Installer log under `test_log/compiler_logs/` |
+| Compose asset discovery | `compose_metadata`, `ran_image_contract` | Resolved pull/build commands with timestamps |
+| Local RedCap image build | `fc_rebuild_local_oai_images.sh` | `oai-gnb:latest`, `oai-nr-ue:latest` |
+| 1 UE start and marker path | `run_one_ue_smoke` → `fc_mmtc_smoke_validation.sh` | Summary markers above |
+| Cleanup and task state | `cleanup_smoke`, `update_task` | No installer-owned containers; `task_log/tasks.json` |
+
+The functional installer is `redcap_interface/bash_library/fc_install_redcap.sh`. The Bash Tool Registry entry is `install_redcap` in `redcap_library/bash_tool/registry.json`.
+
 ## Goal
 
 - Audience: a newcomer who has not yet worked with the dApp/xApp control path.
@@ -21,6 +62,7 @@
 | Docker and Compose | `docker ps` and `docker compose version` | Either command fails |
 | Repository-owned CN5G | `test -f oai-cn5g/docker-compose.yaml` | Compose file is missing |
 | Free log space | `df -h test_log` | The filesystem cannot retain build and runtime logs |
+| Supported installer baseline | Ubuntu 22.04, Python 3.12+, Docker Compose v2, 40 GiB free | `install --check` reports `BLOCKED` |
 
 ## 1. Enter The Repository
 

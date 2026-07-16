@@ -33,7 +33,7 @@ CMakeUserPresets.json
 /openspec
 /pre-commit-clang
 /scripts
-pyproject.toml   
+# Root pyproject.toml and uv.lock are repository-owned.
 package.json     
 package-lock.json
 AGENTS.md
