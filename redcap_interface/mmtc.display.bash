@@ -8,10 +8,21 @@ LIB_DIR="${SCRIPT_DIR}/bash_library"
 EVALUATION_RECOVER_DIR="${REPO_ROOT}/redcap_doc/evluation_recover"
 LOG_DIR="${REPO_ROOT}/test_log/compiler_logs"
 AB_SDT_LOG_DIR="${REPO_ROOT}/test_log/ab_sdt_fast_access"
+AIOT_TOOL="${REPO_ROOT}/redcap_library/bash_tool/scripts/aiot_registered_check.sh"
 
 pause_for_enter()
 {
   read -r -p "Press Enter to continue..."
+}
+
+show_help()
+{
+  cat <<'EOF'
+Usage: redcap_interface/mmtc.display.bash <command>
+
+Commands: panel, paper08, paper11-live, paper11-table3, sdt-ab, aiot-t2,
+paper07-menu, logs, docs
+EOF
 }
 
 show_latest_logs()
@@ -61,6 +72,11 @@ run_sdt_ab()
   bash "${LIB_DIR}/fc_ab_sdt_fast_access_demo.sh" "$@"
 }
 
+run_aiot_t2()
+{
+  bash "${AIOT_TOOL}" demo "$@"
+}
+
 run_legacy_paper07_menu()
 {
   echo "[INFO] PAPER-07 bundle still lives in the legacy runtime menu."
@@ -70,18 +86,20 @@ run_legacy_paper07_menu()
 dispatch_cli()
 {
   case "${1:-}" in
+    -h|--help) show_help ;;
     panel) shift; run_panel "$@" ;;
     paper08) shift; run_paper08 "$@" ;;
     paper11-live) shift; run_paper11_live "$@" ;;
     paper11-table3) shift; run_paper11_table3 "$@" ;;
     sdt-ab) shift; run_sdt_ab "$@" ;;
+    aiot-t2) shift; run_aiot_t2 "$@" ;;
     paper07-menu) shift; run_legacy_paper07_menu "$@" ;;
     logs) show_latest_logs ;;
     docs) show_docs ;;
     "") return 1 ;;
     *)
       echo "[ERROR] Unknown display subcommand: $1" >&2
-      echo "Known: panel, paper08, paper11-live, paper11-table3, sdt-ab, paper07-menu, logs, docs" >&2
+      echo "Known: panel, paper08, paper11-live, paper11-table3, sdt-ab, aiot-t2, paper07-menu, logs, docs" >&2
       return 2
       ;;
   esac
@@ -104,6 +122,7 @@ Repo: ${REPO_ROOT}
 6) Standalone iperf live panel
 7) Show latest logs
 8) Show evaluation manuals
+9) A-IoT Topology 2 experimental_n6 demo
 q) Quit
 EOF
     read -r -p "Choice: " choice
@@ -116,6 +135,7 @@ EOF
       6) run_panel; pause_for_enter ;;
       7) show_latest_logs; pause_for_enter ;;
       8) show_docs; pause_for_enter ;;
+      9) run_aiot_t2; pause_for_enter ;;
       q|Q) exit 0 ;;
       *) echo "[WARN] Unknown choice: ${choice}" ;;
     esac

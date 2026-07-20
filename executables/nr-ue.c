@@ -41,6 +41,9 @@
 #include "nr_phy_common.h"
 #include "common/utils/time_manager/time_manager.h"
 #include "log.h"
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include "common/utils/tun_if.h"
 
 /*
  *  NR SLOT PROCESSING SEQUENCE
@@ -600,6 +603,8 @@ static int UE_dl_preprocessing(PHY_VARS_NR_UE *UE,
       nr_downlink_indication_t dl_indication;
       nr_fill_dl_indication(&dl_indication, NULL, NULL, proc, UE, phy_data);
       UE->if_inst->dl_indication(&dl_indication);
+      phy_data->ue_connected = dl_indication.ue_connected;
+      phy_data->connected_drx_active = dl_indication.connected_drx_active;
     }
 
     sampleShift = pbch_processing(UE, proc, phy_data);
@@ -926,6 +931,166 @@ static void apply_ntn_config(PHY_VARS_NR_UE *UE,
         UE->ul_Doppler_shift / 1000);
 }
 
+static bool aiot_t2_role_window_active(const nrUE_params_t *params, uint64_t absolute_slot)
+{
+  if ((!params->aiot_t2_reader && !params->aiot_t2_observer) || params->aiot_t2_window_period == 0)
+    return false;
+  const uint32_t period_slot = absolute_slot % params->aiot_t2_window_period;
+  return period_slot >= params->aiot_t2_window_offset
+         && period_slot - params->aiot_t2_window_offset < params->aiot_t2_window_duration;
+}
+
+static int aiot_t2_report_socket(PHY_VARS_NR_UE *UE)
+{
+  const nrUE_params_t *params = get_nrUE_params();
+  const int sock = socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0);
+  if (sock < 0)
+    return -1;
+
+  char ifname[IFNAMSIZ];
+  tun_generate_ue_ifname(ifname, UE->Mod_id, -1);
+  if (setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, ifname, strlen(ifname) + 1) != 0) {
+    close(sock);
+    return -1;
+  }
+
+  struct sockaddr_in destination = {
+      .sin_family = AF_INET,
+      .sin_port = htons(params->aiot_t2_report_port),
+  };
+  if (inet_pton(AF_INET, params->aiot_t2_report_ip, &destination.sin_addr) != 1
+      || connect(sock, (const struct sockaddr *)&destination, sizeof(destination)) != 0) {
+    close(sock);
+    return -1;
+  }
+  LOG_I(PHY,
+        "AIOT_T2_REPORT_TRANSPORT_READY interface=%s destination=%s:%u\n",
+        ifname,
+        params->aiot_t2_report_ip,
+        params->aiot_t2_report_port);
+  return sock;
+}
+
+static bool aiot_t2_send_report(PHY_VARS_NR_UE *UE,
+                                int *report_socket,
+                                const aiot_t2_rf_packet_t *d2r,
+                                const uint8_t *payload,
+                                size_t payload_len,
+                                uint64_t absolute_slot)
+{
+  if (payload_len == 0 || payload_len > AIOT_T2_MAX_PAYLOAD_BYTES)
+    return false;
+  if (*report_socket < 0)
+    *report_socket = aiot_t2_report_socket(UE);
+  if (*report_socket < 0)
+    return false;
+
+  const nrUE_params_t *params = get_nrUE_params();
+  const uint32_t slots_per_frame = UE->frame_parms.slots_per_frame;
+  aiot_t2_inventory_report_t report = {
+      .magic = htonl(AIOT_T2_REPORT_MAGIC),
+      .version = AIOT_T2_REPORT_VERSION,
+      .payload_len = payload_len,
+      .flags = htons(AIOT_T2_REPORT_FLAG_CRC_VALID),
+      .reader_handle = htonl(params->aiot_t2_reader_handle),
+      .tag_id = htonl(d2r->header.option_value),
+      .frame = htonl(slots_per_frame == 0 ? 0 : (absolute_slot / slots_per_frame) % MAX_FRAME_NUMBER),
+      .slot = htonl(slots_per_frame == 0 ? 0 : absolute_slot % slots_per_frame),
+  };
+  memcpy(report.payload, payload, payload_len);
+  const ssize_t sent = send(*report_socket, &report, sizeof(report), MSG_DONTWAIT);
+  if (sent == (ssize_t)sizeof(report))
+    return true;
+
+  const int send_errno = sent < 0 ? errno : EMSGSIZE;
+  close(*report_socket);
+  *report_socket = -1;
+  errno = send_errno;
+  return false;
+}
+
+static void aiot_t2_role_process_slot(PHY_VARS_NR_UE *UE,
+                                      uint64_t absolute_slot,
+                                      openair0_timestamp timestamp,
+                                      const nr_phy_data_t *phy_data,
+                                      int *report_socket)
+{
+  const nrUE_params_t *params = get_nrUE_params();
+  if (!params->aiot_t2_reader && !params->aiot_t2_observer)
+    return;
+
+  const bool window_active = aiot_t2_role_window_active(params, absolute_slot);
+  const bool role_awake = window_active && phy_data->ue_connected && phy_data->connected_drx_active;
+  const uint32_t period_slot = absolute_slot % params->aiot_t2_window_period;
+  if (params->aiot_t2_reader && period_slot == params->aiot_t2_window_offset) {
+    if (!role_awake) {
+      LOG_I(PHY,
+            "AIOT_T2_R2D_REJECT reason=%s tag_id=%u absolute_slot=%lu\n",
+            phy_data->ue_connected ? "reader_asleep" : "ue_not_connected",
+            params->aiot_t2_tag_id,
+            absolute_slot);
+    } else if (UE->rfdevice.trx_ctlsend_func == NULL) {
+      LOG_E(PHY, "AIOT_T2_R2D_REJECT reason=rf_control_unavailable tag_id=%u\n", params->aiot_t2_tag_id);
+    } else {
+      aiot_t2_rf_packet_t r2d;
+      const bool prepared = nr_ue_aiot_t2_prepare_r2d(params->aiot_t2_tag_id, timestamp, &r2d);
+      const int sent = prepared ? UE->rfdevice.trx_ctlsend_func(&UE->rfdevice, &r2d, sizeof(r2d)) : -1;
+      if (sent == (int)sizeof(r2d))
+        LOG_I(PHY,
+              "AIOT_T2_R2D_SENT tag_id=%u samples=%u absolute_slot=%lu\n",
+              params->aiot_t2_tag_id,
+              r2d.header.size,
+              absolute_slot);
+      else
+        LOG_E(PHY, "AIOT_T2_R2D_REJECT reason=rf_send_failed tag_id=%u\n", params->aiot_t2_tag_id);
+    }
+  }
+
+  if (UE->rfdevice.trx_ctlrecv_func == NULL)
+    return;
+  aiot_t2_rf_packet_t d2r;
+  int received = 0;
+  while ((received = UE->rfdevice.trx_ctlrecv_func(&UE->rfdevice, &d2r, sizeof(d2r))) > 0) {
+    if (received != (int)sizeof(d2r) || !role_awake) {
+      LOG_I(PHY,
+            "AIOT_T2_D2R_REJECT reason=%s tag_id=%u absolute_slot=%lu\n",
+            received == (int)sizeof(d2r) ? "outside_reader_wake_window" : "invalid_control_length",
+            d2r.header.option_value,
+            absolute_slot);
+      continue;
+    }
+
+    uint8_t payload[AIOT_T2_MAX_PAYLOAD_BYTES];
+    size_t payload_len = 0;
+    const nr_ue_aiot_t2_decode_result_t result =
+        nr_ue_aiot_t2_decode_d2r(&d2r, payload, sizeof(payload), &payload_len);
+    if (result != NR_UE_AIOT_T2_DECODE_OK) {
+      const char *reason = result == NR_UE_AIOT_T2_INVALID_LINE_CODE ? "invalid_line_code"
+                           : result == NR_UE_AIOT_T2_CRC_FAILURE    ? "crc_failure"
+                                                                    : "invalid_length";
+      LOG_I(PHY, "AIOT_T2_D2R_REJECT reason=%s tag_id=%u\n", reason, d2r.header.option_value);
+      continue;
+    }
+
+    char payload_hex[AIOT_T2_MAX_PAYLOAD_BYTES * 2 + 1];
+    for (size_t i = 0; i < payload_len; ++i)
+      snprintf(payload_hex + i * 2, sizeof(payload_hex) - i * 2, "%02x", payload[i]);
+    LOG_I(PHY,
+          "AIOT_T2_D2R_CRC_OK tag_id=%u payload=%s absolute_slot=%lu\n",
+          d2r.header.option_value,
+          payload_hex,
+          absolute_slot);
+    if (aiot_t2_send_report(UE, report_socket, &d2r, payload, payload_len, absolute_slot))
+      LOG_I(PHY,
+            "AIOT_T2_UE_REPORT_SENT tag_id=%u reader_handle=%u transport=udp bytes=%zu\n",
+            d2r.header.option_value,
+            params->aiot_t2_reader_handle,
+            sizeof(aiot_t2_inventory_report_t));
+    else
+      LOG_E(PHY, "AIOT_T2_UE_REPORT_REJECT reason=udp_send_failed tag_id=%u errno=%d\n", d2r.header.option_value, errno);
+  }
+}
+
 void *UE_thread(void *arg)
 {
   //this thread should be over the processing thread to keep in real time
@@ -984,6 +1149,7 @@ void *UE_thread(void *arg)
   int intialSyncOffset = 0;
   openair0_timestamp sync_timestamp;
   bool stats_printed = false;
+  int aiot_t2_report_socket_fd = -1;
 
   if (get_softmodem_params()->sync_ref && UE->sl_mode == 2) {
     UE->is_synchronized = 1;
@@ -1266,6 +1432,7 @@ void *UE_thread(void *arg)
     int ret = UE_dl_preprocessing(UE, &curMsgRx->proc, tx_wait_for_dlsch, &curMsgRx->phy_data, &stats_printed);
     if (ret != INT_MAX)
       shiftForNextFrame = ret;
+    aiot_t2_role_process_slot(UE, absolute_slot, rx_timestamp, &curMsgRx->phy_data, &aiot_t2_report_socket_fd);
     if (get_nrUE_params()->num_dl_actors > 0) {
       pushNotifiedFIFO(&UE->dl_actors[curMsg.proc.nr_slot_rx % get_nrUE_params()->num_dl_actors].fifo, newRx);
     } else {
@@ -1308,6 +1475,8 @@ void *UE_thread(void *arg)
     stream_status = STREAM_STATUS_SYNCED;
     tx_wait_for_dlsch[slot] = 0;
   }
+  if (aiot_t2_report_socket_fd >= 0)
+    close(aiot_t2_report_socket_fd);
   LOG_W(NR_PHY, "UE main thread is ending\n");
   return NULL;
 }

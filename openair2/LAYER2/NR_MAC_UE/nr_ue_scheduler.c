@@ -1175,11 +1175,15 @@ void nr_ue_dl_scheduler(NR_UE_MAC_INST_t *mac, nr_downlink_indication_t *dl_info
   dl_config->sfn  = rx_frame;
   dl_config->slot = rx_slot;
   dl_config->number_pdus = 0;
+  dl_info->ue_connected = false;
+  dl_info->connected_drx_active = false;
 
   if (mac->state == UE_NOT_SYNC || mac->state == UE_NOT_SYNC_RECONF || mac->state == UE_DETACHING)
     return;
 
   const bool connected_drx_active = mac->state != UE_CONNECTED || nr_ue_drx_is_active(mac, rx_frame, rx_slot);
+  dl_info->ue_connected = mac->state == UE_CONNECTED;
+  dl_info->connected_drx_active = dl_info->ue_connected && connected_drx_active;
 
   if (mac->state == UE_CONNECTED && connected_drx_active) {
     nr_schedule_csirs_reception(mac, rx_frame, rx_slot);

@@ -43,8 +43,9 @@ if [ -n "${BUILD_OPTION}" ]; then
 fi
 
 build_image "ran-build:latest" "${REPO_ROOT}/docker/Dockerfile.build.ubuntu" --target ran-build "${build_args[@]}"
+build_image "oai-aiotf:latest" "${REPO_ROOT}/docker/Dockerfile.gNB.ubuntu" --target oai-aiotf "${build_args[@]}"
 build_image "oai-gnb:latest" "${REPO_ROOT}/docker/Dockerfile.gNB.ubuntu" "${build_args[@]}"
 build_image "oai-nr-ue:latest" "${REPO_ROOT}/docker/Dockerfile.nrUE.ubuntu" "${build_args[@]}"
 
-echo "[Done] Local RedCap runtime images rebuilt from workspace"
+echo "[Done] Local RedCap and AIOTF runtime images rebuilt from workspace"
 echo "[Next] Verify binary markers with: bash redcap_interface/redcap_inspect_gnb_image.sh"

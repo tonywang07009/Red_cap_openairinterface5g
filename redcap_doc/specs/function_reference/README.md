@@ -6,3 +6,4 @@
 
 ## Entry
 - `redcap_l1_l3_function_lookup.md`
+- `aiot_tag_aiotf_function_trace.md`: Tag/CW, RFsim, UE Reader, AIOTF process/state, registry, menu, display, and blocked CN5G standard-path owners.

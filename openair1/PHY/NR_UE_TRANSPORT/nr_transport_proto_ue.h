@@ -277,6 +277,19 @@ void nr_sl_rf_card_config_freq(PHY_VARS_NR_UE *ue,
                                openair0_config_t *openair0_cfg,
                                int freq_offset);
 
+typedef enum {
+  NR_UE_AIOT_T2_DECODE_OK,
+  NR_UE_AIOT_T2_INVALID_LENGTH,
+  NR_UE_AIOT_T2_INVALID_LINE_CODE,
+  NR_UE_AIOT_T2_CRC_FAILURE,
+} nr_ue_aiot_t2_decode_result_t;
+
+bool nr_ue_aiot_t2_prepare_r2d(uint32_t tag_id, openair0_timestamp timestamp, aiot_t2_rf_packet_t *packet);
+nr_ue_aiot_t2_decode_result_t nr_ue_aiot_t2_decode_d2r(const aiot_t2_rf_packet_t *packet,
+                                                       uint8_t *payload,
+                                                       size_t payload_capacity,
+                                                       size_t *payload_len);
+
 /** \brief This function is the top-level entry point to PDSCH demodulation, after frequency-domain transformation and channel
    estimation.  It performs
     - RB extraction (signal and channel estimates)
@@ -366,4 +379,3 @@ void nr_pbch_unscrambling(int16_t *demod_pbch_e,
 void nr_pbch_quantize(int16_t *pbch_llr8, int16_t *pbch_llr, uint16_t len);
 /**@}*/
 #endif
-

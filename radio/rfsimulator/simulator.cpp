@@ -84,7 +84,8 @@ typedef enum { SIMU_ROLE_SERVER = 1, SIMU_ROLE_CLIENT } simuRole;
 #define RFSIM_CONFIG_HELP_OPTIONS                                                                  \
   " list of comma separated options to enable rf simulator functionalities. Available options: \n" \
   "        chanmod:   enable channel modelisation\n"                                               \
-  "        saviq:     enable saving written iqs to a file\n"
+  "        saviq:     enable saving written iqs to a file\n"                                        \
+  "        aiot_t2:   enable experimental Topology 2 CW/Tag/UE relay\n"
 
 #define simOpt PARAMFLAG_NOFREE | PARAMFLAG_CMDLINE_NOPREFIXENABLED
 #define simBool PARAMFLAG_BOOL | PARAMFLAG_NOFREE | PARAMFLAG_CMDLINE_NOPREFIXENABLED
@@ -155,6 +156,8 @@ typedef struct {
   char payload[1];
 } rfsim_packet_t;
 
+typedef enum { AIOT_T2_PEER_DEFAULT, AIOT_T2_PEER_TAG, AIOT_T2_PEER_CW } aiot_t2_peer_role_t;
+
 typedef struct buffer_s {
   int conn_sock;
   openair0_timestamp lastReceivedTS;
@@ -169,6 +172,8 @@ typedef struct buffer_s {
   size_t payload_sz;
   size_t remainToTransferBeam;
   std::queue<rfsim_packet_t *> received_packets;
+  aiot_t2_peer_role_t aiot_t2_role;
+  uint32_t aiot_t2_tag_id;
 } buffer_t;
 
 typedef struct {
@@ -205,6 +210,10 @@ typedef struct {
   int wait_timeout;
   double prop_delay_ms;
   rfsim_beam_ctrl_t *beam_ctrl;
+  bool aiot_t2_enabled;
+  aiot_t2_rf_packet_t aiot_t2_d2r_packets[AIOT_T2_MAX_QUEUED_REPORTS];
+  size_t aiot_t2_d2r_head;
+  size_t aiot_t2_d2r_count;
 } rfsimulator_state_t;
 
 /**
@@ -460,6 +469,138 @@ static void fullwrite(int fd, void *_buf, ssize_t count, rfsimulator_state_t *t)
   }
 }
 
+static bool aiot_t2_should_relay(aiot_t2_peer_role_t destination, uint32_t option_flag)
+{
+  if (option_flag & OPTION_AIOT_T2_R2D)
+    return destination == AIOT_T2_PEER_TAG;
+  if (option_flag & OPTION_AIOT_T2_CW)
+    return destination == AIOT_T2_PEER_TAG;
+  if (option_flag & OPTION_AIOT_T2_D2R)
+    return destination == AIOT_T2_PEER_DEFAULT;
+  return false;
+}
+
+static bool aiot_t2_is_control_peer(const rfsimulator_state_t *t, const buffer_t *peer)
+{
+  return t->aiot_t2_enabled && peer->aiot_t2_role != AIOT_T2_PEER_DEFAULT;
+}
+
+static int aiot_t2_relay_packet(rfsimulator_state_t *t, const buffer_t *source, const rfsim_packet_t *packet)
+{
+  samplesBlockHeader_t header = packet->header;
+  header.timestamp = std::max(header.timestamp, (uint64_t)t->lastWroteTS);
+  int destinations = 0;
+
+  mutexlock(t->Sockmutex);
+  for (int i = 0; i < MAX_FD_RFSIMU; ++i) {
+    buffer_t *destination = &t->buf[i];
+    if (destination == source || destination->conn_sock < 0
+        || !aiot_t2_should_relay(destination->aiot_t2_role, header.option_flag))
+      continue;
+    fullwrite(destination->conn_sock, &header, sizeof(header), t);
+    fullwrite(destination->conn_sock, (void *)packet->payload, source->payload_sz, t);
+    ++destinations;
+  }
+  mutexunlock(t->Sockmutex);
+  return destinations;
+}
+
+static bool aiot_t2_handle_packet(rfsimulator_state_t *t, buffer_t *source, const rfsim_packet_t *packet)
+{
+  if (!t->aiot_t2_enabled)
+    return false;
+
+  const uint32_t flag = packet->header.option_flag;
+  if (t->role == SIMU_ROLE_CLIENT && (flag & OPTION_AIOT_T2_D2R)) {
+    if (packet->header.nbAnt != 1 || packet->header.size == 0 || packet->header.size > AIOT_T2_MAX_RF_SAMPLES
+        || source->payload_sz != sampleToByte(packet->header.size, 1)) {
+      LOG_W(HW,
+            "AIOT_T2_D2R_REJECT reason=invalid_sample_count tag_id=%u samples=%u\n",
+            packet->header.option_value,
+            packet->header.size);
+      return true;
+    }
+    mutexlock(t->Sockmutex);
+    if (t->aiot_t2_d2r_count >= AIOT_T2_MAX_QUEUED_REPORTS) {
+      LOG_W(HW,
+            "AIOT_T2_D2R_REJECT reason=queue_full tag_id=%u queued=%zu\n",
+            packet->header.option_value,
+            t->aiot_t2_d2r_count);
+      mutexunlock(t->Sockmutex);
+      return true;
+    }
+    aiot_t2_rf_packet_t captured = {.header = packet->header};
+    memcpy(captured.samples, packet->payload, source->payload_sz);
+    const size_t tail = (t->aiot_t2_d2r_head + t->aiot_t2_d2r_count) % AIOT_T2_MAX_QUEUED_REPORTS;
+    t->aiot_t2_d2r_packets[tail] = captured;
+    ++t->aiot_t2_d2r_count;
+    const size_t queued = t->aiot_t2_d2r_count;
+    mutexunlock(t->Sockmutex);
+    LOG_I(HW,
+          "AIOT_T2_D2R_CAPTURE tag_id=%u samples=%u queued=%zu\n",
+          packet->header.option_value,
+          packet->header.size,
+          queued);
+    return true;
+  }
+
+  if (t->role != SIMU_ROLE_SERVER)
+    return false;
+
+  if (flag & OPTION_AIOT_T2_TAG_REGISTER) {
+    if (packet->header.option_value == 0 || packet->header.option_value > 60) {
+      LOG_W(HW, "AIOT_T2_TAG_REGISTER_REJECT tag_id=%u\n", packet->header.option_value);
+      return true;
+    }
+    source->aiot_t2_role = AIOT_T2_PEER_TAG;
+    source->aiot_t2_tag_id = packet->header.option_value;
+    LOG_I(HW, "AIOT_T2_TAG_REGISTER tag_id=%u\n", source->aiot_t2_tag_id);
+    return true;
+  }
+
+  if (flag & OPTION_AIOT_T2_CW) {
+    source->aiot_t2_role = AIOT_T2_PEER_CW;
+    const int destinations = aiot_t2_relay_packet(t, source, packet);
+    LOG_I(HW, "AIOT_T2_CW_RELAY samples=%u destinations=%d\n", packet->header.size, destinations);
+    return true;
+  }
+
+  if (flag & OPTION_AIOT_T2_R2D) {
+    if (source->aiot_t2_role != AIOT_T2_PEER_DEFAULT || packet->header.option_value == 0
+        || packet->header.option_value > 60 || packet->header.nbAnt != 1 || packet->header.size == 0
+        || packet->header.size > AIOT_T2_MAX_RF_SAMPLES) {
+      LOG_W(HW,
+            "AIOT_T2_R2D_REJECT tag_id=%u samples=%u\n",
+            packet->header.option_value,
+            packet->header.size);
+      return true;
+    }
+    const int destinations = aiot_t2_relay_packet(t, source, packet);
+    LOG_I(HW,
+          "AIOT_T2_R2D_RELAY tag_id=%u samples=%u destinations=%d\n",
+          packet->header.option_value,
+          packet->header.size,
+          destinations);
+    return true;
+  }
+
+  if (flag & OPTION_AIOT_T2_D2R) {
+    if (source->aiot_t2_role != AIOT_T2_PEER_TAG || source->aiot_t2_tag_id != packet->header.option_value) {
+      LOG_W(HW, "AIOT_T2_D2R_REJECT reason=unregistered_tag tag_id=%u\n", packet->header.option_value);
+      return true;
+    }
+    const int destinations = aiot_t2_relay_packet(t, source, packet);
+    LOG_I(HW,
+          "AIOT_T2_D2R_RELAY tag_id=%u samples=%u destinations=%d\n",
+          source->aiot_t2_tag_id,
+          packet->header.size,
+          destinations);
+    return true;
+  }
+
+  return false;
+}
+
 static float get_rx_gain_db(rfsimulator_state_t *rfsimulator, uint rx_beam, uint tx_beam)
 {
   if (!rfsimulator->beam_ctrl->enable_beams) {
@@ -551,6 +692,14 @@ static void rfsimulator_readconfig(rfsimulator_state_t *rfsimulator)
                        rfsimulator->rx_freq,
                        rfsimulator->tx_bw);
       rfsimulator->channelmod = true;
+    } else if (strcmp(rfsimu_params[p].strlistptr[i], "aiot_t2") == 0) {
+      rfsimulator->aiot_t2_enabled = true;
+      DevAssert(aiot_t2_should_relay(AIOT_T2_PEER_TAG, OPTION_AIOT_T2_R2D));
+      DevAssert(aiot_t2_should_relay(AIOT_T2_PEER_TAG, OPTION_AIOT_T2_CW));
+      DevAssert(aiot_t2_should_relay(AIOT_T2_PEER_DEFAULT, OPTION_AIOT_T2_D2R));
+      DevAssert(!aiot_t2_should_relay(AIOT_T2_PEER_DEFAULT, OPTION_AIOT_T2_CW));
+      DevAssert(!aiot_t2_should_relay(AIOT_T2_PEER_TAG, OPTION_AIOT_T2_D2R));
+      LOG_I(HW, "AIOT_T2_PROFILE enabled=true\n");
     } else {
       fprintf(stderr, "unknown rfsimulator option: %s\n", rfsimu_params[p].strlistptr[i]);
       exit(-1);
@@ -941,7 +1090,7 @@ static int rfsimulator_write_internal(rfsimulator_state_t *t,
   for (int i = 0; i < MAX_FD_RFSIMU; i++) {
     buffer_t *b = &t->buf[i];
 
-    if (b->conn_sock >= 0) {
+    if (b->conn_sock >= 0 && !aiot_t2_is_control_peer(t, b)) {
       samplesBlockHeader_t header = {(uint32_t)nsamps, (uint32_t)nbAnt, (uint64_t)timestamp, 0, 0, beams_to_beam_map(tx_beams)};
       fullwrite(b->conn_sock, &header, sizeof(header), t);
       int num_beams = tx_beams.size();
@@ -1092,6 +1241,7 @@ static void process_recv_header(rfsimulator_state_t *t, buffer_t *b, bool first_
   AssertFatal(b->th.beam_map == 1ULL || t->beam_ctrl->enable_beams == 1,
               "The transmitter has enabled beam simulation while this receiver has not\n");
   size_t payload_sz = sampleToByte(b->th.size, b->th.nbAnt) * num_beams;
+  b->payload_sz = payload_sz;
   b->packet_ptr = static_cast<rfsim_packet_t *>(calloc_or_fail(1, payload_sz + sizeof(samplesBlockHeader_t)));
   b->packet_ptr->header = b->th;
   b->transferPtr = b->packet_ptr->payload;
@@ -1200,17 +1350,21 @@ static bool flushInput(rfsimulator_state_t *t, int timeout, bool first_time)
 
   for (int nbEv = 0; nbEv < nfds; ++nbEv) {
     buffer_t *b = static_cast<buffer_t *>(events[nbEv].data.ptr);
+    const bool input_ready = events[nbEv].events & EPOLLIN;
 
-    if (events[nbEv].events & EPOLLIN && b == NULL) {
+    if (input_ready && b == NULL) {
       bool ret = add_client(t);
       if (!ret)
         return ret;
       continue;
-    } else {
-      if (events[nbEv].events & (EPOLLHUP | EPOLLERR | EPOLLRDHUP)) {
-        socketError(t, b);
-        continue;
-      }
+    }
+    if (b == nullptr) {
+      LOG_W(HW, "RFsim listen socket reported event flags 0x%x without input\n", events[nbEv].events);
+      continue;
+    }
+    if (!input_ready && (events[nbEv].events & (EPOLLHUP | EPOLLERR | EPOLLRDHUP))) {
+      socketError(t, b);
+      continue;
     }
 
     if (b->conn_sock == -1) {
@@ -1219,8 +1373,12 @@ static bool flushInput(rfsimulator_state_t *t, int timeout, bool first_time)
     }
 
     ssize_t sz = recv(b->conn_sock, b->transferPtr, b->remainToTransfer, MSG_DONTWAIT);
-    if (sz <= 0) {
-      if (sz < 0 && errno != EAGAIN)
+    if (sz == 0) {
+      socketError(t, b);
+      continue;
+    }
+    if (sz < 0) {
+      if (errno != EAGAIN)
         LOG_E(HW, "recv() failed, errno(%d)\n", errno);
       continue;
     }
@@ -1236,7 +1394,12 @@ static bool flushInput(rfsimulator_state_t *t, int timeout, bool first_time)
         b->transferPtr = (char *)&b->th;
         b->remainToTransfer = sizeof(samplesBlockHeader_t);
 
-        if (!b->trashingPacket) {
+        const bool aiot_t2_handled = aiot_t2_handle_packet(t, b, b->packet_ptr);
+        if (aiot_t2_handled) {
+          const openair0_timestamp packet_end = b->th.timestamp + b->th.size;
+          b->lastReceivedTS = std::max(b->lastReceivedTS, packet_end);
+          free(b->packet_ptr);
+        } else if (!b->trashingPacket) {
           b->lastReceivedTS = b->th.timestamp + b->th.size;
           LOG_D(HW, "UEsock: %d Set b->lastReceivedTS %ld\n", b->conn_sock, b->lastReceivedTS);
           b->received_packets.emplace(b->packet_ptr);
@@ -1374,7 +1537,7 @@ static int rfsimulator_read_beams(openair0_device *device,
   int first_sock;
 
   for (first_sock = 0; first_sock < MAX_FD_RFSIMU; first_sock++)
-    if (t->buf[first_sock].conn_sock != -1)
+    if (t->buf[first_sock].conn_sock != -1 && !aiot_t2_is_control_peer(t, &t->buf[first_sock]))
       break;
 
   if (first_sock == MAX_FD_RFSIMU) {
@@ -1402,7 +1565,8 @@ static int rfsimulator_read_beams(openair0_device *device,
       buffer_t *b = NULL;
       for (int sock = 0; sock < MAX_FD_RFSIMU; sock++) {
         b = &t->buf[sock];
-        if (b->conn_sock != -1 && (t->nextRxTstamp + nsamps) > b->lastReceivedTS) {
+        if (b->conn_sock != -1 && !aiot_t2_is_control_peer(t, b)
+            && (t->nextRxTstamp + nsamps) > b->lastReceivedTS) {
           have_to_wait = true;
           break;
         }
@@ -1507,6 +1671,51 @@ static int rfsimulator_read(openair0_device *device, openair0_timestamp *ptimest
   return rfsimulator_read_beams(device, ptimestamp, &samplesVoid, nsamps, nbAnt, 1);
 }
 
+static int rfsimulator_aiot_t2_ctlsend(openair0_device *device, void *msg, ssize_t msg_len)
+{
+  rfsimulator_state_t *t = static_cast<rfsimulator_state_t *>(device->priv);
+  if (!t->aiot_t2_enabled || msg == nullptr || msg_len != sizeof(aiot_t2_rf_packet_t))
+    return -1;
+
+  const aiot_t2_rf_packet_t *packet = static_cast<const aiot_t2_rf_packet_t *>(msg);
+  const samplesBlockHeader_t *header = &packet->header;
+  if ((header->option_flag & OPTION_AIOT_T2_R2D) == 0 || header->option_value == 0 || header->option_value > 60
+      || header->nbAnt != 1 || header->size == 0 || header->size > AIOT_T2_MAX_RF_SAMPLES)
+    return -1;
+
+  int destinations = 0;
+  mutexlock(t->Sockmutex);
+  for (int i = 0; i < MAX_FD_RFSIMU; ++i) {
+    buffer_t *destination = &t->buf[i];
+    if (destination->conn_sock < 0)
+      continue;
+    fullwrite(destination->conn_sock, (void *)header, sizeof(*header), t);
+    fullwrite(destination->conn_sock, (void *)packet->samples, sampleToByte(header->size, 1), t);
+    ++destinations;
+  }
+  mutexunlock(t->Sockmutex);
+  return destinations > 0 ? msg_len : -1;
+}
+
+static int rfsimulator_aiot_t2_ctlrecv(openair0_device *device, void *msg, ssize_t msg_len)
+{
+  rfsimulator_state_t *t = static_cast<rfsimulator_state_t *>(device->priv);
+  if (!t->aiot_t2_enabled || msg == nullptr || msg_len < 0 || (size_t)msg_len < sizeof(aiot_t2_rf_packet_t))
+    return -1;
+  mutexlock(t->Sockmutex);
+  if (t->aiot_t2_d2r_count == 0) {
+    mutexunlock(t->Sockmutex);
+    return 0;
+  }
+
+  aiot_t2_rf_packet_t *packet = static_cast<aiot_t2_rf_packet_t *>(msg);
+  *packet = t->aiot_t2_d2r_packets[t->aiot_t2_d2r_head];
+  t->aiot_t2_d2r_head = (t->aiot_t2_d2r_head + 1) % AIOT_T2_MAX_QUEUED_REPORTS;
+  --t->aiot_t2_d2r_count;
+  mutexunlock(t->Sockmutex);
+  return sizeof(*packet);
+}
+
 static int rfsimulator_get_stats(openair0_device *device)
 {
   return 0;
@@ -1591,6 +1800,10 @@ extern "C" __attribute__((__visibility__("default"))) int device_init(openair0_d
   device->trx_set_gains_func = rfsimulator_set_gains;
   device->trx_write_func = rfsimulator_write;
   device->trx_read_func = rfsimulator_read;
+  if (rfsimulator->aiot_t2_enabled) {
+    device->trx_ctlsend_func = rfsimulator_aiot_t2_ctlsend;
+    device->trx_ctlrecv_func = rfsimulator_aiot_t2_ctlrecv;
+  }
   if (rfsimulator->beam_ctrl->enable_beams) {
     device->trx_write_beams_func = rfsimulator_write_beams;
     device->trx_read_beams_func = rfsimulator_read_beams;

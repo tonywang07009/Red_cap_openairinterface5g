@@ -26,6 +26,15 @@ extern uint16_t ue_id_g;
 #define  CONFIG_HLP_NUM_UL_ACTORS          "Number of UL actors to use. Set to 0 to disable UL actor framework and do processing inline\n"
 #define  CONFIG_HLP_NUM_DL_ACTORS          "Number of DL actors to use. Set to 0 to disable DL actor framework and do processing inline\n"
 #define  CONFIG_HLP_EXTRA_PDU_ID           "ID of an additional PDU session to configure alongside default PDU session\n"
+#define  CONFIG_HLP_AIOT_T2_READER         "Enable the experimental RFsim Topology 2 UE Reader\n"
+#define  CONFIG_HLP_AIOT_T2_OBSERVER       "Enable the experimental RFsim Topology 2 D2R-only UE observer\n"
+#define  CONFIG_HLP_AIOT_T2_TAG_ID         "Tag ID selected for the experimental Reader transaction (1..60)\n"
+#define  CONFIG_HLP_AIOT_T2_PERIOD         "Reader operation-window period in slots\n"
+#define  CONFIG_HLP_AIOT_T2_OFFSET         "Reader operation-window start offset inside the period\n"
+#define  CONFIG_HLP_AIOT_T2_DURATION       "Reader operation-window duration in slots\n"
+#define  CONFIG_HLP_AIOT_T2_READER_HANDLE  "Stable AIOTF Reader handle for this UE Reader\n"
+#define  CONFIG_HLP_AIOT_T2_REPORT_IP      "IPv4 address receiving experimental UE user-plane reports\n"
+#define  CONFIG_HLP_AIOT_T2_REPORT_PORT    "UDP port receiving experimental UE user-plane reports\n"
 
 /***************************************************************************************************************************************/
 /* command line options definitions, CMDLINE_XXXX_DESC macros are used to initialize paramdef_t arrays which are then used as argument
@@ -84,6 +93,15 @@ extern uint16_t ue_id_g;
   {"num-ul-actors",                CONFIG_HLP_NUM_UL_ACTORS,   0,               .iptr=&nrUE_params.num_ul_actors,            .defintval=2,      TYPE_INT,      0}, \
   {"num-dl-actors",                CONFIG_HLP_NUM_DL_ACTORS,  0,                .iptr=&nrUE_params.num_dl_actors,            .defintval=4,      TYPE_INT,      0}, \
   {"extra-pdu-id",                 CONFIG_HLP_EXTRA_PDU_ID,   0,                .iptr=&nrUE_params.extra_pdu_id,             .defintval=-1,     TYPE_INT,      0}, \
+  {"aiot-t2-reader",               CONFIG_HLP_AIOT_T2_READER, PARAMFLAG_BOOL,   .iptr=&nrUE_params.aiot_t2_reader,          .defintval=0,      TYPE_INT,      0}, \
+  {"aiot-t2-observer",             CONFIG_HLP_AIOT_T2_OBSERVER, PARAMFLAG_BOOL, .iptr=&nrUE_params.aiot_t2_observer,        .defintval=0,      TYPE_INT,      0}, \
+  {"aiot-t2-tag-id",               CONFIG_HLP_AIOT_T2_TAG_ID, 0,                .uptr=&nrUE_params.aiot_t2_tag_id,          .defuintval=0,     TYPE_UINT32,   0}, \
+  {"aiot-t2-window-period",        CONFIG_HLP_AIOT_T2_PERIOD, 0,                .uptr=&nrUE_params.aiot_t2_window_period,   .defuintval=0,     TYPE_UINT32,   0}, \
+  {"aiot-t2-window-offset",        CONFIG_HLP_AIOT_T2_OFFSET, 0,                .uptr=&nrUE_params.aiot_t2_window_offset,   .defuintval=0,     TYPE_UINT32,   0}, \
+  {"aiot-t2-window-duration",      CONFIG_HLP_AIOT_T2_DURATION, 0,              .uptr=&nrUE_params.aiot_t2_window_duration, .defuintval=1,     TYPE_UINT32,   0}, \
+  {"aiot-t2-reader-handle",        CONFIG_HLP_AIOT_T2_READER_HANDLE, 0,         .uptr=&nrUE_params.aiot_t2_reader_handle,  .defuintval=0,     TYPE_UINT32,   0}, \
+  {"aiot-t2-report-ip",            CONFIG_HLP_AIOT_T2_REPORT_IP, 0,             .strptr=&nrUE_params.aiot_t2_report_ip,    .defstrval=NULL,   TYPE_STRING,   0}, \
+  {"aiot-t2-report-port",          CONFIG_HLP_AIOT_T2_REPORT_PORT, 0,           .u16ptr=&nrUE_params.aiot_t2_report_port,  .defuintval=0,     TYPE_UINT16,   0}, \
 }
 // clang-format on
 
@@ -126,6 +144,15 @@ typedef struct {
   int num_ul_actors;
   int num_dl_actors;
   int extra_pdu_id;
+  int aiot_t2_reader;
+  int aiot_t2_observer;
+  uint32_t aiot_t2_tag_id;
+  uint32_t aiot_t2_window_period;
+  uint32_t aiot_t2_window_offset;
+  uint32_t aiot_t2_window_duration;
+  uint32_t aiot_t2_reader_handle;
+  char *aiot_t2_report_ip;
+  uint16_t aiot_t2_report_port;
 } nrUE_params_t;
 extern uint64_t get_nrUE_optmask(void);
 extern uint64_t set_nrUE_optmask(uint64_t bitmask);

@@ -89,7 +89,7 @@ services:
 
     oai-nrf:
         container_name: "oai-nrf"
-        image: oaisoftwarealliance/oai-nrf:develop
+        image: oai-nrf@sha256:59bbe00f83453e4543eb8c37a77db024711f3cd74708a3819ac6b407b60e901f
         expose:
             - 80/tcp
             - 8080/tcp
@@ -185,6 +185,39 @@ services:
         networks:
             traffic_net: # UPF 的外網 IP，必須接 traffic_net
                 ipv4_address: 192.168.72.135
+
+    # Draft TS 23.369 experiment only. This is not an NRF-registered AIOTF NF.
+    oai-aiotf:
+        profiles:
+            - aiot
+        container_name: "oai-aiotf"
+        image: oai-aiotf:latest
+        build:
+            context: ..
+            dockerfile: docker/Dockerfile.gNB.ubuntu
+            target: oai-aiotf
+        command:
+            - --profile
+            - experimental_n6
+            - --tags
+            - ${AIOTF_TAGS:-1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60}
+            - --pending-context
+            - ${AIOTF_PENDING_CONTEXT:-25:diversity:9:1:1:10:5}
+            - --timeout-ms
+            - ${AIOTF_TIMEOUT_MS:-60000}
+            - --listen-address
+            - 0.0.0.0
+            - --listen-port
+            - "36900"
+        expose:
+            - 36900/udp
+        ports:
+            - "127.0.0.1:36900:36900/udp"
+        networks:
+            public_net:
+                ipv4_address: 192.168.70.141
+            traffic_net:
+                ipv4_address: 192.168.72.141
 
 # The network define
 networks:

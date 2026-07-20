@@ -130,3 +130,19 @@ COPY --from=gnb-base /usr/local/bin/yq /usr/local/bin/yq
 COPY --from=gnb-base /tini /tini
 ENTRYPOINT ["/tini", "-v", "--", "/opt/oai-gnb/bin/entrypoint.sh"]
 CMD ["/opt/oai-gnb/bin/nr-softmodem"]
+
+# Minimal AIOTF image. nghttpx terminates h2c and jq validates bounded SBI JSON.
+FROM ubuntu:noble AS oai-aiotf
+
+RUN apt-get update && \
+    apt-get install --yes --no-install-recommends ca-certificates curl jq nghttp2-proxy && \
+    apt-get clean -y && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /opt/oai-aiotf
+COPY --from=gnb-build /oai-ran/cmake_targets/ran_build/build/openair3/AIOTF/oai-aiotf ./oai-aiotf
+
+EXPOSE 36900/udp
+EXPOSE 8080/tcp
+HEALTHCHECK --interval=5s --timeout=2s --retries=3 CMD ["/opt/oai-aiotf/oai-aiotf", "--check-ready"]
+ENTRYPOINT ["/opt/oai-aiotf/oai-aiotf"]

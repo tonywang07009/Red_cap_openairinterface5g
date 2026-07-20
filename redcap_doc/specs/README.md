@@ -15,6 +15,7 @@
 | `redcap_3gpp/PSM/` | PSM references |
 | `redcap_3gpp/WUS/` | Wake-up signal references |
 | `redcap_3gpp/RRM/` | RRM references |
+| `A_IoT/README.md` | Ambient IoT reference set and the confirmed Topology 2 experiment boundary |
 | `redcap_l1_l2_protocol_guide.md` | RedCap L1/L2 protocol guide for implementation learning |
 | `function_reference/` | RedCap L1-L3 function lookup tables |
 | `../mineru_markdown/specs/redcap_3gpp/` | MinerU Markdown cache for parsed short spec PDFs |

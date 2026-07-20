@@ -15,6 +15,10 @@
 | `specs/` | Local 3GPP/RedCap reference notes and PDFs |
 | `checklists/` | Human-checkable milestone and validation checklists |
 | `manuals/` | Stable operator and reproduction manuals |
+| `manuals/aiot_tag_aiotf_architecture.zh-TW.md` | 繁體中文 A-IoT Tag/AIOTF 架構、profile 與 evidence boundary |
+| `manuals/aiot_tag_aiotf_architecture.en.md` | English A-IoT Tag/AIOTF architecture, profiles, and evidence boundaries |
+| `manuals/aiot_tag_aiotf_operator.zh-TW.md` | 繁體中文 A-IoT registered operator、展示與 cleanup 流程 |
+| `manuals/aiot_tag_aiotf_operator.en.md` | English A-IoT registered operator, demonstration, and cleanup workflow |
 | `manuals/install/` | Public install, rebuild, and newcomer gate manuals |
 | `manuals/install/redcap_begin_from_zero.en.md` | English beginner path from zero setup to 29 UE RFsim validation |
 | `manuals/install/redcap_begin_from_zero.zh-TW.md` | 繁體中文新手路徑：從 0 安裝到 29 UE RFsim 驗證 |

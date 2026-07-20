@@ -20,6 +20,8 @@
 | `redcap_zero_to_build_and_run_guide.en.md` | English beginner guide: build, image rebuild, and 29 UE RFsim validation |
 | `redcap_mmtc_systematic_usage_steps.md` | Baseline 50 UE mMTC validation procedure and troubleshooting notes |
 | `redcap_project_onboarding_step_by_step.md` | Step-by-step handoff guide for dependencies, build, UI use, and function modification |
+| `aiot_tag_aiotf_architecture.zh-TW.md`, `.en.md` | A-IoT Topology 2, Tag/UE/AIOTF ownership, CN5G profiles, N6 isolation, and blocked standard path |
+| `aiot_tag_aiotf_operator.zh-TW.md`, `.en.md` | Registered build, skill, menu, display, evidence, failure, and cleanup procedure |
 
 ## Compatibility Note
 - The `redcap_zero_to_build_and_run_guide.*.md` files remain as older compatible beginner guides.

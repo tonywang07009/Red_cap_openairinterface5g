@@ -74,6 +74,10 @@ typedef struct {
     /// PHY specific data structure that can be passed on to L2 via nr_downlink_indication_t and
     /// back to L1 via the nr_scheduled_response_t 
     void *phy_data;
+
+    /// MAC-owned state returned to L1 for the experimental A-IoT Reader gate.
+    bool ue_connected;
+    bool connected_drx_active;
 } nr_downlink_indication_t;
 
 
@@ -293,4 +297,3 @@ void nr_ue_sl_indication(nr_sidelink_indication_t *sl_indication);
 void print_ue_mac_stats(const module_id_t mod, const int frame_rx, const int slot_rx);
 
 #endif
-

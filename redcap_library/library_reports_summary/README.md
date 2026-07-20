@@ -7,6 +7,7 @@
 | M4B low-power evidence | `m4b_*.md` | DRX/eDRX/PSM boundary and timer decode reports |
 | M5 scaling evidence | `m5_*.md` | 30/32/48/56/64 UE runtime scaling reports |
 | CN5G runtime migration | `cn5g_runtime_migration_report.md` | Repository ownership, fixed 56-UE seed, boundary/runtime evidence, cleanup inventory |
+| AIOTF CN5G diagnostic integration | `aiotf_cn5g_experimental_n6_validation_report.md` | Tag/AIOTF, NRF, and bounded Naiotf evidence plus stopped AMF/RAN/NEF gates |
 | M6/M7 closure | `m6_evidence_package_summary.md`, `m7_repo_hygiene_inventory_legacy.md` | Evidence package and legacy hygiene inventory |
 | Legacy project summaries | `redcap_*.md` | Earlier simulator and validation summaries |
 | Latency RCA | `redcap_mmtc_latency_rca_latest.md` | 50 UE latency/root-cause analysis |

@@ -18,6 +18,7 @@ DEFAULT_POLICY="${REPO_ROOT}/redcap_interface/control/redcap_policy_case_a.yaml"
 CONTRACT_FILE="${REPO_ROOT}/redcap_interface/control/redcap_control_contract.yaml"
 DISPLAY_MENU="${INTERFACE_DIR}/mmtc.display.bash"
 INSTALLER="${LIB_DIR}/fc_install_redcap.sh"
+AIOT_TOOL="${REPO_ROOT}/redcap_library/bash_tool/scripts/aiot_registered_check.sh"
 PROFILE_VERSION=1
 
 show_help()
@@ -36,6 +37,8 @@ RedCap mMTC RFsim 操作選單
   experiment [profile-path]     互動建立 experiment profile，不啟動 Docker
   preview-profile <path>        驗證並顯示 profile，不啟動 Docker
   run-profile <path> [mode]     以 smoke、gate3 或 gate4 執行 profile
+  aiot <validate|start|status|down>
+                                管理 experimental_n6 AIOTF 服務
 
 UE 容量固定為 56。使用 MMTC_ACTIVE_UES 選擇本次實際啟動的 UE；
 可用逗號、空白或兩者混合分隔，合法編號為 1..56，且不可重複。
@@ -59,6 +62,8 @@ Primary subcommands:
   experiment [profile-path]     Create an experiment profile without starting Docker
   preview-profile <path>        Validate and show a profile without starting Docker
   run-profile <path> [mode]     Run a profile with smoke, gate3, or gate4
+  aiot <validate|start|status|down>
+                                Manage the experimental_n6 AIOTF service
 
 UE capacity is fixed at 56. MMTC_ACTIVE_UES selects the UE services activated
 for this run. Separate indices with commas, whitespace, or both. Valid unique
@@ -587,6 +592,15 @@ run_inspect()
   bash "${LIB_DIR}/fc_inspect_gnb_image.sh"
 }
 
+run_aiot_operator()
+{
+  [ "$#" -eq 1 ] || {
+    echo "[ERROR] Use: aiot <validate|start|status|down>" >&2
+    return 2
+  }
+  bash "${AIOT_TOOL}" operator "$1"
+}
+
 dispatch_cli()
 {
   case "${1:-}" in
@@ -636,6 +650,10 @@ dispatch_cli()
       ;;
     rebuild) run_rebuild ;;
     inspect) run_inspect ;;
+    aiot)
+      [ "$#" -eq 2 ] || { echo "[ERROR] Use: aiot <validate|start|status|down>" >&2; return 2; }
+      run_aiot_operator "$2"
+      ;;
     status) docker_status ;;
     down) docker_down ;;
     redcap-vs-normal) shift; bash "${LIB_DIR}/fc_runtime_menu_legacy.sh" redcap-vs-normal "$@" ;;
@@ -702,6 +720,7 @@ Repo: ${REPO_ROOT}
 3) 展示已驗證效能 / Accepted performance evidence
 4) 設定實驗 profile / Configure experiment profile
 5) 進階 RFsim 操作 / Advanced RFsim operations
+6) A-IoT experimental_n6 operator
 q) Quit
 EOF
     read -r -p "Choice: " choice
@@ -715,6 +734,11 @@ EOF
         ;;
       4) create_experiment_profile; pause_for_enter ;;
       5) advanced_menu ;;
+      6)
+        read -r -p "A-IoT action validate/start/status/down [validate]: " choice
+        run_aiot_operator "${choice:-validate}"
+        pause_for_enter
+        ;;
       q|Q) exit 0 ;;
       *) echo "[WARN] Unknown choice: ${choice}" ;;
     esac

@@ -15,6 +15,7 @@
 | Runtime probes | `library_runtime_probe/` | Paper 07 iperf/ping/gNB/UE logs, RedCap vs non-RedCap live probe, FlexRIC service-model libs |
 | Build evidence | `library_build_evidence/` | Final build/rebuild logs tied to retained runtime claims |
 | Report summaries | `library_reports_summary/` | Curated M3-M7 reports, M5 scaling evidence, latency RCA, validation rerun |
+| AIOTF CN5G diagnostic report | `library_reports_summary/aiotf_cn5g_experimental_n6_validation_report.md` | Implemented Tag/AIOTF, NRF and bounded Naiotf scope; evidence index; stopped AMF/RAN/NEF gates |
 | Documentation workflow | `redcap_doc_writer_skill/SKILL.md` | Bilingual docs, API guides, OpenSpec doc changes, and canonical-path migration workflow |
 
 ## Retention Rule

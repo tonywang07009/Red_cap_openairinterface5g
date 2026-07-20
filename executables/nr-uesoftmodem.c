@@ -26,6 +26,7 @@
 #include <signal.h>
 #include <errno.h>
 #include <stdlib.h>
+#include <arpa/inet.h>
 
 #include "T.h"
 #include "common/oai_version.h"
@@ -186,6 +187,27 @@ static void get_options(configmodule_interface_t *cfg)
               "Default PDU ID (%d) and Extra PDU ID (%d) must be different!\n",
               get_softmodem_params()->default_pdu_session_id,
               nrUE_params.extra_pdu_id);
+  AssertFatal(!(nrUE_params.aiot_t2_reader && nrUE_params.aiot_t2_observer),
+              "--aiot-t2-reader and --aiot-t2-observer are mutually exclusive\n");
+  if (nrUE_params.aiot_t2_reader || nrUE_params.aiot_t2_observer) {
+    struct in_addr report_addr;
+    AssertFatal(nrUE_params.aiot_t2_tag_id >= 1 && nrUE_params.aiot_t2_tag_id <= 60,
+                "--aiot-t2-tag-id must be in range 1..60\n");
+    AssertFatal(nrUE_params.aiot_t2_window_period > 0,
+                "--aiot-t2-window-period must be greater than zero\n");
+    AssertFatal(nrUE_params.aiot_t2_window_duration > 0
+                    && nrUE_params.aiot_t2_window_offset < nrUE_params.aiot_t2_window_period
+                    && nrUE_params.aiot_t2_window_duration
+                           <= nrUE_params.aiot_t2_window_period - nrUE_params.aiot_t2_window_offset,
+                "A-IoT Reader/observer window must fit inside its period\n");
+    AssertFatal(nrUE_params.aiot_t2_reader_handle >= 1 && nrUE_params.aiot_t2_reader_handle <= 2,
+                "--aiot-t2-reader-handle must be 1 or 2\n");
+    AssertFatal(nrUE_params.aiot_t2_report_ip != NULL
+                    && inet_pton(AF_INET, nrUE_params.aiot_t2_report_ip, &report_addr) == 1,
+                "--aiot-t2-report-ip must be a valid IPv4 address\n");
+    AssertFatal(nrUE_params.aiot_t2_report_port > 0,
+                "--aiot-t2-report-port must be greater than zero\n");
+  }
 }
 
 // set PHY vars from command line

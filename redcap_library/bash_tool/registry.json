@@ -16,7 +16,7 @@
       "side_effects": "--check and --help are read-only. Interactive mode may install uv, synchronize .venv, run the upstream OAI dependency installer, pull images, build project-local RedCap images and the declared FlexRIC service, start and stop installer-owned Compose services, and write logs."
     },
     "rebuild_local_redcap_images": {
-      "description": "Build ran-build, oai-gnb, and oai-nr-ue local images from the current workspace.",
+      "description": "Build ran-build, oai-aiotf, oai-gnb, and oai-nr-ue local images from the current workspace.",
       "script_path": "redcap_interface/bash_library/fc_rebuild_local_oai_images.sh",
       "input": {
         "REDCAP_REBUILD_RAN_BASE": "Set to 1 to rebuild ran-base instead of reusing it when present.",
@@ -28,7 +28,7 @@
         "exit_code": "Docker build process exit code.",
         "status_field": "Caller-managed task_log/tasks.json status."
       },
-      "side_effects": "Builds or replaces local ran-base, ran-build, oai-gnb, and oai-nr-ue images; does not start containers or edit source files."
+      "side_effects": "Builds or replaces local ran-base, ran-build, oai-aiotf, oai-gnb, and oai-nr-ue images; does not start containers or edit source files."
     },
     "mmtc_menu": {
       "description": "Open the RedCap mMTC operator menu or dispatch a supported subcommand.",
@@ -142,6 +142,177 @@
         "status_field": "Caller-managed task_log/tasks.json status."
       },
       "side_effects": "Read-only static checks; does not start Docker services."
+    },
+    "aiot_tag_selftest": {
+      "description": "Run the existing deterministic Tag/CW/R2D/D2R boundary self-test.",
+      "script_path": "redcap_library/bash_tool/scripts/aiot_registered_check.sh",
+      "input": {
+        "action": "Fixed value tag-selftest."
+      },
+      "output": {
+        "log_path": "Caller-selected test_log path when retained.",
+        "exit_code": "Zero only when AIOT_T2_SELF_TEST PASS is produced.",
+        "status_field": "Caller-managed task_log/tasks.json status."
+      },
+      "side_effects": "Read-only execution of the existing replay_node self-test; does not start services."
+    },
+    "aiotf_inventory_selftest": {
+      "description": "Run the existing bounded 60-Tag AIOTF inventory state self-test.",
+      "script_path": "redcap_library/bash_tool/scripts/aiot_registered_check.sh",
+      "input": {
+        "action": "Fixed value aiotf-selftest."
+      },
+      "output": {
+        "log_path": "Caller-selected test_log path when retained.",
+        "exit_code": "Zero only when AIOTF_INVENTORY_TEST PASS is produced.",
+        "status_field": "Caller-managed task_log/tasks.json status."
+      },
+      "side_effects": "Read-only execution of the existing AIOTF inventory test; does not start services."
+    },
+    "aiot_topology2_runtime": {
+      "description": "Run the existing tracked RFsim Topology 2 experiment through the mMTC smoke owner.",
+      "script_path": "redcap_interface/bash_library/fc_mmtc_smoke_validation.sh",
+      "input": {
+        "MMTC_ACTIVE_UES": "One reader UE or the declared reader/observer UE set.",
+        "MMTC_GNB_EXTRA_OPTIONS": "Must explicitly include --rfsimulator.options aiot_t2.",
+        "MMTC_UE_EXTRA_OPTIONS": "Validated reader or observer role, Tag, wake window, reader handle, and experimental report endpoint.",
+        "transport_profile": "Fixed value experimental_n6."
+      },
+      "output": {
+        "log_path": "Timestamped path declared in task_log/tasks.json.",
+        "exit_code": "Existing smoke workflow exit code.",
+        "status_field": "task_log/tasks.json status."
+      },
+      "side_effects": "Starts and recreates the declared CN5G/RFsim services, writes runtime logs, and executes its existing cleanup trap; it does not edit source files or remove volumes."
+    },
+    "aiot_evidence_check": {
+      "description": "Validate retained Tag, AIOTF, single-reader, two-reader, or serialized-60 evidence markers.",
+      "script_path": "redcap_library/bash_tool/scripts/aiot_registered_check.sh",
+      "input": {
+        "action": "Fixed value evidence.",
+        "kind": "tag, aiotf, single_reader, two_reader, or serialized_60.",
+        "log_path": "Existing regular file resolving below repository test_log/."
+      },
+      "output": {
+        "log_path": "The checked retained evidence path.",
+        "exit_code": "Zero only when every kind-specific marker is present.",
+        "status_field": "Caller-managed task_log/tasks.json status."
+      },
+      "side_effects": "Read-only marker validation; rejects paths outside test_log and does not start services."
+    },
+    "aiot_topology2_cleanup": {
+      "description": "Return the existing mMTC CN5G/RFsim experiment to its stopped state without deleting volumes.",
+      "script_path": "mmtc.menu.bash",
+      "input": {
+        "subcommand": "Fixed value down; invoke only for a stack started by aiot_topology2_runtime."
+      },
+      "output": {
+        "log_path": "Caller-selected cleanup log when retained.",
+        "exit_code": "Menu down exit code; repeated calls are accepted.",
+        "status_field": "Caller-managed task_log/tasks.json status."
+      },
+      "side_effects": "Stops existing CN5G/RFsim Compose services and removes orphans without deleting volumes; this is experiment cleanup, not the later AIOTF-only down operation."
+    },
+    "aiot_operator": {
+      "description": "Validate, start, inspect, or stop only the disabled-by-default oai-aiotf Compose service.",
+      "script_path": "redcap_library/bash_tool/scripts/aiot_registered_check.sh",
+      "input": {
+        "action": "operator followed by validate, start, status, or down.",
+        "AIOTF_TRANSPORT_PROFILE": "Must be experimental_n6; unsupported SBI and NEF profiles fail closed.",
+        "AIOTF_TAGS": "Optional unique comma-separated Tag IDs 1 through 60.",
+        "AIOTF_PENDING_CONTEXT": "Optional TAG:mode:correlation:session:epoch:frame:slot context.",
+        "AIOTF_TIMEOUT_MS": "Optional positive pending-context timeout."
+      },
+      "output": {
+        "log_path": "Caller-selected log; long start/build operations require task_log/tasks.json.",
+        "exit_code": "Zero only when the requested lifecycle operation completes.",
+        "status_field": "Caller-managed task_log/tasks.json status for long operations."
+      },
+      "side_effects": "validate and status are read-only. start may build/start oai-aiotf. down stops and removes only oai-aiotf; no command removes volumes or mutates other CN5G services."
+    },
+    "aiot_topology2_demo": {
+      "description": "Run the fixed Tag25 two-reader experimental_n6 diagnostic demonstration and clean up only oai-aiotf.",
+      "script_path": "redcap_library/bash_tool/scripts/aiot_registered_check.sh",
+      "input": {
+        "action": "Fixed value demo."
+      },
+      "output": {
+        "log_path": "Caller-selected timestamped demonstration log.",
+        "exit_code": "Zero only after first-valid, duplicate-evidence, and rejected-slot markers are observed.",
+        "status_field": "Caller-managed task_log/tasks.json status."
+      },
+      "side_effects": "Starts and removes only oai-aiotf, sends three localhost UDP reports, reads its logs, and preserves all CN5G volumes and other services."
+    },
+    "build_aiotf_nrf_candidate": {
+      "description": "Build the owner-local OAI NRF AIOTF schema candidate with the official NRF Dockerfile.",
+      "script_path": "redcap_library/bash_tool/scripts/aiot_registered_check.sh",
+      "input": {
+        "action": "Fixed value build-nrf-candidate.",
+        "NRF_SOURCE_DIR": "Authorized OAI NRF source checkout containing docker/Dockerfile.nrf.ubuntu.",
+        "NRF_CANDIDATE_IMAGE": "Optional local image tag; defaults to oai-nrf:aiotf-ts29510-v19.6.0.",
+        "NRF_CONFORMANCE_TARGET": "Optional isolated or deployed; deployed probes the running Compose NRF without starting another container."
+      },
+      "output": {
+        "log_path": "Timestamped path declared in task_log/tasks.json.",
+        "exit_code": "Official Docker build exit code.",
+        "status_field": "task_log/tasks.json status."
+      },
+      "side_effects": "Builds or replaces only the declared local NRF candidate image; does not start containers or edit source files."
+    },
+    "validate_aiotf_nrf_candidate": {
+      "description": "Run isolated AIOTF lifecycle, boundary, discovery, concurrency, legacy-NF, and cleanup checks against the NRF candidate.",
+      "script_path": "redcap_library/bash_tool/scripts/aiot_registered_check.sh",
+      "input": {
+        "action": "Fixed value nrf-aiotf-conformance.",
+        "NRF_CANDIDATE_IMAGE": "Optional local image tag; defaults to oai-nrf:aiotf-ts29510-v19.6.0."
+      },
+      "output": {
+        "log_path": "Timestamped path declared in task_log/tasks.json.",
+        "exit_code": "Zero only when AIOT_NRF_CONFORMANCE PASS is produced after cleanup.",
+        "status_field": "task_log/tasks.json status."
+      },
+      "side_effects": "Starts and removes one labeled candidate NRF container, creates and deletes unique in-memory test profiles, and preserves CN5G containers and volumes."
+    },
+    "probe_nrf_legacy_baseline": {
+      "description": "Run the AMF lifecycle and discovery control against the currently deployed NRF and clean its unique profile.",
+      "script_path": "redcap_library/bash_tool/scripts/aiot_registered_check.sh",
+      "input": {
+        "action": "Fixed value nrf-legacy-baseline."
+      },
+      "output": {
+        "log_path": "Caller-selected protocol evidence log.",
+        "exit_code": "Zero only when AIOT_NRF_LEGACY_BASELINE PASS is produced after cleanup.",
+        "status_field": "Caller-managed task_log/tasks.json status."
+      },
+      "side_effects": "Creates and deletes one unique in-memory AMF test profile in the running NRF; does not recreate containers or change volumes."
+    },
+    "validate_aiotf_nrf_client": {
+      "description": "Validate the AIOTF HTTP/2 NRF client lifecycle and readiness dependency against the deployed upgraded NRF.",
+      "script_path": "redcap_library/bash_tool/scripts/aiot_registered_check.sh",
+      "input": {
+        "action": "Fixed value aiotf-nrf-client.",
+        "AIOTF_CLIENT_IMAGE": "Optional local AIOTF image; defaults to oai-aiotf:latest."
+      },
+      "output": {
+        "log_path": "Timestamped protocol evidence path declared in task_log/tasks.json.",
+        "exit_code": "Zero only after all seven client boundaries pass and cleanup is empty.",
+        "status_field": "task_log/tasks.json status."
+      },
+      "side_effects": "Starts and removes four fixed labeled AIOTF test containers on public_net, creates and deletes one fixed test NFProfile, and preserves CN5G containers and volumes."
+    },
+    "validate_aiotf_naiotf_inventory": {
+      "description": "Validate the bounded trusted-AF Naiotf Inventory HTTP/2 request, rejection, timeout-notification, and restart boundaries.",
+      "script_path": "redcap_library/bash_tool/scripts/aiot_registered_check.sh",
+      "input": {
+        "action": "Fixed value aiotf-naiotf-inventory.",
+        "AIOTF_CLIENT_IMAGE": "Optional local AIOTF image; defaults to oai-aiotf:latest."
+      },
+      "output": {
+        "log_path": "Timestamped protocol evidence path declared in task_log/tasks.json.",
+        "exit_code": "Zero only after h2c 0/1/60/61 Tag, authorization, callback 204, restart, and cleanup boundaries pass.",
+        "status_field": "task_log/tasks.json status."
+      },
+      "side_effects": "Starts and removes three fixed labeled AIOTF test containers on public_net, creates and deletes one fixed test NFProfile, and preserves CN5G containers and volumes."
     }
   }
 }

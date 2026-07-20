@@ -687,7 +687,17 @@ typedef int(*oai_device_initfunc_t)(openair0_device *device, openair0_config_t *
 /* type of transport init function, implemented in shared lib */
 typedef int(*oai_transport_initfunc_t)(openair0_device *device, openair0_config_t *openair0_cfg, eth_params_t *eth_params);
 
-#define OPTION_LZ4  0x00000001          // LZ4 compression (option_value is set to compressed size)
+#define OPTION_LZ4 0x00000001 // LZ4 compression (option_value is set to compressed size)
+#define OPTION_AIOT_T2_R2D 0x08000000          // UE Reader bounded R2D samples
+#define OPTION_AIOT_T2_TAG_REGISTER 0x10000000 // option_value is the stable Tag ID
+#define OPTION_AIOT_T2_CW 0x20000000           // independent CW-node samples
+#define OPTION_AIOT_T2_D2R 0x40000000          // Tag-reflected D2R samples
+#define AIOT_T2_MAX_PAYLOAD_BYTES 16
+#define AIOT_T2_MAX_RF_SAMPLES 576              // 16-byte payload, CRC16, Manchester plus SFS
+#define AIOT_T2_MAX_QUEUED_REPORTS 60
+#define AIOT_T2_REPORT_MAGIC 0x41494f54U         // "AIOT" in network byte order on the wire
+#define AIOT_T2_REPORT_VERSION 1
+#define AIOT_T2_REPORT_FLAG_CRC_VALID 0x0001
 
 
 typedef struct {
@@ -701,6 +711,32 @@ typedef struct {
   uint32_t option_flag;    // Option flag
   uint64_t beam_map;
 } samplesBlockHeader_t;
+
+/* Experimental RFsim-only control packet. Disabled unless the aiot_t2 RFsim
+ * profile is enabled; it is not a standardized OAI fronthaul message. */
+typedef struct {
+  samplesBlockHeader_t header;
+  c16_t samples[AIOT_T2_MAX_RF_SAMPLES];
+} aiot_t2_rf_packet_t;
+
+/* Experimental UE user-plane report. Multi-byte fields are network byte order. */
+typedef struct __attribute__((packed)) {
+  uint32_t magic;
+  uint8_t version;
+  uint8_t payload_len;
+  uint16_t flags;
+  uint32_t reader_handle;
+  uint32_t tag_id;
+  uint32_t frame;
+  uint32_t slot;
+  uint8_t payload[AIOT_T2_MAX_PAYLOAD_BYTES];
+} aiot_t2_inventory_report_t;
+
+#ifdef __cplusplus
+static_assert(sizeof(aiot_t2_inventory_report_t) == 40, "Unexpected A-IoT report wire size");
+#else
+_Static_assert(sizeof(aiot_t2_inventory_report_t) == 40, "Unexpected A-IoT report wire size");
+#endif
 
 #ifdef __cplusplus
 extern "C"
@@ -762,4 +798,3 @@ void openair0_write_reorder_clear_context(openair0_device *device);
 #endif
 
 #endif // COMMON_LIB_H
-

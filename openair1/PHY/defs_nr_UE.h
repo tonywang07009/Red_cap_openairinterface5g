@@ -587,6 +587,9 @@ typedef struct nr_phy_data_s {
   NR_UE_PDCCH_CONFIG phy_pdcch_config;
   NR_UE_DLSCH_t dlsch[2];
 
+  bool ue_connected;
+  bool connected_drx_active;
+
   // Sidelink Rx action decided by MAC
   sl_nr_rx_config_type_enum_t sl_rx_action;
   NR_UE_CSI_RS csirs_vars;

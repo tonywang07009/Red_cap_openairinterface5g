@@ -52,9 +52,11 @@ RUN \
       --noavx512 \
       --build-tool-opt -k10 \
       --cmake-opt -DCMAKE_C_FLAGS="-Werror" --cmake-opt -DCMAKE_CXX_FLAGS="-Werror" $BUILD_OPTION && \
+    cmake --build ran_build/build --target oai-aiotf && \
     # Mainly to see if the sanitize option was perfectly executed
     echo "---- ldd on executables ----" && \
-    ldd ran_build/build/*softmodem* ran_build/build/nr-cuup ran_build/build/oairu && \
+    ldd ran_build/build/*softmodem* ran_build/build/nr-cuup ran_build/build/oairu \
+        ran_build/build/openair3/AIOTF/oai-aiotf && \
     echo "---- ldd on shared libraries ----" && \
     ldd ran_build/build/*.so
 
