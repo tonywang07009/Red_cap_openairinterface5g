@@ -25,5 +25,6 @@
 - For `@spec-38.331`, search under `redcap_doc/specs/redcap_3gpp/`.
 - For RedCap L1/L2 learning, start with `redcap_doc/specs/redcap_l1_l2_protocol_guide.md`.
 - For exact code entry points, use `redcap_doc/specs/function_reference/redcap_l1_l3_function_lookup.md`.
+- For the two-week A-IoT implementation and function walkthrough, use `redcap_doc/manuals/aiot_redcap_to_aiotf_two_week_course.zh-TW.md`.
 - For fast PDF lookup, check `redcap_doc/mineru_markdown/scan_manifest.md` first.
 - Specs marked `[PENDING_LARGE_PDF]` in the manifest should be opened from the original PDF until an offline MinerU run is completed.

@@ -16,6 +16,7 @@
 | Build evidence | `library_build_evidence/` | Final build/rebuild logs tied to retained runtime claims |
 | Report summaries | `library_reports_summary/` | Curated M3-M7 reports, M5 scaling evidence, latency RCA, validation rerun |
 | AIOTF CN5G diagnostic report | `library_reports_summary/aiotf_cn5g_experimental_n6_validation_report.md` | Implemented Tag/AIOTF, NRF and bounded Naiotf scope; evidence index; stopped AMF/RAN/NEF gates |
+| A-IoT two-week course | `../redcap_doc/manuals/aiot_redcap_to_aiotf_two_week_course.zh-TW.md` | GPT 5.6 Luna route from RedCap source owners through Tag, UE Reader, AIOTF, CN5G, and service diagnosis |
 | Documentation workflow | `redcap_doc_writer_skill/SKILL.md` | Bilingual docs, API guides, OpenSpec doc changes, and canonical-path migration workflow |
 
 ## Retention Rule

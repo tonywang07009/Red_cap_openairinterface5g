@@ -1,6 +1,8 @@
 # A-IoT Tag 與 AIOTF 操作指南
 
-[English](./aiot_tag_aiotf_operator.en.md)
+[English](./aiot_tag_aiotf_operator.en.md) | 繁體中文
+
+先依兩週實作導讀建立檔案與函式脈絡：[`aiot_redcap_to_aiotf_two_week_course.zh-TW.md`](./aiot_redcap_to_aiotf_two_week_course.zh-TW.md)
 
 ## 範圍
 
@@ -125,6 +127,17 @@ AIOTF_NAIOTF_RUNTIME PASS protocol=h2c tags=0,1,60,61 auth=rejected callback=204
 
 Retained evidence 位於 `test_log/compiler_logs/aiotf_naiotf_inventory_runtime_2026-07-20_16-35-47.log`。此 gate 只完成 bounded `Naiotf_AIoT_Inventory` surface；AMF/NGAP/RRC round trip 仍缺少，因此完整 `trusted_af_sbi` 維持 fail closed。
 
+## AMF 與標準路徑狀態
+
+| Probe | 目前結果 | 操作判定 |
+|---|---|---|
+| AIOTF NRF register/read-back/discovery | PASS | 只證明 NRF 認得 AIOTF NF profile |
+| `POST /namf-aiot/v1/transfer` 到 OAI AMF `89e15886` | HTTP 404；無 route/model/handler | AIOTF 與 AMF 尚未正常溝通 |
+| 拓撲 2 NGAP/RRC UE Reader endpoint | repo 無 owner/marker | 停止 standard-path gate `[Needs Verification]` |
+| OAI NEF `358f2131` 的 `Nnef_AIoT_*` | 無 route/model/auth/callback owner | 不啟用 `third_party_af_nef` `[Needs Verification]` |
+
+Container 同在 `public_net` 只代表 IP 可達性，不代表 `Namf_AIoT` service 已存在。不得以 NRF PASS、N6 UDP 或 Compose health 取代 AMF round-trip 證據。
+
 ## 失敗處理
 
 | Marker 或錯誤 | 處理方式 |
@@ -134,6 +147,7 @@ Retained evidence 位於 `test_log/compiler_logs/aiotf_naiotf_inventory_runtime_
 | `Address already in use` | 同時檢查 Docker static address 與 host UDP 36900；不可停止無關 service |
 | `AIOTF_DIAGNOSTIC_REJECT reason=no_pending_context` | 讓 Tag、frame、slot 對應到唯一 active pending context |
 | `AIOTF_NRF_GATE REJECT` | 依 `reason=http_rejected|timeout|unavailable` 修正 NRF URI、schema 或連線；不可 alias 成其他 NF type |
+| AMF `/namf-aiot/v1/transfer` 回 404 | 保留 probe 與 AMF commit；等待或實做真正 route/model/handler，不可改打其他 AMF API |
 | AMF/RAN 或 NEF gate 不可用 | 停止 evidence ladder；NRF/Naiotf PASS 不可替代缺少的 endpoint |
 
 最後執行 `./mmtc.menu.bash aiot down`。不得刪除 CN5G volume。

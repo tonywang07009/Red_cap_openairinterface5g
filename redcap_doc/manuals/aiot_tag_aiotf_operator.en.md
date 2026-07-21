@@ -1,6 +1,8 @@
 # A-IoT Tag and AIOTF Operator Guide
 
-[繁體中文](./aiot_tag_aiotf_operator.zh-TW.md)
+English | [繁體中文](./aiot_tag_aiotf_operator.zh-TW.md)
+
+English route | Build the file and function context first with the two-week [繁體中文 course](./aiot_redcap_to_aiotf_two_week_course.zh-TW.md)
 
 ## Scope
 
@@ -125,6 +127,17 @@ AIOTF_NAIOTF_RUNTIME PASS protocol=h2c tags=0,1,60,61 auth=rejected callback=204
 
 Retained evidence is in `test_log/compiler_logs/aiotf_naiotf_inventory_runtime_2026-07-20_16-35-47.log`. This gate completes only the bounded `Naiotf_AIoT_Inventory` surface. The AMF/NGAP/RRC round trip is still missing, so complete `trusted_af_sbi` readiness remains fail closed.
 
+## AMF and standard-path status
+
+| Probe | Current result | Operator decision |
+|---|---|---|
+| AIOTF NRF register/read-back/discovery | PASS | Proves only that NRF accepts the AIOTF NF profile |
+| `POST /namf-aiot/v1/transfer` to OAI AMF `89e15886` | HTTP 404; no route, model, or handler | AIOTF and AMF do not have working communication |
+| Topology-2 NGAP/RRC UE Reader endpoint | No repository owner or marker | Stop the standard-path gate `[Needs Verification]` |
+| OAI NEF `358f2131` `Nnef_AIoT_*` | No route, model, authorization, or callback owner | Do not enable `third_party_af_nef` `[Needs Verification]` |
+
+Sharing `public_net` proves only IP reachability. It does not prove that a `Namf_AIoT` service exists. Do not substitute NRF PASS, N6 UDP, or Compose health for AMF round-trip evidence.
+
 ## Failure handling
 
 | Marker or error | Action |
@@ -134,6 +147,7 @@ Retained evidence is in `test_log/compiler_logs/aiotf_naiotf_inventory_runtime_2
 | `Address already in use` | Inspect both Docker static addresses and host UDP 36900; do not stop unrelated services |
 | `AIOTF_DIAGNOSTIC_REJECT reason=no_pending_context` | Match Tag, frame, and slot to one active pending context |
 | `AIOTF_NRF_GATE REJECT` | Use `reason=http_rejected|timeout|unavailable` to fix the NRF URI, schema, or connection; do not alias another NF type |
+| AMF `/namf-aiot/v1/transfer` returns 404 | Retain the probe and AMF commit; wait for or implement the real route/model/handler, and do not call another AMF API instead |
 | AMF/RAN or NEF gate unavailable | Stop the evidence ladder; NRF/Naiotf PASS does not replace a missing endpoint |
 
 Always finish with `./mmtc.menu.bash aiot down`. Do not delete CN5G volumes.

@@ -126,10 +126,23 @@ Known limits:
 - Diversity evidence retains independent reports only. It does not combine samples or soft information.
 - Bounded Naiotf uses a local trusted-AF allow-list and a project-specific permanent-ID mapping. It does not prove OAuth, HTTPS callback, `targetArea`, Command, ADM, security, or complete SBI readiness `[Needs Verification]`.
 
+## Current CN5G Boundary
+
+| Interface | Evidence | Status |
+|---|---|---|
+| AIOTF to NRF | Native AIOTF profile lifecycle, read-back, area discovery, and cleanup markers | Implemented over HTTP/2 |
+| Trusted AF to AIOTF | Bounded h2c Inventory request and HTTP/2 notification | Implemented experimental surface; not complete SBI conformance |
+| AIOTF to AMF | OAI AMF `89e15886` returns HTTP 404 for `POST /namf-aiot/v1/transfer`; no route/model/handler owner | Missing `[Needs Verification]` |
+| AMF/gNB to UE Reader | No matching topology-2 NGAP/RRC endpoint in the selected source and Stage-3 baseline | Missing `[Needs Verification]` |
+| AF to NEF | OAI NEF `358f2131` has no `Nnef_AIoT_*` route/model/auth/callback owner | Missing `[Needs Verification]` |
+
+NRF registration proves NF discovery only. AIOTF and AMF do not currently have a working A-IoT protocol channel. N6 UDP remains a diagnostic report path and must not be presented as an AMF, NGAP/RRC, or NEF replacement.
+
 ## Reading Route
 
 | Need | Start with |
 |---|---|
+| Two-week RedCap-to-AIOTF implementation and function course for GPT 5.6 Luna | `../../manuals/aiot_redcap_to_aiotf_two_week_course.zh-TW.md` |
 | Implemented architecture and claim boundaries | `../../manuals/aiot_tag_aiotf_architecture.zh-TW.md` or `.en.md` |
 | Operator commands, skill, markers, and cleanup | `../../manuals/aiot_tag_aiotf_operator.zh-TW.md` or `.en.md` |
 | Function-level trace | `../function_reference/aiot_tag_aiotf_function_trace.md` |

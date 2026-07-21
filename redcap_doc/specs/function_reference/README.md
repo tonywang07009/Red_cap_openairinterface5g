@@ -7,3 +7,7 @@
 ## Entry
 - `redcap_l1_l3_function_lookup.md`
 - `aiot_tag_aiotf_function_trace.md`: Tag/CW, RFsim, UE Reader, AIOTF process/state, registry, menu, display, and blocked CN5G standard-path owners.
+
+## A-IoT Learning Route
+
+Read `../../manuals/aiot_redcap_to_aiotf_two_week_course.zh-TW.md` for the ten-day GPT 5.6 Luna course, then use `aiot_tag_aiotf_function_trace.md` for symbol-by-symbol tracing.

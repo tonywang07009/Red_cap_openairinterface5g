@@ -1,6 +1,8 @@
 # A-IoT Tag and AIOTF Architecture
 
-[繁體中文](./aiot_tag_aiotf_architecture.zh-TW.md)
+English | [繁體中文](./aiot_tag_aiotf_architecture.zh-TW.md)
+
+English route | Two-week implementation and function [繁體中文 course](./aiot_redcap_to_aiotf_two_week_course.zh-TW.md)
 
 ## Status
 
@@ -127,7 +129,15 @@ Do not use `down -v`. The exercised rollback and forward restoration each took a
 
 The NRF server, AIOTF registration/update/read-back/discovery client, and bounded `Naiotf_AIoT_Inventory` gates now pass. The complete standard path remains blocked by the selected AMF's missing `Namf_AIoT` route, the RAN checkout's missing NGAP/RRC AIoT endpoints, and the missing `Nnef_AIoT_*` owner in selected OAI NEF `358f2131`. Do not replace these missing interfaces with N6 UDP or register AIOTF as another NF type.
 
+| Boundary | Current evidence | Conclusion |
+|---|---|---|
+| AIOTF to AMF | OAI AMF `89e15886` returns HTTP 404 for `POST /namf-aiot/v1/transfer`; the checkout has no matching route, model, or handler | No working communication; sharing `public_net` does not make an SBI service available |
+| AMF to gNB/UE Reader | This repository has no topology-2 AIoT NGAP encoder/decoder or RRC UE Reader endpoint | No end-to-end round trip `[Needs Verification]` |
+| AF to NEF | OAI NEF `358f2131` has no `Nnef_AIoT_*` route, model, authorization, or callback owner | `third_party_af_nef` cannot be enabled `[Needs Verification]` |
+
 Published TS 38.413 V19.1.0 contains A-IoT NGAP/ASN.1, but clauses 8.20.1-8.20.5 explicitly constrain the NG-RAN node to a gNB reader. Published TS 38.331 V19.1.0 exposes no matching AIoT/UE Reader RRC endpoint. Importing the Release 19 NGAP contract would therefore implement topology 1, not the selected topology 2. Task 2.8 must wait for a matched UE Reader NGAP/RRC Stage-3 baseline `[Needs Verification]`.
+
+The local Stage-3 study material does not remove this blocker. R3-262577 rev6 leaves the UE Reader ID and procedure/IE allocation unresolved; R3-263036 rev7 is an unfilled future-meeting template; the RAN2#134 EOM list discusses topology 2 but provides no implementable TS 38.331 UE Reader CR. `[Needs Verification]`
 
 ## References
 

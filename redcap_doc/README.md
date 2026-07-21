@@ -19,6 +19,7 @@
 | `manuals/aiot_tag_aiotf_architecture.en.md` | English A-IoT Tag/AIOTF architecture, profiles, and evidence boundaries |
 | `manuals/aiot_tag_aiotf_operator.zh-TW.md` | 繁體中文 A-IoT registered operator、展示與 cleanup 流程 |
 | `manuals/aiot_tag_aiotf_operator.en.md` | English A-IoT registered operator, demonstration, and cleanup workflow |
+| `manuals/aiot_redcap_to_aiotf_two_week_course.zh-TW.md` | GPT 5.6 Luna 用兩週 RedCap-to-AIOTF 實作、函式與售後診斷課程 |
 | `manuals/install/` | Public install, rebuild, and newcomer gate manuals |
 | `manuals/install/redcap_begin_from_zero.en.md` | English beginner path from zero setup to 29 UE RFsim validation |
 | `manuals/install/redcap_begin_from_zero.zh-TW.md` | 繁體中文新手路徑：從 0 安裝到 29 UE RFsim 驗證 |
@@ -44,4 +45,5 @@
 - For reusable operation procedures, start with `manuals/README.md`.
 - For L1/L2 protocol learning, start with `specs/redcap_l1_l2_protocol_guide.md`.
 - For code modification entry points, start with `specs/function_reference/README.md`.
+- For the A-IoT RedCap-to-AIOTF two-week implementation course, start with `manuals/aiot_redcap_to_aiotf_two_week_course.zh-TW.md`.
 - For PDF lookup, start with `mineru_markdown/scan_manifest.md`, then open the cached Markdown if available.

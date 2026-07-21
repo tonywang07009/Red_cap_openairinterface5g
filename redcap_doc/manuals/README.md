@@ -22,6 +22,7 @@
 | `redcap_project_onboarding_step_by_step.md` | Step-by-step handoff guide for dependencies, build, UI use, and function modification |
 | `aiot_tag_aiotf_architecture.zh-TW.md`, `.en.md` | A-IoT Topology 2, Tag/UE/AIOTF ownership, CN5G profiles, N6 isolation, and blocked standard path |
 | `aiot_tag_aiotf_operator.zh-TW.md`, `.en.md` | Registered build, skill, menu, display, evidence, failure, and cleanup procedure |
+| `aiot_redcap_to_aiotf_two_week_course.zh-TW.md` | GPT 5.6 Luna 用十個工作日導讀 RedCap、Topology 2、Tag、UE Reader、AIOTF、CN5G 與售後診斷 |
 
 ## Compatibility Note
 - The `redcap_zero_to_build_and_run_guide.*.md` files remain as older compatible beginner guides.

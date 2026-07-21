@@ -1,6 +1,8 @@
 # A-IoT Tag 與 AIOTF 架構
 
-[English](./aiot_tag_aiotf_architecture.en.md)
+[English](./aiot_tag_aiotf_architecture.en.md) | 繁體中文
+
+兩週實作與函式導讀：[`aiot_redcap_to_aiotf_two_week_course.zh-TW.md`](./aiot_redcap_to_aiotf_two_week_course.zh-TW.md)
 
 ## 狀態
 
@@ -127,7 +129,15 @@ docker compose -f oai-cn5g/docker-compose.yaml up -d --no-deps --force-recreate 
 
 NRF server、AIOTF registration/update/read-back/discovery client 與 bounded `Naiotf_AIoT_Inventory` gate 已通過。完整標準路徑仍受阻於 AMF `Namf_AIoT` route、RAN NGAP/RRC AIoT endpoint，以及已選 OAI NEF `358f2131` 中缺少的 `Nnef_AIoT_*` owner。不得用 N6 UDP 取代這些介面，也不得把 AIOTF 假裝註冊成其他 NF type。
 
+| 邊界 | 目前證據 | 結論 |
+|---|---|---|
+| AIOTF 到 AMF | OAI AMF `89e15886` 對 `POST /namf-aiot/v1/transfer` 回 HTTP 404，且 checkout 內無對應 route、model 或 handler | 尚未正常溝通；共用 `public_net` 不等於 SBI service 可用 |
+| AMF 到 gNB/UE Reader | 本 repo 無拓撲 2 所需的 AIoT NGAP encoder/decoder 與 RRC UE Reader endpoint | 無法形成端到端 round trip `[Needs Verification]` |
+| AF 到 NEF | OAI NEF `358f2131` 無 `Nnef_AIoT_*` route、model、authorization 與 callback owner | `third_party_af_nef` 不可啟用 `[Needs Verification]` |
+
 公開的 TS 38.413 V19.1.0 已有 A-IoT NGAP/ASN.1，但 8.20.1-8.20.5 明確限定 NG-RAN node 是 gNB reader；公開的 TS 38.331 V19.1.0 找不到對應的 AIoT/UE Reader RRC endpoint。直接匯入 Release 19 NGAP 會變成拓撲 1，不是本專案選定的拓撲 2，因此 2.8 需等待一致的 UE Reader NGAP/RRC Stage-3 baseline `[Needs Verification]`。
+
+本地 Stage-3 研究材料也尚未解除此阻塞：R3-262577 rev6 仍將 UE Reader ID 與 procedure/IE 配置保留為未定內容；R3-263036 rev7 是未填入協定內容的未來會議模板；RAN2#134 EOM 清單雖含拓撲 2 討論，但未提供可直接實做的 TS 38.331 UE Reader CR。`[Needs Verification]`
 
 ## 參考
 

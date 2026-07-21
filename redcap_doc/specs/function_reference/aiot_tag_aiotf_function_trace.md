@@ -1,5 +1,7 @@
 # A-IoT Tag and AIOTF Function Trace
 
+Course route: [`../../manuals/aiot_redcap_to_aiotf_two_week_course.zh-TW.md`](../../manuals/aiot_redcap_to_aiotf_two_week_course.zh-TW.md)
+
 ## Trace rule
 
 Start at the marker in the last column, then move to the listed next trace point. `experimental_n6` functions are local diagnostic owners. The external NRF schema, in-repo AIOTF HTTP/2 client, and bounded Naiotf Inventory surface are implemented. AMF/NGAP/RRC/NEF paths remain missing or `[Needs Verification]`.
@@ -67,7 +69,7 @@ Start at the marker in the last column, then move to the listed next trace point
 |---|---|---|---|---|---|---|---|
 | AIOTF NF registration/update/read-back | AIOTF NRF client and OAI NRF | Exact native AIOTF NF profile | Accepted NF instance and area discovery result; graceful delete | AIOTF -> NRF | `AIOTF_NRF_GATE PASS`, `AIOTF_NRF_DEREGISTRATION` | NRF profile parser | Implemented over HTTP/2; HTTP/1 parity `[Needs Verification]` |
 | `Naiotf_AIoT_Inventory` | AIOTF SBI server | Trusted-AF explicit-device inventory request | Unique `transId` and result notification | Trusted AF -> AIOTF | `AIOTF_NAIOTF_REQUEST`, `AIOTF_NAIOTF_NOTIFY` | AIOTF inventory state | Bounded surface implemented; full profile awaits AMF/RAN |
-| `Namf_AIoT_MessageDelivery` / notify | OAI AMF | Correlated UE Reader message | Downlink delivery and uplink notification | AIOTF <-> AMF | No route/marker | NGAP encoder/decoder | Missing `[Needs Verification]` |
-| AIoT NGAP transfer | gNB/AMF NGAP owners | AIoT transfer PDU | RAN/AMF transport and state | AMF <-> gNB | No local encoder/decoder marker | RRC UE Reader endpoint | Missing for topology 2; TS 38.413 V19.1.0 contract is gNB-reader-only |
-| AIoT RRC UE Reader transfer | gNB and UE RRC owners | Reader command/result | RRC downlink/uplink delivery | gNB <-> UE Reader | No RRC marker | UE Reader application/state | Missing; no matched endpoint found in TS 38.331 V19.1.0 `[Needs Verification]` |
+| `Namf_AIoT_MessageDelivery` / notify | OAI AMF `89e15886` | Correlated UE Reader message | Downlink delivery and uplink notification | AIOTF <-> AMF | `POST /namf-aiot/v1/transfer` returns HTTP 404; no route/model/handler | NGAP encoder/decoder | Missing `[Needs Verification]` |
+| AIoT NGAP transfer | gNB/AMF NGAP owners | AIoT transfer PDU | RAN/AMF transport and state | AMF <-> gNB | No local encoder/decoder marker | RRC UE Reader endpoint | Missing for topology 2; TS 38.413 V19.1.0 is gNB-reader-only and local R3-263036 rev7 has no protocol content `[Needs Verification]` |
+| AIoT RRC UE Reader transfer | gNB and UE RRC owners | Reader command/result | RRC downlink/uplink delivery | gNB <-> UE Reader | No RRC marker | UE Reader application/state | Missing; TS 38.331 V19.1.0 and the RAN2#134 EOM set provide no matched implementable UE Reader endpoint/CR `[Needs Verification]` |
 | `Nnef_AIoT_*` | OAI NEF `358f2131` | Third-party AF request and callback | Authorized exposure and notification | AF <-> NEF <-> AIOTF | No owner/marker | Trusted-AF SBI | Selected owner lacks route/model/auth/callback `[Needs Verification]` |
