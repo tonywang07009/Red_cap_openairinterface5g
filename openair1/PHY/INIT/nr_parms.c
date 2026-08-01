@@ -32,6 +32,10 @@
 static const uint32_t nr_subcarrier_spacing[MAX_NUM_SUBCARRIER_SPACING] = {15e3, 30e3, 60e3, 120e3, 240e3};
 static const uint16_t nr_slots_per_subframe[MAX_NUM_SUBCARRIER_SPACING] = {1, 2, 4, 8, 16};
 // TR_38_104
+
+
+// The 1 = 51 This gnb prb owner 
+//  more constration used is mac layer job
 static int nr_redcap_fr1_max_prbs(const uint8_t mu)
 {
   switch (mu) {
@@ -46,20 +50,54 @@ static int nr_redcap_fr1_max_prbs(const uint8_t mu)
   }
 }
 
+// juduge the gnb opening the config about redcap
+// The first check
 static bool nr_redcap_gnb_configured(void)
 {
-  paramdef_t redcap_params[] = GNB_REDCAP_PARAMS_DESC;
-  char aprefix[MAX_OPTNAME_SIZE * 2 + 8];
-  snprintf(aprefix, sizeof(aprefix), "%s.[0].%s", GNB_CONFIG_STRING_GNB_LIST, GNB_CONFIG_STRING_REDCAP);
-  const int ret = config_get(config_get_if(), redcap_params, sizeofArray(redcap_params), aprefix);
+  paramdef_t redcap_params[] = GNB_REDCAP_PARAMS_DESC; // This is deta sturct 
+                                                       // form openair2/GNB_APP/gnb_paramdef.h:568
+                                                       // analizy yaml schema parameter   
 
+  char aprefix[MAX_OPTNAME_SIZE * 2 + 8]; // keep parameter config section
+                                          // The gNBs.[0].Redcap -> setting parameter
+
+  snprintf(aprefix, sizeof(aprefix), "%s.[0].%s", GNB_CONFIG_STRING_GNB_LIST, GNB_CONFIG_STRING_REDCAP);
+
+  /*
+    macro define
+      GNB_CONFIG_STRING_GNB_LIST  = "gNBs"
+      GNB_CONFIG_STRING_REDCAP    = "RedCap"
+  */
+  
+  // only get one gnb setting 
+  /*
+    gNBs is list -
+
+      gNBS[0].seeting is what 
+  */
+
+
+  const int ret = config_get(config_get_if(), redcap_params, sizeofArray(redcap_params), aprefix);
+                             // config_get_if() : get OAI config system 
+                             // redcap_params : The redcap parameter discrible
+                             
   if (ret <= 0)
     return false;
 
+          // pointer cellBarredRedCap1Rx_r17 table value
+          // The mean is this column need apper
+          // && return setting -> like 
+          /*
+              if the first condition and second condition is 1 (return ture)
+              else false
+          */
+          
   return *redcap_params[GNB_REDCAP_CELL_BARRED_REDCAP1_RX_R17_IDX].i8ptr != -1
          && *redcap_params[GNB_REDCAP_CELL_BARRED_REDCAP2_RX_R17_IDX].i8ptr != -1;
 }
 
+
+// reading ue config setting 
 static bool nr_redcap_ue_configured(void)
 {
   nr_redcap_cfg_t redcap_cfg = {0};
@@ -74,12 +112,14 @@ static void nr_assert_redcap_fr1_grid_size(const char *node_name, const NR_DL_FR
               "%s RedCap FR1 validation only supports SCS 15/30 kHz at init time (mu %u)\n",
               node_name,
               fp->numerology_index);
+
   AssertFatal(fp->N_RB_DL <= max_prbs,
               "%s RedCap FR1 DL grid size %d PRBs exceeds 20 MHz limit for mu %u (max %d PRBs)\n",
               node_name,
               fp->N_RB_DL,
               fp->numerology_index,
               max_prbs);
+
   AssertFatal(fp->N_RB_UL <= max_prbs,
               "%s RedCap FR1 UL grid size %d PRBs exceeds 20 MHz limit for mu %u (max %d PRBs)\n",
               node_name,
@@ -88,17 +128,24 @@ static void nr_assert_redcap_fr1_grid_size(const char *node_name, const NR_DL_FR
               max_prbs);
 }
 
+// the redcap vaildation gnb process
 void nr_validate_redcap_gnb_frame_parms(const NR_DL_FRAME_PARMS *fp)
 {
   const int max_prbs = nr_redcap_fr1_max_prbs(fp->numerology_index);
 
+  // != FR1 , The error handle
   AssertFatal(fp->freq_range == FR1,
               "gNB RedCap init validation currently supports FR1 only (band n%d, dl_CarrierFreq %lu)\n",
               fp->nr_band,
               fp->dl_CarrierFreq);
+
+   // < 0 , The scs setting fail
   AssertFatal(max_prbs > 0,
               "gNB RedCap init validation currently supports SCS 15/30 kHz only (mu %u)\n",
               fp->numerology_index);
+
+  // The gnb full prb can coexist the prb specify prb range
+  // The real prb arange consition is used from mac
   if (fp->N_RB_DL > max_prbs || fp->N_RB_UL > max_prbs) {
     LOG_I(PHY,
           "gNB RedCap common grid uses DL/UL %d/%d PRBs for mu %u; allowing it because the 20 MHz limit is enforced on "
@@ -107,21 +154,28 @@ void nr_validate_redcap_gnb_frame_parms(const NR_DL_FRAME_PARMS *fp)
           fp->N_RB_UL,
           fp->numerology_index);
   }
+
+  // fit the redcap ue rx recive annta amount 
+  // don't get more beam amount
   AssertFatal(fp->nb_antennas_tx > 0 && fp->nb_antennas_tx <= 2,
               "gNB RedCap cell profile exposes %u DL antenna ports, but RedCap FR1 requires DL layers/ports <= 2\n",
               fp->nb_antennas_tx);
 }
 
+// the redcap vaildation ue process
 void nr_validate_redcap_ue_frame_parms(const NR_DL_FRAME_PARMS *fp)
 {
   AssertFatal(fp->freq_range == FR1,
               "UE RedCap init validation currently supports FR1 only (band n%d, dl_CarrierFreq %lu)\n",
               fp->nr_band,
               fp->dl_CarrierFreq);
-  nr_assert_redcap_fr1_grid_size("UE", fp);
+
+  nr_assert_redcap_fr1_grid_size("UE", fp); // The check function
+
   AssertFatal(fp->nb_antennas_rx > 0 && fp->nb_antennas_rx <= 2,
               "UE RedCap FR1 requires 1 or 2 RX branches, but configured RX antennas = %u\n",
               fp->nb_antennas_rx);
+
   AssertFatal(fp->nb_antennas_tx == 1,
               "UE RedCap FR1 does not support UL MIMO: expected 1 TX branch, got %u\n",
               fp->nb_antennas_tx);
@@ -251,6 +305,7 @@ int nr_get_ssb_start_symbol(const NR_DL_FRAME_PARMS *fp, uint8_t i_ssb)
 void set_scs_parameters (NR_DL_FRAME_PARMS *fp, int mu, int N_RB_DL)
 {
   int idx = 0;
+  // The scs switch
   switch(mu) {
     case NR_MU_0: //15kHz scs
       fp->subcarrier_spacing = nr_subcarrier_spacing[NR_MU_0];
@@ -467,11 +522,16 @@ uint32_t get_samples_slot_duration(const NR_DL_FRAME_PARMS *fp, unsigned int sta
   return (get_samples_slot_timestamp(fp, start_slot + num_slots) - get_samples_slot_timestamp(fp, start_slot));
 }
 
+
+// The recive cfg -> phy cell seeting
+// fp -> frame parameter sturct
+
 void nr_init_frame_parms(nfapi_nr_config_request_scf_t* cfg, NR_DL_FRAME_PARMS *fp)
 {
 
   AssertFatal (cfg, "Null pointer to cfg!\n");
 
+  /* The real parameter setting postion*/
   fp->frame_type = cfg->cell_config.frame_duplex_type.value;
   fp->L_ssb = (((uint64_t) cfg->ssb_table.ssb_mask_list[0].ssb_mask.value) << 32) | cfg->ssb_table.ssb_mask_list[1].ssb_mask.value;
   fp->N_RB_DL = cfg->carrier_config.dl_grid_size[cfg->ssb_config.scs_common.value].value;
@@ -507,11 +567,15 @@ void nr_init_frame_parms(nfapi_nr_config_request_scf_t* cfg, NR_DL_FRAME_PARMS *
                                                           + (fp->symbols_per_slot * fp->ofdm_symbol_size);
   fp->samples_per_frame = 10 * fp->samples_per_subframe;
   fp->freq_range = get_freq_range_from_freq(fp->dl_CarrierFreq);
-  fp->redcap_restricted = nr_redcap_gnb_configured();
+                                                      
+  
+                                                       // The setting file role
+  fp->redcap_restricted = nr_redcap_gnb_configured();  // The redcap condition (return ture or false) -> didn't need check if false
 
   fp->Ncp = Ncp;
 
-  if (fp->redcap_restricted)
+  if (fp->redcap_restricted)// The  into the check  PHY seeting 
+                            /* is FR1 ? SCS is 15 or 30 kHz  gNB DL antenna ports */
     nr_validate_redcap_gnb_frame_parms(fp);
 
   set_Lmax(fp);

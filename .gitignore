@@ -28,11 +28,10 @@ CMakeUserPresets.json
 .symdex/
 
 #agent
-/agent_doc
-/mcp
-/openspec
-/pre-commit-clang
-/scripts
+agent_doc/
+
+mcp/
+openspec/
 # Root pyproject.toml and uv.lock are repository-owned.
 package.json     
 package-lock.json
@@ -44,6 +43,6 @@ node_modules/
 node_modules/
 
 #test log
-/test_log
-/test
-/task_log
+test_log/
+test/
+task_log/

@@ -1,5 +1,0 @@
-channel_model,stage,status,evidence_path,limitation_note
-Rayleigh8,measurement_sweep,partial,analysis/data/paper08_fig9_udp_snr_Rayleigh8_2026-05-27_10-41-37.csv,lower SNR proxy rows timed out at iperf return code 124
-Rayleigh1_corr,smoke_setup,blocked,test_log/compiler_logs/mmtc_smoke_2026-05-27_10-52-16_ue1_state.log,UE attach and oaitun_ue1 did not become ready
-Rayleigh1_anticorr,smoke_setup,blocked,test_log/compiler_logs/mmtc_smoke_2026-05-27_10-53-30_ue1_state.log,UE attach and oaitun_ue1 did not become ready
-TDL_A,smoke_setup,blocked,test_log/compiler_logs/mmtc_smoke_2026-05-27_11-01-29_ue1_state.log,UE container exited before oaitun_ue1 became ready

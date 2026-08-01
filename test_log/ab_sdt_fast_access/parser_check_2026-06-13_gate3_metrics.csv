@@ -1,2 +1,0 @@
-"case_id","case_name","status","status_reason","smoke_rc","start_marker","first_data_marker","data_path_ms","packet_bytes","tbs","gnb_rx_bytes","rb_size","mcs","ping_avg_ms","ping_loss","gnb_log","ue_log","ping_log","console_log"
-"B","sdt-inactive","PASS","ok","NA","UE RRC_INACTIVE entered","UE cg-SDT PUSCH tx","0.323","53","72","4","8","4","9.664","0% packet loss","test_log/compiler_logs/mmtc_smoke_2026-06-13_14-52-24_gnb.log","test_log/compiler_logs/mmtc_smoke_2026-06-13_14-52-24_ue1_docker.log","test_log/compiler_logs/mmtc_smoke_2026-06-13_14-52-24_ue1_ping.log","NA"

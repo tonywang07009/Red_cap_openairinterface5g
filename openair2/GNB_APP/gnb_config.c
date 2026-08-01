@@ -106,7 +106,7 @@ static uint16_t set_snssai_config(nssai_t *nssai, const int max_num_ssi, uint8_t
                   snssaistr,
                   SNSSAIPARAMS_CHECK);
   uint16_t num_ssi = SNSSAIParamList.numelt;
-  AssertFatal(num_ssi < max_num_ssi, "S-NSSAI size %d exceeds the max array size %d", num_ssi, max_num_ssi);
+  AssertFatal(num_ssi < max_num_ssi, "S-N/stSSAI size %d exceeds the max array size %d", num_ssi, max_num_ssi);
   for (int s = 0; s < num_ssi; ++s) {
     nssai[s].sst = *SNSSAIParamList.paramarray[s][GNB_SLICE_SERVICE_TYPE_IDX].uptr;
     // SD is optional
@@ -939,8 +939,10 @@ bool is_pattern2_config(paramdef_t *param)
   return true;
 }
 
+// pdu and cu setting message
 static NR_ServingCellConfigCommon_t *get_scc_config(configmodule_interface_t *cfg, int minRXTXTIME, int do_SRS)
 {
+
   NR_ServingCellConfigCommon_t *scc = calloc_or_fail(1, sizeof(*scc));
   uint64_t ssb_bitmap=0xff;
   prepare_scc(scc);
@@ -956,7 +958,8 @@ static NR_ServingCellConfigCommon_t *get_scc_config(configmodule_interface_t *cf
     GET_PARAMS(SCCsParams, SCCPARAMS_DESC(scc), aprefix);
     GET_PARAMS(MsgASCCsParams, MSGASCCPARAMS_DESC(scc), aprefix);
     // NR_TDD-UL-DL-ConfigCommon pattern2 (optional IE)
-    // fetch params
+    // fetch params'
+
     struct NR_TDD_UL_DL_Pattern p2;
     paramdef_t pattern2Params[] = SCC_PATTERN2_PARAMS_DESC(p2);
     char aprefix[MAX_OPTNAME_SIZE * 2 + 8];
@@ -1263,7 +1266,7 @@ static nr_ptrs_config_t *get_ptrs_config(int gnb_idx)
 }
 
 /* Red cap */
-
+// This way RC is from  get_redcap_config() return
 static void get_redcap_initial_bwp_config(nr_redcap_config_t *rc, int gnb_idx, const NR_ServingCellConfigCommon_t *scc)
 {
   paramdef_t RedCap_BWP_Params[] = GNB_REDCAP_INITIAL_BWP_PARAMS_DESC;
@@ -1357,11 +1360,14 @@ static void get_redcap_initial_bwp_config(nr_redcap_config_t *rc, int gnb_idx, c
   }
 }
 
-// the redcap config
+// the redcap config stteing
+
+//gnb_idx -> The gnb code 
+// scc -> Normal NR serving Cell Common config
 static nr_redcap_config_t *get_redcap_config(int gnb_idx, const NR_ServingCellConfigCommon_t *scc)
 {
   paramdef_t RedCap_Params[] = GNB_REDCAP_PARAMS_DESC; // into the config file
-  char aprefix[MAX_OPTNAME_SIZE * 2 + 8];
+  char aprefix[MAX_OPTNAME_SIZE * 2 + 8]; // the yaml comlunm role
   snprintf(aprefix, sizeof(aprefix), "%s.[%d].%s", GNB_CONFIG_STRING_GNB_LIST, gnb_idx, GNB_CONFIG_STRING_REDCAP);
   int ret = config_get(config_get_if(), RedCap_Params, sizeofArray(RedCap_Params), aprefix); // read the config file 
 
@@ -1377,6 +1383,7 @@ static nr_redcap_config_t *get_redcap_config(int gnb_idx, const NR_ServingCellCo
     return NULL;
   }
 // share memory for the redcap config
+// 1: call one memory , and clean this memory inside
   nr_redcap_config_t *rc = calloc_or_fail(1, sizeof(*rc));
 
   rc->cellBarredRedCap1Rx_r17 = *RedCap_Params[GNB_REDCAP_CELL_BARRED_REDCAP1_RX_R17_IDX].i8ptr;

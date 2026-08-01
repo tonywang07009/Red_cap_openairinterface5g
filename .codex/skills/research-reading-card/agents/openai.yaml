@@ -1,0 +1,6 @@
+interface:
+  display_name: "Research Reading Card"
+  short_description: "Evidence-first research and repair analysis"
+  default_prompt: "Use $research-reading-card to analyze this technical problem with sources, competing explanations, falsifiers, and a bounded conclusion."
+policy:
+  allow_implicit_invocation: true

@@ -1,3 +1,0 @@
-run_id,direction,offered_rate,server_ip,ue_ip,current_mbps,receiver_mbps,jitter_ms,lost_packets,total_packets,lost_percent,return_code,log_path
-panel_smoke_2026-05-28,UL,1M,192.168.72.135,10.0.0.2,0.99,0.99,14.642,0,259,0.0,0,test_log/compiler_logs/panel_smoke_2026-05-28/panel_smoke_2026-05-28_UL.log
-panel_smoke_2026-05-28,DL,1M,192.168.72.135,10.0.0.2,1.02,1.02,0.712,0,263,0.0,0,test_log/compiler_logs/panel_smoke_2026-05-28/panel_smoke_2026-05-28_DL.log
