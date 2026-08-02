@@ -1,0 +1,6 @@
+interface:
+  display_name: "Luna CLI Trace Course"
+  short_description: "Coach source-to-runtime tracing one CLI step at a time."
+  default_prompt: "Use $luna-cli-trace-course to coach me through the next RedCap simulator trace step."
+policy:
+  allow_implicit_invocation: true
