@@ -13,7 +13,7 @@ parameter_kinds:
   - control-guard
   - pass-criterion
 evidence_tier: bounded-historical-change-replay
-last_reviewed: 2026-08-01
+last_reviewed: 2026-08-02
 ---
 
 # Chapter 10：Change replay capstone
@@ -22,16 +22,22 @@ last_reviewed: 2026-08-01
 [前一章](09-dapp-guard-apply-and-rollback.md) ·
 [Outcome evidence](../../../agent_doc/Project_management/redcap_research_wiki/systems/xapp-dapp/outcome-evidence.md)
 
-本章讓您獨立重播一個 bounded change：**`redcap_ul_prb_cap` 從 xApp input，
-經 E2SM-RC request/ACK，到 gNB UE context apply marker。**選它是因為三方
-owner與retained evidence齊全；本章仍不把它擴張成效能改善。
+本章讓您獨立重播一項範圍受限的變更（bounded change）：**`redcap_ul_prb_cap`
+從 xApp input，經 E2SM-RC request/ACK，到 gNB UE context apply marker。**
+選它是因為 project、source 與 retained evidence 三方齊全；本章仍不把它
+擴張成效能改善。
+
+### 本章主線
+
+用一個 UL-PRB cap change 完整重播 **input → request → decode → apply**，再
+刻意停在「沒有 outcome metric」的位置。這樣可以同時練習 trace 與停止推論。
 
 ## 1. 學習目標
 
-1. 從 ledger建立 project/source/evidence三方route。
+1. 從 ledger 建立 project/source/evidence 三方 route。
 2. 自己完成 input → request → decode → sanitize → state → marker trace。
-3. 為 ACK-only、unknown RNTI、cap boundary與missing metric設計falsifier。
-4. 產出可交給Luna或下一位工程師的Research Reading Card與handoff。
+3. 為 ACK-only、unknown RNTI、cap boundary 與 missing metric 設計 falsifier。
+4. 產出可交給 Luna 或下一位工程師的 Research Reading Card 與 handoff。
 
 ### 本章不處理
 
@@ -55,8 +61,9 @@ owner與retained evidence齊全；本章仍不把它擴張成效能改善。
 要驗證的句子：
 
 > 在有效 `REDCAP_CTRL_RNTI` 與 `REDCAP_CTRL_UL_PRB_CAP` 下，integrated xApp
-> 建立UL-PRB RC request；gNB decoder取得同一RNTI/requested cap，apply owner
-> 將sanitize後的effective cap寫入該UE scheduler context並留下marker。
+> 建立 UL-PRB RC request；gNB decoder 取得同一 RNTI 與 requested cap，apply
+> owner 將 sanitize 後的 effective cap 寫入該 UE scheduler context，並留下
+> marker。
 
 完成條件不是「找到所有關鍵字」，而是填完：
 

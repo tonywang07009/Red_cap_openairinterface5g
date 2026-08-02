@@ -11,7 +11,7 @@ parameter_kinds:
   - control-guard
   - pass-criterion
 evidence_tier: deterministic-experimental-rfsim
-last_reviewed: 2026-08-01
+last_reviewed: 2026-08-02
 ---
 
 # Chapter 06：A-IoT Tag 與 UE Reader
@@ -20,9 +20,15 @@ last_reviewed: 2026-08-01
 [前一章](05-runtime-validation.md) ·
 [System map](../../../agent_doc/Project_management/redcap_research_wiki/systems/aiot/tag-reader.md)
 
-本章回答：**disabled-by-default 的 experimental Topology 2 profile，如何從
-UE Reader operation window，經 R2D、external CW、Tag D2R/CRC，產生一份
-40-byte diagnostic report？**
+本章回答：**預設關閉的 experimental Topology 2 profile，如何從 UE Reader
+的 operation window，經 R2D、external CW、Tag D2R/CRC，產生一份 40-byte
+diagnostic report？**
+
+### 本章主線
+
+Reader 發起 R2D，Tag 回傳 D2R；UE 通過 CRC 與 identity/window 檢查後，才
+產生 diagnostic report。這是 experimental RFsim 的可觀察流程，不是 physical
+RF 或 3GPP conformance 的證明。
 
 ## 1. 學習目標
 
@@ -49,8 +55,8 @@ UE Reader operation window，經 R2D、external CW、Tag D2R/CRC，產生一份
 
 ## 3. 第一性原理：能量、控制與資料是三件事
 
-Passive Tag 需要外部能量路徑；Reader 發 R2D command；Tag 以 backscatter
-形成 D2R response。Local RFsim 用不同 option flags 模擬三種流，不能把
+Passive Tag 需要外部能量路徑；Reader 發送 R2D command；Tag 以 backscatter
+形成 D2R response。Local RFsim 用不同 option flags 模擬三種流，因此不能把
 Reader command 說成供能 CW。
 
 ```mermaid

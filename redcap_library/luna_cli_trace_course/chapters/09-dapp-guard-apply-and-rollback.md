@@ -12,7 +12,7 @@ parameter_kinds:
   - control-guard
   - pass-criterion
 evidence_tier: parameter-specific-guard-and-apply
-last_reviewed: 2026-08-01
+last_reviewed: 2026-08-02
 ---
 
 # Chapter 09：dApp guard、gNB apply 與 rollback
@@ -22,15 +22,21 @@ last_reviewed: 2026-08-01
 [dApp guard](../../../agent_doc/Project_management/redcap_research_wiki/systems/xapp-dapp/dapp-guard.md) ·
 [Apply/rollback](../../../agent_doc/Project_management/redcap_research_wiki/systems/xapp-dapp/gnb-apply-rollback.md)
 
-本章回答：**一個decoded control何時被local guard拒絕，何時可寫入gNB
-state；snapshot/rollback為何必須按參數定義，而不能宣告generic rollback？**
+本章回答：**一個已解碼的控制請求（decoded control）何時會被本地安全判斷
+（guard）拒絕，何時可以寫入 gNB state？snapshot/rollback 為何必須按參數
+定義，而不能宣告 generic rollback？**
+
+### 本章主線
+
+dApp guard 只回答「允不允許」。允許之後還要分別觀察 apply、RRC completion
+與 outcome；其中一段缺失，就不能把前一段升級成最後結果。
 
 ## 1. 學習目標
 
-1. 分辨 dApp helper contract、production caller、guard marker與apply owner。
+1. 分辨 dApp helper contract、production caller、guard marker 與 apply owner。
 2. 追 live DRX request → dApp guard → MAC apply → RRC completion boundary。
-3. 對照 UL-PRB direct apply，理解不同參數的rollback語意不同。
-4. 解釋 self-test、guard ACCEPT、apply marker與outcome的差距。
+3. 對照 UL-PRB direct apply，理解不同參數的 rollback 語意不同。
+4. 解釋 self-test、guard ACCEPT、apply marker 與 outcome 的差距。
 
 ### 本章不處理
 
@@ -65,9 +71,9 @@ flowchart TD
   NEXT --> OUT
 ```
 
-UL-PRB cap是UE scheduler context中的bounded值；DRX會牽涉profile、policy
-version、cooldown、previous state與可能的RRC reconfiguration。不能用同一
-rollback contract描述兩者。
+UL-PRB cap 是 UE scheduler context 中的 bounded 值；DRX 會牽涉 profile、
+policy version、cooldown、previous state 與可能的 RRC reconfiguration。
+不能用同一個 rollback contract 描述兩者。
 
 ## 4. 三類參數與基本作用
 

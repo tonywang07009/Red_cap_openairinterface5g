@@ -11,7 +11,7 @@ parameter_kinds:
   - program-state
   - pass-criterion
 evidence_tier: retained-runtime-evidence
-last_reviewed: 2026-08-01
+last_reviewed: 2026-08-02
 ---
 
 # Chapter 05：Runtime validation
@@ -20,8 +20,15 @@ last_reviewed: 2026-08-01
 [前一章](04-inactive-drx-and-sdt.md) ·
 [System map](../../../agent_doc/Project_management/redcap_research_wiki/systems/redcap/runtime-evidence.md)
 
-本章回答：**如何讀懂 frozen RFsim/CN5G evidence，確認 56/56 accepted 與
-64 UE upper-bound failure各自能支持什麼，而不在本輪重跑 L4？**
+本章回答：**如何讀懂固定情境的 RFsim/CN5G 證據（frozen evidence），確認
+56/56 accepted 與 64 UE upper-bound failure 各自能支持什麼，而不在本輪重跑
+L4？**
+
+### 本章主線
+
+先固定一個 run，再依 **CN → gNB → UE → tunnel → forward ping** 核對證據。
+其中任何一層缺 marker，就停在 partial 或 failed，不把不同 run 拼成一個
+PASS。
 
 ## 1. 學習目標
 
@@ -63,7 +70,7 @@ flowchart LR
 ```
 
 不同 run 的 attach、tunnel 與 ping 不能拼成一個 PASS。Validation ID、config
-fingerprint、時間與 UE identity必須能關聯。
+fingerprint、時間與 UE identity 必須能彼此關聯。
 
 ## 4. 三類參數
 

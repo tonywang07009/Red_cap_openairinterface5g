@@ -11,7 +11,7 @@ parameter_kinds:
   - program-state
   - pass-criterion
 evidence_tier: project-source-evidence-triangulation
-last_reviewed: 2026-08-01
+last_reviewed: 2026-08-02
 ---
 
 # Chapter 01：Change intake 與 source owner
@@ -22,6 +22,11 @@ last_reviewed: 2026-08-01
 
 本章只回答一個問題：**接到「這幾個月 Codex 改了什麼」時，如何把需求
 縮成一個可驗證 change slice，而不是從大量 diff 猜故事？**
+
+### 本章主線
+
+先把問題縮成一項 change，再依 **project → source → evidence** 三角定位。
+三角少了任何一角，就只能保留部分結論，不能用故事補齊缺口。
 
 ## 1. 學習目標
 

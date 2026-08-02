@@ -11,7 +11,7 @@ parameter_kinds:
   - control-guard
   - pass-criterion
 evidence_tier: bounded-inventory-and-negative-source-trace
-last_reviewed: 2026-08-01
+last_reviewed: 2026-08-02
 ---
 
 # Chapter 07：AIOTF、CN5G 與 standard-path stop
@@ -21,9 +21,15 @@ last_reviewed: 2026-08-01
 [AIOTF map](../../../agent_doc/Project_management/redcap_research_wiki/systems/aiot/aiotf.md) ·
 [Standard-path boundary](../../../agent_doc/Project_management/redcap_research_wiki/systems/aiot/standard-path.md)
 
-本章回答：**40-byte diagnostic report 如何與一個 pending Inventory context
+本章回答：**40-byte diagnostic report 如何與 pending Inventory context
 關聯、完成 first-valid arbitration，並在哪裡明確停止，避免把 NRF/Naiotf
 成功誤寫成 AMF/RAN/NEF end-to-end？**
+
+### 本章主線
+
+先把 report 綁到正確的 transaction，再判斷服務與 standard path。process
+healthy、NRF registered 或 HTTP 2xx 都不能取代 correlation；找不到相符的
+AMF/RAN/NEF owner 時，應明確停在 negative source trace。
 
 ## 1. 學習目標
 
@@ -65,8 +71,8 @@ flowchart TD
   NAI -. no matched owner .-> NEF[STOP: Nnef path]
 ```
 
-Process healthy、NRF registered與HTTP 2xx回答的是不同問題。只有同一
-transaction identity沿各 owner前進，才能升級 evidence tier。
+Process healthy、NRF registered 與 HTTP 2xx 回答的是不同問題。只有同一個
+transaction identity 沿各 owner 前進，才能升級 evidence tier。
 
 ## 4. 三類參數與基本作用
 

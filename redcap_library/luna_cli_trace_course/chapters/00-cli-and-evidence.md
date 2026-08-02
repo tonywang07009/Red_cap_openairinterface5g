@@ -10,7 +10,7 @@ parameter_kinds:
   - program-state
   - pass-criterion
 evidence_tier: source-and-retained-evidence-navigation
-last_reviewed: 2026-08-01
+last_reviewed: 2026-08-02
 ---
 
 # Chapter 00：CLI 與證據層級
@@ -21,6 +21,12 @@ last_reviewed: 2026-08-01
 
 本章只回答一個問題：**看到一項 RedCap 主張時，如何用唯讀 CLI 找到
 owner，並把「存在」與「真的在 runtime 生效」分開？**
+
+### 本章主線
+
+先找出行為的 **source owner**，再確認誰產生 state、誰讀取 state，最後用
+evidence tier 限制主張。CLI 是觀察工具；它不會替您補上缺少的 caller 或
+runtime marker。
 
 ## 1. 學習目標
 
@@ -74,9 +80,10 @@ owner，並把「存在」與「真的在 runtime 生效」分開？**
 
 ## 4. 第一性原理：CLI 是量測工具，不是答案
 
-任何結論都由「被量測的狀態」與「量測方法」共同決定。`rg` 量到文字，
-`sed` 顯示局部 source，`git diff` 顯示工作樹與基準的差異；它們不會量到
-正在執行的程序狀態。Runtime marker 又只量到 marker owner 所宣告的事件。
+任何結論都由「被量測的狀態」與「量測方法」共同決定。`rg` 找到文字，
+`sed` 顯示局部 source，`git diff` 顯示工作樹與基準的差異；這些命令都不會
+直接量到正在執行的程序狀態。Runtime marker 也只表示 marker owner 宣告的
+那一個事件，不能代替後續事件。
 
 ```mermaid
 flowchart LR
@@ -139,6 +146,9 @@ flowchart TD
 
 ## 8. CLI 導讀
 
+本章命令前綴 `rtk` 是專案提供的精簡輸出 wrapper；真正執行的查詢仍是後面
+列出的標準命令。每一步都要保留完整輸出，因為空結果本身也是邊界證據。
+
 ### Luna 固定 prompt
 
 ```text
@@ -154,8 +164,8 @@ runtime evidence。
 pwd
 ```
 
-預期：輸出以 `Red_cap_openairinterface5g_exp` 結尾。若不是，停止；先回到
-repository 根目錄，否則後續相對路徑與 Obsidian 連結基準不同。
+預期：輸出路徑以 `Red_cap_openairinterface5g_exp` 結尾。若不是，停止並先
+回到 repository 根目錄；否則後續相對路徑與 Obsidian 連結基準不同。
 
 ### Step 2：看工作樹，不改工作樹
 
@@ -225,8 +235,8 @@ git diff -- redcap_library/luna_cli_trace_course
 | 本次 request 已 apply | 不足 | 同 request identity 的 fresh gNB log |
 | PRB cap 改善效能 | 不足 | 等價 baseline/treatment outcome metric |
 
-因此最小 falsifier 是先詢問：「marker 來自 source，還是來自同一次 runtime
-log？」不要直接跑更大的實驗。
+因此最小反證檢查是先問：「marker 來自 source，還是來自同一次 runtime
+log？」不要因為一個關鍵字就直接跑更大的實驗。
 
 ## 11. Evidence ladder
 

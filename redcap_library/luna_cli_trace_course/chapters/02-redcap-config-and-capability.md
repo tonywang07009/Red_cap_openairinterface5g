@@ -9,7 +9,7 @@ parameter_kinds:
   - program-state
   - control-guard
 evidence_tier: source-plus-registered-unit-test
-last_reviewed: 2026-08-01
+last_reviewed: 2026-08-02
 ---
 
 # Chapter 02：RedCap config 與 capability
@@ -20,6 +20,12 @@ last_reviewed: 2026-08-01
 
 本章只回答一個問題：**gNB 與 UE 各自讀入的 RedCap 設定，如何變成
 SIB1、UE capability 與「能否開始 RA」的決策？**
+
+### 本章主線
+
+gNB 決定 cell policy，UE 宣告自身 capability；兩條輸入線在 UE 解碼 SIB1
+後，才於 access guard 匯合。這裡的 **policy** 是小區規則，**capability**
+是 UE 能力，**guard** 是決定是否繼續的條件。
 
 不要一次執行本章全部指令。把「Luna 固定 prompt」與目前 step 交給
 Luna；每次只執行一個指令，貼回完整輸出後再繼續。
@@ -74,9 +80,9 @@ Luna；每次只執行一個指令，貼回完整輸出後再繼續。
 
 一個 access decision 至少需要兩個事實：
 
-1. **Cell policy**：這個 cell 是否允許特定 RedCap UE 類型進入。
-2. **UE capability**：目前 UE 是 1Rx、2Rx、HD-FDD Type A，還是未宣告
-   RedCap support。
+1. **Cell policy（小區規則）**：這個 cell 是否允許特定 RedCap UE 類型進入。
+2. **UE capability（UE 能力）**：目前 UE 是 1Rx、2Rx、HD-FDD Type A，還是
+   未宣告 RedCap support。
 
 這兩個事實不能由同一端決定。gNB 不能替 UE 宣告硬體能力；UE 也不能
 自行更改 cell barring policy。因此 source 中存在兩個不同 struct：
@@ -86,7 +92,7 @@ Luna；每次只執行一個指令，貼回完整輸出後再繼續。
 | gNB | `gNBs.[0].RedCap` | `nr_redcap_config_t` | 建立 SIB1 RedCap policy 與後續 MAC config |
 | UE | `nrue_recap` | `nr_redcap_cfg_t` | 建立 UE capability，並選擇 1Rx/2Rx/HD-FDD access branch |
 
-兩條線在 UE 解碼 SIB1 後才匯合。
+兩條線在 UE 解碼 SIB1 後才匯合；所以「設定已解析」仍不等於「RA 已開始」。
 
 ```mermaid
 flowchart LR

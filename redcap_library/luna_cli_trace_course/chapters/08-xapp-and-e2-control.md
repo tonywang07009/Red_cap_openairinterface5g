@@ -12,7 +12,7 @@ parameter_kinds:
   - control-guard
   - pass-criterion
 evidence_tier: contract-transport-ack-plus-bounded-apply-reference
-last_reviewed: 2026-08-01
+last_reviewed: 2026-08-02
 ---
 
 # Chapter 08：xApp 與 E2 control
@@ -22,9 +22,14 @@ last_reviewed: 2026-08-01
 [xApp map](../../../agent_doc/Project_management/redcap_research_wiki/systems/xapp-dapp/xapp-observation-control.md) ·
 [E2 map](../../../agent_doc/Project_management/redcap_research_wiki/systems/xapp-dapp/e2-transport.md)
 
-本章回答：**xApp 如何把 UE identity、RNTI 與 UL PRB cap編成 E2SM-RC
-request，找到 RC RAN function並送出；為何 request dump與 `CONTROL ACK rx`
-都還不能代替 gNB apply？**
+本章回答：**xApp 如何把 UE identity、RNTI 與 UL PRB cap 編成 E2SM-RC
+request，找到 RC RAN function 並送出；為何 request dump 與
+`CONTROL ACK rx` 都還不能代替 gNB apply？**
+
+### 本章主線
+
+xApp 只負責把輸入選成 request 並送出；E2 ACK、gNB apply 與 outcome 是三個
+不同 owner 的觀察點。每個觀察點都要用同一個 request identity 關聯。
 
 ## 1. 學習目標
 
@@ -66,8 +71,8 @@ flowchart LR
   APP -. insufficient .-> NO2[Not improvement proof]
 ```
 
-ACK通常回答「request已被協定端接受/回覆」；apply marker才回答 owning state
-是否被寫入；outcome還需要同條件baseline/treatment與metric owner。
+ACK 通常回答「request 已被協定端接受或回覆」；apply marker 才回答 owning
+state 是否被寫入；outcome 還需要同條件的 baseline、treatment 與 metric owner。
 
 ## 4. 三類參數與基本作用
 

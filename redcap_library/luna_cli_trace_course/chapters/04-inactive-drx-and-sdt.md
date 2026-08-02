@@ -13,7 +13,7 @@ parameter_kinds:
   - control-guard
   - pass-criterion
 evidence_tier: feature-specific-local-evidence
-last_reviewed: 2026-08-01
+last_reviewed: 2026-08-02
 ---
 
 # Chapter 04：RRC_INACTIVE、DRX 與 SDT
@@ -24,6 +24,12 @@ last_reviewed: 2026-08-01
 
 本章回答：**RRC_INACTIVE、CG-SDT、connected DRX、eDRX 與 PSM 各自由誰
 擁有，為何不能用一個「低功耗成功」marker 取代？**
+
+### 本章主線
+
+RRC_INACTIVE/SDT、DRX、eDRX 與 PSM 都可能降低活動量，但由不同 layer
+擁有。先找 owner，再判斷它自己的 marker；不要把任何一個 marker 叫成
+「低功耗成功」。
 
 ## 1. 學習目標
 

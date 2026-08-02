@@ -11,7 +11,7 @@ parameter_kinds:
   - control-guard
   - pass-criterion
 evidence_tier: source-plus-bounded-case-evidence
-last_reviewed: 2026-08-01
+last_reviewed: 2026-08-02
 ---
 
 # Chapter 03：BWP、RA 與 scheduling
@@ -22,6 +22,12 @@ last_reviewed: 2026-08-01
 
 本章回答：**RedCap initial BWP 與 RACH partition 如何讓 gNB 在辨識 RedCap
 Msg1 後，為 Msg2 選到一致的 BWP、search space 與 CORESET view？**
+
+### 本章主線
+
+BWP、CORESET 與 RACH 的共同問題是：Msg1 的分類結果，必須讓 Msg2 使用同一
+套可監聽的 control view。只要其中一段 geometry 不一致，表面上都可能像是
+「沒有收到 Msg2」。
 
 ## 1. 學習目標
 
