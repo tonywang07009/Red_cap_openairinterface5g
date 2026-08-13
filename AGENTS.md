@@ -43,11 +43,19 @@ Before creating any file:
 
 ## File Query Workflow
 
-- For files, symbols, call relationships, or repository structure,
-  use the `symdex` MCP tools first. Fall back to raw filesystem or
-  shell search only if `symdex` does not cover the lookup.
-- For file contents, project documents, generated headers, logs, and
-  local spec artifacts, use filesystem MCP tools before shell commands.
+This section is the single source of truth for tool selection. Skills link to
+it and do not restate a competing route.
+
+| Need | Required first tool | Allowed fallback |
+| --- | --- | --- |
+| Source code, symbols, definitions, callers, callees, repository structure | Symdex MCP | Local `.symdex` CLI only when MCP is not indexed or cannot perform the lookup |
+| Git status, diff, log, blame, branch, commit lookup | rtk | Git CLI only when rtk cannot perform the operation |
+| Markdown, PDF, config, logs, generated artifacts, ordinary file contents | filesystem MCP | Local filesystem read only when MCP cannot access the path |
+
+- State the fallback reason in the result.
+- Do not use `rg` as a substitute for a required Symdex lookup.
+- Do not infer source ownership from filenames when a symbol or call
+  relationship is required.
 
 ## Build, Test, and Development Commands
 

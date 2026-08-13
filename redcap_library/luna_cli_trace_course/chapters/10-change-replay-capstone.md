@@ -43,7 +43,7 @@ last_reviewed: 2026-08-02
 
 - 不發送live E2 request、不執行G4或Gate E。
 - 不修改SDK、RC handler、scheduler或report。
-- 不宣告commit author；未核對commit attribution為 `[Needs Verification]`。
+- 不做 commit 作者考證；本章學習的是可重建的行為與證據鏈。
 
 ## 2. 60–90 分鐘配置
 
@@ -108,7 +108,18 @@ flowchart LR
 | Control guard | null/no MAC/unknown UE | 防止錯寫shared state | reject/no mutation |
 | Pass criterion | contract + ACK + apply marker | 三個不同層級 | 仍不含outcome |
 
-## 6. 修改流程重建
+## 6. Source navigation table
+
+| Stage | Owner path | Symbol or marker |
+| --- | --- | --- |
+| xApp request | [`ci-scripts/redcap_ul_prb_ctrl_xapp.c`](../../../ci-scripts/redcap_ul_prb_ctrl_xapp.c) | `REDCAP_CTRL_RNTI`, `REDCAP_CTRL_UL_PRB_CAP` |
+| Request builder | [`redcap_xapp_sdk.c`](../../../openair2/E2AP/REDCAP_SDK/xapp/redcap_xapp_sdk.c) | `redcap_xapp_make_ul_prb_ctrl_req` |
+| gNB decode/apply | [`ran_func_rc.c`](../../../openair2/E2AP/RAN_FUNCTION/O-RAN/ran_func_rc.c) | `parse_ul_prb_ctrl_message`, `apply_redcap_ul_prb_control` |
+| Scheduler state | [`openair2/LAYER2/NR_MAC_gNB`](../../../openair2/LAYER2/NR_MAC_gNB/) | `UE_sched_ctrl.redcap_ul_prb_cap` consumer |
+
+這張表是 source 導覽入口；它不證明同一次 request 已經 apply。
+
+## 7. 修改流程重建
 
 | 修改點 | 第一性原因 | Affected owner | 結果 |
 | --- | --- | --- | --- |
@@ -121,86 +132,103 @@ flowchart LR
 
 精確commit序列、作者與before code未在本章核對，標 `[Needs Verification]`。
 
-## 7. CLI 導讀
+## 8. CLI 導讀
 
 ### Luna 固定 prompt
 
 ```text
-這是capstone。不要先給答案；一次只給一個唯讀指令。每次讓我填一列
-producer-consumer表，並問我該輸出最高支持哪個evidence tier。保持同一RNTI、
-requested/effective cap與request identity。完成後審查我的Research Reading Card。
+你是 GPT-5.6 Luna/high 導讀教師。這是 capstone；不要先給答案。一次只給一個
+唯讀查詢，每次讓我填一列 producer-consumer 表，並問這份結果最高支持哪個
+evidence tier。程式 owner/caller 用 Symdex，project record 與 retained report
+用 filesystem MCP，Git 歷史才用 rtk。保持同一 RNTI、requested/effective cap
+與 request identity。完成後審查我的 Research Reading Card。
 ```
 
 ### Step 1：確認 ledger route
 
-```bash
-rtk rg -n 'CL-09|UL-PRB|G4|xApp|dApp' redcap_library/luna_cli_trace_course/change-ledger.md
+```text
+請 Luna 用 filesystem MCP 讀取 change ledger 的 CL-09 條目，列出 project、
+source 與 evidence 三個入口。
 ```
 
 預期：取得project、source、evidence入口。Ledger不是runtime evidence。
+停止條件：CL-09 缺任何入口時，停在 ledger 缺口。
 
 ### Step 2：讀 acceptance owner
 
-```bash
-rtk rg -n 'G4|UL PRB|ACK|apply|required|scope|outcome' agent_doc/Project_management/projects/redcap_oran_sdk_workflow_v3/project_plan.md agent_doc/Project_management/projects/redcap_oran_sdk_workflow_v3/milestones/G4_rfsim_case_b_marker_validation.md
+```text
+請 Luna 用 filesystem MCP 讀取 project plan 與 G4 milestone，列出 required
+markers 和非目標。
 ```
 
 預期：先寫出required markers與非目標；後面不得變更判準。
+停止條件：未找到 acceptance owner 時，不自行設定判準。
 
 ### Step 3：找 integrated producer
 
-```bash
-rtk rg -n 'REDCAP_CTRL_(UE_ID|RNTI|UL_PRB_CAP)|make_ul_prb_ctrl_req|find_rc_ran_func_idx|control sent' ci-scripts/redcap_ul_prb_ctrl_xapp.c
+```text
+請 Luna 用 Symdex 找出 integrated xApp producer、input parser 與 send marker
+的關係。
 ```
 
 預期：input ranges、builder、RAN function與send marker。指出dry-run branch
 不能進transport。
+停止條件：無法確認 integrated caller 時，不把 helper 當 live producer。
 
 ### Step 4：讀 builder內部parameter mapping
 
-```bash
-rtk sed -n '121,153p' openair2/E2AP/REDCAP_SDK/xapp/redcap_xapp_sdk.c
+```text
+請 Luna 用 Symdex 定位 `redcap_xapp_make_ul_prb_ctrl_req`，讀取其 parameter
+mapping 的局部實作。
 ```
 
 預期：UE ID header、UL-PRB control action、RNTI與max PRB parameter。Exact
 O-RAN標準mapping仍 `[Needs Verification]`。
+停止條件：停止在 source mapping，不推論標準符合性。
 
 ### Step 5：追decoder到apply state
 
-```bash
-rtk rg -n 'parse_ul_prb_ctrl_message|apply_redcap_ul_prb_control|redcap_ul_prb_cap|requested %u effective %u' openair2/E2AP/RAN_FUNCTION/O-RAN openair2/LAYER2/NR_MAC_gNB
+```text
+請 Luna 用 Symdex 追 `parse_ul_prb_ctrl_message` 到 apply state 與下一個
+scheduler consumer。
 ```
 
 預期：decoder、dispatch、sanitize、owning field與可能scheduler consumer。
 只有source trace，不代表G4 run。
+停止條件：找不到 consumer 時，不宣告 apply 有下游效果。
 
 ### Step 6：讀apply guards
 
-```bash
-rtk sed -n '48,88p' openair2/E2AP/RAN_FUNCTION/O-RAN/ran_func_rc.c
+```text
+請 Luna 用 Symdex 讀取 apply guard 的局部實作，列出允許或阻止 shared-state
+mutation 的分支。
 ```
 
 預期：malformed、no active gNB、unknown RNTI與effective cap。記錄每個branch
 是否允許shared state mutation。
+停止條件：guard 條件不完整時，不建議 source 修改。
 
 ### Step 7：讀retained三層證據
 
-```bash
-rtk rg -n 'Contract|CONTROL ACK|requested|effective|PASS|not establish|Conclusion' agent_doc/Project_management/projects/redcap_oran_sdk_workflow_v3/report/G4_rfsim_case_b_ul_prb_2026-07-04.md
+```text
+請 Luna 用 filesystem MCP 讀取 G4 retained report，將 contract、ACK 與 apply
+evidence 分成三列。
 ```
 
 預期：contract、ACK、apply分開；沒有latency/access/resource improvement。
+停止條件：報告缺少同一 request identity 時，不把各段證據拼成一次 run。
 
 ### Step 8：檢查working tree與attribution boundary
 
-```bash
-git status --short
+```text
+請 Luna 用 rtk 查詢 Git status --short。
 ```
 
 預期：辨識tracked/untracked/local edits。此輸出不能證明歷史作者；若需要
 commit attribution，另開明確audit，不在capstone猜測。
+停止條件：若要作者考證，結束本課並另開 Git audit。
 
-## 8. Producer-consumer worksheet
+## 9. Producer-consumer worksheet
 
 | Stage | Producer | State/output | Consumer | Evidence tier |
 | --- | --- | --- | --- | --- |
@@ -214,7 +242,7 @@ commit attribution，另開明確audit，不在capstone猜測。
 
 若任一列沒有actual consumer，停止並標 dormant／`[Needs Verification]`。
 
-## 9. Boundary value與side-effect檢查
+## 10. Boundary value與side-effect檢查
 
 | Case | Expected |
 | --- | --- |
@@ -229,7 +257,7 @@ commit attribution，另開明確audit，不在capstone猜測。
 
 本章不更改shared state；live mutation只在另行核准的runtime。
 
-## 10. Research Reading Card
+## 11. Research Reading Card
 
 ```markdown
 ### Question
@@ -256,7 +284,7 @@ ACK與apply marker；缺哪一層就停在哪一層。
 G4 retained slice到parameter-specific gNB apply；沒有performance outcome。
 ```
 
-## 11. Evidence ladder與修復決策
+## 12. Evidence ladder與修復決策
 
 | 最後完成層 | 下一個owner | 合理動作 |
 | --- | --- | --- |
@@ -268,13 +296,13 @@ G4 retained slice到parameter-specific gNB apply；沒有performance outcome。
 
 只有guard或owner邏輯被反證時才進source fix；否則不寫code。
 
-## 12. 理解檢查
+## 13. 理解檢查
 
 1. G4已具ACK與apply，為何仍不能寫「UL throughput改善」？
 2. 若requested=0而effective>0，先查哪個owner，為何不先改xApp？
 3. 哪三份artifact共同支持一次bounded historical change replay？
 
-## 13. Handoff card
+## 14. Handoff card
 
 ```markdown
 ## Chapter 10 handoff
@@ -292,13 +320,15 @@ G4 retained slice到parameter-specific gNB apply；沒有performance outcome。
 - next safe action:
 ```
 
-## 14. 完課後的下一次重播
+## 15. 完課後的下一次重播
 
 回到 [change ledger](../change-ledger.md)，依相依順序選下一列。每次只重播
 一個parameter或procedure，不同feature的markers不得混用。若要執行build或
 runtime，先確認registered tool、task manifest、project acceptance與L4授權。
 
-## 15. 教材維護資訊
+## 16. 維護與證據附錄
 
 - Capstone故意採既有owner與G4 evidence，不新增script/template。
 - Current working tree與runtime可能漂移；本章只保存可重做的方法。
+- commit attribution 不屬於本章證據鏈；若需要作者考證，另開 Git audit。未核對
+  的 attribution 維持 `[Needs Verification]`。

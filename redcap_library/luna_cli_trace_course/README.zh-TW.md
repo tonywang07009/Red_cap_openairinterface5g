@@ -8,10 +8,10 @@ last_reviewed: 2026-08-02
 
 # Luna CLI Trace 工程教科書
 
-本教材用來學會兩件事：理解 RedCap、A-IoT/AIOTF、xApp/dApp 的修改內容；
-以及親自使用 CLI，把一項參數追到它所屬的 source owner、控制判斷與可觀察
-證據。Luna 是導讀教練，不是技術證據來源；真正的證據仍以 source、project
-record、test 或 retained runtime evidence 為準。
+完成本教材後，您可以獨立把一項 RedCap、A-IoT/AIOTF 或 xApp/dApp 的修改，
+追到它的 source owner、控制判斷與可觀察證據；也能說明目前證據支持什麼、
+還不能支持什麼。Luna 是導讀教練，不是技術證據來源；結論仍以 source、
+project record、test 或 retained runtime evidence 為準。
 
 ## 在 Obsidian 開啟
 
@@ -29,13 +29,31 @@ Repository 根目錄必須是 vault boundary，因為教材需要連到
 
 本教材假設讀者是大學部三年級的資工或電機學生，已會基本 C/C++、Linux
 shell 與網路概念，但沒有 OAI RAN 專案經驗。教材不要求先背完所有縮寫；
-每章先讀一個問題，再看主線圖，接著只執行一個唯讀 CLI 指令，最後把完整
-輸出貼給 Luna。讀者要回答的是「這份輸出能證明什麼、不能證明什麼」，而
+每章先讀一個問題，再看主線圖，接著只進行一個唯讀查詢，最後把完整
+結果貼給 Luna。讀者要回答的是「這份結果能證明什麼、不能證明什麼」，而
 不是把搜尋結果當成答案。
 
-本課程的 `rtk` 是專案提供的精簡輸出 wrapper；它只整理終端機輸出，不改變
-`rg`、`sed` 或其他查詢本身。若命令輸出與預期不同，先保留原始輸出並停下，
-不要自行擴大搜尋範圍。
+若查詢結果與預期不同，先保留原始輸出並停下。下一步不是擴大搜尋範圍，而是
+先確認要找的是程式 owner、Git 歷史，還是文件／log 的內容。
+
+## Luna 導讀與查詢方式
+
+Luna/high 是您的私人導讀教師：一次帶一個唯讀查詢、先請您預測會看到什麼，
+再根據您貼回的結果校正理解。它不代替您執行 build、改設定或宣告未提供的
+runtime 證據。
+
+| 工作 | 優先工具 | 查詢結果能回答什麼 |
+| --- | --- | --- |
+| 找程式 owner、symbol、caller 或 callee | Symdex | 定義、關係與所在模組 |
+| 看 Git status、diff、log、blame | rtk | 工作樹與版本歷史 |
+| 讀 Markdown、PDF、config、log 或一般檔案 | filesystem MCP | 文件或紀錄中的直接內容 |
+
+只有優先工具無法處理查詢時才使用 fallback，並在當次導讀說明原因。即使使用
+fallback，source trace 仍不等於 runtime application。
+
+課程維護採三層模型分工：推薦使用 Terra/high 撰寫與修訂章節；Luna/high
+執行互動導讀；Sol/high 僅用於跨 owner 或證據互相衝突的困難審查。模型不構成
+技術證據。
 
 ## 先備詞彙
 
@@ -64,7 +82,7 @@ shell 與網路概念，但沒有 OAI RAN 專案經驗。教材不要求先背�
    不自動證明所有情境都成立。
 
 先定義條件與讀者需要的詞，再給結論。若一句話同時混合多個 owner、時間點
-或證據層級，請拆成兩句，並保留 `[Needs Verification]`。
+或證據層級，拆成兩句；尚缺的證據留到章末附錄處理。
 
 ## 目前交付
 
@@ -80,7 +98,7 @@ shell 與網路概念，但沒有 OAI RAN 專案經驗。教材不要求先背�
 flowchart LR
   M[Research wiki system map] --> C[依相依關係閱讀章節]
   L[Source-backed change ledger] --> R[依時間重播 change lab]
-  C --> T[Luna 一次給一個 CLI step]
+  C --> T[Luna 一次給一個唯讀查詢]
   R --> T
   T --> O[學習者貼回原始輸出]
   O --> H[理解檢查與 handoff card]
@@ -117,7 +135,7 @@ family，再進入對應章節。三方佐證是：
 
 1. 只開一章，先讀「問題與邊界」。
 2. 把章節的 Luna prompt 貼給教練。
-3. Luna 只給一個 CLI 指令；由您執行並貼回完整輸出。
+3. Luna 只給一個唯讀查詢；由您執行並貼回完整結果。
 4. 確認 producer、consumer、guard 與 marker 後才進下一步。
 5. 回答三題理解檢查，再保存本機 handoff card。
 

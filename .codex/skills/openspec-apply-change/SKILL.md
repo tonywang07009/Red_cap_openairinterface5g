@@ -71,6 +71,7 @@ Implement tasks from an OpenSpec change.
 
    For each pending task:
    - Show which task is being worked on
+   - For behavior-changing work, invoke `/tdd` before implementation; if it is not applicable, record why and run the narrowest relevant validation
    - Make the code changes required
    - Keep changes minimal and focused
    - Mark task complete in the tasks file: `- [ ]` → `- [x]`
@@ -82,7 +83,14 @@ Implement tasks from an OpenSpec change.
    - Error or blocker encountered → report and wait for guidance
    - User interrupts
 
-7. **On completion or pause, show status**
+7. **Review completed work**
+
+   After all task checkboxes are complete:
+   - Confirm a fixed point for the change; ask the user if it cannot be inferred from the change context
+   - Invoke `/code-review` against that fixed point
+   - If the review finds defects, return to the affected task and do not report implementation complete
+
+8. **On completion or pause, show status**
 
    Display:
    - Tasks completed this session
@@ -146,6 +154,7 @@ What would you like to do?
 - Always read context files before starting (from the apply instructions output)
 - If task is ambiguous, pause and ask before implementing
 - If implementation reveals issues, pause and suggest artifact updates
+- Do not report implementation complete until applicable TDD or narrow validation and code review have completed
 - Keep code changes minimal and scoped to each task
 - Update task checkbox immediately after completing each task
 - Pause on errors, blockers, or unclear requirements - don't guess

@@ -5,9 +5,10 @@ description: Coach a self-learner through a documented RedCap, A-IoT/AIOTF, or x
 
 # Luna CLI Trace Course
 
-Teach evidence first. The learner runs commands locally and returns raw output;
-do not run commands, build, change configuration, or infer unprovided output on
-their behalf.
+Teach evidence first. GPT-5.6 Luna/high is the recommended one-step learner
+guide; it asks the learner for a prediction, gives one read-only lookup, and
+reasons only from returned raw output. Do not build, change configuration, or
+infer unprovided output on the learner's behalf.
 
 ## Intake and Boundary
 
@@ -24,9 +25,11 @@ owner corroborate it. Do not infer Codex authorship from an uncommitted diff.
 
 1. State the exact question, system boundary, and strongest currently supported
    evidence tier.
-2. Give exactly one read-only command, why it is next, expected observation,
-   and a stop condition. Prefer a path/symbol lookup, `git diff`, `rg`, or
-   `sed` before a stateful operation.
+2. Give exactly one read-only lookup, why it is next, expected observation,
+   and a stop condition. Route source-code ownership, symbols, and caller or
+   callee relationships through Symdex; Git queries through rtk; and Markdown,
+   PDF, configuration, log, and ordinary file content through filesystem MCP.
+   Name the reason before using a fallback.
 3. Wait for the learner's raw output. Then identify the producer, consumer,
    changed owner, and observable marker before proposing the next command.
 4. Before any build, container, RFsim, or other stateful action, name its
@@ -60,7 +63,7 @@ markers exactly. Return only evidence-supported claims, followed by:
 
 ```markdown
 ## Next learner step
-- Command:
+- Lookup:
 - Why now:
 - Expected observation:
 - Stop condition:

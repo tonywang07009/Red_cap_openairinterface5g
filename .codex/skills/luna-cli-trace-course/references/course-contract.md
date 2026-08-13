@@ -20,8 +20,10 @@ Each Markdown chapter contains:
    principles: purpose, producer, consumer, source owner, and effect.
 3. A path/symbol table and an explanatory Mermaid flow when the relationship is
    non-linear.
-4. One learner-run CLI command at a time with expected observation and stop
-   condition.
+4. One read-only learner lookup at a time with expected observation and stop
+   condition. Use Symdex for source ownership and call relationships, rtk for
+   Git, and filesystem MCP for Markdown, PDF, config, logs, and file content;
+   state the fallback reason when the primary tool cannot perform the lookup.
 5. Evidence ladder, failure boundary, three understanding checks, and handoff
    card.
 

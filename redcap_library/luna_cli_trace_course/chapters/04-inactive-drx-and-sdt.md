@@ -110,71 +110,85 @@ NAS timer/state。它們可能互動，但 owner 與 acceptance 必須分開。
 ### Luna 固定 prompt
 
 ```text
-一次只追 RRC_INACTIVE、CG-SDT、DRX、eDRX、PSM 中的一條。每個 step 先說
-owner layer 與 marker tier；禁止用一條路徑的 PASS 代替另一條，禁止推論
-physical power。
+你是 GPT-5.6 Luna/high 導讀教師。一次只追 RRC_INACTIVE、CG-SDT、DRX、
+eDRX、PSM 中的一條。每一步先問我預測，再說 owner layer 與 marker tier；
+程式 owner/caller 用 Symdex，報告用 filesystem MCP。不要用一條路徑的 PASS
+代替另一條，也不要把 local readiness 解釋成 physical power。
 ```
 
 ### Step 1：找 inactive producer 與 MAC handoff
 
-```bash
-rtk rg -n 'RRC_INACTIVE entered|redcap_rrc_state = NR_REDCAP_RRC_INACTIVE' openair2/RRC/NR_UE
+```text
+請 Luna 用 Symdex 找出 RRC_INACTIVE entry marker 的 producer，並列出交給
+MAC 的下一個 consumer。
 ```
 
 預期：RRC entry 與 L2 interface handoff。看到 entry 不表示 resume 或 SDT。
+停止條件：找不到 consumer 時，停在 source trace 缺口。
 
 ### Step 2：讀 CG-SDT existence guard
 
-```bash
-rtk sed -n '1240,1280p' openair2/LAYER2/NR_MAC_UE/nr_ue_scheduler.c
+```text
+請 Luna 用 Symdex 定位 `nr_ue_has_cg_sdt_config()` 與其 caller，然後讀取
+該 guard 的局部實作。
 ```
 
 預期：UL BWP、configured grant、RRC grant、`ext2`、`cg_SDT_Configuration_r17`
-逐層非空。任一缺失都應停在 no-config probe。
+逐層非空。任一缺失都應停在 no-config probe。停止條件：若 guard 或 caller
+不存在，不自行改為 runtime 驗證。
 
 ### Step 3：找 occasion、TX、fallback markers
 
-```bash
-rtk rg -n '\[RRC_INACTIVE Gate [34]\].*(CG|TX|Fallback)' openair2/LAYER2/NR_MAC_UE/nr_ue_scheduler.c openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_ulsch.c
+```text
+請 Luna 用 Symdex 找出 CG occasion、UE TX、fallback 與 gNB receive marker
+所在的 source owner。
 ```
 
 預期：no occasion、pending data、scheduled/TX、RSRP fallback、gNB receive。
 必須依同一 UE/frame.slot 串接。
+停止條件：無法串接同一身分時，停在 source marker 關係。
 
 ### Step 4：讀 DRX active decision
 
-```bash
-rtk sed -n '105,166p' openair2/LAYER2/NR_MAC_UE/nr_ue_drx.c
+```text
+請 Luna 用 Symdex 定位 `nr_ue_drx_is_active()` 與其 decision path。
 ```
 
 預期：未設定時 active、timer/HARQ/SR/cycle/on-duration guards，及 atomic
 slot metrics。這是 MAC scheduling availability，不是電力計讀值。
+停止條件：不要將此 lookup 延伸成 physical-power 結論。
 
 ### Step 5：讀 eDRX allowance
 
-```bash
-rtk sed -n '20,42p' openair2/RRC/NR_UE/rrc_ue_lowpower.c
+```text
+請 Luna 用 Symdex 找出 `nr_rrc_edrx_allowed_for_state()` 的定義與 SIB1
+allowance 的 producer。
 ```
 
 預期：SIB1 optional-field presence 轉為 IDLE/INACTIVE bool。Presence 不等於
 paging procedure 已完整執行。
+停止條件：沒有 paging evidence 時，不再推進 eDRX 結論。
 
 ### Step 6：讀 PSM readiness
 
-```bash
-rtk rg -n 'T3324|T3512|low_power_ready' openair3/NAS/NR_UE/nr_nas_msg.c openair3/NAS/NR_UE/nr_nas_lowpower.c
+```text
+請 Luna 用 Symdex 找出 T3324、T3512 與 `low_power_ready` 的 producer 和
+consumer。
 ```
 
 預期：NAS timer decode/state與 readiness helper。Timer configured 不等於 UE
 已進入或維持 PSM。
+停止條件：沒有 state marker 時，不再推進 PSM 結論。
 
 ### Step 7：找 feature-specific tests/reports
 
-```bash
-rtk rg -n 'add_test|On Duration|T3324|T3512|RRC_INACTIVE|CG' openair2/LAYER2/NR_MAC_UE/tests openair2/RRC/NR/tests openair3/NAS/NR_UE/5GS/tests redcap_library/library_reports_summary/m4b_lowpower_unit_test_report.md
+```text
+請 Luna 先用 Symdex 找相關 owner-module tests，再用 filesystem MCP 讀取
+low-power unit-test report。
 ```
 
 預期：不同 owner 的 test/summary；不要把一個 aggregate PASS 改寫成全路徑。
+停止條件：找不到 feature-specific evidence 時，保留該 feature 的缺口。
 
 ## 7. Boundary value 檢查
 
@@ -239,7 +253,8 @@ resource；沒有 pending LCID data 會使 occasion 合法卻無 TX；eDRX IE ab
 
 進入 [Chapter 05：Runtime validation](05-runtime-validation.md)。
 
-## 14. 教材維護資訊
+## 14. 維護與證據附錄
 
 - Canonical owner：[Inactive/power/SDT map](../../../agent_doc/Project_management/redcap_research_wiki/systems/redcap/inactive-power-sdt.md)。
-- Exact clause 與未通過 feature combinations 維持 `[Needs Verification]`。
+- Exact clause 與未通過 feature combinations 維持 `[Needs Verification]`；本章
+  不以 source trace、unit test 或單一路徑 marker 宣告整體 interoperability。

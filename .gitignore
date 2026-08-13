@@ -29,9 +29,38 @@ CMakeUserPresets.json
 
 #agent
 agent_doc/
-
+.agents/
+.codex/
 mcp/
 openspec/
+# Track the authoritative MCP router and its formal change; retain all other
+# local agent, planning, and OpenSpec artifacts as ignored.
+!agent_doc/
+agent_doc/*
+!agent_doc/Project_management/
+agent_doc/Project_management/*
+!agent_doc/Project_management/redcap_toolbox.md
+!.agents/
+.agents/*
+!.agents/skills/
+.agents/skills/*
+!.agents/skills/ask-matt/
+.agents/skills/ask-matt/*
+!.agents/skills/ask-matt/SKILL.md
+!openspec/
+openspec/*
+!openspec/specs/
+openspec/specs/*
+!openspec/specs/oai-tool-routing/
+!openspec/specs/oai-tool-routing/spec.md
+!openspec/specs/oai-workflow-routing/
+!openspec/specs/oai-workflow-routing/spec.md
+!openspec/changes/
+openspec/changes/*
+!openspec/changes/archive/
+openspec/changes/archive/*
+!openspec/changes/archive/2026-08-04-route-mcp-tools-through-toolbox/
+!openspec/changes/archive/2026-08-04-route-mcp-tools-through-toolbox/**
 # Root pyproject.toml and uv.lock are repository-owned.
 package.json     
 package-lock.json

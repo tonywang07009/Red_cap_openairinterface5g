@@ -19,13 +19,13 @@ last_reviewed: 2026-08-02
 [查看 change ledger](../change-ledger.md) ·
 [研究方法](../../../agent_doc/Project_management/redcap_research_wiki/concepts/evidence-first-research-method.md)
 
-本章只回答一個問題：**看到一項 RedCap 主張時，如何用唯讀 CLI 找到
-owner，並把「存在」與「真的在 runtime 生效」分開？**
+本章只回答一個問題：**看到一項 RedCap 主張時，如何用唯讀查詢找到 owner，
+並把「存在」與「真的在 runtime 生效」分開？**
 
 ### 本章主線
 
 先找出行為的 **source owner**，再確認誰產生 state、誰讀取 state，最後用
-evidence tier 限制主張。CLI 是觀察工具；它不會替您補上缺少的 caller 或
+evidence tier 限制主張。查詢工具幫您觀察；它不會替您補上缺少的 caller 或
 runtime marker。
 
 ## 1. 學習目標
@@ -33,7 +33,8 @@ runtime marker。
 完成本章後，您應能：
 
 1. 從 repository 根目錄辨識 source、project、OpenSpec、wiki、report。
-2. 解釋 `rg`、`sed`、`git diff` 與 `openspec status` 各自能證明什麼。
+2. 選擇 Symdex、rtk、filesystem MCP 或 OpenSpec 狀態查詢，並說明結果各自能
+   證明什麼。
 3. 把 operator input、program state、pass criterion 分開。
 4. 用證據階梯停止過度推論。
 5. 留下一張 Luna 可直接接續的 handoff card。
@@ -78,12 +79,12 @@ runtime marker。
 - E2 `ACK` 不等於 gNB apply，更不等於效能改善。
 - 舊 report 只能支持該 frozen scenario，不能自動支持目前工作樹。
 
-## 4. 第一性原理：CLI 是量測工具，不是答案
+## 4. 第一性原理：查詢是量測工具，不是答案
 
-任何結論都由「被量測的狀態」與「量測方法」共同決定。`rg` 找到文字，
-`sed` 顯示局部 source，`git diff` 顯示工作樹與基準的差異；這些命令都不會
-直接量到正在執行的程序狀態。Runtime marker 也只表示 marker owner 宣告的
-那一個事件，不能代替後續事件。
+任何結論都由「被量測的狀態」與「量測方法」共同決定。Symdex 顯示 source
+owner 與關係；rtk 顯示 Git 差異；filesystem MCP 讀出文件或 log 的內容。它們
+都不會直接量到正在執行的程序狀態。Runtime marker 也只表示 marker owner
+宣告的那一個事件，不能代替後續事件。
 
 ```mermaid
 flowchart LR
@@ -123,15 +124,13 @@ Pass criterion 不是可隨意調整的「參數」。它是實驗契約；更�
 | [research wiki](../../../agent_doc/Project_management/redcap_research_wiki/README.md) | source-backed routing | owner 地圖，不是新 runtime 證據 |
 | [`redcap_library`](../../README.md) | reusable reports/config/tool routes | retained evidence 與重用入口 |
 
-## 7. 修改流程重建
+## 7. 從一個歷史案例重建證據鏈
 
-歷史 change 不從檔名猜作者。最小重建順序是：
-
-1. 從 [change ledger](../change-ledger.md) 選 change family。
-2. 找 OpenSpec 或 project record，取得 intended behavior。
-3. 找 affected source owner 與 caller。
-4. 找 test/report owner，辨識 strongest evidence。
-5. 若三方不齊，保留 `[Needs Verification]`，不宣告 Codex authorship。
+先從 [change ledger](../change-ledger.md) 選一列；它提供這個案例的問題、
+source 與驗證入口。接著讀 OpenSpec 或 project record，找出當時要改變的
+行為；再以 Symdex 找 source owner 與 caller，最後讀 test 或 report，確認
+案例實際留下的證據。完成後，您應能說出「此案例做到哪一層」，而不是只列出
+檔名或關鍵字。
 
 ```mermaid
 flowchart TD
@@ -144,18 +143,19 @@ flowchart TD
   E -. absent .-> N
 ```
 
-## 8. CLI 導讀
+## 8. Luna 導讀
 
-本章命令前綴 `rtk` 是專案提供的精簡輸出 wrapper；真正執行的查詢仍是後面
-列出的標準命令。每一步都要保留完整輸出，因為空結果本身也是邊界證據。
+每一步都保留完整結果，因為空結果也是邊界證據。先依問題選工具：程式 owner
+與 caller 用 Symdex；Git 狀態用 rtk；文件與 log 用 filesystem MCP。
 
 ### Luna 固定 prompt
 
 ```text
-你是 Luna CLI 教練。一次只給一個唯讀指令。先解釋指令、主要參數、
-預期 owner 與停止條件；等我貼回完整輸出後，要求我指出這份輸出能證明
-與不能證明的各一件事。不要執行命令，不要把搜尋或舊報告升級成 fresh
-runtime evidence。
+你是 GPT-5.6 Luna/high 導讀教師。一次只給一個唯讀查詢。先問我預測會看到
+什麼，再說明工具、預期 owner 與停止條件；等我貼回完整結果後，要求我指出
+這份結果能證明與不能證明的各一件事。程式 owner/caller 用 Symdex，Git 用
+rtk，文件或 log 用 filesystem MCP。不要把搜尋或舊報告升級成 fresh runtime
+evidence。
 ```
 
 ### Step 1：確認 vault 與 repository boundary
@@ -169,31 +169,33 @@ pwd
 
 ### Step 2：看工作樹，不改工作樹
 
-```bash
-git status --short
+```text
+請 Luna 用 rtk 查詢 Git status --short。
 ```
 
 主要參數：`--short` 使用穩定的精簡狀態格式。預期可能看到使用者既有
 修改；它們不是本課程授權清理的目標。空輸出只表示 Git 未偵測到差異，
-不表示 runtime 環境乾淨。
+不表示 runtime 環境乾淨。停止條件：若不在 repository 根目錄，先回到 Step 1。
 
-### Step 3：用檔案 owner 限縮搜尋
+### Step 3：閱讀課程的三個導航入口
 
-```bash
-rtk rg --files agent_doc/Project_management/redcap_research_wiki openspec/changes redcap_library | rtk sed -n '1,40p'
+```text
+請 Luna 用 filesystem MCP 讀取 research wiki、openspec/changes 與
+redcap_library 的目錄或入口頁；各列出一個可繼續閱讀的連結。
 ```
 
-`--files` 只列檔名；`sed -n '1,40p'` 限制認知負荷。預期看到 wiki、change
-與 library 路徑。找不到時先檢查 Step 1，不要改成全磁碟搜尋。
+預期：看到 wiki、change 與 library 的入口。找不到時先檢查 Step 1；這一步
+建立的是文件地圖，不是程式 caller 關係。停止條件：若入口不存在，不改用
+全磁碟搜尋。
 
 ### Step 4：查一個可反證的關鍵字
 
-```bash
-rtk rg -n 'ACK.*apply|apply.*ACK|ACK alone|ACK-only' agent_doc/Project_management/redcap_research_wiki
+```text
+請 Luna 用 filesystem MCP 在 research wiki 找 ACK 與 apply 的邊界說明。
 ```
 
-`-n` 顯示行號。預期找到 ACK/apply 邊界；這證明文件有明文契約，不證明
-任何本次 request 曾送達。
+預期：找到 ACK/apply 邊界；這證明文件有明文契約，不證明任何本次 request
+曾送達。停止條件：若沒有明文邊界，停在文件缺口，不自行推論。
 
 ### Step 5：讀一個 change 的機械狀態
 
@@ -203,16 +205,17 @@ rtk openspec status --change redcap-oran-sdk-workflow-v3 --json
 
 `--change` 選 owner，`--json` 讓狀態可機械解析。預期看到 artifact/task
 狀態。OpenSpec complete 代表 change tasks 完成，不自動代表每個 runtime
-outcome 成功。
+outcome 成功。停止條件：若 change 不存在或狀態無法讀取，回報查詢失敗。
 
 ### Step 6：看局部差異
 
-```bash
-git diff -- redcap_library/luna_cli_trace_course
+```text
+請 Luna 用 rtk 比較目前工作樹與 `redcap_library/luna_cli_trace_course` 的差異。
 ```
 
-`--` 結束 Git options 並鎖定 path。輸出是基準與 tracked working tree 的
-差異；untracked 檔案可能不會出現在 diff，因此必須與 Step 2 合讀。
+輸出是基準與 tracked working tree 的差異；untracked 檔案可能不會出現在
+diff，因此必須與 Step 2 合讀。停止條件：未讀 Step 2 前，不以空 diff 宣告
+課程目錄未變。
 
 ## 9. Boundary value 檢查
 
@@ -279,8 +282,10 @@ fresh runtime evidence。
 
 進入 [Chapter 01：Change intake 與 source owner](01-change-intake-and-source-owner.md)。
 
-## 15. 教材維護資訊
+## 15. 維護與證據附錄
 
-- Source owners：repository `AGENTS.md`、research wiki、OpenSpec、library README。
-- Exact runtime 狀態會變動；本章只教 routing contract。
-- 新證據必須由 owning project/report 接受後才能升級結論。
+- Canonical owners：[repository `AGENTS.md`](../../../AGENTS.md)、research wiki、OpenSpec、library README。
+- 本章只教查詢與證據分層；它不描述目前 runtime 是否可用。
+- 尚未具備 project、source 與 validation/evidence 三方證據的歷史案例，維持
+  `[Needs Verification]`；不據此宣告作者或完成狀態。
+- 新證據須由 owning project/report 接受後才能升級結論。
