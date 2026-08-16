@@ -34,6 +34,20 @@ structures, or incidental call order. For irreversible or security-sensitive
 work, the observable contract includes effects such as no duplicate external
 record, diagnosis without mutation, and no credential in output.
 
+## Refusal-path tracer
+
+When an approved refusal behavior is missing, incorrect, or newly required,
+write a separate Sol/high tracer before changing production code. Test the
+public seam's exit code, human-readable reason, and absence of the specified
+irreversible side effects. Do not modify an existing frozen success-path test
+to add this case; record and freeze the new test with its own SHA-256 and diff
+baseline.
+
+Follow [the root Model Switch Gate](../../../AGENTS.md#model-switch-gate).
+If Sol/high or another required model is not active, stop and wait for the user
+to switch or explicitly authorize the active model. Do not open a subagent or
+fallback model automatically.
+
 ## TDD contract
 
 For a code change, record this contract in the change `design.md` before the
@@ -52,8 +66,9 @@ first test:
 - Frozen SHA-256:
 ```
 
-Use Sol/high for TDD design when available. Terra/high is the approved fallback
-only when its reason is recorded. Each test name states a behavior, keeps
+Use Sol/high for TDD design when available. Terra/high is permitted only after
+the user explicitly resumes under that model and its reason is recorded. Each
+test name states a behavior, keeps
 Arrange/Act/Assert readable, uses an independent expected value, and covers one
 rule at a time.
 

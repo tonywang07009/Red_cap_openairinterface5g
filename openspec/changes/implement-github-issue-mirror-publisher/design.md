@@ -210,6 +210,108 @@ contract. `to-spec add` remains approval-gated; `status`, `diff`, and guarded
 precondition refusal, exactly one send, and terminal outcome; they do not bind
 staging payload persistence.
 
+## `to-spec add` TDD contract
+
+- Model / effort: GPT-5.6 Sol / high (actual TDD authoring run).
+- Test boundary: `to-spec add <change-id> --confirm-scope`, exercised through
+  `redcap_library/bash_tool/scripts/to_spec_add.sh` from an isolated local Git
+  worktree.
+- Acceptance links: `Approval-gated local tag push removes manual Git steps`;
+  `Explicit human confirmation creates one pushed tag`; `Local tag-push TDD
+  fixture is isolated`.
+- Acceptance condition: an exact committed root change plus `--confirm-scope`
+  exits zero, prints only the specified success evidence, and pushes one valid
+  immutable annotated tag with the fixed annotation to the fixture `origin`.
+- Irreversible side effects: create one local annotated tag and push it only to
+  the fixture bare remote. Do not push a branch, contact GitHub or another
+  network endpoint, use credentials, or write the repository's real `.git`,
+  `openspec/`, or `openspec/.to-spec/`. Cleanup removes only the random fixture
+  directory created by that test run.
+- Boundary gate: clear; public seam approved for this tracer bullet.
+- Test files: `redcap_library/bash_tool/scripts/test_to_spec_add.sh`.
+- RED evidence: `bash -n redcap_library/bash_tool/scripts/test_to_spec_add.sh`
+  exited zero; `bash redcap_library/bash_tool/scripts/test_to_spec_add.sh`
+  exited one because the absent production `to_spec_add.sh` returned command
+  exit `127`. The owned random fixture directory was removed.
+- Frozen SHA-256 command: `sha256sum
+  redcap_library/bash_tool/scripts/test_to_spec_add.sh`.
+- Frozen SHA-256:
+  `f033bfc60a7013b0b52203daee71738cab6e3400d9eaa9a3908cde8bd4f40f54`.
+- Frozen test-diff baseline command: `LC_ALL=C git --no-pager diff
+  --no-color --no-ext-diff --no-textconv --no-index -- /dev/null
+  redcap_library/bash_tool/scripts/test_to_spec_add.sh | sha256sum`.
+- Frozen test-diff baseline:
+  `549b223e1b9207fe1111367ebb8c1001aa59d2dcfc1b079d722eda1b9c4748bb`.
+  The `/dev/null` baseline includes the new untracked test path and contents.
+  Raw Git is the fallback because `rtk git diff --no-index` exited one without
+  emitting the required baseline diff.
+- Frozen mode: `0444`, applied with `chmod a-w
+  redcap_library/bash_tool/scripts/test_to_spec_add.sh`.
+
+## `to-spec add` missing-confirmation TDD contract
+
+- Model / effort: GPT-5.6 Sol / high (actual TDD authoring run).
+- Test boundary: invoke the public operation
+  `to_spec_add.sh <change-id>` without `--confirm-scope` from an isolated local
+  Git worktree.
+- Acceptance links: `Missing confirmation blocks tag creation` and the
+  pre-tag refusal output contract under `Approval-gated local tag push removes
+  manual Git steps`.
+- Acceptance condition: exit one; stderr states that human scope confirmation
+  is missing and includes `未建立或推送批准標籤`; the fixture worktree and bare
+  `origin` contain no tag, and the bare `origin` contains no branch.
+- Irreversible side effects: do not create a local or remote tag, push a branch,
+  contact GitHub or another network endpoint, use credentials, or access the
+  repository's real Git metadata or remote. Cleanup removes only this run's
+  random fixture directory.
+- Boundary gate: clear; this is one approved refusal-path tracer bullet.
+- Test files:
+  `redcap_library/bash_tool/scripts/test_to_spec_add_missing_confirmation.sh`.
+- RED evidence: `bash -n
+  redcap_library/bash_tool/scripts/test_to_spec_add_missing_confirmation.sh`
+  exited zero; `bash
+  redcap_library/bash_tool/scripts/test_to_spec_add_missing_confirmation.sh`
+  exited one because production stderr contained only
+  `usage: to_spec_add.sh <change-id> --confirm-scope`, not the required missing
+  human-confirmation reason or Chinese pre-tag refusal summary. The owned
+  random fixture directory was removed.
+- Frozen SHA-256 command: `sha256sum
+  redcap_library/bash_tool/scripts/test_to_spec_add_missing_confirmation.sh`.
+- Frozen SHA-256:
+  `7486c650bb43b7ef538571a07ec5c2e0089a585d336db99d41cc9493e55b0eff`.
+- Frozen test-diff baseline command: `LC_ALL=C git --no-pager diff
+  --no-color --no-ext-diff --no-textconv --no-index -- /dev/null
+  redcap_library/bash_tool/scripts/test_to_spec_add_missing_confirmation.sh |
+  sha256sum`.
+- Frozen test-diff baseline:
+  `afeedf48eaa6076efecd00c4b280850beebc52ee6ab763c53c7468c8a9e89759`.
+  The `/dev/null` baseline includes the new untracked test path and contents;
+  raw Git is retained because `rtk git diff --no-index` does not emit the
+  required baseline diff.
+- Frozen mode: `0444`, applied with `chmod a-w
+  redcap_library/bash_tool/scripts/test_to_spec_add_missing_confirmation.sh`.
+
+## Implementation design check
+
+- Owner module: `redcap_library/bash_tool/scripts/to_spec_add.sh`.
+- Existing path reused: caller's existing Git repository and `origin` remote;
+  no new service or dependency.
+- Seam and interface: `to-spec add <change-id> --confirm-scope`, producing one
+  immutable annotated approved tag and bounded evidence output.
+- Locality: tag validation, scoped-dirty check, parent annotation resolution,
+  and tag-only push remain local to the caller's Git worktree; GitHub Actions
+  performs the later Issue mirror.
+- Ponytail decision: one Bash entry point using `rtk git` and standard shell
+  parsing; no wrapper class, API client, or persistent state is added for the
+  approval gate.
+- Escalation: none.
+- Requested model / effort: GPT-5.6 Luna / max.
+- Actual implementation model / effort: GPT-5 / active agent fallback; the
+  Luna/max worker stopped before writing a file, so this deviation is recorded
+  instead of being presented as Luna/max execution.
+- Follow-up refusal fix model / effort: GPT-5.6 Luna / max after explicit user
+  model-switch confirmation.
+
 ### Planned `to-spec add` TDD environment
 
 The public seam is `to-spec add <change-id> --confirm-scope`. Its test program

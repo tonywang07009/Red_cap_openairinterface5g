@@ -9,6 +9,12 @@ or Validation contract. Use GPT-5.6 Luna / max for production implementation
 only when explicitly available and authorized; record the actual model and
 effort in the change evidence.
 
+Follow [the root Model Switch Gate](../../../AGENTS.md#model-switch-gate).
+If production requires a different model or effort, stop before editing and
+wait for the user to switch or explicitly authorize the active model. Do not
+open a subagent or automatically delegate to a fallback model to satisfy that
+requirement.
+
 Follow the mandatory lookup route in [root AGENTS.md](../../../AGENTS.md#file-query-workflow).
 
 Before changing production code, add this minimal design check to `design.md`:

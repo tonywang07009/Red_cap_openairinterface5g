@@ -59,6 +59,16 @@ it and do not restate a competing route.
 - Do not infer source ownership from filenames when a symbol or call
   relationship is required.
 
+## Model Switch Gate
+
+- When the required model or effort differs from the active one, stop before
+  writing tests or production code. Report the required model/effort and wait
+  for the user to switch or explicitly authorize the active model.
+- Do not start a subagent, delegate to a fallback model, or infer a model
+  switch automatically.
+- After the user resumes work, record the actual model and effort in the
+  applicable TDD or implementation contract.
+
 ## Build, Test, and Development Commands
 
 Prefer the preset-based CMake flow (native JSON via `CMakePresets.json`,
