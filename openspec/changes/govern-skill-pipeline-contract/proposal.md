@@ -9,7 +9,8 @@ pipeline is needed before an approved change reaches implementation.
 
 - Define OpenSpec as the canonical requirement, design, acceptance, status, and
   scheduling record; the issue tracker becomes a read-only mirror.
-- Define human-created approved tags as the only publication trigger and record
+- Define human scope-confirmed, agent-created approved tags as the only
+  publication trigger and record
   the automated mirror, retry, and read-only diagnosis contract in `to-spec`.
 - Add a TDD contract, protected-test rules, model/effort recording, and a
   minimal implementation design check.

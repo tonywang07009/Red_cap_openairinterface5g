@@ -36,9 +36,8 @@ Archive a completed change in the experimental workflow.
    If status reports `actionContext.mode: "workspace-planning"`, explain that workspace archive is not supported in this slice and STOP. Do not move workspace changes into repo-local archives or edit linked repos.
 
    **If any artifacts are not `done`:**
-   - Display warning listing incomplete artifacts
-   - Use **AskUserQuestion tool** to confirm user wants to proceed
-   - Proceed if user confirms
+   - Display the incomplete-artifact list and STOP.
+   - Do not archive a change whose canonical OpenSpec artifacts are incomplete.
 
 3. **Check task completion status**
 
@@ -47,13 +46,22 @@ Archive a completed change in the experimental workflow.
    Count tasks marked with `- [ ]` (incomplete) vs `- [x]` (complete).
 
    **If incomplete tasks found:**
-   - Display warning showing count of incomplete tasks
-   - Use **AskUserQuestion tool** to confirm user wants to proceed
-   - Proceed if user confirms
+   - Display the incomplete-task count and STOP.
+   - Do not archive a change whose implementation, validation, or review task
+     remains incomplete.
 
-   **If no tasks file exists:** Proceed without task-related warning.
+   **If no tasks file exists:** STOP and request a task contract.
 
-4. **Assess delta spec sync state**
+4. **Check canonical completion evidence**
+
+   Before archiving, verify a valid approved annotated tag for the revision.
+   For a code change, verify its frozen TDD evidence and code-review result.
+   For a documentation or governance change, verify its validation contract and
+   documentation/governance review result. Stop when any required evidence is
+   absent. A GitHub Issue mirror is external projection evidence only: it does
+   not block archive when it is absent or failed.
+
+5. **Assess delta spec sync state**
 
    Use `artifactPaths.specs.existingOutputPaths` from status JSON to check for delta specs. If none exist, proceed without sync prompt.
 
@@ -68,7 +76,7 @@ Archive a completed change in the experimental workflow.
 
    If user chooses sync, use Task tool (subagent_type: "general-purpose", prompt: "Use Skill tool to invoke openspec-sync-specs for change '<name>'. Delta spec analysis: <include the analyzed delta spec summary>"). Proceed to archive regardless of choice.
 
-5. **Perform the archive**
+6. **Perform the archive**
 
    Create an `archive` directory under `planningHome.changesDir` if it doesn't exist:
    ```bash
@@ -85,7 +93,7 @@ Archive a completed change in the experimental workflow.
    mv "<changeRoot>" "<planningHome.changesDir>/archive/YYYY-MM-DD-<name>"
    ```
 
-6. **Display summary**
+7. **Display summary**
 
    Show archive completion summary including:
    - Change name
@@ -110,7 +118,8 @@ All artifacts complete. All tasks complete.
 **Guardrails**
 - Always prompt for change selection if not provided
 - Use artifact graph (openspec status --json) for completion checking
-- Don't block archive on warnings - just inform and confirm
+- Stop on incomplete canonical tasks or missing approval, validation, or review evidence
+- Do not require a live GitHub Issue mirror for archive
 - Preserve .openspec.yaml when moving to archive (it moves with the directory)
 - Show clear summary of what happened
 - If sync is requested, use openspec-sync-specs approach (agent-driven)

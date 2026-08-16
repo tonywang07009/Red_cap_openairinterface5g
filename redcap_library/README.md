@@ -19,6 +19,7 @@
 | A-IoT two-week course | `../redcap_doc/manuals/aiot_redcap_to_aiotf_two_week_course.zh-TW.md` | GPT 5.6 Luna route from RedCap source owners through Tag, UE Reader, AIOTF, CN5G, and service diagnosis |
 | Documentation workflow | `redcap_doc_writer_skill/SKILL.md` | Bilingual docs, API guides, OpenSpec doc changes, and canonical-path migration workflow |
 | Research wiki workflow | `skills/redcap_research_wiki/SKILL.md` | Source ingestion, research queries, simulator decision contracts, review gates, and wiki lint |
+| Code implementation flow | `code_implementation.md` | Approved tag, mirror, TDD, review, and archive boundary |
 
 ## Retention Rule
 - Keep: configs that can reproduce a scenario, final accepted reports, current Paper 07 raw evidence, FlexRIC service-model libraries used by runtime probe scripts.

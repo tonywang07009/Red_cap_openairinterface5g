@@ -23,16 +23,17 @@ files predate it and use incompatible defaults.
 
 ### Approval and mirror
 
-A human creates and pushes `openspec/<change-id>/approved/<short-sha>` as an
-annotated tag. Its annotation identifies the parent task, full revision SHA,
-and the change `proposal.md`. A tag-push CI job is the future publisher. It
+A human confirms scope, then the agent creates and pushes
+`openspec/<change-id>/approved/<short-sha>` as an annotated tag. Its annotation
+identifies the parent task, full revision SHA, and the change `proposal.md`. A
+tag-push CI job is the future publisher. It
 creates one staging payload and idempotency key, attempts publication once plus
 three retries at one-minute intervals, then performs read-only diagnosis.
 
-The issue tracker is a mirror. `to-spec status`, `to-spec diff`, and
-`to-spec retry` are its only public operations. Retry is a single human action
-after diagnosis; it never starts another automatic retry loop or creates a
-second issue.
+The issue tracker is a mirror. `to-spec add` is the approval-gated tag
+operation; `to-spec status`, `to-spec diff`, and `to-spec retry` are the only
+public mirror-state operations. Retry is a single human action after diagnosis;
+it never starts another automatic retry loop or creates a second issue.
 
 The governance parent and the first publisher child form one bootstrap bundle.
 Their approved tags preserve the human decision, but neither requires an Issue
@@ -66,6 +67,15 @@ observable behavior, protocol state, or data decision must trace to an
 approved requirement or acceptance criterion. Documentation/governance changes
 use the same two reports but validate links, rules, boundaries, and approval
 traceability instead of requiring program tests.
+
+### Archive uses canonical evidence, not mirror availability
+
+Archive requires a valid approved tag, complete implementation/validation/review
+tasks, frozen TDD plus code review for code changes, or validation contract plus
+documentation/governance review for non-code changes. GitHub Issue publication
+is an external projection: an absent or failed mirror retains diagnosis for
+recovery but does not block archive. This preserves OpenSpec as the canonical
+record and avoids treating a one-time platform outage as unfinished code work.
 
 ## Risks / Trade-offs
 
