@@ -86,6 +86,10 @@ governance change SHALL have its validation contract and documentation/governanc
 review. A GitHub Issue mirror is external projection evidence and SHALL NOT
 block archive when it is absent or `failed`.
 
+A governance parent SHALL archive when its own contract, validation, and review
+tasks are complete. A separately approved implementation child remains its own
+OpenSpec change and SHALL NOT block that parent archive.
+
 #### Scenario: External mirror failure does not block a completed change
 - **WHEN** a change has complete canonical tasks and evidence but its Issue
   mirror is absent or diagnosed as `failed`

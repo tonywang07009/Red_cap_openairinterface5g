@@ -141,6 +141,10 @@ They enter a later code commit only after the frozen TDD test passes and
 `$code-review` completes. Do not include unrelated dirty worktree paths in
 either commit.
 
+The unreviewed `to_spec_status.sh` draft and its test remain reference material
+only. Do not register or ship them before Sol/high writes and freezes the
+approved public-boundary tests.
+
 The `to-spec add` test fixture is isolated beneath
 `redcap_library/.test_tmp/to_spec_add.<random>/`, with a temporary worktree and
 local bare remote. Its cleanup removes only its own random directory. It never

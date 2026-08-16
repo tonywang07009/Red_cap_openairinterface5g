@@ -146,7 +146,8 @@ tags, OpenSpec artifacts, or Issues. A daily GitHub Actions cleanup job runs
 only on a self-hosted runner with the persistent staging workspace mounted;
 a GitHub-hosted runner has no prior ignored staging to clean and SHALL fail
 configuration rather than report a no-op cleanup as successful. The cleanup
-job never calls the GitHub API.
+job never calls the GitHub API. This self-hosted-runner decision was confirmed
+on 2026-08-16.
 
 ### Retry is bounded by workflow input
 
@@ -166,6 +167,10 @@ state, relevant Issue or diagnosis information, and next action. Known states
 exit zero; missing changes exit two; invalid state data exits three. It does
 not contact GitHub or create the generated-state directory.
 
+Existing unreviewed `to_spec_status.sh` and `test_to_spec_status.sh` files are
+reference-only drafts. They are not registered, do not satisfy this contract,
+and SHALL NOT bypass the Sol/high TDD authoring and freeze gate.
+
 ## Status TDD contract (pending)
 
 - Model / effort: GPT-5.6 Sol / high; Terra / high is permitted only when Sol
@@ -176,9 +181,10 @@ not contact GitHub or create the generated-state directory.
 - Irreversible side effects: no write beneath fixture `openspec/`, no Git tag
   mutation, no GitHub request, and no credential output.
 - Boundary gate: clear; human confirmation on 2026-08-15.
-- Test files: `redcap_library/bash_tool/scripts/test_to_spec_status.sh`.
-- Frozen SHA-256: pending test creation.
-- Frozen test-diff baseline: pending test creation.
+- Test files: pending Sol/high authoring; the current draft is not a contract
+  test.
+- Frozen SHA-256: pending formal test creation.
+- Frozen test-diff baseline: pending formal test creation.
 
 ### Tests freeze the public seam before implementation
 

@@ -77,6 +77,10 @@ is an external projection: an absent or failed mirror retains diagnosis for
 recovery but does not block archive. This preserves OpenSpec as the canonical
 record and avoids treating a one-time platform outage as unfinished code work.
 
+The governance parent archives after its own contract, validation, and review
+tasks complete. Publisher implementation is owned by its named child change;
+that child remains independently traceable and does not keep the parent open.
+
 ## Risks / Trade-offs
 
 - [Same user can defeat chmod] → SHA-256 and frozen test-diff baseline make the violation

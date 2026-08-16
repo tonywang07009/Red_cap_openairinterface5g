@@ -14,8 +14,8 @@
 
 - [x] 3.1 Add code-review lenses and documentation/governance review behavior.
 - [x] 3.2 Validate OpenSpec artifacts and review the scoped documentation diff.
-- [ ] 3.3 Add and review the canonical-evidence archive gate without a live-mirror blocker.
+- [x] 3.3 Add and review the canonical-evidence archive gate without a live-mirror blocker.
 
 ## 4. Follow-up infrastructure
 
-- [ ] 4.1 Implement approved-tag CI publication, idempotency storage, retries, and read-only diagnosis in a separately approved implementation change. (Follow-up only; not implemented by this governance change.)
+- [x] 4.1 Hand off approved-tag CI publication, idempotency storage, retries, and read-only diagnosis to `implement-github-issue-mirror-publisher`; it does not block this parent archive.
