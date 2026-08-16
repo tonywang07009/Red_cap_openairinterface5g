@@ -2,10 +2,11 @@
 
 ### Requirement: Authoritative OAI tool routing
 
-Root `AGENTS.md` SHALL define the authoritative route from an OAI task signal
-to the smallest appropriate tool sequence, stop condition, and fallback.
-Skills and `redcap_toolbox.md` SHALL link to this rule rather than duplicate
-it. Source code, symbols, callers, callees, and repository structure SHALL use
+Root `AGENTS.md` SHALL define the authoritative required-first tool route and
+fallback for an OAI task signal. The applicable `redcap_toolbox.md` task packet
+SHALL define task-specific stop conditions and command references. Skills and
+`redcap_toolbox.md` SHALL link to the root rule rather than duplicate it.
+Source code, symbols, callers, callees, and repository structure SHALL use
 Symdex first; Git status, diff, log, blame, branch, and commit lookup SHALL use
 rtk first; Markdown, PDF, configuration, logs, generated artifacts, and file
 content SHALL use filesystem MCP first. A fallback SHALL be reported with its

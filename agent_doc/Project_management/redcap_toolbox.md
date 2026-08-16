@@ -36,15 +36,17 @@ tool-routing packet that follows root `AGENTS.md`:
 - [Decision cost]: too many tools marked "always use first" slows tool selection. Keep one default route per task type.
 - [Context cost]: do not bulk-load old PDFs, historical reports, all runtime logs, or unrelated milestones at task start.
 - [Reasoning cost]: use fixed review and validation packets so each task does not reinvent spec mapping, runtime evidence, and pass/fail rules.
-- [Core RedCap path]: `Symdex -> rtk Git query -> filesystem MCP artifact read -> targeted build/test/log marker -> concise report`.
 
-## Three-Layer Tool Route
+## Task Packet Layers
 
-| Layer | Purpose | Default Tools | Stop Condition |
-|---|---|---|---|
-| [Layer 1: Navigation] | find OAI C code path, symbol, caller/callee candidates, and existing markers | Symdex | target files/functions and markers are known |
-| [Layer 2: Evidence] | prove build, unit, or runtime behavior | `rtk`, CMake/CTest, targeted Docker logs, marker grep | evidence path and key pass/fail marker are captured |
-| [Layer 3: Documentation] | preserve decisions and handoff value | active project plan/rules, target milestone, validation file, latest relevant work_daily | report or checklist is updated without loading unrelated history |
+Root `AGENTS.md` selects the required-first tool and fallback. These packets
+only state what evidence is sufficient for the current task.
+
+| Layer | Purpose | Completion condition |
+|---|---|---|
+| [Layer 1: Navigation] | Find the owner, symbol relationship, or marker needed by the task. | Target files/functions and markers are known. |
+| [Layer 2: Evidence] | Prove build, unit, or runtime behavior. | Evidence path and key pass/fail marker are captured. |
+| [Layer 3: Documentation] | Preserve decisions and handoff value. | Report or checklist is updated without unrelated context. |
 
 ## Task Packets And Command References
 
@@ -56,8 +58,9 @@ tool route.
 ## Tool-Route Governance
 
 - Correct task packet and command-reference details directly in this document.
-- Change root `AGENTS.md` through OpenSpec and human confirmation before
-  changing a default route, fallback, stop condition, or evidence threshold.
+- Require OpenSpec and human confirmation before changing a default route,
+  fallback, stop condition, or evidence threshold. Change root `AGENTS.md`
+  only when the required-first tool route or fallback itself changes.
 
 ## MCP Health Snapshot
 

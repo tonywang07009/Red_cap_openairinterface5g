@@ -17,3 +17,24 @@ stop decisions are missing.
 - **WHEN** a RedCap plan lacks behavior/non-goals, owner, acceptance/evidence,
   or rollback/stop information
 - **THEN** the route invokes `grill-with-docs` to obtain the missing decision
+
+## MODIFIED Requirements
+
+### Requirement: Fallback OAI workflow routing
+
+The router SHALL derive required tool steps and fallback from root `AGENTS.md`.
+It SHALL use only the applicable `redcap_toolbox.md` task packet for task-
+specific stop conditions and command references.
+
+#### Scenario: User selects a skill directly
+- **WHEN** a user invokes a named skill
+- **THEN** the router preserves that selection, derives any omitted required
+  tool step from root `AGENTS.md`, and uses the toolbox only for the applicable
+  task packet's stop condition or command reference
+
+#### Scenario: Router returns a tool packet
+- **WHEN** the router has selected a primary skill or determined that no
+  active route matches
+- **THEN** it returns root `AGENTS.md` tool steps and fallback, plus the
+  applicable toolbox packet's stop condition and command references, before
+  any selected skill runs

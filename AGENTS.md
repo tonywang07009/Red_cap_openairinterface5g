@@ -16,14 +16,16 @@ documentation is in `doc/`; CI orchestration and test assets are in
 
 ## OpenSpec Planning Trigger
 
-Always open `@/openspec/AGENTS.md` when the request:
+Use the repository-local OpenSpec skill matching the request phase when the
+request:
 - Mentions planning, proposals, spec, change, or plan.
 - Introduces new capabilities, breaking changes, architecture shifts,
   or large performance/scheduling work (e.g. DRX, multi-Tag scheduling).
 - Is ambiguous and needs an authoritative spec before coding.
 
-Do not duplicate OpenSpec workflow details here; `openspec/AGENTS.md`
-is the source of truth and is refreshed by `openspec update`.
+If `openspec/AGENTS.md` exists, read it before the selected skill. Otherwise
+the selected repository-local OpenSpec skill is authoritative. Do not invent
+instructions for a missing OpenSpec guidance file.
 
 ## No-New-File Policy (RedCap modifications)
 

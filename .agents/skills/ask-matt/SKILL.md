@@ -11,13 +11,17 @@ workflow authority.
 
 Read the retained criteria in [Ask Matt Routing Memo](../../../agent_doc/Project_management/redcap_research_wiki/ASK_MATT_ROUTING_MEMO.md)
 before routing a repository request. That memo is the route-table authority.
-Read [RedCap MCP And Command Toolbox](../../../agent_doc/Project_management/redcap_toolbox.md)
-after selecting the primary skill. That document is the tool-route authority.
+Read [root AGENTS.md](../../../AGENTS.md#file-query-workflow) after selecting
+the primary skill. It is the tool-route authority. Read the
+[RedCap MCP And Command Toolbox](../../../agent_doc/Project_management/redcap_toolbox.md)
+only for task-specific packets and command references.
 
 ## Route
 
 1. If a user named a skill, preserve that primary skill and its explicit tool
-   instructions. Use the toolbox only to fill an omitted necessary tool step.
+   instructions. Derive an omitted required tool step from root `AGENTS.md`.
+   Use the toolbox only for the applicable packet's stop condition or command
+   reference.
 2. Otherwise read the memo's **Formal OpenSpec Gate**,
    **Research-Wiki Escalation**, **Active Skill Set**, and **Retained Skill
    Routes** sections. Select one active primary skill and, only when needed,
@@ -28,9 +32,10 @@ after selecting the primary skill. That document is the tool-route authority.
    return `primary_skill: none`, `companion_skill: none`,
    `openspec_status: not-needed`, `route_reason: no-active-route`, and request
    a human decision on clarification or formal promotion.
-4. Read the toolbox's **Default Tool Routing** row matching the task signal.
-   Return its tool steps, stop condition, and fallback. Route only; the
-   primary skill executes the work.
+4. Read root `AGENTS.md` for the required tool route, then the applicable
+   toolbox task packet for its stop condition and command references. Return
+   the root route's tool steps and fallback. Route only; the primary skill
+   executes the work.
 
 Complete routing only after every output field below has a value.
 
