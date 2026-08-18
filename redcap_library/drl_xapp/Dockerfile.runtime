@@ -1,0 +1,26 @@
+ARG PYTHON_BASE=python:3.11.11-slim-bookworm
+FROM ${PYTHON_BASE}
+
+ARG TORCH_SPEC
+ARG TORCH_INDEX_URL
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/opt/redcap/xapp:/opt/redcap/drl
+
+COPY redcap_library/drl_xapp/requirements.lock /tmp/requirements.lock
+RUN python3 -m pip install --no-cache-dir --index-url "${TORCH_INDEX_URL}" "${TORCH_SPEC}" \
+    && python3 -m pip install --no-cache-dir -r /tmp/requirements.lock
+
+COPY openair2/E2AP/REDCAP_SDK/xapp/redcap_xapp_sdk.py /opt/redcap/xapp/redcap_xapp_sdk.py
+COPY redcap_library/drl_xapp/redcap_drl.py /opt/redcap/drl/redcap_drl.py
+COPY redcap_library/drl_xapp/run_entrypoint.py /usr/local/bin/redcap-drl-run-entrypoint
+COPY redcap_library/drl_xapp/runtime_smoke.py /usr/local/bin/redcap-drl-runtime-smoke
+
+RUN useradd --create-home --uid 1000 drl \
+    && chmod 755 /usr/local/bin/redcap-drl-runtime-smoke /usr/local/bin/redcap-drl-run-entrypoint \
+    && /usr/local/bin/redcap-drl-runtime-smoke
+
+USER drl
+WORKDIR /workspace
+CMD ["sleep", "infinity"]

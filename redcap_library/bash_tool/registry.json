@@ -324,6 +324,23 @@
         "status_field": "task_log/tasks.json status."
       },
       "side_effects": "Starts and removes three fixed labeled AIOTF test containers on public_net, creates and deletes one fixed test NFProfile, and preserves CN5G containers and volumes."
+    },
+    "redcap_drl_xapp": {
+      "description": "Create and operate a gated DRL xApp Docker workspace without mutating the existing simulator compose project.",
+      "script_path": "redcap_library/bash_tool/scripts/redcap_drl_xapp.sh",
+      "input": {
+        "command": "init, up, verify, discover-kpm, qualify-kpm, run, status, recover, down, remove, build-release, upgrade, or --help.",
+        "workspace": "Command-specific workspace path or init workspace root and name.",
+        "compose": "Explicit existing FlexRIC RedCap Compose file; required by init and never modified.",
+        "runtime": "cpu or gpu; locked at init.",
+        "profile": "none or ul-prb-cap-v1; locked at init."
+      },
+      "output": {
+        "log_path": "Workspace artifacts/runs/<run-id>/manifest.json and caller-selected tracked build/runtime log.",
+        "exit_code": "Zero only when the requested gate or lifecycle action completes.",
+        "status_field": "Caller-managed task_log/tasks.json status for image builds and live runtime operations."
+      },
+      "side_effects": "Help and status are read-only. init writes one new workspace atomically. build-release builds immutable local images. up/run/down/remove affect only generated workspace services; live E2 control is refused unless every profile gate passes."
     }
   }
 }

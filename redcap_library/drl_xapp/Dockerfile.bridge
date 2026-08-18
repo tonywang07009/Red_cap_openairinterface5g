@@ -1,0 +1,27 @@
+ARG FLEXRIC_BASE=oai-flexric:custom-dev
+FROM ${FLEXRIC_BASE}
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/usr/local/flexric/xApp/python3:/opt/redcap-drl
+
+COPY openair2/E2AP/flexric /opt/redcap-src/flexric
+COPY openair2/E2AP/REDCAP_SDK /opt/redcap-src/REDCAP_SDK
+
+RUN cmake -S /opt/redcap-src/flexric -B /opt/redcap-src/flexric/build-drl \
+        -DXAPP_MULTILANGUAGE=ON -DE2AP_VERSION=E2AP_V3 -DKPM_VERSION=KPM_V3_00 \
+        -DCMAKE_BUILD_TYPE=Release \
+    && cmake --build /opt/redcap-src/flexric/build-drl --target \
+        xapp_sdk mac_sm rlc_sm pdcp_sm slice_sm tc_sm gtp_sm kpm_sm rc_sm -j2 \
+    && mkdir -p /usr/local/flexric/xApp/python3 \
+    && cp /opt/redcap-src/flexric/build-drl/examples/xApp/python3/xapp_sdk.py \
+          /opt/redcap-src/flexric/build-drl/examples/xApp/python3/_xapp_sdk.so \
+          /usr/local/flexric/xApp/python3/ \
+    && find /opt/redcap-src/flexric/build-drl/src/sm -name 'lib*_sm.so' \
+        -exec cp {} /usr/local/lib/flexric/ \;
+
+COPY redcap_library/drl_xapp/bridge_daemon.py /opt/redcap-drl/bridge_daemon.py
+
+RUN python3 -m py_compile /opt/redcap-drl/bridge_daemon.py
+
+ENTRYPOINT ["python3", "/opt/redcap-drl/bridge_daemon.py"]

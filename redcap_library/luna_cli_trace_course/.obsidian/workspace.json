@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "chapters/00-cli-and-evidence.md",
+                "file": "chapters/10-change-replay-capstone.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "00-cli-and-evidence"
+              "title": "10-change-replay-capstone"
             }
           }
         ]
@@ -99,7 +99,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "chapters/00-cli-and-evidence.md",
+                "file": "chapters/10-change-replay-capstone.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -189,18 +189,19 @@
   },
   "active": "32ee1ca4f865a0dc",
   "lastOpenFiles": [
-    "change-ledger.md",
+    "chapters/03-bwp-ra-and-scheduling.md",
+    "chapters/01-change-intake-and-source-owner.md",
+    "README.zh-TW.md",
+    "未命名.md",
     "chapters/00-cli-and-evidence.md",
+    "change-ledger.md",
     "chapters/10-change-replay-capstone.md",
     "chapters/04-inactive-drx-and-sdt.md",
     "chapters/02-redcap-config-and-capability.md",
-    "chapters/01-change-intake-and-source-owner.md",
-    "README.zh-TW.md",
     "chapters/06-aiot-tag-and-reader.md",
     "chapters/09-dapp-guard-apply-and-rollback.md",
     "chapters/08-xapp-and-e2-control.md",
     "chapters/07-aiotf-cn5g-and-standard-stop.md",
-    "chapters/05-runtime-validation.md",
-    "chapters/03-bwp-ra-and-scheduling.md"
+    "chapters/05-runtime-validation.md"
   ]
 }

@@ -1,0 +1,4 @@
+interface:
+  display_name: "RedCap DRL xApp Gates"
+  short_description: "Gate RedCap DRL xApp workspace and E2 control work"
+  default_prompt: "Use $redcap-drl-xapp-gates to operate or change a RedCap DRL xApp workspace through its evidence gates."
