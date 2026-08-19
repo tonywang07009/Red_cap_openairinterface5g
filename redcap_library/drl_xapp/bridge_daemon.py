@@ -93,6 +93,56 @@ class NativeFlexric:
             )
         return {"nodes": nodes, "eligible_node_count": sum(node["kpm_advertised"] and node["rc_advertised"] for node in nodes)}
 
+    def qualify(self, profile: str) -> dict:
+        if profile != "ul-prb-cap-v1":
+            return {"ok": False, "error": "PROFILE_FORBIDS_LIVE_KPM", "control_attempted": False}
+        capabilities = self.discover()
+        eligible = [node for node in capabilities["nodes"] if node["kpm_advertised"] and node["rc_advertised"]]
+        if len(eligible) != 1:
+            return {
+                "ok": False,
+                "error": "EXACTLY_ONE_ELIGIBLE_NODE_REQUIRED",
+                "eligible_node_count": len(eligible),
+                "control_attempted": False,
+            }
+        node = eligible[0]
+        styles = node["kpm_styles"]
+        if not isinstance(styles, list):
+            return {"ok": False, "error": "KPM_STYLE_UNVERIFIED", "node_id": node["node_id"], "control_attempted": False}
+        has_cell = any(style["action_definition_format"] == 0 and style["indication_message_format"] == 0 for style in styles)
+        has_ue = any(style["action_definition_format"] == 3 and style["indication_message_format"] == 2 for style in styles)
+        if not has_cell:
+            return {
+                "ok": False,
+                "error": "CELL_KPM_STREAM_REQUIRED",
+                "failed_stage": "capability",
+                "node_id": node["node_id"],
+                "available_kpm_styles": styles,
+                "cell": [],
+                "ue": [],
+                "control_attempted": False,
+            }
+        if not has_ue:
+            return {
+                "ok": False,
+                "error": "UE_KPM_STREAM_REQUIRED",
+                "failed_stage": "capability",
+                "node_id": node["node_id"],
+                "available_kpm_styles": styles,
+                "cell": [],
+                "ue": [],
+                "control_attempted": False,
+            }
+        return {
+            "ok": False,
+            "error": "KPM_SUBSCRIPTION_PROVIDER_REQUIRED",
+            "failed_stage": "subscription",
+            "node_id": node["node_id"],
+            "cell": [],
+            "ue": [],
+            "control_attempted": False,
+        }
+
 
 class Bridge:
     def __init__(
@@ -181,12 +231,15 @@ class Bridge:
                 return {"ok": False, "error": str(error), "request_id": request["request_id"]}
             return {"ok": True, "request_id": request["request_id"], "capabilities": capabilities, "control_attempted": False}
         if request["operation"] == "qualify":
-            return {
-                "ok": False,
-                "error": "KPM_STREAM_BINDING_UNIMPLEMENTED",
-                "needs_verification": "Live E2SM-KPM cell/UE styles and UE-to-RC identity mapping",
-                "request_id": request["request_id"],
-            }
+            if self.native is None or not hasattr(self.native, "qualify"):
+                return {"ok": False, "error": "NATIVE_QUALIFICATION_UNAVAILABLE", "request_id": request["request_id"]}
+            try:
+                result = dict(self.native.qualify(self.profile))
+            except (ImportError, RuntimeError) as error:
+                return {"ok": False, "error": str(error), "request_id": request["request_id"]}
+            result.setdefault("request_id", request["request_id"])
+            result.setdefault("control_attempted", False)
+            return result
         if request["operation"] == "observe":
             return {"ok": False, "error": "KPM_NOT_QUALIFIED", "request_id": request["request_id"]}
         if request["operation"] == "open":

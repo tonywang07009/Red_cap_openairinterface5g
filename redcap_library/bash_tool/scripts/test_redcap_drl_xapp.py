@@ -185,6 +185,64 @@ class RedcapDrlXappCliTest(unittest.TestCase):
                 [{"style_type": 1, "header_format": 1, "message_format": 1, "outcome_format": 1, "action_ids": [1, 100]}],
             )
 
+    def test_qualification_refuses_missing_cell_stream_without_control(self) -> None:
+        bridge_module = load_bridge_module()
+        native_calls = []
+
+        class Native:
+            @staticmethod
+            def qualify(_profile):
+                return {
+                    "ok": False,
+                    "error": "CELL_KPM_STREAM_REQUIRED",
+                    "cell": [],
+                    "ue": [{"source_seq": 1, "kpm_ue_key": "ue-1"}],
+                    "control_attempted": False,
+                }
+
+        bridge = bridge_module.Bridge(
+            profile="ul-prb-cap-v1",
+            native=Native(),
+            native_control=lambda action: native_calls.append(action),
+        )
+        result = bridge.handle(
+            {
+                "protocol_version": 1,
+                "request_id": "qualify-missing-cell",
+                "operation": "qualify",
+                "profile_id": "ul-prb-cap-v1",
+            }
+        )
+        self.assertEqual(result["error"], "CELL_KPM_STREAM_REQUIRED")
+        self.assertFalse(result["control_attempted"])
+        self.assertEqual(native_calls, [])
+
+    def test_native_qualification_refuses_node_without_cell_kpm_style(self) -> None:
+        bridge_module = load_bridge_module()
+        native = bridge_module.NativeFlexric(Path("/unused/flexric.conf"))
+        native.discover = lambda: {
+            "eligible_node_count": 1,
+            "nodes": [
+                {
+                    "node_id": "2:1:1:3584",
+                    "kpm_advertised": True,
+                    "rc_advertised": True,
+                    "kpm_styles": [
+                        {
+                            "style_type": 3,
+                            "action_definition_format": 3,
+                            "indication_header_format": 0,
+                            "indication_message_format": 2,
+                        }
+                    ],
+                }
+            ],
+        }
+        result = native.qualify("ul-prb-cap-v1")
+        self.assertEqual(result["error"], "CELL_KPM_STREAM_REQUIRED")
+        self.assertEqual(result["failed_stage"], "capability")
+        self.assertFalse(result["control_attempted"])
+
     def test_unsafe_journal_blocks_new_control_until_recovery(self) -> None:
         bridge_module = load_bridge_module()
         with tempfile.TemporaryDirectory() as temp_dir:
