@@ -82,6 +82,12 @@ add_library(e2_ran_func_du_cucp_cuup STATIC
 target_link_libraries(e2_ran_func_du_cucp_cuup PUBLIC asn1_nr_rrc nr_rrc asn1_nr_rrc_hdrs e2_time_obj kpm_ric_info_common_obj 3gpp_derived_ie_obj e2sm_rc_ir_obj sm_common_ie_obj ds sm_common_enc_asn_obj_rc 3gpp_derived_ie_enc_asn_obj_rc)
 target_compile_definitions(e2_ran_func_du_cucp_cuup PUBLIC ${E2AP_VERSION}  ${KPM_VERSION} NGRAN_GNB_DU NGRAN_GNB_CUCP NGRAN_GNB_CUUP)
 
+if(ENABLE_TESTS)
+  add_executable(test_ran_func_kpm_cell_setup O-RAN/test_ran_func_kpm_cell_setup.c)
+  target_link_libraries(test_ran_func_kpm_cell_setup PRIVATE e2_ran_func_du_cucp_cuup)
+  add_test(NAME test_ran_func_kpm_cell_setup COMMAND test_ran_func_kpm_cell_setup)
+endif()
+
 # Current implementation:
 # - we only have one executable nr-softmodem for 4 node types: DU, CU, gNB-mono, CU-CP
 

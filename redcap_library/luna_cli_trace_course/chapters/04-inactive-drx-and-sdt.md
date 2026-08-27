@@ -77,33 +77,33 @@ NAS timer/state。它們可能互動，但 owner 與 acceptance 必須分開。
 
 ## 4. 三類參數與作用
 
-| 類型 | 例子 | 作用 | Consumer/marker |
-| --- | --- | --- | --- |
-| Input | `redcap_inactive_allowed` | cell-side inactive enablement | RRC suspend/inactive path |
-| Input | `MMTC_RRC_INACTIVE_GATE3_CG_CONFIG` | bounded validation-only CG injection | gNB radio config |
-| Input | DRX cycle/on-duration/inactivity/HARQ timers | 建立 MAC active window | `nr_ue_drx_is_active()` |
-| Input | SIB1 eDRX optional IEs | 允許 IDLE/INACTIVE eDRX | `nr_rrc_edrx_allowed_for_state()` |
-| Input | NAS `T3324`, `T3512` | active time/periodic registration state | PSM readiness |
-| State | `redcap_rrc_state` | connected/inactive transition | UE/gNB SDT consumers |
-| State | `configuredGrantConfig` | CG-SDT resource/periodicity | UE scheduler/gNB UL receiver |
-| Guard | `nr_ue_has_cg_sdt_config()` | 缺任何 nested state 都不走 CG | probe/fallback |
-| Criterion | Gate-specific markers | 證明該步 producer/consumer | 不跨 feature 升級 |
+| 類型        | 例子                                           | 作用                                      | Consumer/marker                   |
+| --------- | -------------------------------------------- | --------------------------------------- | --------------------------------- |
+| Input     | `redcap_inactive_allowed`                    | cell-side inactive enablement           | RRC suspend/inactive path         |
+| Input     | `MMTC_RRC_INACTIVE_GATE3_CG_CONFIG`          | bounded validation-only CG injection    | gNB radio config                  |
+| Input     | DRX cycle/on-duration/inactivity/HARQ timers | 建立 MAC active window                    | `nr_ue_drx_is_active()`           |
+| Input     | SIB1 eDRX optional IEs                       | 允許 IDLE/INACTIVE eDRX                   | `nr_rrc_edrx_allowed_for_state()` |
+| Input     | NAS `T3324`, `T3512`                         | active time/periodic registration state | PSM readiness                     |
+| State     | `redcap_rrc_state`                           | connected/inactive transition           | UE/gNB SDT consumers              |
+| State     | `configuredGrantConfig`                      | CG-SDT resource/periodicity             | UE scheduler/gNB UL receiver      |
+| Guard     | `nr_ue_has_cg_sdt_config()`                  | 缺任何 nested state 都不走 CG                 | probe/fallback                    |
+| Criterion | Gate-specific markers                        | 證明該步 producer/consumer                  | 不跨 feature 升級                     |
 
 `MMTC_*` flags 是 validation operator inputs，不是 3GPP parameter；其標準
 對應保持 `[Needs Verification]`。
 
 ## 5. 修改流程重建
 
-| 路徑 | Existing owner | 修改目的 | 主要影響 |
-| --- | --- | --- | --- |
-| INACTIVE | `rrc_UE.c`, `L2_interface_ue.c` | 保存/傳遞 inactive state | MAC 能辨識 inactive |
-| gNB SDT state | `nr_mac_sdt_fsm.c` | 限定 FSM transition | scheduler-side state |
-| CG config | `nr_radio_config.c`, `config_ue.c` | 建立並 parse grant | active UL BWP state |
-| CG scheduler | `nr_ue_scheduler.c` | 在 occasion 排 autonomous PUSCH | SDT TX 或 fallback |
-| gNB receive | `gNB_scheduler_ulsch.c` | 分類 CG-SDT PUSCH | confirmation marker |
-| DRX | `nr_ue_drx.c` | unwrapped slot與 timer guards | active/sleep decision |
-| eDRX | `rrc_ue_lowpower.c` | 保存 SIB1 allowances | per-state allow bool |
-| PSM | `nr_nas_msg.c`, `nr_nas_lowpower.c` | decode timer並判 readiness | NAS low-power state |
+| 路徑            | Existing owner                      | 修改目的                          | 主要影響                  |
+| ------------- | ----------------------------------- | ----------------------------- | --------------------- |
+| INACTIVE      | `rrc_UE.c`, `L2_interface_ue.c`     | 保存/傳遞 inactive state          | MAC 能辨識 inactive      |
+| gNB SDT state | `nr_mac_sdt_fsm.c`                  | 限定 FSM transition             | scheduler-side state  |
+| CG config     | `nr_radio_config.c`, `config_ue.c`  | 建立並 parse grant               | active UL BWP state   |
+| CG scheduler  | `nr_ue_scheduler.c`                 | 在 occasion 排 autonomous PUSCH | SDT TX 或 fallback     |
+| gNB receive   | `gNB_scheduler_ulsch.c`             | 分類 CG-SDT PUSCH               | confirmation marker   |
+| DRX           | `nr_ue_drx.c`                       | unwrapped slot與 timer guards  | active/sleep decision |
+| eDRX          | `rrc_ue_lowpower.c`                 | 保存 SIB1 allowances            | per-state allow bool  |
+| PSM           | `nr_nas_msg.c`, `nr_nas_lowpower.c` | decode timer並判 readiness      | NAS low-power state   |
 
 ## 6. CLI 導讀
 

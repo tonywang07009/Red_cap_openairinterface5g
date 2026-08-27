@@ -341,6 +341,17 @@
         "status_field": "Caller-managed task_log/tasks.json status for image builds and live runtime operations."
       },
       "side_effects": "Help and status are read-only. init writes one new workspace atomically. build-release builds immutable local images. up/run/down/remove affect only generated workspace services; live E2 control is refused unless every profile gate passes."
+    },
+    "test_redcap_drl_xapp": {
+      "description": "Run the frozen DRL xApp public CLI and bridge refusal-path unit tests.",
+      "script_path": "redcap_library/bash_tool/scripts/test_redcap_drl_xapp.py",
+      "input": {},
+      "output": {
+        "log_path": "Caller-selected timestamped test_log/compiler_logs/drl_xapp_*.log.",
+        "exit_code": "Zero only when every DRL xApp refusal-path test passes.",
+        "status_field": "Caller-managed task_log/tasks.json status."
+      },
+      "side_effects": "Creates and removes only test-owned temporary files; does not contact Docker, subscribe to KPM, or send E2 control."
     }
   }
 }

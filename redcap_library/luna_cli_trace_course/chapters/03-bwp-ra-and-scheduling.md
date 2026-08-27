@@ -78,16 +78,17 @@ flowchart LR
 
 ## 4. 三類參數與基本作用
 
-| 類型 | 參數/state | 基本作用 | 影響 |
-| --- | --- | --- | --- |
-| Input | `initialDLBWPStart_r17`, `initialDLBWPSize_r17` | 定義 DL PRB 幾何 | RIV、PDCCH/PDSCH view |
-| Input | `initialULBWPStart_r17`, `initialULBWPSize_r17` | 定義 UL PRB 幾何 | PRACH/PUCCH/PUSCH view |
-| Input | `initial*BWPSubcarrierSpacing_r17` | 選 SCS domain | FR1 PRB limit與 slot geometry |
-| Input | `coreset0_redcap_mode_r17` | `0` Case A、`1` Case B | CORESET/search-space binding |
-| State | `nr_redcap_bwp_config_t` | 保存 validated BWP/RIV/control fields | radio config 與 SIB1 builder input |
-| State | `featureCombinationPreamblesList_r17` | 標記 RedCap RA preamble partition | Msg1 classification |
-| Guard | `ra->is_redcap_msg1` | 防止 baseline RA 誤用 RedCap Msg2 view | Case B selection gate |
-| Criterion | `[RedCap RA][gNB Msg2 BWP selected]` | gNB 已選該 view | 只到 apply/view marker，不等於 attach |
+| 類型        | 參數/state                                        | 基本作用                                | 影響                                |
+| --------- | ----------------------------------------------- | ----------------------------------- | --------------------------------- |
+| Input     | `initialDLBWPStart_r17`, `initialDLBWPSize_r17` | 定義 DL PRB  範圍                       | RIV、PDCCH/PDSCH view              |
+| Input     | `initialULBWPStart_r17`, `initialULBWPSize_r17` | 定義 UL PRB 範圍                        | PRACH/PUCCH/PUSCH view            |
+| Input     | `initial*BWPSubcarrierSpacing_r17`              | 選 SCS domain                        | FR1 PRB limit與 slot geometry      |
+| Input     | `coreset0_redcap_mode_r17`                      | `0` Case A、`1` Case B               | CORESET/search-space binding      |
+| State     | `nr_redcap_bwp_config_t`                        | 保存 validated BWP/RIV/control fields | radio config 與 SIB1 builder input |
+| State     | `featureCombinationPreamblesList_r17`           | 標記 RedCap RA preamble partition     | Msg1 classification               |
+| Guard     | `ra->is_redcap_msg1`                            | 防止 baseline RA 誤用 RedCap Msg2 view  | Case B selection gate             |
+| Criterion | `[RedCap RA][gNB Msg2 BWP selected]`            | gNB 已選該 view                        | 只到 apply/view marker，不等於 attach   |
+|           |                                                 |                                     |                                   |
 
 ## 5. 第一性原理與修改流程
 
@@ -105,16 +106,16 @@ before state 未於本章核對，標記 `[Needs Verification]`。
 
 ## 6. Source ownership matrix
 
-| 順序 | Owner | Symbol | Output |
-| ---: | --- | --- | --- |
-| 1 | `openair2/GNB_APP/gnb_paramdef.h` | `GNB_REDCAP_INITIAL_BWP_PARAMS_DESC` | input schema/default |
-| 2 | `openair2/GNB_APP/gnb_config.c` | `get_redcap_initial_bwp_config()` | populated config |
-| 3 | `openair2/LAYER2/NR_MAC_gNB/nr_mac_redcap_bwp.c` | `nr_redcap_configure_initial_bwp()` | validated RIV/BWP state |
-| 4 | same | `nr_redcap_validate_coreset0_dl_bwp()` | Case B edge guard |
-| 5 | same | `nr_redcap_configure_rach_feature_combination_preambles()` | RedCap partition |
-| 6 | `openair2/LAYER2/NR_MAC_gNB/nr_radio_config.c` | RedCap initial-BWP clone | SIB1 state |
-| 7 | `openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_RA.c` | `get_redcap_msg1_rach_config()` | classification config |
-| 8 | same | `configure_redcap_msg2_bwp()` | Msg2 scheduler view |
+|  順序 | Owner                                            | Symbol                                                     | Output                  |
+| --: | ------------------------------------------------ | ---------------------------------------------------------- | ----------------------- |
+|   1 | `openair2/GNB_APP/gnb_paramdef.h`                | `GNB_REDCAP_INITIAL_BWP_PARAMS_DESC`                       | input schema/default    |
+|   2 | `openair2/GNB_APP/gnb_config.c`                  | `get_redcap_initial_bwp_config()`                          | populated config        |
+|   3 | `openair2/LAYER2/NR_MAC_gNB/nr_mac_redcap_bwp.c` | `nr_redcap_configure_initial_bwp()`                        | validated RIV/BWP state |
+|   4 | same                                             | `nr_redcap_validate_coreset0_dl_bwp()`                     | Case B edge guard       |
+|   5 | same                                             | `nr_redcap_configure_rach_feature_combination_preambles()` | RedCap partition        |
+|   6 | `openair2/LAYER2/NR_MAC_gNB/nr_radio_config.c`   | RedCap initial-BWP clone                                   | SIB1 state              |
+|   7 | `openair2/LAYER2/NR_MAC_gNB/gNB_scheduler_RA.c`  | `get_redcap_msg1_rach_config()`                            | classification config   |
+|   8 | same                                             | `configure_redcap_msg2_bwp()`                              | Msg2 scheduler view     |
 
 ## 7. CLI 導讀
 

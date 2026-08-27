@@ -90,6 +90,9 @@ bool nr_redcap_initial_bwp_requested(int start, int size, int scs)
   return start >= 0 || size >= 0 || scs >= 0;
 }
 
+
+
+// The redcap bandwith inital
 void nr_redcap_configure_initial_bwp(nr_redcap_bwp_config_t *cfg,
                                      const char *direction,
                                      int start,
@@ -102,21 +105,26 @@ void nr_redcap_configure_initial_bwp(nr_redcap_bwp_config_t *cfg,
                                      int full_bw)
 {
   AssertFatal(cfg != NULL, "RedCap %s initial BWP destination must not be NULL\n", direction);
+  
   AssertFatal(start >= 0 && size > 0 && scs >= 0,
               "RedCap %s initial BWP requires start/size/scs to be configured together\n",
               direction);
 
   const int max_prbs = nr_redcap_fr1_max_prbs_from_scs(scs);
+  
   AssertFatal(max_prbs > 0,
               "RedCap %s initial BWP only supports FR1 SCS 15/30 kHz in the current implementation (configured scs=%d)\n",
               direction,
               scs);
+
   AssertFatal(size <= max_prbs,
               "RedCap %s initial BWP size %d exceeds the FR1 20 MHz limit for scs=%d (max %d PRBs)\n",
               direction,
               size,
               scs,
               max_prbs);
+
+
   AssertFatal(start >= 0 && start + size <= full_bw,
               "RedCap %s initial BWP start=%d size=%d exceeds the configured common carrier bandwidth %d\n",
               direction,
@@ -136,6 +144,7 @@ void nr_redcap_configure_initial_bwp(nr_redcap_bwp_config_t *cfg,
   };
 }
 
+// Control Resource Set phy block inti
 void nr_redcap_validate_coreset0_dl_bwp(nr_redcap_coreset0_mode_t mode,
                                         const nr_redcap_bwp_config_t *dl_bwp,
                                         int carrier_bw)
@@ -153,6 +162,7 @@ void nr_redcap_validate_coreset0_dl_bwp(nr_redcap_coreset0_mode_t mode,
 void nr_redcap_apply_case_b_common_coreset(NR_PDCCH_ConfigCommon_t *pdcch_cc, NR_ControlResourceSet_t *common_coreset)
 {
   AssertFatal(pdcch_cc != NULL, "RedCap CORESET#0 Case B requires a valid PDCCH common configuration\n");
+  
   AssertFatal(pdcch_cc->commonSearchSpaceList != NULL,
               "RedCap CORESET#0 Case B requires commonSearchSpaceList in the cloned initial DL BWP\n");
   AssertFatal(pdcch_cc->commonControlResourceSet == NULL,
@@ -167,6 +177,8 @@ void nr_redcap_apply_case_b_common_coreset(NR_PDCCH_ConfigCommon_t *pdcch_cc, NR
   pdcch_cc->searchSpaceSIB1 = NULL;
 
   pdcch_cc->commonControlResourceSet = common_coreset;
+ 
+  // fidn the corntrol phy layer
   nr_redcap_rebind_common_searchspaces_to_coreset(pdcch_cc, common_coreset->controlResourceSetId);
 }
 
@@ -175,9 +187,13 @@ static bool nr_redcap_rach_feature_partition_exists(const NR_RACH_ConfigCommon_t
   if (rach_config == NULL || rach_config->ext2 == NULL || rach_config->ext2->featureCombinationPreamblesList_r17 == NULL)
     return false;
 
+
+  // need find the sturct mean && t
   const struct NR_RACH_ConfigCommon__ext2__featureCombinationPreamblesList_r17 *list =
       rach_config->ext2->featureCombinationPreamblesList_r17;
-  for (int i = 0; i < list->list.count; i++) {
+
+      // allocation the phy space.
+      for (int i = 0; i < list->list.count; i++) {
     const NR_FeatureCombinationPreambles_r17_t *partition = list->list.array[i];
     if (partition != NULL && partition->featureCombination_r17.redCap_r17 != NULL)
       return true;
@@ -185,12 +201,14 @@ static bool nr_redcap_rach_feature_partition_exists(const NR_RACH_ConfigCommon_t
   return false;
 }
 
+// the volat msg1 simluation .
 bool nr_redcap_is_msg1_preamble(const NR_RACH_ConfigCommon_t *rach_config, uint16_t preamble_index, int cb_preambles_per_ssb)
 {
   if (rach_config == NULL || rach_config->ext2 == NULL || rach_config->ext2->featureCombinationPreamblesList_r17 == NULL)
     return false;
 
   (void)cb_preambles_per_ssb;
+
   const long total_preambles =
       rach_config->totalNumberOfRA_Preambles != NULL ? *rach_config->totalNumberOfRA_Preambles : NR_REDCAP_MAX_RA_PREAMBLES_PER_SSB;
   const int preamble_in_partition_domain = preamble_index % total_preambles;
