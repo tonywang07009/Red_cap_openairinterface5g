@@ -5,9 +5,30 @@
 
 #include <assert.h>
 #include <stdbool.h>
+#include <stdlib.h>
 #include <string.h>
 
 RAN_CONTEXT_t RC;
+
+void init_kpm_subs_data(void)
+{
+}
+
+static void free_setup(kpm_e2_setup_t *setup)
+{
+  for (size_t i = 0; i < setup->ran_func_def.sz_ric_report_style_list; ++i) {
+    ric_report_style_item_t *style = &setup->ran_func_def.ric_report_style_list[i];
+    free(style->report_style_name.buf);
+    for (size_t j = 0; j < style->meas_info_for_action_lst_len; ++j)
+      free(style->meas_info_for_action_lst[j].name.buf);
+    free(style->meas_info_for_action_lst);
+  }
+  free(setup->ran_func_def.ric_report_style_list);
+
+  for (size_t i = 0; i < setup->ran_func_def.sz_ric_event_trigger_style_list; ++i)
+    free(setup->ran_func_def.ric_event_trigger_style_list[i].style_name.buf);
+  free(setup->ran_func_def.ric_event_trigger_style_list);
+}
 
 static bool name_is(const byte_array_t name, const char *expected)
 {
@@ -51,12 +72,12 @@ static void assert_cell_and_ue_styles(const ngran_node_t node_type)
   assert(ue->ind_hdr_format_type == FORMAT_1_INDICATION_HEADER);
   assert(ue->ind_msg_format_type == FORMAT_3_INDICATION_MESSAGE);
 
-  free_kpm_ran_function_def(&setup.ran_func_def);
+  free_setup(&setup);
 }
 
-static void assert_cuup_does_not_advertise_cell_style(void)
+static void assert_ue_only_styles(const ngran_node_t node_type)
 {
-  gNB_RRC_INST rrc = {.node_type = ngran_gNB_CUUP};
+  gNB_RRC_INST rrc = {.node_type = node_type};
   gNB_RRC_INST *rrc_instances[] = {&rrc};
   RC.nrrrc = rrc_instances;
 
@@ -67,13 +88,30 @@ static void assert_cuup_does_not_advertise_cell_style(void)
   assert(find_report_style(&setup, STYLE_1_RIC_SERVICE_REPORT) == NULL);
   assert(find_report_style(&setup, STYLE_4_RIC_SERVICE_REPORT) != NULL);
 
-  free_kpm_ran_function_def(&setup.ran_func_def);
+  free_setup(&setup);
+}
+
+static void assert_cucp_does_not_advertise_report_styles(void)
+{
+  gNB_RRC_INST rrc = {.node_type = ngran_gNB_CUCP};
+  gNB_RRC_INST *rrc_instances[] = {&rrc};
+  RC.nrrrc = rrc_instances;
+
+  kpm_e2_setup_t setup = {0};
+  read_kpm_setup_sm(&setup);
+
+  assert(setup.ran_func_def.sz_ric_report_style_list == 0);
+  assert(setup.ran_func_def.ric_report_style_list == NULL);
+
+  free_setup(&setup);
 }
 
 int main(void)
 {
   assert_cell_and_ue_styles(ngran_gNB);
   assert_cell_and_ue_styles(ngran_gNB_DU);
-  assert_cuup_does_not_advertise_cell_style();
+  assert_ue_only_styles(ngran_gNB_CU);
+  assert_ue_only_styles(ngran_gNB_CUUP);
+  assert_cucp_does_not_advertise_report_styles();
   return 0;
 }

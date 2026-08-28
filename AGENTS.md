@@ -50,24 +50,21 @@ it and do not restate a competing route.
 
 | Need | Required first tool | Allowed fallback |
 | --- | --- | --- |
-| Source code, symbols, definitions, callers, callees, repository structure | Symdex MCP | Local `.symdex` CLI only when MCP is not indexed or cannot perform the lookup |
+| Source symbols, definitions, callers, callees, or ownership | Symdex MCP | Local `.symdex` CLI only when MCP is not indexed or cannot perform the lookup |
 | Git status, diff, log, blame, branch, commit lookup | rtk | Git CLI only when rtk cannot perform the operation |
-| Markdown, PDF, config, logs, generated artifacts, ordinary file contents | filesystem MCP | Local filesystem read only when MCP cannot access the path |
+| Ordinary source reads, Markdown, PDF, config, logs, generated artifacts | Direct file read | Use a narrower read when the file is large |
 
-- State the fallback reason in the result.
-- Do not use `rg` as a substitute for a required Symdex lookup.
-- Do not infer source ownership from filenames when a symbol or call
-  relationship is required.
+- State a fallback reason only for a symbol/caller or Git lookup.
+- Do not use `rg` as a substitute for a required Symdex symbol/caller lookup.
+- Do not infer source ownership from filenames when a symbol or call relationship is required.
 
 ## Model Switch Gate
 
-- When the required model or effort differs from the active one, stop before
-  writing tests or production code. Report the required model/effort and wait
-  for the user to switch or explicitly authorize the active model.
-- Do not start a subagent, delegate to a fallback model, or infer a model
-  switch automatically.
-- After the user resumes work, record the actual model and effort in the
-  applicable TDD or implementation contract.
+- The user selects the model and effort. Require a switch only when the user
+  explicitly requests a cost or quality boundary.
+- Do not infer a model switch or start a fallback subagent automatically.
+- Record the active model/effort when it is material to a TDD or implementation
+  decision; mark unavailable metadata **[Needs Verification]**.
 
 ## Build, Test, and Development Commands
 
@@ -82,10 +79,10 @@ cmake --build --preset tests
 cd cmake_targets/ran_build/build_test && ctest --output-on-failure
 ```
 
-For `build_oai` wrapper invocations, look up the target by semantic
-name in `redcap_library/bash_tool/registry.json` before running
-manually. Add a new entry there instead of inventing a flag
-combination inline. Do not guess flags directly.
+For reusable, externally invoked, or side-effecting `build_oai` wrappers, look
+up the semantic target in `redcap_library/bash_tool/registry.json` before
+running manually. One-off diagnostics and narrow unit-test commands may run
+directly.
 
 Artifacts are written below `cmake_targets/ran_build/build*`.
 
@@ -93,7 +90,7 @@ Artifacts are written below `cmake_targets/ran_build/build*`.
 
 - Location: `redcap_library/bash_tool/registry.json`
 - Scripts: `redcap_library/bash_tool/scripts/`
-- Every registry entry declares:
+- Required registry entries declare:
   - `description`
   - `script_path`
   - `input` (parameters the script expects)
@@ -101,14 +98,16 @@ Artifacts are written below `cmake_targets/ran_build/build*`.
     `task_log/tasks.json`)
   - `side_effects` (whether it writes source, only logs, or is
     read-only — required for safe parallel scheduling)
-- Do not call a script not registered here without first adding an
-  entry. This keeps the tool set self-documenting for skill lookup.
+- Register only reusable, externally invoked, or side-effecting scripts.
+  One-off diagnostics and narrow verification commands need only retain their
+  output log.
 
 ## Skill Composition Layer
 
 - Location: `redcap_library/skills/`
-- Skills compose one or more Bash Tool Registry entries to accomplish
-  a task; skills do not execute shell commands directly.
+- Reusable skills compose Bash Tool Registry entries. A skill may directly run
+  a narrow read-only diagnostic or unit verification when no reusable command
+  is needed.
 - Every skill declares in frontmatter:
   - `input`: what the caller must provide
   - `output`: what the skill returns (report path, pass/fail,
@@ -119,11 +118,11 @@ Artifacts are written below `cmake_targets/ran_build/build*`.
 
 ## Long-Running Command Protocol (Bash + Task Manifest)
 
-Any build, test, or batch verification command running longer than a
-few seconds must be tracked through a task manifest, so documentation
-work can proceed instead of blocking on wall-clock wait time.
+Track Docker operations, live E2/control transactions, and very long builds or
+batches through a task manifest. Ordinary CMake/CTest unit runs keep their
+timestamped log without a manifest entry.
 
-1. Before running, write or update `task_log/tasks.json`:
+For a tracked operation, before running, write or update `task_log/tasks.json`:
    ```json
    {
      "task_id": "drx-onduration-boundary-fix",
@@ -137,8 +136,8 @@ work can proceed instead of blocking on wall-clock wait time.
    ```
 2. Run the command, redirecting output to the declared `log_path`.
 3. Set `status` to `running`, then `passed` or `failed` on exit code.
-4. While `status` is `running`, proceed with the documentation phase
-   for the already-completed sub-task instead of waiting idle.
+4. While `status` is `running`, proceed with documentation for an
+   already-completed sub-task instead of waiting idle.
 5. Never mark `status: passed` without reading the log file content.
 
 ## Coding Style & Naming Conventions

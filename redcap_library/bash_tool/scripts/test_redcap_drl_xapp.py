@@ -13,6 +13,7 @@ import unittest
 REPO_ROOT = Path(__file__).resolve().parents[3]
 CLI = REPO_ROOT / "redcap_library/bash_tool/scripts/redcap_drl_xapp.sh"
 BRIDGE = REPO_ROOT / "redcap_library/drl_xapp/bridge_daemon.py"
+CLI_MODULE = REPO_ROOT / "redcap_library/bash_tool/scripts/redcap_drl_xapp.py"
 
 
 def load_bridge_module():
@@ -23,7 +24,64 @@ def load_bridge_module():
     return module
 
 
+def load_cli_module():
+    spec = importlib.util.spec_from_file_location("redcap_drl_xapp_cli", CLI_MODULE)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 class RedcapDrlXappCliTest(unittest.TestCase):
+    def test_qualify_runs_discovery_and_writes_one_manifest(self) -> None:
+        cli_module = load_cli_module()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir)
+            lock = {
+                "name": "test-workspace",
+                "release": "test-release",
+                "images": {},
+                "profile": "ul-prb-cap-v1",
+            }
+            cli_module.load_workspace = lambda _workspace: (workspace, lock, {})
+            calls = []
+
+            def fake_uds_call(_socket, request):
+                calls.append(request["operation"])
+                if request["operation"] == "discover":
+                    return {"ok": True, "capabilities": {"nodes": ["node-a"]}}
+                return {"ok": True, "cell": [{"seq": 1}], "ue": [{"seq": 1}]}
+
+            cli_module.uds_call = fake_uds_call
+            self.assertEqual(cli_module.bridge_gate(SimpleNamespace(command="qualify-kpm", workspace=workspace)), 0)
+            self.assertEqual(calls, ["discover", "qualify"])
+            run_dir = next((workspace / "artifacts/runs").iterdir())
+            manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
+            self.assertIn("discover-kpm", manifest["gates"])
+            self.assertIn("qualify-kpm", manifest["gates"])
+            self.assertNotIn("control", manifest["gates"])
+
+    def test_qualify_stops_after_failed_discovery(self) -> None:
+        cli_module = load_cli_module()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir)
+            lock = {"name": "test-workspace", "release": "test-release", "images": {}, "profile": "ul-prb-cap-v1"}
+            cli_module.load_workspace = lambda _workspace: (workspace, lock, {})
+            calls = []
+
+            def fake_uds_call(_socket, request):
+                calls.append(request["operation"])
+                return {"ok": False, "error": "DISCOVERY_FAILED"}
+
+            cli_module.uds_call = fake_uds_call
+            self.assertEqual(cli_module.bridge_gate(SimpleNamespace(command="qualify-kpm", workspace=workspace)), 4)
+            self.assertEqual(calls, ["discover"])
+            run_dir = next((workspace / "artifacts/runs").iterdir())
+            manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
+            self.assertIn("discover-kpm", manifest["gates"])
+            self.assertNotIn("qualify-kpm", manifest["gates"])
+
+
     def test_unsupported_bridge_protocol_is_rejected(self) -> None:
         bridge_module = load_bridge_module()
         native_calls = []

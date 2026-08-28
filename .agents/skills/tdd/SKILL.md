@@ -37,16 +37,14 @@ record, diagnosis without mutation, and no credential in output.
 ## Refusal-path tracer
 
 When an approved refusal behavior is missing, incorrect, or newly required,
-write a separate Sol/high tracer before changing production code. Test the
+write a separate approved tracer before changing production code. Test the
 public seam's exit code, human-readable reason, and absence of the specified
-irreversible side effects. Do not modify an existing frozen success-path test
-to add this case; record and freeze the new test with its own SHA-256 and diff
-baseline.
+irreversible side effects. Do not modify an existing high-risk refusal-path
+test to add this case; record its boundary and validation evidence.
 
 Follow [the root Model Switch Gate](../../../AGENTS.md#model-switch-gate).
-If Sol/high or another required model is not active, stop and wait for the user
-to switch or explicitly authorize the active model. Do not open a subagent or
-fallback model automatically.
+The user selects the model. Do not open a fallback subagent or infer a model
+switch automatically.
 
 ## TDD contract
 
@@ -56,19 +54,16 @@ first test:
 ```md
 ## TDD contract
 
-- Model / effort: GPT-5.6 Sol / high
-- Fallback: GPT-5.6 Terra / high; reason: <Sol unavailable reason>
+- Model / effort: <active model and effort, if exposed>
 - Test boundary:
 - Acceptance links:
 - Irreversible side effects:
 - Boundary gate: clear | grill-with-docs decision link
 - Test files:
-- Frozen SHA-256:
+- Test evidence:
 ```
 
-Use Sol/high for TDD design when available. Terra/high is permitted only after
-the user explicitly resumes under that model and its reason is recorded. Each
-test name states a behavior, keeps
+Each test name states a behavior, keeps
 Arrange/Act/Assert readable, uses an independent expected value, and covers one
 rule at a time.
 
@@ -77,15 +72,12 @@ Put only reusable cross-module smoke operations in the registered
 `redcap_library/bash_tool/` path. A pure documentation or governance change
 uses a `Validation contract` in `design.md` instead of inventing a TDD test.
 
-Before implementation, record SHA-256 and a frozen test-diff baseline for the
-test files, then make them read-only with `chmod a-w <test-files>`. SHA-256 is
-the authoritative mutation check; the diff baseline identifies protected test
-paths, including tests that are newly added or untracked.
+Use normal version control and CI for ordinary TDD tracers. Record a fixed
+hash and make a test read-only only for a high-risk control or refusal case
+where accidental mutation would invalidate safety evidence.
 
 TDD authors may update a test only to cover an already approved acceptance
-condition. They temporarily restore write permission, update the test,
-recalculate SHA-256 and the frozen baseline, update the contract, then restore
-read-only mode. A changed acceptance condition returns to OpenSpec.
+condition. A changed acceptance condition returns to OpenSpec.
 
 ## Anti-patterns
 

@@ -86,7 +86,7 @@ def parse_args() -> argparse.Namespace:
     upgrade.add_argument("--to-release", required=True, help="必要；已建置的新 immutable release。")
     for name, summary in (
         ("discover-kpm", "讀取 live E2 node/KPM/RC capability；不訂閱、不控制。"),
-        ("qualify-kpm", "驗證 profile 所需 cell/UE KPM freshness、alignment 與 target binding。"),
+        ("qualify-kpm", "先讀取 capability，再驗證 profile 所需 cell/UE KPM freshness、alignment 與 target binding。"),
         ("recover", "依 durable journal 嘗試恢復安全 baseline；不得重啟 simulator。"),
     ):
         command = commands.add_parser(
@@ -561,23 +561,39 @@ def bridge_gate(args: argparse.Namespace) -> int:
         workspace, lock, _ = load_workspace(args.workspace)
     except ValueError as error:
         return fail(str(error))
-    operation = {"discover-kpm": "discover", "qualify-kpm": "qualify", "recover": "recover"}[args.command]
     run_dir, manifest = create_evidence(workspace, lock, args.command)
-    request = {
-        "protocol_version": 1,
-        "request_id": uuid.uuid4().hex,
-        "operation": operation,
-        "profile_id": lock["profile"],
-    }
-    try:
-        result = uds_call(workspace / "run/bridge.sock", request)
-    except (OSError, json.JSONDecodeError) as error:
-        result = {"ok": False, "error": "BRIDGE_UNREACHABLE", "detail": str(error)}
-    record_event(run_dir, {"event": args.command, "result": result})
-    if args.command == "discover-kpm" and result.get("capabilities"):
-        write_json(run_dir / "kpm_evidence.json", {"capabilities": result["capabilities"], "cell": [], "ue": [], "qualification": "UNPROVED"})
+    operations = ["discover", "qualify"] if args.command == "qualify-kpm" else [{"discover-kpm": "discover", "recover": "recover"}[args.command]]
+    discovery = None
+    result = {"ok": False}
+    for operation in operations:
+        request = {
+            "protocol_version": 1,
+            "request_id": uuid.uuid4().hex,
+            "operation": operation,
+            "profile_id": lock["profile"],
+        }
+        try:
+            result = uds_call(workspace / "run/bridge.sock", request)
+        except (OSError, json.JSONDecodeError) as error:
+            result = {"ok": False, "error": "BRIDGE_UNREACHABLE", "detail": str(error)}
+        gate_name = {"discover": "discover-kpm", "qualify": "qualify-kpm", "recover": "recover"}[operation]
+        record_event(run_dir, {"event": gate_name, "result": result})
+        manifest["gates"][gate_name] = result
+        if operation == "discover":
+            discovery = result
+        if not result.get("ok"):
+            break
+    if discovery is not None:
+        write_json(
+            run_dir / "kpm_evidence.json",
+            {
+                "capabilities": discovery.get("capabilities", {}),
+                "cell": result.get("cell", []),
+                "ue": result.get("ue", []),
+                "qualification": "QUALIFIED" if result.get("ok") and args.command == "qualify-kpm" else "UNPROVED",
+            },
+        )
     manifest["gate_status"] = "PASS" if result.get("ok") else "FAIL"
-    manifest["gates"][args.command] = result
     manifest["safe_next_command"] = (
         f"redcap_drl_xapp.sh qualify-kpm --workspace {workspace}"
         if result.get("ok") and args.command == "discover-kpm"

@@ -83,9 +83,50 @@ target_link_libraries(e2_ran_func_du_cucp_cuup PUBLIC asn1_nr_rrc nr_rrc asn1_nr
 target_compile_definitions(e2_ran_func_du_cucp_cuup PUBLIC ${E2AP_VERSION}  ${KPM_VERSION} NGRAN_GNB_DU NGRAN_GNB_CUCP NGRAN_GNB_CUUP)
 
 if(ENABLE_TESTS)
-  add_executable(test_ran_func_kpm_cell_setup O-RAN/test_ran_func_kpm_cell_setup.c)
-  target_link_libraries(test_ran_func_kpm_cell_setup PRIVATE e2_ran_func_du_cucp_cuup)
+  add_library(test_ran_func_kpm_setup_owner OBJECT O-RAN/ran_func_kpm.c)
+  target_compile_definitions(test_ran_func_kpm_setup_owner PRIVATE
+                             ${E2AP_VERSION} ${KPM_VERSION}
+                             NGRAN_GNB_DU NGRAN_GNB_CUCP NGRAN_GNB_CUUP)
+  target_compile_options(test_ran_func_kpm_setup_owner PRIVATE
+                         -ffunction-sections -fdata-sections -fvisibility=hidden
+                         -fno-sanitize=address)
+  target_link_libraries(test_ran_func_kpm_setup_owner PRIVATE asn1_nr_rrc_hdrs asn1_lte_rrc_hdrs)
+
+  add_executable(test_ran_func_kpm_cell_setup
+                 O-RAN/test_ran_func_kpm_cell_setup.c
+                 ../flexric/src/util/byte_array.c
+                 ${OPENAIR_DIR}/common/utils/minimal_stub.c
+                 $<TARGET_OBJECTS:test_ran_func_kpm_setup_owner>)
+  target_compile_definitions(test_ran_func_kpm_cell_setup PRIVATE
+                             ${E2AP_VERSION} ${KPM_VERSION}
+                             NGRAN_GNB_DU NGRAN_GNB_CUCP NGRAN_GNB_CUUP)
+  target_link_libraries(test_ran_func_kpm_cell_setup PRIVATE asn1_nr_rrc_hdrs asn1_lte_rrc_hdrs)
+  target_link_options(test_ran_func_kpm_cell_setup PRIVATE -Wl,--gc-sections)
   add_test(NAME test_ran_func_kpm_cell_setup COMMAND test_ran_func_kpm_cell_setup)
+
+  add_executable(test_ran_func_kpm_cell_report
+                 O-RAN/test_ran_func_kpm_cell_report.c
+                 ../flexric/src/util/byte_array.c
+                 ${OPENAIR_DIR}/common/utils/minimal_stub.c
+                 $<TARGET_OBJECTS:test_ran_func_kpm_setup_owner>)
+  target_compile_definitions(test_ran_func_kpm_cell_report PRIVATE
+                             ${E2AP_VERSION} ${KPM_VERSION}
+                             NGRAN_GNB_DU NGRAN_GNB_CUCP NGRAN_GNB_CUUP)
+  target_link_libraries(test_ran_func_kpm_cell_report PRIVATE asn1_nr_rrc_hdrs asn1_lte_rrc_hdrs)
+  target_link_options(test_ran_func_kpm_cell_report PRIVATE -Wl,--gc-sections)
+  add_test(NAME test_ran_func_kpm_cell_report COMMAND test_ran_func_kpm_cell_report)
+
+  add_executable(test_ran_func_kpm_cell_delta
+                 O-RAN/test_ran_func_kpm_cell_delta.c
+                 ../flexric/src/util/byte_array.c
+                 ${OPENAIR_DIR}/common/utils/minimal_stub.c
+                 $<TARGET_OBJECTS:test_ran_func_kpm_setup_owner>)
+  target_compile_definitions(test_ran_func_kpm_cell_delta PRIVATE
+                             ${E2AP_VERSION} ${KPM_VERSION}
+                             NGRAN_GNB_DU NGRAN_GNB_CUCP NGRAN_GNB_CUUP)
+  target_link_libraries(test_ran_func_kpm_cell_delta PRIVATE asn1_nr_rrc_hdrs asn1_lte_rrc_hdrs)
+  target_link_options(test_ran_func_kpm_cell_delta PRIVATE -Wl,--gc-sections)
+  add_test(NAME test_ran_func_kpm_cell_delta COMMAND test_ran_func_kpm_cell_delta)
 endif()
 
 # Current implementation:

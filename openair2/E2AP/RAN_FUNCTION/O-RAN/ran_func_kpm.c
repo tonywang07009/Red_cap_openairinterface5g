@@ -29,6 +29,8 @@
 #include "openair2/F1AP/f1ap_ids.h"
 #include "ds/seq_arr.h"
 
+#include <string.h>
+
 static pthread_once_t once_kpm_mutex = PTHREAD_ONCE_INIT;
 
 static void init_once_kpm(void)
@@ -108,6 +110,107 @@ static kpm_ind_msg_format_1_t fill_kpm_ind_msg_frm_1(cudu_ue_info_pair_t ue_info
   for (size_t i = 0; i < msg_frm_1.meas_info_lst_len; i++) {
     msg_frm_1.meas_info_lst[i] = cp_meas_info_format_1_lst(&act_def_fr_1->meas_info_lst[i]);
   }
+
+  return msg_frm_1;
+}
+
+static bool read_kpm_cell_prb_state(kpm_cell_delta_state_t *state)
+{
+  if (RC.nrmac == NULL || RC.nrmac[0] == NULL)
+    return false;
+
+  gNB_MAC_INST *mac = RC.nrmac[0];
+  NR_SCHED_LOCK(&mac->sched_lock);
+  state->dl_total_prb = mac->mac_stats.dl.total_prb_aggregate;
+  state->dl_used_prb = mac->mac_stats.dl.used_prb_aggregate;
+  state->ul_total_prb = mac->mac_stats.ul.total_prb_aggregate;
+  state->ul_used_prb = mac->mac_stats.ul.used_prb_aggregate;
+  NR_SCHED_UNLOCK(&mac->sched_lock);
+  return true;
+}
+
+static bool update_kpm_cell_delta_state(kpm_cell_delta_state_t *state, const kpm_cell_delta_state_t *current)
+{
+  const bool valid = state->initialized && current->dl_total_prb > state->dl_total_prb
+                     && current->dl_used_prb >= state->dl_used_prb && current->ul_total_prb > state->ul_total_prb
+                     && current->ul_used_prb >= state->ul_used_prb
+                     && current->dl_used_prb - state->dl_used_prb <= current->dl_total_prb - state->dl_total_prb
+                     && current->ul_used_prb - state->ul_used_prb <= current->ul_total_prb - state->ul_total_prb;
+
+  state->dl_total_prb = current->dl_total_prb;
+  state->dl_used_prb = current->dl_used_prb;
+  state->ul_total_prb = current->ul_total_prb;
+  state->ul_used_prb = current->ul_used_prb;
+  state->initialized = true;
+  return valid;
+}
+
+static meas_data_lst_t fill_kpm_cell_meas_data_item(const meas_info_format_1_lst_t* meas_info_lst,
+                                                     const size_t len,
+                                                     kpm_cell_delta_state_t *state)
+{
+  assert(meas_info_lst != NULL);
+  assert(len > 0);
+
+  meas_data_lst_t data_item = {
+    .meas_record_len = len,
+    .meas_record_lst = calloc(len, sizeof(*data_item.meas_record_lst)),
+  };
+  assert(data_item.meas_record_lst != NULL && "Memory exhausted");
+
+  kpm_cell_delta_state_t current = {0};
+  kpm_cell_delta_state_t previous = {0};
+  bool valid = false;
+  if (state != NULL && read_kpm_cell_prb_state(&current)) {
+    previous = *state;
+    valid = update_kpm_cell_delta_state(state, &current);
+  }
+  const uint64_t dl_total = current.dl_total_prb - previous.dl_total_prb;
+  const uint64_t dl_used = current.dl_used_prb - previous.dl_used_prb;
+  const uint64_t ul_total = current.ul_total_prb - previous.ul_total_prb;
+  const uint64_t ul_used = current.ul_used_prb - previous.ul_used_prb;
+
+  for (size_t i = 0; i < len; ++i) {
+    assert(meas_info_lst[i].meas_type.type == NAME_MEAS_TYPE && "Only NAME supported");
+    data_item.meas_record_lst[i].value = NO_VALUE_MEAS_VALUE;
+
+    if (!valid)
+      continue;
+
+    char *name = cp_ba_to_str(meas_info_lst[i].meas_type.name);
+    if (strcmp(name, "RRU.PrbTotDl") == 0) {
+      data_item.meas_record_lst[i].value = INTEGER_MEAS_VALUE;
+      data_item.meas_record_lst[i].int_val = (uint32_t)((double)dl_used * 100 / dl_total);
+    } else if (strcmp(name, "RRU.PrbTotUl") == 0) {
+      data_item.meas_record_lst[i].value = INTEGER_MEAS_VALUE;
+      data_item.meas_record_lst[i].int_val = (uint32_t)((double)ul_used * 100 / ul_total);
+    }
+    free(name);
+  }
+
+  return data_item;
+}
+
+static kpm_ind_msg_format_1_t fill_kpm_cell_ind_msg_frm_1(const kpm_act_def_format_1_t* act_def_fr_1,
+                                                           kpm_cell_delta_state_t *state)
+{
+  assert(act_def_fr_1 != NULL);
+  assert(act_def_fr_1->meas_info_lst_len > 0);
+
+  kpm_ind_msg_format_1_t msg_frm_1 = {
+    .meas_data_lst_len = 1,
+    .meas_data_lst = calloc(1, sizeof(*msg_frm_1.meas_data_lst)),
+    .meas_info_lst_len = act_def_fr_1->meas_info_lst_len,
+    .meas_info_lst = calloc(act_def_fr_1->meas_info_lst_len, sizeof(*msg_frm_1.meas_info_lst)),
+  };
+  assert(msg_frm_1.meas_data_lst != NULL && "Memory exhausted");
+  assert(msg_frm_1.meas_info_lst != NULL && "Memory exhausted");
+
+  msg_frm_1.meas_data_lst[0] = fill_kpm_cell_meas_data_item(act_def_fr_1->meas_info_lst,
+                                                             act_def_fr_1->meas_info_lst_len,
+                                                             state);
+  for (size_t i = 0; i < act_def_fr_1->meas_info_lst_len; ++i)
+    msg_frm_1.meas_info_lst[i] = cp_meas_info_format_1_lst(&act_def_fr_1->meas_info_lst[i]);
 
   return msg_frm_1;
 }
@@ -435,6 +538,13 @@ bool read_kpm_sm(void* data)
       break;
     }
 
+    case FORMAT_1_ACTION_DEFINITION: {
+      kpm->ind.hdr = kpm_ind_hdr();
+      kpm->ind.msg.type = FORMAT_1_INDICATION_MESSAGE;
+      kpm->ind.msg.frm_1 = fill_kpm_cell_ind_msg_frm_1(&kpm->act_def->frm_1, kpm->cell_delta_state);
+      break;
+    }
+
     default: {
       AssertFatal(kpm->act_def->type == FORMAT_4_ACTION_DEFINITION, "Action Definition Format %d not yet implemented", kpm->act_def->type);
     }
@@ -466,6 +576,12 @@ static const char* kpm_meas_gnb[] = {
 static const char* kpm_meas_cuup[] = {
   "DRB.PdcpSduVolumeDL",
   "DRB.PdcpSduVolumeUL",
+  NULL,
+};
+
+static const char* kpm_meas_cell[] = {
+  "RRU.PrbTotDl",
+  "RRU.PrbTotUl",
   NULL,
 };
 
@@ -508,7 +624,8 @@ void read_kpm_setup_sm(void* e2ap)
   }
 
   // Sequence of Report styles
-  const size_t sz_report = 1;
+  const bool supports_cell_report = node_type == ngran_gNB || node_type == ngran_gNB_DU;
+  const size_t sz_report = supports_cell_report ? 2 : 1;
   kpm->ran_func_def.sz_ric_report_style_list = sz_report;
   kpm->ran_func_def.ric_report_style_list = calloc(sz_report, sizeof(ric_report_style_item_t));
   assert(kpm->ran_func_def.ric_report_style_list != NULL && "Memory exhausted");
@@ -552,6 +669,29 @@ void read_kpm_setup_sm(void* e2ap)
   // Supported RIC Indication Formats
   report_item->ind_hdr_format_type = FORMAT_1_INDICATION_HEADER;  // 8.3.5
   report_item->ind_msg_format_type = FORMAT_3_INDICATION_MESSAGE;  // 8.3.5
+
+  if (supports_cell_report) {
+    ric_report_style_item_t *cell_item = &kpm->ran_func_def.ric_report_style_list[1];
+
+    cell_item->report_style_type = STYLE_1_RIC_SERVICE_REPORT;
+    const char cell_report_style_name[] = "Cell-level Measurement";
+    cell_item->report_style_name = cp_str_to_ba(cell_report_style_name);
+    cell_item->act_def_format_type = FORMAT_1_ACTION_DEFINITION;
+
+    size_t cell_meas_count = 0;
+    while (kpm_meas_cell[cell_meas_count] != NULL)
+      ++cell_meas_count;
+
+    cell_item->meas_info_for_action_lst_len = cell_meas_count;
+    cell_item->meas_info_for_action_lst = calloc(cell_meas_count, sizeof(meas_info_for_action_lst_t));
+    assert(cell_item->meas_info_for_action_lst != NULL && "Memory exhausted");
+
+    for (size_t i = 0; i < cell_meas_count; ++i)
+      cell_item->meas_info_for_action_lst[i].name = cp_str_to_ba(kpm_meas_cell[i]);
+
+    cell_item->ind_hdr_format_type = FORMAT_1_INDICATION_HEADER;
+    cell_item->ind_msg_format_type = FORMAT_1_INDICATION_MESSAGE;
+  }
 
   // E2 Setup Request is sent periodically until the connection is established
   // RC subscritpion data should be initialized only once

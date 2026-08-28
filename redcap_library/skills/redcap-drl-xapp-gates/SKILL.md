@@ -22,7 +22,9 @@ Gate scope before acting:
 Gate model-developer work:
 
 1. Read [references/control-gates.md](references/control-gates.md).
-2. Run `verify`, then `discover-kpm`, then `qualify-kpm` for live work.
+2. Run `verify`, then `qualify-kpm` for live work. `qualify-kpm` performs
+   discovery and records the combined result; use `discover-kpm` alone only
+   for capability diagnostics.
 3. Edit only the bind-mounted workspace `src/` and expose a
    `module:callable` entrypoint.
 4. Use the `redcap_drl.Client` interface; do not import SWIG, ASN.1, or C
