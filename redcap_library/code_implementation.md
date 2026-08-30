@@ -182,6 +182,31 @@ side effects, model/effort, frozen test hash, and test-diff baseline before
 implementation. If boundary, acceptance, or irreversible side effects are
 unclear, stop before writing a test and use `grill-with-docs`.
 
+### Reusable reference: fail-closed KPM qualification tracer
+
+This run-specific reference records the Task 3.5 `ul-prb-cap-v1` first vertical
+slice. It does not replace the user-selected model/effort gate above.
+
+| Step | Recorded practice |
+| --- | --- |
+| Decide | Record the profile-owned measurement-post decision in OpenSpec before writing a tracer. The initial policy is `UNFROZEN`; observation is allowed but E2SM-RC control is not. |
+| Boundary | Test `NativeFlexric.qualify("ul-prb-cap-v1")`, not a private callback collector or a Docker/live-E2 path. |
+| Arrange | Supply one eligible node, distinct supported cell/UE styles, primitive observations, a complete KPM-to-RC UE binding, and UE `source_seq_origin="e2_indication"`. Leave the measurement-post policy unfrozen. |
+| RED | Add one separate refusal-path test in `redcap_library/bash_tool/scripts/test_redcap_drl_xapp.py`. Assert the independent literal `MEASUREMENT_POST_UNFROZEN`, `failed_stage="qualification"`, and `control_attempted=false`. Retain the prior source-sequence tracer unchanged. |
+| Evidence | Run the full Python suite and keep a timestamped log in `test_log/compiler_logs/`. The RED log recorded `KPM_QUALIFICATION_POLICY_REQUIRED`; the matching GREEN log recorded 31/31 passing tests. |
+| GREEN | Change only the terminal qualification refusal needed by the tracer. Do not add policy loading, freshness/skew/sample logic, a candidate controller, Docker activity, KPM live subscription, or E2SM-RC control. |
+| Review | Check the narrow source diff, `git diff --check`, Python syntax, and strict OpenSpec validation. State the remaining evidence boundary explicitly. |
+
+The F1AP test reference is its shape: construct known-good input, call the
+public seam, and assert the observable result. Do not copy its CMake target or
+assert private implementation call order into the Python bridge test.
+
+For this recorded slice the user selected GPT-5.6 Terra/high for TDD and
+GPT-5.6 Luna/max for the minimal GREEN implementation. The TDD contract and
+RED/GREEN evidence remain in
+`openspec/changes/build-redcap-drl-xapp-gated-runtime/design.md` and
+`test_log/compiler_logs/drl_xapp_task35_measurement_post_unfrozen_*.log`.
+
 Use GPT-5.6 Sol/high to design and write TDD tests. GPT-5.6 Terra/high is a
 fallback only when Sol is unavailable and the reason is recorded in the TDD
 contract. GPT-5.6 Luna/max implements production code only after tests are

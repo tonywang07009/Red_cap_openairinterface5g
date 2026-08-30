@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 import secrets
 import socket
+import tempfile
 
 
 PROTOCOL_VERSION = 1
@@ -21,6 +22,8 @@ class NativeFlexric:
         self.config_file = config_file
         self.sdk = None
         self.initialized = False
+        self.kpm_subscriptions = {}
+        self.kpm_callbacks = {}
 
     def load(self):
         if self.sdk is None:
@@ -133,13 +136,147 @@ class NativeFlexric:
                 "ue": [],
                 "control_attempted": False,
             }
+        sdk = self.load()
+        if not hasattr(sdk, "subscribe_kpm"):
+            return {
+                "ok": False,
+                "error": "KPM_SUBSCRIPTION_PROVIDER_REQUIRED",
+                "failed_stage": "subscription",
+                "node_id": node["node_id"],
+                "cell": [],
+                "ue": [],
+                "control_attempted": False,
+            }
+
+        for handle in self.kpm_subscriptions.values():
+            if hasattr(sdk, "unsubscribe_kpm"):
+                try:
+                    sdk.unsubscribe_kpm(handle)
+                except (RuntimeError, TypeError):
+                    pass
+        self.kpm_subscriptions = {}
+        self.kpm_callbacks = {}
+        samples = {"cell": [], "ue": []}
+        callback_error = []
+
+        def collect(stream, sample):
+            try:
+                if isinstance(sample, dict):
+                    projected = dict(sample)
+                    projected["source_seq"] = int(projected["source_seq"])
+                    projected["timestamp_ms"] = int(projected["timestamp_ms"])
+                    projected["measurements"] = dict(projected["measurements"])
+                    if stream == "ue":
+                        projected["kpm_ue_key"] = str(projected["kpm_ue_key"])
+                else:
+                    projected = {
+                        "source_seq": int(sample.source_seq),
+                        "timestamp_ms": int(sample.timestamp_ms),
+                        "measurements": {
+                            str(item.name): (float(item.value) if item.has_value else None)
+                            for item in sample.measurements
+                        },
+                    }
+                    if stream == "ue":
+                        projected["kpm_ue_key"] = str(sample.kpm_ue_key)
+                    for field in ("rc_ue_id", "rnti"):
+                        if hasattr(sample, field):
+                            projected[field] = int(getattr(sample, field))
+                    if hasattr(sample, "source_seq_origin"):
+                        projected["source_seq_origin"] = str(sample.source_seq_origin)
+                samples[stream].append(projected)
+            except (AttributeError, KeyError, TypeError, ValueError):
+                callback_error.append(stream)
+
+        try:
+            for stream in ("cell", "ue"):
+                if hasattr(sdk, "kpm_cb"):
+                    class Callback(sdk.kpm_cb):
+                        def handle(callback_self, sample, stream_name=stream):
+                            collect(stream_name, sample)
+
+                    callback = Callback()
+                else:
+                    callback = lambda sample, stream=stream: collect(stream, sample)
+                handle = sdk.subscribe_kpm(
+                    node["node_id"], stream, callback
+                )
+                if not handle:
+                    raise RuntimeError("KPM_SUBSCRIPTION_PROVIDER_REQUIRED")
+                self.kpm_subscriptions[stream] = handle
+                self.kpm_callbacks[stream] = callback
+        except (AttributeError, RuntimeError, TypeError):
+            for handle in self.kpm_subscriptions.values():
+                if hasattr(sdk, "unsubscribe_kpm"):
+                    try:
+                        sdk.unsubscribe_kpm(handle)
+                    except (RuntimeError, TypeError):
+                        pass
+            self.kpm_subscriptions = {}
+            self.kpm_callbacks = {}
+            return {
+                "ok": False,
+                "error": "KPM_SUBSCRIPTION_PROVIDER_REQUIRED",
+                "failed_stage": "subscription",
+                "node_id": node["node_id"],
+                "cell": [],
+                "ue": [],
+                "control_attempted": False,
+            }
+
+        if callback_error:
+            return {
+                "ok": False,
+                "error": "KPM_CALLBACK_MALFORMED",
+                "failed_stage": "callback",
+                "node_id": node["node_id"],
+                "cell": [],
+                "ue": [],
+                "control_attempted": False,
+            }
+        if not samples["cell"] or not samples["ue"]:
+            return {
+                "ok": False,
+                "error": "KPM_STREAM_EMPTY",
+                "failed_stage": "observation",
+                "node_id": node["node_id"],
+                "cell": samples["cell"],
+                "ue": samples["ue"],
+                "control_attempted": False,
+            }
+        if not all(
+            sample.get("kpm_ue_key") and sample.get("rc_ue_id") and sample.get("rnti")
+            for sample in samples["ue"]
+        ):
+            return {
+                "ok": False,
+                "error": "TARGET_BINDING_REQUIRED",
+                "failed_stage": "binding",
+                "node_id": node["node_id"],
+                "cell": samples["cell"],
+                "ue": samples["ue"],
+                "control_attempted": False,
+            }
+        if not all(
+            sample["source_seq"] > 0 and sample.get("source_seq_origin") == "e2_indication"
+            for sample in samples["ue"]
+        ):
+            return {
+                "ok": False,
+                "error": "SOURCE_SEQUENCE_UNVERIFIED",
+                "failed_stage": "binding",
+                "node_id": node["node_id"],
+                "cell": samples["cell"],
+                "ue": samples["ue"],
+                "control_attempted": False,
+            }
         return {
             "ok": False,
-            "error": "KPM_SUBSCRIPTION_PROVIDER_REQUIRED",
-            "failed_stage": "subscription",
+            "error": "MEASUREMENT_POST_UNFROZEN",
+            "failed_stage": "qualification",
             "node_id": node["node_id"],
-            "cell": [],
-            "ue": [],
+            "cell": samples["cell"],
+            "ue": samples["ue"],
             "control_attempted": False,
         }
 
@@ -179,6 +316,174 @@ class Bridge:
             raise ValueError("invalid node_id")
         return self.lease_dir / f"{node_id}.lock"
 
+    def _journal_state(self) -> str | None:
+        if not self.journal_path.exists():
+            return None
+        try:
+            return json.loads(self.journal_path.read_text(encoding="utf-8")).get("state")
+        except (OSError, json.JSONDecodeError, AttributeError):
+            return None
+
+    def _write_journal(self, state: str) -> None:
+        self.journal_path.parent.mkdir(parents=True, exist_ok=True)
+        temp_name = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                dir=self.journal_path.parent,
+                prefix=f".{self.journal_path.name}.",
+                delete=False,
+            ) as stream:
+                temp_name = stream.name
+                json.dump(
+                    {
+                        "state": state,
+                        "workspace_id": self.workspace_id,
+                        "node_id": self.verified_target_binding["node_id"] if self.verified_target_binding else None,
+                    },
+                    stream,
+                    sort_keys=True,
+                )
+                stream.write("\n")
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temp_name, self.journal_path)
+        finally:
+            if temp_name is not None:
+                try:
+                    Path(temp_name).unlink()
+                except FileNotFoundError:
+                    pass
+
+    def _release_lease(self) -> None:
+        if self.verified_target_binding is None:
+            return
+        lease_path = self.lease_path()
+        try:
+            if lease_path.read_text(encoding="utf-8") == self.workspace_id + "\n":
+                lease_path.unlink()
+        except FileNotFoundError:
+            pass
+
+    def _binding_action_fields(self) -> dict | None:
+        binding = self.verified_target_binding
+        if not isinstance(binding, dict):
+            return None
+        try:
+            node_id = binding["node_id"]
+            rc_ue_id = int(binding["rc_ue_id"])
+            rnti = int(binding["rnti"])
+        except (KeyError, TypeError, ValueError):
+            return None
+        if (
+            not isinstance(node_id, str)
+            or not re.fullmatch(r"[A-Za-z0-9_.:-]+", node_id)
+            or rc_ue_id <= 0
+            or rnti <= 0
+            or rnti > 0xFFFF
+        ):
+            return None
+        return {"node_id": node_id, "rc_ue_id": rc_ue_id, "rnti": rnti}
+
+    @staticmethod
+    def _proof_succeeded(outcome: object, candidate: bool = False) -> bool:
+        if not isinstance(outcome, dict):
+            return False
+        return (
+            outcome.get("acknowledged") is True
+            and outcome.get("gnb_apply_marker") is True
+            and (not candidate or outcome.get("later_kpm") is True)
+        )
+
+    def _control_once(self, request: dict, session: dict) -> dict:
+        response = {"request_id": request["request_id"]}
+        binding = self._binding_action_fields()
+        if binding is None:
+            response.update({"ok": False, "error": "TARGET_BINDING_REQUIRED"})
+            return response
+        if not callable(self.native_control):
+            response.update({"ok": False, "error": "APPLY_PROOF_PROVIDER_REQUIRED"})
+            return response
+
+        action = request.get("action")
+        candidate = action.get("max_ul_prb") if isinstance(action, dict) else None
+        if isinstance(candidate, bool) or not isinstance(candidate, int) or candidate < 0 or candidate > 275:
+            response.update({"ok": False, "error": "CONTRACT_VALIDATION_FAILED"})
+            return response
+
+        calls = []
+
+        def apply(phase: str, value: int, journal_state: str) -> object | None:
+            self._write_journal(journal_state)
+            payload = {**binding, "phase": phase, "max_ul_prb": value}
+            calls.append(payload)
+            try:
+                return self.native_control(payload)
+            except (OSError, RuntimeError, TypeError, ValueError):
+                return None
+
+        baseline = apply("baseline", 0, "BASELINE_PENDING")
+        if not self._proof_succeeded(baseline):
+            self._write_journal("ROLLBACK_UNCONFIRMED")
+            session["acted"] = True
+            response.update({"ok": False, "error": "ROLLBACK_UNCONFIRMED"})
+            return response
+
+        candidate_result = apply("candidate", candidate, "CANDIDATE_PENDING")
+        if not self._proof_succeeded(candidate_result, candidate=True):
+            restored = apply("restore", 0, "ROLLBACK_PENDING")
+            session["acted"] = True
+            if self._proof_succeeded(restored):
+                self._write_journal("RECOVERED")
+                response.update({"ok": False, "error": "CANDIDATE_PROOF_REQUIRED"})
+                return response
+            self._write_journal("ROLLBACK_UNCONFIRMED")
+            response.update({"ok": False, "error": "ROLLBACK_UNCONFIRMED"})
+            return response
+
+        restored = apply("restore", 0, "RESTORE_PENDING")
+        session["acted"] = True
+        if not self._proof_succeeded(restored):
+            self._write_journal("ROLLBACK_UNCONFIRMED")
+            response.update({"ok": False, "error": "ROLLBACK_UNCONFIRMED"})
+            return response
+
+        self._write_journal("COMPLETED")
+        response.update({"ok": True, "transaction": "baseline-candidate-restore", "phases": [call["phase"] for call in calls]})
+        return response
+
+    def recover(self, request: dict) -> dict:
+        response = {"request_id": request["request_id"]}
+        state = self._journal_state()
+        if state is None:
+            response.update({"ok": False, "error": "RECOVERY_REQUIRED"})
+            return response
+        if state in {"IDLE", "COMPLETED", "RECOVERED"}:
+            response.update({"ok": False, "error": "RECOVERY_NOT_REQUIRED"})
+            return response
+        binding = self._binding_action_fields()
+        if binding is None:
+            response.update({"ok": False, "error": "TARGET_BINDING_REQUIRED"})
+            return response
+        if not callable(self.native_control):
+            response.update({"ok": False, "error": "APPLY_PROOF_PROVIDER_REQUIRED"})
+            return response
+        self._write_journal("RECOVERY_PENDING")
+        payload = {**binding, "phase": "recovery", "max_ul_prb": 0}
+        try:
+            outcome = self.native_control(payload)
+        except (OSError, RuntimeError, TypeError, ValueError):
+            outcome = None
+        if self._proof_succeeded(outcome):
+            self._write_journal("RECOVERED")
+            self._release_lease()
+            response.update({"ok": True, "phase": "recovery"})
+            return response
+        self._write_journal("ROLLBACK_UNCONFIRMED")
+        response.update({"ok": False, "error": "ROLLBACK_UNCONFIRMED"})
+        return response
+
     def open(self, request: dict) -> dict:
         mode = request.get("mode")
         if mode not in {"observation-only", "control-once"}:
@@ -186,7 +491,7 @@ class Bridge:
         if mode == "control-once":
             if self.profile == "none":
                 return {"ok": False, "error": "PROFILE_FORBIDS_CONTROL", "request_id": request["request_id"]}
-            if self.verified_target_binding is None:
+            if self._binding_action_fields() is None:
                 return {"ok": False, "error": "TARGET_BINDING_REQUIRED", "request_id": request["request_id"]}
             if self.recovery_required():
                 return {"ok": False, "error": "RECOVERY_REQUIRED", "request_id": request["request_id"]}
@@ -197,6 +502,11 @@ class Bridge:
                 return {"ok": False, "error": "TARGET_BUSY", "request_id": request["request_id"]}
             with os.fdopen(descriptor, "w", encoding="utf-8") as lease:
                 lease.write(self.workspace_id + "\n")
+            try:
+                self._write_journal("LEASE_ACQUIRED")
+            except OSError:
+                self._release_lease()
+                return {"ok": False, "error": "JOURNAL_WRITE_FAILED", "request_id": request["request_id"]}
         session_id = secrets.token_hex(16)
         self.sessions[session_id] = {"mode": mode, "acted": False}
         return {"ok": True, "request_id": request["request_id"], "session_id": session_id, "profile_id": self.profile}
@@ -240,6 +550,11 @@ class Bridge:
             result.setdefault("request_id", request["request_id"])
             result.setdefault("control_attempted", False)
             return result
+        if request["operation"] == "recover":
+            try:
+                return self.recover(request)
+            except OSError:
+                return {"ok": False, "error": "JOURNAL_WRITE_FAILED", "request_id": request["request_id"]}
         if request["operation"] == "observe":
             return {"ok": False, "error": "KPM_NOT_QUALIFIED", "request_id": request["request_id"]}
         if request["operation"] == "open":
@@ -250,12 +565,8 @@ class Bridge:
             if session is None:
                 return {"ok": False, "error": "INVALID_SESSION", "request_id": request["request_id"]}
             if session["mode"] == "control-once" and self.verified_target_binding is not None:
-                lease_path = self.lease_path()
-                try:
-                    if lease_path.read_text(encoding="utf-8") == self.workspace_id + "\n":
-                        lease_path.unlink()
-                except FileNotFoundError:
-                    pass
+                if self._journal_state() != "ROLLBACK_UNCONFIRMED":
+                    self._release_lease()
             return {"ok": True, "request_id": request["request_id"], "session_id": session_id}
         if request["operation"] == "act" and self.profile == "none":
             return {"ok": False, "error": "PROFILE_FORBIDS_CONTROL", "request_id": request["request_id"]}
@@ -267,7 +578,10 @@ class Bridge:
                 return {"ok": False, "error": "INVALID_SESSION", "request_id": request["request_id"]}
             if session["acted"]:
                 return {"ok": False, "error": "CONTROL_ONCE_EXHAUSTED", "request_id": request["request_id"]}
-            return {"ok": False, "error": "APPLY_PROOF_PROVIDER_REQUIRED", "request_id": request["request_id"]}
+            try:
+                return self._control_once(request, session)
+            except OSError:
+                return {"ok": False, "error": "JOURNAL_WRITE_FAILED", "request_id": request["request_id"]}
         return {"ok": False, "error": "OPERATION_NOT_READY", "request_id": request["request_id"]}
 
 

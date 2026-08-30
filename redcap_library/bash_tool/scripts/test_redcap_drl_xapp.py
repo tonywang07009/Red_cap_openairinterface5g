@@ -81,6 +81,59 @@ class RedcapDrlXappCliTest(unittest.TestCase):
             self.assertIn("discover-kpm", manifest["gates"])
             self.assertNotIn("qualify-kpm", manifest["gates"])
 
+    def test_qualify_evidence_projects_resolved_node_without_control(self) -> None:
+        cli_module = load_cli_module()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir)
+            lock = {"name": "test-workspace", "release": "test-release", "images": {}, "profile": "ul-prb-cap-v1"}
+            cli_module.load_workspace = lambda _workspace: (workspace, lock, {})
+
+            def fake_uds_call(_socket, request):
+                if request["operation"] == "discover":
+                    return {"ok": True, "node_id": "node-a", "capabilities": {"nodes": ["node-a"]}}
+                return {"ok": True, "node_id": "node-a", "cell": [{"seq": 1}], "ue": [{"seq": 1}]}
+
+            cli_module.uds_call = fake_uds_call
+            self.assertEqual(cli_module.bridge_gate(SimpleNamespace(command="qualify-kpm", workspace=workspace)), 0)
+            run_dir = next((workspace / "artifacts/runs").iterdir())
+            manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
+            journal = json.loads((run_dir / "control_journal.json").read_text(encoding="utf-8"))
+            self.assertEqual(manifest["resolved_node"], "node-a")
+            self.assertEqual(journal, {"state": "NOT_STARTED", "control_attempted": False})
+
+    def test_run_control_stops_before_qualification_when_smoke_fails(self) -> None:
+        cli_module = load_cli_module()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir)
+            lock = {"name": "test-workspace", "release": "test-release", "images": {}, "profile": "ul-prb-cap-v1"}
+            cli_module.load_workspace = lambda _workspace: (workspace, lock, {})
+            cli_module.verify = lambda _args: 3
+            qualification_calls = []
+            cli_module.bridge_gate = lambda _args: qualification_calls.append("qualify") or 0
+            args = SimpleNamespace(workspace=workspace, controller="fixed", entrypoint=None, enable_control=True, teardown=False)
+
+            self.assertEqual(cli_module.run_model(args), 2)
+            self.assertEqual(qualification_calls, [])
+
+    def test_model_rejects_invalid_entrypoint_before_runtime_start(self) -> None:
+        cli_module = load_cli_module()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir)
+            lock = {"name": "test-workspace", "release": "test-release", "images": {}, "profile": "ul-prb-cap-v1"}
+            cli_module.load_workspace = lambda _workspace: (workspace, lock, {})
+            runtime_calls = []
+            cli_module.overlay_command = lambda *_args, **_kwargs: runtime_calls.append(_args) or SimpleNamespace(returncode=0)
+            args = SimpleNamespace(
+                workspace=workspace,
+                controller="model",
+                entrypoint="not-an-entrypoint",
+                enable_control=False,
+                teardown=False,
+            )
+
+            self.assertEqual(cli_module.run_model(args), 2)
+            self.assertEqual(runtime_calls, [])
+
 
     def test_unsupported_bridge_protocol_is_rejected(self) -> None:
         bridge_module = load_bridge_module()
@@ -301,6 +354,168 @@ class RedcapDrlXappCliTest(unittest.TestCase):
         self.assertEqual(result["failed_stage"], "capability")
         self.assertFalse(result["control_attempted"])
 
+    def test_native_qualification_projects_primitive_streams_before_binding_refusal(self) -> None:
+        bridge_module = load_bridge_module()
+        native = bridge_module.NativeFlexric(Path("/unused/flexric.conf"))
+        native.discover = lambda: {
+            "eligible_node_count": 1,
+            "nodes": [
+                {
+                    "node_id": "2:1:1:3584",
+                    "kpm_advertised": True,
+                    "rc_advertised": True,
+                    "kpm_styles": [
+                        {"style_type": 1, "action_definition_format": 0, "indication_header_format": 0, "indication_message_format": 0},
+                        {"style_type": 4, "action_definition_format": 3, "indication_header_format": 0, "indication_message_format": 2},
+                    ],
+                }
+            ],
+        }
+        calls = []
+
+        class SwigSdk:
+            @staticmethod
+            def subscribe_kpm(node_id, stream, callback):
+                calls.append((node_id, stream))
+                callback(
+                    {
+                        "source_seq": 11,
+                        "timestamp_ms": 1000,
+                        "measurements": {"RRU.PrbTotDl": 30},
+                    }
+                    if stream == "cell"
+                    else {"source_seq": 12, "timestamp_ms": 1000, "measurements": {}, "kpm_ue_key": "ue-1"}
+                )
+                return len(calls)
+
+        native.sdk = SwigSdk()
+        result = native.qualify("ul-prb-cap-v1")
+        self.assertEqual(calls, [("2:1:1:3584", "cell"), ("2:1:1:3584", "ue")])
+        self.assertEqual(result["error"], "TARGET_BINDING_REQUIRED")
+        self.assertEqual(result["cell"], [{"source_seq": 11, "timestamp_ms": 1000, "measurements": {"RRU.PrbTotDl": 30}}])
+        self.assertEqual(result["ue"], [{"source_seq": 12, "timestamp_ms": 1000, "measurements": {}, "kpm_ue_key": "ue-1"}])
+        self.assertFalse(result["control_attempted"])
+
+    def test_native_qualification_refuses_malformed_callback_before_control(self) -> None:
+        bridge_module = load_bridge_module()
+        native = bridge_module.NativeFlexric(Path("/unused/flexric.conf"))
+        native.discover = lambda: {
+            "eligible_node_count": 1,
+            "nodes": [
+                {
+                    "node_id": "2:1:1:3584",
+                    "kpm_advertised": True,
+                    "rc_advertised": True,
+                    "kpm_styles": [
+                        {"style_type": 1, "action_definition_format": 0, "indication_header_format": 0, "indication_message_format": 0},
+                        {"style_type": 4, "action_definition_format": 3, "indication_header_format": 0, "indication_message_format": 2},
+                    ],
+                }
+            ],
+        }
+
+        class SwigSdk:
+            @staticmethod
+            def subscribe_kpm(_node_id, _stream, callback):
+                callback({"source_seq": 11})
+                return 1
+
+        native.sdk = SwigSdk()
+        result = native.qualify("ul-prb-cap-v1")
+        self.assertEqual(result["error"], "KPM_CALLBACK_MALFORMED")
+        self.assertEqual(result["failed_stage"], "callback")
+        self.assertEqual(result["cell"], [])
+        self.assertEqual(result["ue"], [])
+        self.assertFalse(result["control_attempted"])
+
+    def test_native_qualification_refuses_unverified_source_sequence_without_control(self) -> None:
+        bridge_module = load_bridge_module()
+        native = bridge_module.NativeFlexric(Path("/unused/flexric.conf"))
+        native.discover = lambda: {
+            "eligible_node_count": 1,
+            "nodes": [
+                {
+                    "node_id": "2:1:1:3584",
+                    "kpm_advertised": True,
+                    "rc_advertised": True,
+                    "kpm_styles": [
+                        {"style_type": 1, "action_definition_format": 0, "indication_header_format": 0, "indication_message_format": 0},
+                        {"style_type": 4, "action_definition_format": 3, "indication_header_format": 0, "indication_message_format": 2},
+                    ],
+                }
+            ],
+        }
+
+        class SwigSdk:
+            @staticmethod
+            def subscribe_kpm(_node_id, stream, callback):
+                callback(
+                    {"source_seq": 41, "timestamp_ms": 1000, "measurements": {"RRU.PrbTotDl": 30}}
+                    if stream == "cell"
+                    else {
+                        "source_seq": 42,
+                        "timestamp_ms": 1000,
+                        "measurements": {},
+                        "kpm_ue_key": "ue-1",
+                        "rc_ue_id": 17,
+                        "rnti": 4660,
+                    }
+                )
+                return stream
+
+        native.sdk = SwigSdk()
+        result = native.qualify("ul-prb-cap-v1")
+        self.assertEqual(result["error"], "SOURCE_SEQUENCE_UNVERIFIED")
+        self.assertEqual(result["failed_stage"], "binding")
+        self.assertFalse(result["control_attempted"])
+
+    def test_native_qualification_refuses_unfrozen_measurement_post_without_control(self) -> None:
+        bridge_module = load_bridge_module()
+        native = bridge_module.NativeFlexric(Path("/unused/flexric.conf"))
+        native.discover = lambda: {
+            "eligible_node_count": 1,
+            "nodes": [
+                {
+                    "node_id": "2:1:1:3584",
+                    "kpm_advertised": True,
+                    "rc_advertised": True,
+                    "kpm_styles": [
+                        {"style_type": 1, "action_definition_format": 0, "indication_header_format": 0, "indication_message_format": 0},
+                        {"style_type": 4, "action_definition_format": 3, "indication_header_format": 0, "indication_message_format": 2},
+                    ],
+                }
+            ],
+        }
+        subscriptions = []
+
+        class SwigSdk:
+            @staticmethod
+            def subscribe_kpm(node_id, stream, callback):
+                subscriptions.append((node_id, stream))
+                callback(
+                    {"source_seq": 41, "timestamp_ms": 1000, "measurements": {"RRU.PrbTotDl": 30}}
+                    if stream == "cell"
+                    else {
+                        "source_seq": 42,
+                        "timestamp_ms": 1000,
+                        "measurements": {},
+                        "kpm_ue_key": "ue-1",
+                        "rc_ue_id": 17,
+                        "rnti": 4660,
+                        "source_seq_origin": "e2_indication",
+                    }
+                )
+                return stream
+
+        native.sdk = SwigSdk()
+
+        result = native.qualify("ul-prb-cap-v1")
+
+        self.assertEqual(subscriptions, [("2:1:1:3584", "cell"), ("2:1:1:3584", "ue")])
+        self.assertEqual(result["failed_stage"], "qualification")
+        self.assertFalse(result["control_attempted"])
+        self.assertEqual(result["error"], "MEASUREMENT_POST_UNFROZEN")
+
     def test_unsafe_journal_blocks_new_control_until_recovery(self) -> None:
         bridge_module = load_bridge_module()
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -328,6 +543,225 @@ class RedcapDrlXappCliTest(unittest.TestCase):
             self.assertEqual(result["error"], "RECOVERY_REQUIRED")
             self.assertEqual(native_calls, [])
             self.assertFalse((root / "leases/node-a.lock").exists())
+
+    def test_control_open_persists_lease_acquired_state(self) -> None:
+        bridge_module = load_bridge_module()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            journal = root / "control_journal.json"
+            bridge = bridge_module.Bridge(
+                profile="ul-prb-cap-v1",
+                qualified_binding={"node_id": "node-a", "kpm_ue_key": "ue-1", "rc_ue_id": 17, "rnti": 4660, "source_seq": 9},
+                lease_dir=root / "leases",
+                workspace_id="workspace-a",
+                journal_path=journal,
+            )
+            result = bridge.handle(
+                {
+                    "protocol_version": 1,
+                    "request_id": "lease-journal",
+                    "operation": "open",
+                    "profile_id": "ul-prb-cap-v1",
+                    "mode": "control-once",
+                }
+            )
+            self.assertTrue(result["ok"])
+            self.assertEqual(json.loads(journal.read_text(encoding="utf-8"))["state"], "LEASE_ACQUIRED")
+
+    def test_control_once_accepts_upper_contract_bound_with_required_proofs(self) -> None:
+        bridge_module = load_bridge_module()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            calls = []
+
+            def native_control(action):
+                calls.append(action)
+                return {"acknowledged": True, "gnb_apply_marker": True, "later_kpm": True}
+
+            bridge = bridge_module.Bridge(
+                profile="ul-prb-cap-v1",
+                native_control=native_control,
+                qualified_binding={"node_id": "node-a", "kpm_ue_key": "ue-1", "rc_ue_id": 17, "rnti": 4660, "source_seq": 9},
+                lease_dir=root / "leases",
+                workspace_id="workspace-a",
+                journal_path=root / "control_journal.json",
+            )
+            opened = bridge.handle(
+                {
+                    "protocol_version": 1,
+                    "request_id": "open-control",
+                    "operation": "open",
+                    "profile_id": "ul-prb-cap-v1",
+                    "mode": "control-once",
+                }
+            )
+            result = bridge.handle(
+                {
+                    "protocol_version": 1,
+                    "request_id": "act-control",
+                    "operation": "act",
+                    "profile_id": "ul-prb-cap-v1",
+                    "session_id": opened["session_id"],
+                    "action": {"max_ul_prb": 275},
+                }
+            )
+            self.assertTrue(result["ok"])
+            self.assertEqual([call["phase"] for call in calls], ["baseline", "candidate", "restore"])
+            self.assertEqual([call["max_ul_prb"] for call in calls], [0, 275, 0])
+            self.assertEqual(json.loads((root / "control_journal.json").read_text(encoding="utf-8"))["state"], "COMPLETED")
+
+    def test_control_once_refuses_out_of_contract_candidate_before_native_control(self) -> None:
+        bridge_module = load_bridge_module()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            native_calls = []
+            bridge = bridge_module.Bridge(
+                profile="ul-prb-cap-v1",
+                native_control=lambda action: native_calls.append(action),
+                qualified_binding={"node_id": "node-a", "kpm_ue_key": "ue-1", "rc_ue_id": 17, "rnti": 4660, "source_seq": 9},
+                lease_dir=root / "leases",
+                workspace_id="workspace-a",
+                journal_path=root / "control_journal.json",
+            )
+            opened = bridge.handle(
+                {
+                    "protocol_version": 1,
+                    "request_id": "open-out-of-range",
+                    "operation": "open",
+                    "profile_id": "ul-prb-cap-v1",
+                    "mode": "control-once",
+                }
+            )
+            result = bridge.handle(
+                {
+                    "protocol_version": 1,
+                    "request_id": "act-out-of-range",
+                    "operation": "act",
+                    "profile_id": "ul-prb-cap-v1",
+                    "session_id": opened["session_id"],
+                    "action": {"max_ul_prb": 276},
+                }
+            )
+            self.assertEqual(result["error"], "CONTRACT_VALIDATION_FAILED")
+            self.assertEqual(native_calls, [])
+
+    def test_control_once_locks_target_after_unconfirmed_restore(self) -> None:
+        bridge_module = load_bridge_module()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            calls = []
+
+            def native_control(action):
+                calls.append(action)
+                if action["phase"] in {"candidate", "restore"}:
+                    return {"acknowledged": True, "gnb_apply_marker": False, "later_kpm": False}
+                return {"acknowledged": True, "gnb_apply_marker": True, "later_kpm": True}
+
+            binding = {"node_id": "node-a", "kpm_ue_key": "ue-1", "rc_ue_id": 17, "rnti": 4660, "source_seq": 9}
+            journal = root / "control_journal.json"
+            bridge = bridge_module.Bridge(
+                profile="ul-prb-cap-v1",
+                native_control=native_control,
+                qualified_binding=binding,
+                lease_dir=root / "leases",
+                workspace_id="workspace-a",
+                journal_path=journal,
+            )
+            opened = bridge.handle(
+                {
+                    "protocol_version": 1,
+                    "request_id": "open-rollback",
+                    "operation": "open",
+                    "profile_id": "ul-prb-cap-v1",
+                    "mode": "control-once",
+                }
+            )
+            result = bridge.handle(
+                {
+                    "protocol_version": 1,
+                    "request_id": "act-rollback",
+                    "operation": "act",
+                    "profile_id": "ul-prb-cap-v1",
+                    "session_id": opened["session_id"],
+                    "action": {"max_ul_prb": 32},
+                }
+            )
+            self.assertEqual(result["error"], "ROLLBACK_UNCONFIRMED")
+            self.assertEqual([call["phase"] for call in calls], ["baseline", "candidate", "restore"])
+            self.assertEqual(json.loads(journal.read_text(encoding="utf-8"))["state"], "ROLLBACK_UNCONFIRMED")
+
+            blocked = bridge_module.Bridge(
+                profile="ul-prb-cap-v1",
+                qualified_binding=binding,
+                lease_dir=root / "leases",
+                workspace_id="workspace-b",
+                journal_path=journal,
+            ).handle(
+                {
+                    "protocol_version": 1,
+                    "request_id": "open-blocked",
+                    "operation": "open",
+                    "profile_id": "ul-prb-cap-v1",
+                    "mode": "control-once",
+                }
+            )
+            self.assertEqual(blocked["error"], "RECOVERY_REQUIRED")
+
+    def test_recover_proved_baseline_clears_unconfirmed_target_lock(self) -> None:
+        bridge_module = load_bridge_module()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            calls = []
+
+            def native_control(action):
+                calls.append(action)
+                if action["phase"] == "recovery":
+                    return {"acknowledged": True, "gnb_apply_marker": True, "later_kpm": False}
+                if action["phase"] in {"candidate", "restore"}:
+                    return {"acknowledged": True, "gnb_apply_marker": False, "later_kpm": False}
+                return {"acknowledged": True, "gnb_apply_marker": True, "later_kpm": True}
+
+            binding = {"node_id": "node-a", "kpm_ue_key": "ue-1", "rc_ue_id": 17, "rnti": 4660, "source_seq": 9}
+            journal = root / "control_journal.json"
+            bridge = bridge_module.Bridge(
+                profile="ul-prb-cap-v1",
+                native_control=native_control,
+                qualified_binding=binding,
+                lease_dir=root / "leases",
+                workspace_id="workspace-a",
+                journal_path=journal,
+            )
+            opened = bridge.handle(
+                {
+                    "protocol_version": 1,
+                    "request_id": "open-recovery",
+                    "operation": "open",
+                    "profile_id": "ul-prb-cap-v1",
+                    "mode": "control-once",
+                }
+            )
+            bridge.handle(
+                {
+                    "protocol_version": 1,
+                    "request_id": "act-recovery",
+                    "operation": "act",
+                    "profile_id": "ul-prb-cap-v1",
+                    "session_id": opened["session_id"],
+                    "action": {"max_ul_prb": 32},
+                }
+            )
+            result = bridge.handle(
+                {
+                    "protocol_version": 1,
+                    "request_id": "recover-target",
+                    "operation": "recover",
+                    "profile_id": "ul-prb-cap-v1",
+                }
+            )
+            self.assertTrue(result["ok"])
+            self.assertEqual(json.loads(journal.read_text(encoding="utf-8"))["state"], "RECOVERED")
+            self.assertFalse((root / "leases/node-a.lock").exists())
+            self.assertEqual([call["phase"] for call in calls], ["baseline", "candidate", "restore", "recovery"])
 
     def test_help_is_chinese_and_does_not_contact_docker(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

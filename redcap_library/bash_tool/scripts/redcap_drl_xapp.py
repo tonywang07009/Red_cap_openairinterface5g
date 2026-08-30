@@ -17,6 +17,7 @@ import uuid
 REPO_ROOT = Path(__file__).resolve().parents[3]
 CONTRACT = REPO_ROOT / "redcap_interface/control/redcap_control_contract.yaml"
 WORKSPACE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+ENTRYPOINT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*:[A-Za-z_][A-Za-z0-9_]*$")
 
 
 def parse_args() -> argparse.Namespace:
@@ -118,6 +119,10 @@ def parse_args() -> argparse.Namespace:
 def fail(message: str) -> int:
     print(message, file=sys.stderr)
     return 2
+
+
+def valid_entrypoint(entrypoint: object) -> bool:
+    return isinstance(entrypoint, str) and ENTRYPOINT.fullmatch(entrypoint) is not None
 
 
 def docker_json(args: list[str]) -> dict:
@@ -541,6 +546,8 @@ def create_evidence(workspace: Path, lock: dict, command: str) -> tuple[Path, di
             "kpm": str(run_dir / "kpm_evidence.json"),
             "journal": str(run_dir / "control_journal.json"),
             "gnb_apply_excerpt": str(run_dir / "gnb_apply_excerpt.log"),
+            "resolved_compose": str(workspace / "resolved-compose.json"),
+            "generated_overlay": str(workspace / "compose.overlay.json"),
         },
     }
     (run_dir / "events.ndjson").write_text("", encoding="utf-8")
@@ -581,6 +588,8 @@ def bridge_gate(args: argparse.Namespace) -> int:
         manifest["gates"][gate_name] = result
         if operation == "discover":
             discovery = result
+        if isinstance(result.get("node_id"), str):
+            manifest["resolved_node"] = result["node_id"]
         if not result.get("ok"):
             break
     if discovery is not None:
@@ -609,11 +618,16 @@ def run_model(args: argparse.Namespace) -> int:
         workspace, lock, _ = load_workspace(args.workspace)
     except ValueError as error:
         return fail(str(error))
-    if args.controller == "model" and not args.entrypoint:
-        return fail("model controller 必須提供 --entrypoint module:callable")
+    if args.controller == "model":
+        if not args.entrypoint:
+            return fail("model controller 必須提供 --entrypoint module:callable")
+        if not valid_entrypoint(args.entrypoint):
+            return fail("entrypoint 必須是 module:callable")
     if args.enable_control:
         if lock["profile"] == "none":
             return fail("profile=none 禁止 E2 control")
+        if verify(argparse.Namespace(workspace=workspace)) != 0:
+            return fail("runtime smoke 或 RIC reachability 未通過；qualification 與 control 均未啟動")
         qualifier = argparse.Namespace(command="qualify-kpm", workspace=workspace)
         if bridge_gate(qualifier) != 0:
             return fail("KPM qualification 未通過；模型與 control 均未啟動")

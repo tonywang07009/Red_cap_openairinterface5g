@@ -15,6 +15,7 @@
 | `specs/` | Local 3GPP/RedCap reference notes and PDFs |
 | `checklists/` | Human-checkable milestone and validation checklists |
 | `manuals/` | Stable operator and reproduction manuals |
+| `tool_used/` | Reusable tool commands and reset instructions |
 | `manuals/aiot_tag_aiotf_architecture.zh-TW.md` | 繁體中文 A-IoT Tag/AIOTF 架構、profile 與 evidence boundary |
 | `manuals/aiot_tag_aiotf_architecture.en.md` | English A-IoT Tag/AIOTF architecture, profiles, and evidence boundaries |
 | `manuals/aiot_tag_aiotf_operator.zh-TW.md` | 繁體中文 A-IoT registered operator、展示與 cleanup 流程 |
@@ -43,6 +44,7 @@
 - For rebuild after source, xApp, config, or library changes, start with `manuals/install/redcap_rebuild_after_changes.zh-TW.md` or `manuals/install/redcap_rebuild_after_changes.en.md`.
 - For newcomer reproducibility checks, start with `manuals/install/redcap_newcomer_runtime_gate.zh-TW.md` or `manuals/install/redcap_newcomer_runtime_gate.en.md`.
 - For reusable operation procedures, start with `manuals/README.md`.
+- For reusable tool reset commands, start with `tool_used/`.
 - For L1/L2 protocol learning, start with `specs/redcap_l1_l2_protocol_guide.md`.
 - For code modification entry points, start with `specs/function_reference/README.md`.
 - For the A-IoT RedCap-to-AIOTF two-week implementation course, start with `manuals/aiot_redcap_to_aiotf_two_week_course.zh-TW.md`.
