@@ -10,11 +10,32 @@ import re
 import secrets
 import socket
 import tempfile
+import threading
+import time
 
 
 PROTOCOL_VERSION = 1
 KPM_RAN_FUNCTION_ID = 2
 RC_RAN_FUNCTION_ID = 3
+KPM_OBSERVATION_TIMEOUT_SECONDS = 2.0
+
+
+def validate_workspace_lock(path: Path, profile: str, workspace_id: str) -> None:
+    try:
+        lock = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError("WORKSPACE_LOCK_INVALID") from error
+    if (
+        not isinstance(lock, dict)
+        or lock.get("schema_version") != 1
+        or lock.get("name") != workspace_id
+        or lock.get("profile") != profile
+    ):
+        raise ValueError("WORKSPACE_LOCK_MISMATCH")
+    if profile == "ul-prb-cap-v1":
+        measurement_post = lock.get("measurement_post")
+        if not isinstance(measurement_post, dict) or measurement_post.get("status") != "UNFROZEN":
+            raise ValueError("MEASUREMENT_POST_POLICY_UNSUPPORTED")
 
 
 class NativeFlexric:
@@ -158,6 +179,7 @@ class NativeFlexric:
         self.kpm_callbacks = {}
         samples = {"cell": [], "ue": []}
         callback_error = []
+        observation_ready = threading.Event()
 
         def collect(stream, sample):
             try:
@@ -184,9 +206,13 @@ class NativeFlexric:
                             projected[field] = int(getattr(sample, field))
                     if hasattr(sample, "source_seq_origin"):
                         projected["source_seq_origin"] = str(sample.source_seq_origin)
+                projected["bridge_monotonic_receipt_ms"] = time.monotonic_ns() // 1_000_000
                 samples[stream].append(projected)
+                if samples["cell"] and samples["ue"]:
+                    observation_ready.set()
             except (AttributeError, KeyError, TypeError, ValueError):
                 callback_error.append(stream)
+                observation_ready.set()
 
         try:
             for stream in ("cell", "ue"):
@@ -223,6 +249,8 @@ class NativeFlexric:
                 "ue": [],
                 "control_attempted": False,
             }
+
+        observation_ready.wait(KPM_OBSERVATION_TIMEOUT_SECONDS)
 
         if callback_error:
             return {
@@ -611,7 +639,12 @@ def main() -> None:
     parser.add_argument("--profile", choices=("none", "ul-prb-cap-v1"), required=True)
     parser.add_argument("--flexric-config", type=Path, required=True)
     parser.add_argument("--workspace-id", required=True)
+    parser.add_argument("--workspace-lock", type=Path, required=True)
     args = parser.parse_args()
+    try:
+        validate_workspace_lock(args.workspace_lock, args.profile, args.workspace_id)
+    except ValueError as error:
+        parser.error(str(error))
     serve(args.socket, args.profile, args.flexric_config, args.workspace_id)
 
 

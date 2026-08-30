@@ -356,9 +356,17 @@ def initialize(args: argparse.Namespace) -> int:
             },
             "resolved": resolved,
         }
+        if args.profile == "ul-prb-cap-v1":
+            lock["measurement_post"] = {"status": "UNFROZEN"}
         bridge_mounts = [
             {"type": "bind", "source": str(workspace / "run"), "target": "/run/redcap-drl"},
             {"type": "bind", "source": str(CONTRACT), "target": "/opt/redcap/control/redcap_control_contract.yaml", "read_only": True},
+            {
+                "type": "bind",
+                "source": str(workspace / "workspace.lock.json"),
+                "target": "/opt/redcap/workspace.lock.json",
+                "read_only": True,
+            },
         ]
         for index, mount in enumerate(resolved["config_mounts"]):
             if mount["source"]:
@@ -404,6 +412,8 @@ def initialize(args: argparse.Namespace) -> int:
                         "/usr/local/etc/flexric/flexric.conf",
                         "--workspace-id",
                         args.name,
+                        "--workspace-lock",
+                        "/opt/redcap/workspace.lock.json",
                     ],
                     "read_only": True,
                     "user": f"{os.getuid()}:{os.getgid()}",

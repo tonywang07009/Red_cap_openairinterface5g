@@ -565,6 +565,7 @@ static const char* kpm_meas_du[] = {
 static const char* kpm_meas_gnb[] = {
   "DRB.PdcpSduVolumeDL",
   "DRB.PdcpSduVolumeUL",
+  "OAI.RNTI",
   "DRB.RlcSduDelayDl",
   "DRB.UEThpDl",
   "DRB.UEThpUl",

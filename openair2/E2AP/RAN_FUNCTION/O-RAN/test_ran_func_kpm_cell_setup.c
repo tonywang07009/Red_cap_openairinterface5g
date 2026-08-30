@@ -46,6 +46,15 @@ static const ric_report_style_item_t *find_report_style(const kpm_e2_setup_t *se
   return NULL;
 }
 
+static bool style_has_measurement(const ric_report_style_item_t *style, const char *expected)
+{
+  for (size_t i = 0; i < style->meas_info_for_action_lst_len; ++i) {
+    if (name_is(style->meas_info_for_action_lst[i].name, expected))
+      return true;
+  }
+  return false;
+}
+
 static void assert_cell_and_ue_styles(const ngran_node_t node_type)
 {
   gNB_RRC_INST rrc = {.node_type = node_type};
@@ -71,6 +80,8 @@ static void assert_cell_and_ue_styles(const ngran_node_t node_type)
   assert(ue->act_def_format_type == FORMAT_4_ACTION_DEFINITION);
   assert(ue->ind_hdr_format_type == FORMAT_1_INDICATION_HEADER);
   assert(ue->ind_msg_format_type == FORMAT_3_INDICATION_MESSAGE);
+  if (node_type == ngran_gNB)
+    assert(style_has_measurement(ue, "OAI.RNTI"));
 
   free_setup(&setup);
 }

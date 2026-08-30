@@ -6,6 +6,7 @@ import importlib.util
 import json
 import subprocess
 import tempfile
+import threading
 from types import SimpleNamespace
 import unittest
 
@@ -392,9 +393,56 @@ class RedcapDrlXappCliTest(unittest.TestCase):
         result = native.qualify("ul-prb-cap-v1")
         self.assertEqual(calls, [("2:1:1:3584", "cell"), ("2:1:1:3584", "ue")])
         self.assertEqual(result["error"], "TARGET_BINDING_REQUIRED")
-        self.assertEqual(result["cell"], [{"source_seq": 11, "timestamp_ms": 1000, "measurements": {"RRU.PrbTotDl": 30}}])
-        self.assertEqual(result["ue"], [{"source_seq": 12, "timestamp_ms": 1000, "measurements": {}, "kpm_ue_key": "ue-1"}])
+        self.assertEqual(result["cell"][0]["source_seq"], 11)
+        self.assertEqual(result["cell"][0]["measurements"], {"RRU.PrbTotDl": 30})
+        self.assertEqual(result["ue"][0]["source_seq"], 12)
+        self.assertEqual(result["ue"][0]["kpm_ue_key"], "ue-1")
+        self.assertGreater(result["cell"][0]["bridge_monotonic_receipt_ms"], 0)
+        self.assertGreater(result["ue"][0]["bridge_monotonic_receipt_ms"], 0)
         self.assertFalse(result["control_attempted"])
+
+    def test_native_qualification_waits_for_both_async_streams(self) -> None:
+        bridge_module = load_bridge_module()
+        bridge_module.KPM_OBSERVATION_TIMEOUT_SECONDS = 0.2
+        native = bridge_module.NativeFlexric(Path("/unused/flexric.conf"))
+        native.discover = lambda: {
+            "eligible_node_count": 1,
+            "nodes": [{
+                "node_id": "2:1:1:3584",
+                "kpm_advertised": True,
+                "rc_advertised": True,
+                "kpm_styles": [
+                    {"style_type": 1, "action_definition_format": 0, "indication_header_format": 0, "indication_message_format": 0},
+                    {"style_type": 4, "action_definition_format": 3, "indication_header_format": 0, "indication_message_format": 2},
+                ],
+            }],
+        }
+
+        class SwigSdk:
+            @staticmethod
+            def subscribe_kpm(_node_id, stream, callback):
+                sample = (
+                    {"source_seq": 41, "timestamp_ms": 1000, "measurements": {"RRU.PrbTotDl": 30}}
+                    if stream == "cell"
+                    else {
+                        "source_seq": 42,
+                        "timestamp_ms": 1000,
+                        "measurements": {"OAI.RNTI": 4660},
+                        "kpm_ue_key": "gnb-ran:17",
+                        "rc_ue_id": 17,
+                        "rnti": 4660,
+                        "source_seq_origin": "e2_indication",
+                    }
+                )
+                threading.Timer(0.01, callback, args=(sample,)).start()
+                return stream
+
+        native.sdk = SwigSdk()
+        result = native.qualify("ul-prb-cap-v1")
+        self.assertEqual(result["error"], "MEASUREMENT_POST_UNFROZEN")
+        self.assertEqual(result["ue"][0]["rc_ue_id"], 17)
+        self.assertEqual(result["ue"][0]["rnti"], 4660)
+        self.assertEqual(result["ue"][0]["source_seq_origin"], "e2_indication")
 
     def test_native_qualification_refuses_malformed_callback_before_control(self) -> None:
         bridge_module = load_bridge_module()
@@ -1044,6 +1092,84 @@ class RedcapDrlXappCliTest(unittest.TestCase):
                 if mount["target"] == "/usr/local/etc/flexric/flexric.conf"
             )
             self.assertTrue(flexric_mount["read_only"])
+
+    def test_init_writes_unfrozen_measurement_post_for_bridge_only(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            compose = root / "simulator.yaml"
+            compose.write_text("services: {}\n", encoding="utf-8")
+            flexric_config = root / "flexric.conf"
+            flexric_config.write_text("[NEAR-RIC]\n", encoding="utf-8")
+            fake_bin = root / "bin"
+            fake_bin.mkdir()
+            fake_docker = fake_bin / "docker"
+            compose_model = {
+                "name": "fixture",
+                "networks": {"fabric": {"name": "resolved-external-net", "external": True}},
+                "services": {
+                    "ric-alpha": {
+                        "healthcheck": {"test": ["CMD-SHELL", "pgrep nearRT-RIC"]},
+                        "networks": {"fabric": {}},
+                        "volumes": [{"type": "bind", "source": str(flexric_config), "target": "/usr/local/etc/flexric/flexric.conf"}],
+                    },
+                    "ran-alpha": {
+                        "healthcheck": {"test": ["CMD-SHELL", "pgrep nr-softmodem"]},
+                        "networks": {"fabric": {}},
+                    },
+                },
+            }
+            fake_docker.write_text(
+                "#!/usr/bin/env python3\n"
+                "import json, sys\n"
+                f"model = {compose_model!r}\n"
+                "if sys.argv[1] == 'compose':\n"
+                "    print(json.dumps(model)); raise SystemExit(0)\n"
+                "if sys.argv[1:3] == ['image', 'inspect']:\n"
+                "    tag = sys.argv[3]\n"
+                "    print('sha256:bridge' if 'bridge' in tag else 'sha256:runtime'); raise SystemExit(0)\n"
+                "raise SystemExit(98)\n",
+                encoding="utf-8",
+            )
+            fake_docker.chmod(0o755)
+
+            result = subprocess.run(
+                [
+                    str(CLI), "init", "--name", "tag_scheduler_dqn", "--workspace-root", str(root),
+                    "--compose", str(compose), "--runtime", "cpu", "--profile", "ul-prb-cap-v1",
+                    "--release", "1.0.0",
+                ],
+                text=True,
+                capture_output=True,
+                env={**os.environ, "PATH": f"{fake_bin}:{os.environ['PATH']}"},
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            workspace = root / "tag_scheduler_dqn"
+            lock_path = workspace / "workspace.lock.json"
+            lock = json.loads(lock_path.read_text(encoding="utf-8"))
+            overlay = json.loads((workspace / "compose.overlay.json").read_text(encoding="utf-8"))
+            bridge = overlay["services"]["flexric-bridge"]
+            runtime = overlay["services"]["drl-runtime"]
+            failures = []
+            if lock.get("measurement_post", {}).get("status") != "UNFROZEN":
+                failures.append("workspace.lock.json measurement_post.status is not UNFROZEN")
+            command_text = json.dumps(bridge.get("command", []))
+            if "--workspace-lock" not in command_text:
+                failures.append("flexric-bridge command lacks a workspace-lock path argument")
+            lock_mounts = [mount for mount in bridge.get("volumes", []) if mount.get("source") == str(lock_path)]
+            if len(lock_mounts) != 1 or not lock_mounts[0].get("read_only"):
+                failures.append("flexric-bridge lacks one read-only workspace.lock.json bind mount")
+            else:
+                lock_target = lock_mounts[0]["target"]
+                if lock_target not in command_text:
+                    failures.append("flexric-bridge command lacks its workspace.lock.json mount target")
+                if any(
+                    mount.get("source") == str(lock_path) or mount.get("target") == lock_target
+                    for mount in runtime.get("volumes", [])
+                ):
+                    failures.append("drl-runtime receives the workspace.lock.json source or bridge lock target")
+            self.assertEqual(failures, [])
 
     def test_init_refuses_compose_without_flexric_config_mount(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

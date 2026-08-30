@@ -94,6 +94,19 @@ static meas_record_lst_t fill_DRB_PdcpSduVolumeUL(__attribute__((unused))uint32_
   return meas_record;
 }
 
+static meas_record_lst_t fill_OAI_RNTI(__attribute__((unused))uint32_t gran_period_ms,
+                                       cudu_ue_info_pair_t ue_info,
+                                       __attribute__((unused))const size_t ue_idx,
+                                       __attribute__((unused))e2_node_level_stats_t* node_stats)
+{
+  meas_record_lst_t meas_record = {.value = NO_VALUE_MEAS_VALUE};
+  if (ue_info.ue != NULL && ue_info.ue->rnti != 0) {
+    meas_record.value = INTEGER_MEAS_VALUE;
+    meas_record.int_val = ue_info.ue->rnti;
+  }
+  return meas_record;
+}
+
 #if defined (NGRAN_GNB_DU)
 static uldlcounter_t last_rlc_pdu_total_bytes[MAX_MOBILES_PER_GNB] = {0};
 static uldlcounter_t last_total_prbs[MAX_MOBILES_PER_GNB] = {0};
@@ -204,6 +217,7 @@ static meas_record_lst_t fill_RRU_PrbTotUl(__attribute__((unused))uint32_t gran_
 static kv_measure_t lst_measure[] = {
   {.key = "DRB.PdcpSduVolumeDL", .value = fill_DRB_PdcpSduVolumeDL }, 
   {.key = "DRB.PdcpSduVolumeUL", .value = fill_DRB_PdcpSduVolumeUL },
+  {.key = "OAI.RNTI", .value = fill_OAI_RNTI },
 #if defined (NGRAN_GNB_DU)
   {.key = "DRB.RlcSduDelayDl", .value =  fill_DRB_RlcSduDelayDl }, 
   {.key = "DRB.UEThpDl", .value =  fill_DRB_UEThpDl }, 
