@@ -518,6 +518,25 @@ class RedcapDrlXappCliTest(unittest.TestCase):
         self.assertEqual(result["failed_stage"], "binding")
         self.assertFalse(result["control_attempted"])
 
+    def test_native_kpm_provenance_uses_e2_indication_sn(self) -> None:
+        agent = (REPO_ROOT / "openair2/E2AP/flexric/src/agent/e2_agent.c").read_text(encoding="utf-8")
+        event = (REPO_ROOT / "openair2/E2AP/flexric/src/lib/ind_event.h").read_text(encoding="utf-8")
+        handoff = (REPO_ROOT / "openair2/E2AP/flexric/src/xApp/msg_handler_xapp.c").read_text(encoding="utf-8")
+        copied = (REPO_ROOT / "openair2/E2AP/flexric/src/sm/agent_if/read/sm_ag_if_rd.c").read_text(encoding="utf-8")
+        producer = (REPO_ROOT / "openair2/E2AP/flexric/src/xApp/swig/swig_wrapper.cpp").read_text(encoding="utf-8")
+        callback = producer[producer.index("static void sm_cb_kpm"):producer.index("int subscribe_kpm")]
+
+        self.assertIn("uint16_t indication_sn;", event)
+        self.assertIn("ind.sn = malloc(sizeof(*ind.sn));", agent)
+        self.assertIn("*ind.sn = i_ev->indication_sn;", agent)
+        self.assertIn("i_ev->indication_sn =", agent)
+        self.assertIn("msg_disp.rd.ind.kpm.has_e2_indication_sn = src->sn != NULL;", handoff)
+        self.assertIn("msg_disp.rd.ind.kpm.e2_indication_sn = *src->sn;", handoff)
+        self.assertIn("ans.kpm.has_e2_indication_sn = d->kpm.has_e2_indication_sn;", copied)
+        self.assertIn("ans.kpm.e2_indication_sn = d->kpm.e2_indication_sn;", copied)
+        self.assertIn('source_seq_origin = rd->ind.kpm.has_e2_indication_sn ? "e2_indication"', callback)
+        self.assertNotIn("kpm_source_seq", callback)
+
     def test_native_qualification_refuses_unfrozen_measurement_post_without_control(self) -> None:
         bridge_module = load_bridge_module()
         native = bridge_module.NativeFlexric(Path("/unused/flexric.conf"))

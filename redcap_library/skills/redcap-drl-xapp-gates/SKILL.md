@@ -39,6 +39,23 @@ Gate profile-maintainer work:
 3. Preserve the existing control contract and native FlexRIC owner seams.
 4. Require contract validation, xApp ACK, gNB apply marker, and a later KPM
    observation before reporting a successful candidate action.
+5. After a test, remove only explicitly approved, unreferenced temporary
+   Docker images; retain the final confirmed release, simulator images, and
+   all evidence. Rebuild the narrow SymDex owner indexes for
+   `redcap_library/drl_xapp`, `redcap_library/bash_tool/scripts`, and
+   `openair2/E2AP/flexric/src/xApp` with `--no-embed`; do not full-repo index.
+6. For an OAI gNB Docker rebuild, pass `--target oai-gnb`; the Dockerfile's
+   default target is not the gNB image. For a temporary SRS-off YAML override,
+   use numeric `do_SRS: 0`; `do_SRS: none` is rejected by yaml-cpp and is not
+   valid runtime evidence.
+
+Gate KPM provenance:
+
+1. Treat `source_seq_origin="bridge_callback_counter"` as local callback
+   ordering only. It is never E2 indication provenance.
+2. Permit a verified target binding only when the producer proves
+   `source_seq_origin="e2_indication"`; otherwise retain observation evidence
+   and return `SOURCE_SEQUENCE_UNVERIFIED` with no control.
 
 Gate evidence handling:
 

@@ -124,3 +124,22 @@ All entries are append-only and use `## [YYYY-MM-DD] operation | subject`.
 - claim_boundary: approved scope only; no immutable tag, GitHub Action, Issue mirror, or live publication exists yet.
 - unresolved_items: commit the approved revisions when authorized, then create two independent annotated tags.
 - next_action: prepare the publisher TDD only after the child revision is committed and tagged.
+
+## [2026-08-31] capture | Task 3.5 native KPM callback provenance
+
+- status: `NEEDS_REVIEW`
+- capture result: `update-page`
+- changed_or_proposed_paths: `systems/xapp-dapp/xapp-observation-control.md` and `redcap_library/skills/redcap-drl-xapp-gates/SKILL.md`.
+- evidence_paths: `openair2/E2AP/flexric/src/xApp/swig/swig_wrapper.cpp`, `redcap_library/drl_xapp/bridge_daemon.py`, `redcap_library/bash_tool/scripts/test_redcap_drl_xapp.py`, and `test_log/compiler_logs/task35_native_callback_provenance_{red,green,full_green}_2026-08-31.log`.
+- claim_boundary: local callback ordering is not E2 indication provenance; native callback counters are fail-closed at qualification. No live KPM qualification, E2 source-sequence mapping, E2SM-RC control, gNB apply, or outcome claim is made.
+- unresolved_items: the actual E2 source-sequence field and a matching live FlexRIC/gNB trace remain `[Needs Verification]`.
+- next_action: require a separately approved native/profile change before accepting a new E2 source-provenance mapping.
+
+## [2026-08-31] capture | Task 3.5 live cell and UE KPM qualification
+
+- status: `NEEDS_REVIEW`
+- capture result: `update-page`
+- changed_or_proposed_paths: `systems/xapp-dapp/xapp-observation-control.md`, `openspec/changes/build-redcap-drl-xapp-gated-runtime/tasks.md`, and `redcap_library/skills/redcap-drl-xapp-gates/SKILL.md`.
+- evidence_paths: release `1.0.14`, `test_log/compiler_logs/task35_e2_indication_sn_live_qualification_2026-08-31.log`, and retained manifest `/tmp/task35-e2-sn-live/task35-e2-sn-live/artifacts/runs/20260831T112450Z-137662c5/manifest.json`.
+- claim_boundary: cell/UE KPM qualification and fail-closed measurement-post refusal are observed; no E2SM-RC control or apply evidence is claimed.
+- unresolved_items: a human must freeze profile-owned thresholds from more representative live calibration evidence before a later control transaction.
