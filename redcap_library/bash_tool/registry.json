@@ -329,7 +329,7 @@
       "description": "Create and operate a gated DRL xApp Docker workspace without mutating the existing simulator compose project.",
       "script_path": "redcap_library/bash_tool/scripts/redcap_drl_xapp.sh",
       "input": {
-        "command": "init, up, verify, discover-kpm, qualify-kpm, run, status, recover, down, remove, build-release, upgrade, or --help.",
+        "command": "init, up, verify, discover-kpm, qualify-kpm, freeze-measurement-post, run, status, recover, down, remove, build-release, upgrade, or --help.",
         "workspace": "Command-specific workspace path or init workspace root and name.",
         "compose": "Explicit existing FlexRIC RedCap Compose file; required by init and never modified.",
         "runtime": "cpu or gpu; locked at init.",

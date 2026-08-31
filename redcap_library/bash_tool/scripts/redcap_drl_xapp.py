@@ -20,6 +20,13 @@ WORKSPACE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
 ENTRYPOINT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*:[A-Za-z_][A-Za-z0-9_]*$")
 
 
+def pair_kpm_samples(cell, ue):
+    return zip(
+        sorted(cell, key=lambda sample: int(sample["timestamp_ms"])),
+        sorted(ue, key=lambda sample: int(sample["timestamp_ms"])),
+    )
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="redcap_drl_xapp.sh",
@@ -85,6 +92,23 @@ def parse_args() -> argparse.Namespace:
     )
     upgrade.add_argument("--workspace", type=Path, required=True, help="必要；已停止的 workspace。")
     upgrade.add_argument("--to-release", required=True, help="必要；已建置的新 immutable release。")
+    freeze = commands.add_parser(
+        "freeze-measurement-post",
+        help="以人工批准的 calibration evidence 凍結 profile KPM policy。",
+        description="必要參數：停止的 ul-prb-cap-v1 workspace、calibration run、明示批准與三個實測門檻。",
+        epilog=(
+            "副作用：只原子更新 workspace.lock.json；不啟動 Docker、不送 E2 control。\n"
+            "限制：calibration run、approval token、node/style/metric/release fingerprint 必須一致。\n"
+            "下一步：up → qualify-kpm；release upgrade 會使 policy 回到 UNFROZEN。"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    freeze.add_argument("--workspace", type=Path, required=True, help="必要；已停止的 ul-prb-cap-v1 workspace。")
+    freeze.add_argument("--calibration-run", action="append", required=True, help="必要；保留 calibration run ID，可重複指定。")
+    freeze.add_argument("--approve-calibration", action="append", required=True, help="必要；人工確認的 calibration run ID，須與 --calibration-run 完全相同。")
+    freeze.add_argument("--freshness-window-ms", type=int, required=True, help="必要；實測後批准的 freshness 上限（毫秒）。")
+    freeze.add_argument("--cell-ue-max-skew-ms", type=int, required=True, help="必要；實測後批准的 cell/UE 最大 skew（毫秒）。")
+    freeze.add_argument("--min-valid-paired-samples", type=int, required=True, help="必要；實測後批准的最少有效 paired samples。")
     for name, summary in (
         ("discover-kpm", "讀取 live E2 node/KPM/RC capability；不訂閱、不控制。"),
         ("qualify-kpm", "先讀取 capability，再驗證 profile 所需 cell/UE KPM freshness、alignment 與 target binding。"),
@@ -143,6 +167,15 @@ def service_signature(service: dict) -> str:
         "image": service.get("image"),
     }
     return json.dumps(selected, sort_keys=True).lower()
+
+
+def canonical_kpm_styles(styles: object) -> list[dict]:
+    if not isinstance(styles, list):
+        return []
+    return sorted(
+        (style for style in styles if isinstance(style, dict)),
+        key=lambda style: json.dumps(style, sort_keys=True),
+    )
 
 
 def resolve_compose(compose: Path) -> dict:
@@ -454,6 +487,105 @@ def load_workspace(workspace: Path) -> tuple[Path, dict, dict]:
     return workspace, lock, overlay
 
 
+def freeze_measurement_post(args: argparse.Namespace) -> int:
+    try:
+        workspace, lock, _ = load_workspace(args.workspace)
+    except ValueError as error:
+        return fail(str(error))
+    if lock.get("profile") != "ul-prb-cap-v1":
+        return fail("只有 ul-prb-cap-v1 可以凍結 measurement_post policy")
+    if (workspace / "run/bridge.sock").exists():
+        return fail("workspace 必須先停止 bridge；未修改 lock")
+    run_ids = args.calibration_run
+    if (
+        not isinstance(run_ids, list)
+        or not run_ids
+        or any(not isinstance(run_id, str) or not WORKSPACE_NAME.fullmatch(run_id) for run_id in run_ids)
+        or len(set(run_ids)) != len(run_ids)
+        or sorted(args.approve_calibration) != sorted(run_ids)
+    ):
+        return fail("calibration run 與人工 approval 必須為相同且唯一的 run ID 集合")
+    if args.freshness_window_ms < 0 or args.cell_ue_max_skew_ms < 0 or args.min_valid_paired_samples < 1:
+        return fail("measurement_post 門檻必須是非負毫秒值，且最少樣本數至少為 1")
+
+    fingerprint = None
+    paired_samples = 0
+    for run_id in run_ids:
+        try:
+            manifest = json.loads((workspace / "artifacts/runs" / run_id / "manifest.json").read_text(encoding="utf-8"))
+            discovery = manifest["gates"]["discover-kpm"]
+            qualification = manifest["gates"]["qualify-kpm"]
+            node_id = qualification["node_id"]
+            node = next(node for node in discovery["capabilities"]["nodes"] if node["node_id"] == node_id)
+            cell = qualification["cell"]
+            ue = qualification["ue"]
+            calibration = qualification["measurement_post"]
+        except (OSError, StopIteration, KeyError, TypeError, json.JSONDecodeError):
+            return fail(f"calibration evidence 無效：{run_id}")
+        if not isinstance(cell, list) or not isinstance(ue, list) or not cell or not ue:
+            return fail(f"calibration evidence 缺少 cell/UE observations：{run_id}")
+        try:
+            if (
+                calibration["event_time_origin"] != "e2_indication_collectStartTime_ms"
+                or int(calibration["valid_paired_samples"]) < 1
+                or int(calibration["max_freshness_age_ms"]) > args.freshness_window_ms
+            ):
+                return fail(f"calibration 不符合批准的 freshness 門檻：{run_id}")
+        except (KeyError, TypeError, ValueError):
+            return fail(f"calibration freshness evidence 無效：{run_id}")
+        current_fingerprint = {
+            "node_id": node_id,
+            "kpm_styles": canonical_kpm_styles(node.get("kpm_styles")),
+            "cell_metrics": sorted({name for sample in cell for name in sample.get("measurements", {})}),
+            "ue_metrics": sorted({name for sample in ue for name in sample.get("measurements", {})}),
+            "event_time_origin": "e2_indication_collectStartTime_ms",
+            "release": lock["release"],
+            "images": lock["images"],
+        }
+        if fingerprint is None:
+            fingerprint = current_fingerprint
+        elif fingerprint != current_fingerprint:
+            return fail("calibration fingerprint 不一致；未修改 lock")
+        for cell_sample, ue_sample in pair_kpm_samples(cell, ue):
+            try:
+                time_origins_proven = (
+                    cell_sample["source_seq_origin"] == "e2_indication"
+                    and ue_sample["source_seq_origin"] == "e2_indication"
+                    and int(cell_sample["timestamp_ms"]) > 0
+                    and int(ue_sample["timestamp_ms"]) > 0
+                )
+                skew_ms = abs(int(cell_sample["timestamp_ms"]) - int(ue_sample["timestamp_ms"]))
+            except (KeyError, TypeError, ValueError):
+                return fail(f"calibration time evidence 無效：{run_id}")
+            if not time_origins_proven or skew_ms > args.cell_ue_max_skew_ms:
+                return fail(f"calibration 不符合批准的 time/skew 門檻：{run_id}")
+            paired_samples += 1
+    if paired_samples < args.min_valid_paired_samples:
+        return fail("calibration valid paired samples 少於批准門檻；未修改 lock")
+
+    updated_lock = dict(lock)
+    updated_lock["measurement_post"] = {
+        "status": "FROZEN",
+        "approved_calibration_run": run_ids[0],
+        "approved_calibration_runs": run_ids,
+        "approved_at": datetime.now(timezone.utc).isoformat(),
+        "freshness_window_ms": args.freshness_window_ms,
+        "cell_ue_max_skew_ms": args.cell_ue_max_skew_ms,
+        "min_valid_paired_samples": args.min_valid_paired_samples,
+        "fingerprint": fingerprint,
+    }
+    temporary = workspace / ".workspace.lock.json.tmp"
+    write_json(temporary, updated_lock)
+    temporary.replace(workspace / "workspace.lock.json")
+    print(json.dumps({
+        "workspace": str(workspace),
+        "gate_status": "MEASUREMENT_POST_FROZEN_NO_CONTROL",
+        "calibration_runs": run_ids,
+        "safe_next_command": f"redcap_drl_xapp.sh up --workspace {workspace}",
+    }))
+    return 0
+
+
 def overlay_command(workspace: Path, *args: str, capture: bool = False) -> subprocess.CompletedProcess:
     command = [
         "docker", "compose", "-p", f"redcap-drl-{workspace.name}",
@@ -609,6 +741,7 @@ def bridge_gate(args: argparse.Namespace) -> int:
                 "capabilities": discovery.get("capabilities", {}),
                 "cell": result.get("cell", []),
                 "ue": result.get("ue", []),
+                "measurement_post": result.get("measurement_post"),
                 "qualification": "QUALIFIED" if result.get("ok") and args.command == "qualify-kpm" else "UNPROVED",
             },
         )
@@ -671,6 +804,8 @@ def upgrade(args: argparse.Namespace) -> int:
         "runtime": {"tag": runtime_tag, "id": runtime_id},
         "bridge": {"tag": bridge_tag, "id": bridge_id},
     }
+    if updated_lock.get("profile") == "ul-prb-cap-v1" and updated_lock.get("measurement_post", {}).get("status") == "FROZEN":
+        updated_lock["measurement_post"] = {"status": "UNFROZEN", "invalidated_by": "release-upgrade"}
     updated_overlay = dict(overlay)
     updated_overlay["services"]["drl-runtime"]["image"] = runtime_tag
     updated_overlay["services"]["flexric-bridge"]["image"] = bridge_tag
@@ -707,6 +842,8 @@ def main() -> int:
         return status(args)
     if args.command == "upgrade":
         return upgrade(args)
+    if args.command == "freeze-measurement-post":
+        return freeze_measurement_post(args)
     if args.command in {"discover-kpm", "qualify-kpm", "recover"}:
         return bridge_gate(args)
     if args.command == "run":

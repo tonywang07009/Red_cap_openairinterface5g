@@ -422,7 +422,8 @@ class RedcapDrlXappCliTest(unittest.TestCase):
             @staticmethod
             def subscribe_kpm(_node_id, stream, callback):
                 sample = (
-                    {"source_seq": 41, "timestamp_ms": 1000, "measurements": {"RRU.PrbTotDl": 30}}
+                    {"source_seq": 41, "source_seq_origin": "e2_indication", "timestamp_ms": 1000,
+                     "measurements": {"RRU.PrbTotDl": 30}}
                     if stream == "cell"
                     else {
                         "source_seq": 42,
@@ -541,7 +542,8 @@ class RedcapDrlXappCliTest(unittest.TestCase):
             def subscribe_kpm(node_id, stream, callback):
                 subscriptions.append((node_id, stream))
                 callback(
-                    {"source_seq": 41, "timestamp_ms": 1000, "measurements": {"RRU.PrbTotDl": 30}}
+                    {"source_seq": 41, "source_seq_origin": "e2_indication", "timestamp_ms": 1000,
+                     "measurements": {"RRU.PrbTotDl": 30}}
                     if stream == "cell"
                     else {
                         "source_seq": 42,
@@ -563,6 +565,270 @@ class RedcapDrlXappCliTest(unittest.TestCase):
         self.assertEqual(result["failed_stage"], "qualification")
         self.assertFalse(result["control_attempted"])
         self.assertEqual(result["error"], "MEASUREMENT_POST_UNFROZEN")
+        self.assertEqual(result["measurement_post"]["event_time_origin"], "e2_indication_collectStartTime_ms")
+        self.assertEqual(result["measurement_post"]["valid_paired_samples"], 1)
+
+    def test_native_qualification_pairs_frozen_samples_by_event_time_not_callback_order(self) -> None:
+        bridge_module = load_bridge_module()
+        native = bridge_module.NativeFlexric(Path("/unused/flexric.conf"))
+        styles = [
+            {"style_type": 1, "action_definition_format": 0, "indication_header_format": 0, "indication_message_format": 0},
+            {"style_type": 4, "action_definition_format": 3, "indication_header_format": 0, "indication_message_format": 2},
+        ]
+        native.measurement_post = {
+            "status": "FROZEN", "freshness_window_ms": 10, "cell_ue_max_skew_ms": 0, "min_valid_paired_samples": 2,
+            "fingerprint": {"node_id": "2:1:1:3584", "kpm_styles": styles, "cell_metrics": ["RRU.PrbTotDl"],
+                            "ue_metrics": ["OAI.RNTI"], "event_time_origin": "e2_indication_collectStartTime_ms"},
+        }
+        native.discover = lambda: {"eligible_node_count": 1, "nodes": [{"node_id": "2:1:1:3584", "kpm_advertised": True,
+            "rc_advertised": True, "kpm_styles": styles}]}
+
+        class SwigSdk:
+            @staticmethod
+            def subscribe_kpm(_node_id, stream, callback):
+                for timestamp_ms in ([2000, 1000] if stream == "cell" else [1000, 2000]):
+                    callback({"source_seq": timestamp_ms, "source_seq_origin": "e2_indication", "timestamp_ms": timestamp_ms,
+                              "measurements": {"RRU.PrbTotDl": 30} if stream == "cell" else {"OAI.RNTI": 4660},
+                              **({} if stream == "cell" else {"kpm_ue_key": "gnb-ran:17", "rc_ue_id": 17, "rnti": 4660})})
+                return stream
+
+        native.sdk = SwigSdk()
+        self.assertTrue(native.qualify("ul-prb-cap-v1")["ok"])
+
+    def test_native_qualification_accepts_matching_frozen_measurement_post(self) -> None:
+        bridge_module = load_bridge_module()
+        native = bridge_module.NativeFlexric(Path("/unused/flexric.conf"))
+        styles = [
+            {"style_type": 1, "action_definition_format": 0, "indication_header_format": 0, "indication_message_format": 0},
+            {"style_type": 4, "action_definition_format": 3, "indication_header_format": 0, "indication_message_format": 2},
+        ]
+        native.measurement_post = {
+            "status": "FROZEN",
+            "freshness_window_ms": 10,
+            "cell_ue_max_skew_ms": 1,
+            "min_valid_paired_samples": 1,
+            "fingerprint": {
+                "node_id": "2:1:1:3584",
+                "kpm_styles": styles,
+                "cell_metrics": ["RRU.PrbTotDl"],
+                "ue_metrics": ["OAI.RNTI"],
+                "event_time_origin": "e2_indication_collectStartTime_ms",
+            },
+        }
+        native.discover = lambda: {
+            "eligible_node_count": 1,
+            "nodes": [{
+                "node_id": "2:1:1:3584",
+                "kpm_advertised": True,
+                "rc_advertised": True,
+                "kpm_styles": styles,
+            }],
+        }
+
+        class SwigSdk:
+            @staticmethod
+            def subscribe_kpm(_node_id, stream, callback):
+                callback(
+                    {
+                        "source_seq": 41,
+                        "source_seq_origin": "e2_indication",
+                        "timestamp_ms": 1000,
+                        "measurements": {"RRU.PrbTotDl": 30},
+                    }
+                    if stream == "cell"
+                    else {
+                        "source_seq": 42,
+                        "source_seq_origin": "e2_indication",
+                        "timestamp_ms": 1001,
+                        "measurements": {"OAI.RNTI": 4660},
+                        "kpm_ue_key": "gnb-ran:17",
+                        "rc_ue_id": 17,
+                        "rnti": 4660,
+                    }
+                )
+                return stream
+
+        native.sdk = SwigSdk()
+        result = native.qualify("ul-prb-cap-v1")
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["verified_target_binding"], {
+            "node_id": "2:1:1:3584",
+            "kpm_ue_key": "gnb-ran:17",
+            "rc_ue_id": 17,
+            "rnti": 4660,
+            "source_seq": 42,
+            "source_seq_origin": "e2_indication",
+        })
+        self.assertEqual(result["measurement_post"]["valid_paired_samples"], 1)
+        self.assertFalse(result["control_attempted"])
+
+    def test_native_qualification_refuses_frozen_policy_skew_at_threshold_plus_one(self) -> None:
+        bridge_module = load_bridge_module()
+        native = bridge_module.NativeFlexric(Path("/unused/flexric.conf"))
+        styles = [
+            {"style_type": 1, "action_definition_format": 0, "indication_header_format": 0, "indication_message_format": 0},
+            {"style_type": 4, "action_definition_format": 3, "indication_header_format": 0, "indication_message_format": 2},
+        ]
+        native.measurement_post = {
+            "status": "FROZEN", "freshness_window_ms": 10, "cell_ue_max_skew_ms": 1, "min_valid_paired_samples": 1,
+            "fingerprint": {
+                "node_id": "2:1:1:3584", "kpm_styles": styles, "cell_metrics": ["RRU.PrbTotDl"],
+                "ue_metrics": ["OAI.RNTI"], "event_time_origin": "e2_indication_collectStartTime_ms",
+            },
+        }
+        native.discover = lambda: {"eligible_node_count": 1, "nodes": [{
+            "node_id": "2:1:1:3584", "kpm_advertised": True, "rc_advertised": True, "kpm_styles": styles,
+        }]}
+
+        class SwigSdk:
+            @staticmethod
+            def subscribe_kpm(_node_id, stream, callback):
+                callback(
+                    {"source_seq": 1, "source_seq_origin": "e2_indication", "timestamp_ms": 1000, "measurements": {"RRU.PrbTotDl": 30}}
+                    if stream == "cell" else {
+                        "source_seq": 2, "source_seq_origin": "e2_indication", "timestamp_ms": 1002,
+                        "measurements": {"OAI.RNTI": 4660}, "kpm_ue_key": "gnb-ran:17", "rc_ue_id": 17, "rnti": 4660,
+                    }
+                )
+                return stream
+
+        native.sdk = SwigSdk()
+        result = native.qualify("ul-prb-cap-v1")
+        self.assertEqual(result["error"], "CELL_UE_SKEW_EXCEEDED")
+        self.assertEqual(result["failed_stage"], "alignment")
+        self.assertFalse(result["control_attempted"])
+
+    def test_native_qualification_refuses_frozen_policy_freshness_at_threshold_plus_one(self) -> None:
+        bridge_module = load_bridge_module()
+        timestamps = iter((100, 100, 102))
+        bridge_module.monotonic_ms = lambda: next(timestamps)
+        native = bridge_module.NativeFlexric(Path("/unused/flexric.conf"))
+        styles = [
+            {"style_type": 1, "action_definition_format": 0, "indication_header_format": 0, "indication_message_format": 0},
+            {"style_type": 4, "action_definition_format": 3, "indication_header_format": 0, "indication_message_format": 2},
+        ]
+        native.measurement_post = {
+            "status": "FROZEN", "freshness_window_ms": 1, "cell_ue_max_skew_ms": 1, "min_valid_paired_samples": 1,
+            "fingerprint": {"node_id": "2:1:1:3584", "kpm_styles": styles, "cell_metrics": ["RRU.PrbTotDl"],
+                            "ue_metrics": ["OAI.RNTI"], "event_time_origin": "e2_indication_collectStartTime_ms"},
+        }
+        native.discover = lambda: {"eligible_node_count": 1, "nodes": [{
+            "node_id": "2:1:1:3584", "kpm_advertised": True, "rc_advertised": True, "kpm_styles": styles,
+        }]}
+
+        class SwigSdk:
+            @staticmethod
+            def subscribe_kpm(_node_id, stream, callback):
+                callback(
+                    {"source_seq": 1, "source_seq_origin": "e2_indication", "timestamp_ms": 1000, "measurements": {"RRU.PrbTotDl": 30}}
+                    if stream == "cell" else {"source_seq": 2, "source_seq_origin": "e2_indication", "timestamp_ms": 1000,
+                                                "measurements": {"OAI.RNTI": 4660}, "kpm_ue_key": "gnb-ran:17", "rc_ue_id": 17, "rnti": 4660}
+                )
+                return stream
+
+        native.sdk = SwigSdk()
+        result = native.qualify("ul-prb-cap-v1")
+        self.assertEqual(result["error"], "KPM_FRESHNESS_EXPIRED")
+        self.assertEqual(result["failed_stage"], "freshness")
+        self.assertFalse(result["control_attempted"])
+
+    def test_native_qualification_refuses_frozen_policy_with_n_minus_one_pairs(self) -> None:
+        bridge_module = load_bridge_module()
+        bridge_module.KPM_OBSERVATION_TIMEOUT_SECONDS = 0.01
+        native = bridge_module.NativeFlexric(Path("/unused/flexric.conf"))
+        styles = [
+            {"style_type": 1, "action_definition_format": 0, "indication_header_format": 0, "indication_message_format": 0},
+            {"style_type": 4, "action_definition_format": 3, "indication_header_format": 0, "indication_message_format": 2},
+        ]
+        native.measurement_post = {
+            "status": "FROZEN", "freshness_window_ms": 10, "cell_ue_max_skew_ms": 1, "min_valid_paired_samples": 2,
+            "fingerprint": {"node_id": "2:1:1:3584", "kpm_styles": styles, "cell_metrics": ["RRU.PrbTotDl"],
+                            "ue_metrics": ["OAI.RNTI"], "event_time_origin": "e2_indication_collectStartTime_ms"},
+        }
+        native.discover = lambda: {"eligible_node_count": 1, "nodes": [{
+            "node_id": "2:1:1:3584", "kpm_advertised": True, "rc_advertised": True, "kpm_styles": styles,
+        }]}
+
+        class SwigSdk:
+            @staticmethod
+            def subscribe_kpm(_node_id, stream, callback):
+                callback(
+                    {"source_seq": 1, "source_seq_origin": "e2_indication", "timestamp_ms": 1000, "measurements": {"RRU.PrbTotDl": 30}}
+                    if stream == "cell" else {"source_seq": 2, "source_seq_origin": "e2_indication", "timestamp_ms": 1000,
+                                                "measurements": {"OAI.RNTI": 4660}, "kpm_ue_key": "gnb-ran:17", "rc_ue_id": 17, "rnti": 4660}
+                )
+                return stream
+
+        native.sdk = SwigSdk()
+        result = native.qualify("ul-prb-cap-v1")
+        self.assertEqual(result["error"], "VALID_PAIRED_SAMPLES_REQUIRED")
+        self.assertEqual(result["failed_stage"], "pairing")
+        self.assertFalse(result["control_attempted"])
+
+    def test_native_qualification_refuses_frozen_policy_with_unproven_cell_time_origin(self) -> None:
+        bridge_module = load_bridge_module()
+        native = bridge_module.NativeFlexric(Path("/unused/flexric.conf"))
+        styles = [
+            {"style_type": 1, "action_definition_format": 0, "indication_header_format": 0, "indication_message_format": 0},
+            {"style_type": 4, "action_definition_format": 3, "indication_header_format": 0, "indication_message_format": 2},
+        ]
+        native.measurement_post = {
+            "status": "FROZEN", "freshness_window_ms": 10, "cell_ue_max_skew_ms": 1, "min_valid_paired_samples": 1,
+            "fingerprint": {"node_id": "2:1:1:3584", "kpm_styles": styles, "cell_metrics": ["RRU.PrbTotDl"],
+                            "ue_metrics": ["OAI.RNTI"], "event_time_origin": "e2_indication_collectStartTime_ms"},
+        }
+        native.discover = lambda: {"eligible_node_count": 1, "nodes": [{
+            "node_id": "2:1:1:3584", "kpm_advertised": True, "rc_advertised": True, "kpm_styles": styles,
+        }]}
+
+        class SwigSdk:
+            @staticmethod
+            def subscribe_kpm(_node_id, stream, callback):
+                callback(
+                    {"source_seq": 1, "timestamp_ms": 1000, "measurements": {"RRU.PrbTotDl": 30}}
+                    if stream == "cell" else {"source_seq": 2, "source_seq_origin": "e2_indication", "timestamp_ms": 1000,
+                                                "measurements": {"OAI.RNTI": 4660}, "kpm_ue_key": "gnb-ran:17", "rc_ue_id": 17, "rnti": 4660}
+                )
+                return stream
+
+        native.sdk = SwigSdk()
+        result = native.qualify("ul-prb-cap-v1")
+        self.assertEqual(result["error"], "KPM_TIME_ORIGIN_UNPROVEN")
+        self.assertEqual(result["failed_stage"], "time-origin")
+        self.assertFalse(result["control_attempted"])
+
+    def test_native_qualification_refuses_changed_frozen_calibration_fingerprint(self) -> None:
+        bridge_module = load_bridge_module()
+        native = bridge_module.NativeFlexric(Path("/unused/flexric.conf"))
+        styles = [
+            {"style_type": 1, "action_definition_format": 0, "indication_header_format": 0, "indication_message_format": 0},
+            {"style_type": 4, "action_definition_format": 3, "indication_header_format": 0, "indication_message_format": 2},
+        ]
+        native.measurement_post = {
+            "status": "FROZEN", "freshness_window_ms": 10, "cell_ue_max_skew_ms": 1, "min_valid_paired_samples": 1,
+            "fingerprint": {"node_id": "2:1:1:3584", "kpm_styles": styles, "cell_metrics": ["RRU.PrbTotDl"],
+                            "ue_metrics": ["OAI.RNTI", "DRB.UEThpUl"], "event_time_origin": "e2_indication_collectStartTime_ms"},
+        }
+        native.discover = lambda: {"eligible_node_count": 1, "nodes": [{
+            "node_id": "2:1:1:3584", "kpm_advertised": True, "rc_advertised": True, "kpm_styles": styles,
+        }]}
+
+        class SwigSdk:
+            @staticmethod
+            def subscribe_kpm(_node_id, stream, callback):
+                callback(
+                    {"source_seq": 1, "source_seq_origin": "e2_indication", "timestamp_ms": 1000, "measurements": {"RRU.PrbTotDl": 30}}
+                    if stream == "cell" else {"source_seq": 2, "source_seq_origin": "e2_indication", "timestamp_ms": 1000,
+                                                "measurements": {"OAI.RNTI": 4660}, "kpm_ue_key": "gnb-ran:17", "rc_ue_id": 17, "rnti": 4660}
+                )
+                return stream
+
+        native.sdk = SwigSdk()
+        result = native.qualify("ul-prb-cap-v1")
+        self.assertEqual(result["error"], "CALIBRATION_FINGERPRINT_CHANGED")
+        self.assertEqual(result["failed_stage"], "fingerprint")
+        self.assertFalse(result["control_attempted"])
 
     def test_unsafe_journal_blocks_new_control_until_recovery(self) -> None:
         bridge_module = load_bridge_module()
@@ -1170,6 +1436,61 @@ class RedcapDrlXappCliTest(unittest.TestCase):
                 ):
                     failures.append("drl-runtime receives the workspace.lock.json source or bridge lock target")
             self.assertEqual(failures, [])
+
+    def test_freeze_measurement_post_requires_explicit_calibration_approval(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir) / "frozen-profile"
+            run_id = "calibration-run"
+            run_dir = workspace / "artifacts/runs" / run_id
+            run_dir.mkdir(parents=True)
+            lock = {
+                "schema_version": 1,
+                "name": workspace.name,
+                "release": "1.0.12",
+                "images": {"runtime": {"id": "sha256:runtime"}, "bridge": {"id": "sha256:bridge"}},
+                "profile": "ul-prb-cap-v1",
+                "measurement_post": {"status": "UNFROZEN"},
+            }
+            (workspace / "workspace.lock.json").write_text(json.dumps(lock), encoding="utf-8")
+            (workspace / "compose.overlay.json").write_text(json.dumps({}), encoding="utf-8")
+            manifest = {
+                "run_id": run_id,
+                "gates": {
+                    "discover-kpm": {"ok": True, "capabilities": {"nodes": [{
+                        "node_id": "2:1:1:3584",
+                        "kpm_styles": [{"style_type": 1, "action_definition_format": 0, "indication_header_format": 0,
+                                        "indication_message_format": 0}],
+                    }]}},
+                    "qualify-kpm": {
+                        "node_id": "2:1:1:3584",
+                        "cell": [{"source_seq_origin": "e2_indication", "timestamp_ms": 1000,
+                                  "measurements": {"RRU.PrbTotDl": 30}}],
+                        "ue": [{"source_seq_origin": "e2_indication", "timestamp_ms": 1001,
+                                "measurements": {"OAI.RNTI": 4660}, "kpm_ue_key": "gnb-ran:17",
+                                "rc_ue_id": 17, "rnti": 4660}],
+                        "measurement_post": {"event_time_origin": "e2_indication_collectStartTime_ms",
+                                             "valid_paired_samples": 1, "max_cell_ue_skew_ms": 1,
+                                             "max_freshness_age_ms": 1},
+                    },
+                },
+            }
+            (run_dir / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+            result = subprocess.run(
+                [
+                    str(CLI), "freeze-measurement-post", "--workspace", str(workspace), "--calibration-run", run_id,
+                    "--approve-calibration", run_id, "--freshness-window-ms", "5", "--cell-ue-max-skew-ms", "1",
+                    "--min-valid-paired-samples", "1",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            frozen = json.loads((workspace / "workspace.lock.json").read_text(encoding="utf-8"))["measurement_post"]
+            self.assertEqual(frozen["status"], "FROZEN")
+            self.assertEqual(frozen["approved_calibration_run"], run_id)
+            self.assertEqual(frozen["fingerprint"]["release"], "1.0.12")
+            self.assertEqual(frozen["fingerprint"]["images"], lock["images"])
 
     def test_init_refuses_compose_without_flexric_config_mount(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

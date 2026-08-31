@@ -20,7 +20,53 @@ RC_RAN_FUNCTION_ID = 3
 KPM_OBSERVATION_TIMEOUT_SECONDS = 2.0
 
 
-def validate_workspace_lock(path: Path, profile: str, workspace_id: str) -> None:
+def monotonic_ms() -> int:
+    return time.monotonic_ns() // 1_000_000
+
+
+def canonical_kpm_styles(styles: object) -> list[dict]:
+    if not isinstance(styles, list):
+        return []
+    return sorted(
+        (style for style in styles if isinstance(style, dict)),
+        key=lambda style: json.dumps(style, sort_keys=True),
+    )
+
+
+def pair_kpm_samples(samples: dict) -> list[tuple[dict, dict, int]]:
+    """Pair cell and UE observations by E2 indication event time, never callback order."""
+    cell = sorted(samples["cell"], key=lambda sample: sample["timestamp_ms"])
+    ue = sorted(samples["ue"], key=lambda sample: sample["timestamp_ms"])
+    return [(cell_sample, ue_sample, abs(cell_sample["timestamp_ms"] - ue_sample["timestamp_ms"]))
+            for cell_sample, ue_sample in zip(cell, ue)]
+
+
+def calibration_summary(pairs: list[tuple[dict, dict, int]]) -> dict:
+    valid = [
+        (cell, ue, skew_ms)
+        for cell, ue, skew_ms in pairs
+        if (
+            cell.get("source_seq_origin") == "e2_indication"
+            and ue.get("source_seq_origin") == "e2_indication"
+            and cell.get("timestamp_ms", 0) > 0
+            and ue.get("timestamp_ms", 0) > 0
+        )
+    ]
+    if not valid:
+        return {"event_time_origin": None, "valid_paired_samples": 0}
+    evaluated_at_ms = monotonic_ms()
+    return {
+        "event_time_origin": "e2_indication_collectStartTime_ms",
+        "valid_paired_samples": len(valid),
+        "max_cell_ue_skew_ms": max(skew_ms for _cell, _ue, skew_ms in valid),
+        "max_freshness_age_ms": max(
+            evaluated_at_ms - min(cell["bridge_monotonic_receipt_ms"], ue["bridge_monotonic_receipt_ms"])
+            for cell, ue, _skew_ms in valid
+        ),
+    }
+
+
+def validate_workspace_lock(path: Path, profile: str, workspace_id: str) -> dict:
     try:
         lock = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
@@ -34,8 +80,17 @@ def validate_workspace_lock(path: Path, profile: str, workspace_id: str) -> None
         raise ValueError("WORKSPACE_LOCK_MISMATCH")
     if profile == "ul-prb-cap-v1":
         measurement_post = lock.get("measurement_post")
-        if not isinstance(measurement_post, dict) or measurement_post.get("status") != "UNFROZEN":
+        if not isinstance(measurement_post, dict) or measurement_post.get("status") not in {"UNFROZEN", "FROZEN"}:
             raise ValueError("MEASUREMENT_POST_POLICY_UNSUPPORTED")
+        if measurement_post["status"] == "FROZEN":
+            fingerprint = measurement_post.get("fingerprint")
+            if (
+                not isinstance(fingerprint, dict)
+                or fingerprint.get("release") != lock.get("release")
+                or fingerprint.get("images") != lock.get("images")
+            ):
+                raise ValueError("CALIBRATION_FINGERPRINT_CHANGED")
+    return lock
 
 
 class NativeFlexric:
@@ -45,6 +100,7 @@ class NativeFlexric:
         self.initialized = False
         self.kpm_subscriptions = {}
         self.kpm_callbacks = {}
+        self.measurement_post = {"status": "UNFROZEN"}
 
     def load(self):
         if self.sdk is None:
@@ -206,9 +262,15 @@ class NativeFlexric:
                             projected[field] = int(getattr(sample, field))
                     if hasattr(sample, "source_seq_origin"):
                         projected["source_seq_origin"] = str(sample.source_seq_origin)
-                projected["bridge_monotonic_receipt_ms"] = time.monotonic_ns() // 1_000_000
+                projected["bridge_monotonic_receipt_ms"] = monotonic_ms()
                 samples[stream].append(projected)
-                if samples["cell"] and samples["ue"]:
+                minimum_samples = self.measurement_post.get("min_valid_paired_samples", 1)
+                if (
+                    isinstance(minimum_samples, int)
+                    and minimum_samples > 0
+                    and len(samples["cell"]) >= minimum_samples
+                    and len(samples["ue"]) >= minimum_samples
+                ):
                     observation_ready.set()
             except (AttributeError, KeyError, TypeError, ValueError):
                 callback_error.append(stream)
@@ -298,13 +360,132 @@ class NativeFlexric:
                 "ue": samples["ue"],
                 "control_attempted": False,
             }
+        pairs = pair_kpm_samples(samples)
+        calibration = calibration_summary(pairs)
+        policy = self.measurement_post
+        if not isinstance(policy, dict) or policy.get("status") != "FROZEN":
+            return {
+                "ok": False,
+                "error": "MEASUREMENT_POST_UNFROZEN",
+                "failed_stage": "qualification",
+                "node_id": node["node_id"],
+                "cell": samples["cell"],
+                "ue": samples["ue"],
+                "measurement_post": calibration,
+                "control_attempted": False,
+            }
+        try:
+            freshness_window_ms = int(policy["freshness_window_ms"])
+            max_skew_ms = int(policy["cell_ue_max_skew_ms"])
+            minimum_samples = int(policy["min_valid_paired_samples"])
+            expected_fingerprint = policy["fingerprint"]
+        except (KeyError, TypeError, ValueError):
+            return {
+                "ok": False,
+                "error": "MEASUREMENT_POST_POLICY_INVALID",
+                "failed_stage": "qualification",
+                "node_id": node["node_id"],
+                "cell": samples["cell"],
+                "ue": samples["ue"],
+                "control_attempted": False,
+            }
+        if freshness_window_ms < 0 or max_skew_ms < 0 or minimum_samples < 1 or not isinstance(expected_fingerprint, dict):
+            return {
+                "ok": False,
+                "error": "MEASUREMENT_POST_POLICY_INVALID",
+                "failed_stage": "qualification",
+                "node_id": node["node_id"],
+                "cell": samples["cell"],
+                "ue": samples["ue"],
+                "control_attempted": False,
+            }
+        if not all(
+            sample.get("source_seq_origin") == "e2_indication" and sample.get("timestamp_ms", 0) > 0
+            for stream in ("cell", "ue")
+            for sample in samples[stream]
+        ):
+            return {
+                "ok": False,
+                "error": "KPM_TIME_ORIGIN_UNPROVEN",
+                "failed_stage": "time-origin",
+                "node_id": node["node_id"],
+                "cell": samples["cell"],
+                "ue": samples["ue"],
+                "control_attempted": False,
+            }
+        actual_fingerprint = {
+            "node_id": node["node_id"],
+            "kpm_styles": canonical_kpm_styles(node["kpm_styles"]),
+            "cell_metrics": sorted({name for sample in samples["cell"] for name in sample["measurements"]}),
+            "ue_metrics": sorted({name for sample in samples["ue"] for name in sample["measurements"]}),
+            "event_time_origin": "e2_indication_collectStartTime_ms",
+        }
+        if actual_fingerprint != {
+            "node_id": expected_fingerprint.get("node_id"),
+            "kpm_styles": canonical_kpm_styles(expected_fingerprint.get("kpm_styles")),
+            "cell_metrics": expected_fingerprint.get("cell_metrics"),
+            "ue_metrics": expected_fingerprint.get("ue_metrics"),
+            "event_time_origin": expected_fingerprint.get("event_time_origin"),
+        }:
+            return {
+                "ok": False,
+                "error": "CALIBRATION_FINGERPRINT_CHANGED",
+                "failed_stage": "fingerprint",
+                "node_id": node["node_id"],
+                "cell": samples["cell"],
+                "ue": samples["ue"],
+                "control_attempted": False,
+            }
+        if any(skew_ms > max_skew_ms for _cell, _ue, skew_ms in pairs):
+            return {
+                "ok": False,
+                "error": "CELL_UE_SKEW_EXCEEDED",
+                "failed_stage": "alignment",
+                "node_id": node["node_id"],
+                "cell": samples["cell"],
+                "ue": samples["ue"],
+                "control_attempted": False,
+            }
+        if len(pairs) < minimum_samples:
+            return {
+                "ok": False,
+                "error": "VALID_PAIRED_SAMPLES_REQUIRED",
+                "failed_stage": "pairing",
+                "node_id": node["node_id"],
+                "cell": samples["cell"],
+                "ue": samples["ue"],
+                "control_attempted": False,
+            }
+        freshness_age_ms = calibration["max_freshness_age_ms"]
+        if freshness_age_ms > freshness_window_ms:
+            return {
+                "ok": False,
+                "error": "KPM_FRESHNESS_EXPIRED",
+                "failed_stage": "freshness",
+                "node_id": node["node_id"],
+                "cell": samples["cell"],
+                "ue": samples["ue"],
+                "control_attempted": False,
+            }
+        selected_ue = pairs[0][1]
         return {
-            "ok": False,
-            "error": "MEASUREMENT_POST_UNFROZEN",
-            "failed_stage": "qualification",
+            "ok": True,
             "node_id": node["node_id"],
             "cell": samples["cell"],
             "ue": samples["ue"],
+            "verified_target_binding": {
+                "node_id": node["node_id"],
+                "kpm_ue_key": selected_ue["kpm_ue_key"],
+                "rc_ue_id": selected_ue["rc_ue_id"],
+                "rnti": selected_ue["rnti"],
+                "source_seq": selected_ue["source_seq"],
+                "source_seq_origin": selected_ue["source_seq_origin"],
+            },
+            "measurement_post": {
+                "freshness_age_ms": freshness_age_ms,
+                "max_cell_ue_skew_ms": max(skew_ms for _cell, _ue, skew_ms in pairs),
+                "valid_paired_samples": len(pairs),
+            },
             "control_attempted": False,
         }
 
@@ -315,6 +496,7 @@ class Bridge:
         profile: str,
         native_control=None,
         native=None,
+        measurement_post=None,
         qualified_binding=None,
         lease_dir: Path = Path("/run/redcap-drl/leases"),
         workspace_id: str = "workspace",
@@ -323,6 +505,9 @@ class Bridge:
         self.profile = profile
         self.native_control = native_control
         self.native = native
+        self.measurement_post = measurement_post or {"status": "UNFROZEN"}
+        if self.native is not None and hasattr(self.native, "measurement_post"):
+            self.native.measurement_post = self.measurement_post
         self.verified_target_binding = qualified_binding
         self.lease_dir = lease_dir
         self.workspace_id = workspace_id
@@ -519,7 +704,19 @@ class Bridge:
         if mode == "control-once":
             if self.profile == "none":
                 return {"ok": False, "error": "PROFILE_FORBIDS_CONTROL", "request_id": request["request_id"]}
-            if self._binding_action_fields() is None:
+            if self.native is not None and hasattr(self.native, "qualify"):
+                try:
+                    qualification = self.native.qualify(self.profile)
+                except (ImportError, RuntimeError):
+                    qualification = {"ok": False, "error": "KPM_QUALIFICATION_REQUIRED"}
+                if not qualification.get("ok"):
+                    return {
+                        "ok": False,
+                        "error": qualification.get("error", "KPM_QUALIFICATION_REQUIRED"),
+                        "request_id": request["request_id"],
+                    }
+                self.verified_target_binding = qualification["verified_target_binding"]
+            elif self._binding_action_fields() is None:
                 return {"ok": False, "error": "TARGET_BINDING_REQUIRED", "request_id": request["request_id"]}
             if self.recovery_required():
                 return {"ok": False, "error": "RECOVERY_REQUIRED", "request_id": request["request_id"]}
@@ -613,8 +810,13 @@ class Bridge:
         return {"ok": False, "error": "OPERATION_NOT_READY", "request_id": request["request_id"]}
 
 
-def serve(socket_path: Path, profile: str, flexric_config: Path, workspace_id: str) -> None:
-    bridge = Bridge(profile, native=NativeFlexric(flexric_config), workspace_id=workspace_id)
+def serve(socket_path: Path, profile: str, flexric_config: Path, workspace_id: str, measurement_post: dict) -> None:
+    bridge = Bridge(
+        profile,
+        native=NativeFlexric(flexric_config),
+        measurement_post=measurement_post,
+        workspace_id=workspace_id,
+    )
     socket_path.parent.mkdir(parents=True, exist_ok=True)
     socket_path.unlink(missing_ok=True)
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as server:
@@ -642,10 +844,10 @@ def main() -> None:
     parser.add_argument("--workspace-lock", type=Path, required=True)
     args = parser.parse_args()
     try:
-        validate_workspace_lock(args.workspace_lock, args.profile, args.workspace_id)
+        lock = validate_workspace_lock(args.workspace_lock, args.profile, args.workspace_id)
     except ValueError as error:
         parser.error(str(error))
-    serve(args.socket, args.profile, args.flexric_config, args.workspace_id)
+    serve(args.socket, args.profile, args.flexric_config, args.workspace_id, lock.get("measurement_post", {"status": "UNFROZEN"}))
 
 
 if __name__ == "__main__":
