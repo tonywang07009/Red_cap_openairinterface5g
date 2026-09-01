@@ -4,6 +4,7 @@
 
 import argparse
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -18,6 +19,8 @@ PROTOCOL_VERSION = 1
 KPM_RAN_FUNCTION_ID = 2
 RC_RAN_FUNCTION_ID = 3
 KPM_OBSERVATION_TIMEOUT_SECONDS = 2.0
+KPM_CADENCE_MIN_CALLBACKS = 3
+KPM_SAMPLE_BUFFER_LIMIT = 64
 APPLY_PROOF_WINDOW_MS = 1_000
 
 
@@ -111,6 +114,51 @@ def calibration_summary(pairs: list[tuple[dict, dict, int]]) -> dict:
     }
 
 
+def qualified_model_observation(qualification: object) -> dict:
+    """Build the profile's model input from event-time-qualified KPM pairs."""
+    if not isinstance(qualification, dict):
+        return {"ok": False, "error": "MODEL_OBSERVATION_REQUIRED"}
+    cell = qualification.get("cell")
+    ue = qualification.get("ue")
+    if not isinstance(cell, list) or not isinstance(ue, list):
+        return {"ok": False, "error": "MODEL_OBSERVATION_REQUIRED"}
+    values = []
+    try:
+        for cell_sample, ue_sample, _skew_ms in pair_kpm_samples({"cell": cell, "ue": ue}):
+            if (
+                cell_sample.get("source_seq_origin") != "e2_indication"
+                or ue_sample.get("source_seq_origin") != "e2_indication"
+                or int(cell_sample["timestamp_ms"]) <= 0
+                or int(ue_sample["timestamp_ms"]) <= 0
+            ):
+                continue
+            value = cell_sample["measurements"]["RRU.PrbTotUl"]
+            if isinstance(value, bool):
+                continue
+            value = float(value)
+            if 0 <= value <= 100 and math.isfinite(value):
+                values.append(value)
+    except (KeyError, TypeError, ValueError, OverflowError):
+        return {"ok": False, "error": "MODEL_OBSERVATION_REQUIRED"}
+    if len(values) < 30:
+        return {"ok": False, "error": "MODEL_OBSERVATION_REQUIRED"}
+    values = values[-30:]
+    return {
+        "ok": True,
+        "observation": {
+            "schema_version": 1,
+            "profile_id": "ul-prb-cap-v1",
+            "sample_count": 30,
+            "rru_prb_tot_ul_pct": {
+                "latest": values[-1],
+                "mean": sum(values) / len(values),
+                "min": min(values),
+                "max": max(values),
+            },
+        },
+    }
+
+
 def validate_workspace_lock(path: Path, profile: str, workspace_id: str) -> dict:
     try:
         lock = json.loads(path.read_text(encoding="utf-8"))
@@ -145,6 +193,11 @@ class NativeFlexric:
         self.initialized = False
         self.kpm_subscriptions = {}
         self.kpm_callbacks = {}
+        self.kpm_node_id = None
+        self.kpm_samples = {"cell": [], "ue": []}
+        self.kpm_callback_error = []
+        self.kpm_cadence = {}
+        self.kpm_condition = threading.Condition()
         self.measurement_post = {"status": "UNFROZEN"}
 
     def load(self):
@@ -265,7 +318,11 @@ class NativeFlexric:
         remaining_seconds = (deadline_ms - monotonic_ms()) / 1_000
         if not marker["gnb_apply_marker"] or remaining_seconds <= 0:
             return {**outcome, **marker, "later_kpm": False}
-        qualification = self.qualify(profile, observation_timeout_seconds=remaining_seconds)
+        qualification = self.qualify(
+            profile,
+            observation_timeout_seconds=remaining_seconds,
+            received_after_ms=sent_at_ms,
+        )
         binding = qualification.get("verified_target_binding") if isinstance(qualification, dict) else None
         later_kpm = isinstance(qualification, dict) and bool(
             qualification.get("ok")
@@ -275,28 +332,25 @@ class NativeFlexric:
         )
         return {**outcome, **marker, "later_kpm": later_kpm}
 
-    def qualify(self, profile: str, observation_timeout_seconds: float | None = None) -> dict:
+    def _eligible_kpm_node(self, profile: str) -> tuple[dict | None, dict | None]:
         if profile != "ul-prb-cap-v1":
-            return {"ok": False, "error": "PROFILE_FORBIDS_LIVE_KPM", "control_attempted": False}
+            return None, {"ok": False, "error": "PROFILE_FORBIDS_LIVE_KPM", "control_attempted": False}
         capabilities = self.discover()
         eligible = [node for node in capabilities["nodes"] if node["kpm_advertised"] and node["rc_advertised"]]
         if len(eligible) != 1:
-            return {
-                "ok": False,
-                "error": "EXACTLY_ONE_ELIGIBLE_NODE_REQUIRED",
-                "eligible_node_count": len(eligible),
-                "control_attempted": False,
-            }
+            return None, {"ok": False, "error": "EXACTLY_ONE_ELIGIBLE_NODE_REQUIRED",
+                          "eligible_node_count": len(eligible), "control_attempted": False}
         node = eligible[0]
         styles = node["kpm_styles"]
         if not isinstance(styles, list):
-            return {"ok": False, "error": "KPM_STYLE_UNVERIFIED", "node_id": node["node_id"], "control_attempted": False}
+            return None, {"ok": False, "error": "KPM_STYLE_UNVERIFIED", "node_id": node["node_id"],
+                          "control_attempted": False}
         has_cell = any(style["action_definition_format"] == 0 and style["indication_message_format"] == 0 for style in styles)
         has_ue = any(style["action_definition_format"] == 3 and style["indication_message_format"] == 2 for style in styles)
-        if not has_cell:
-            return {
+        if not has_cell or not has_ue:
+            return None, {
                 "ok": False,
-                "error": "CELL_KPM_STREAM_REQUIRED",
+                "error": "CELL_KPM_STREAM_REQUIRED" if not has_cell else "UE_KPM_STREAM_REQUIRED",
                 "failed_stage": "capability",
                 "node_id": node["node_id"],
                 "available_kpm_styles": styles,
@@ -304,29 +358,9 @@ class NativeFlexric:
                 "ue": [],
                 "control_attempted": False,
             }
-        if not has_ue:
-            return {
-                "ok": False,
-                "error": "UE_KPM_STREAM_REQUIRED",
-                "failed_stage": "capability",
-                "node_id": node["node_id"],
-                "available_kpm_styles": styles,
-                "cell": [],
-                "ue": [],
-                "control_attempted": False,
-            }
-        sdk = self.load()
-        if not hasattr(sdk, "subscribe_kpm"):
-            return {
-                "ok": False,
-                "error": "KPM_SUBSCRIPTION_PROVIDER_REQUIRED",
-                "failed_stage": "subscription",
-                "node_id": node["node_id"],
-                "cell": [],
-                "ue": [],
-                "control_attempted": False,
-            }
+        return node, None
 
+    def _clear_kpm_subscriptions(self, sdk) -> None:
         for handle in self.kpm_subscriptions.values():
             if hasattr(sdk, "unsubscribe_kpm"):
                 try:
@@ -335,241 +369,234 @@ class NativeFlexric:
                     pass
         self.kpm_subscriptions = {}
         self.kpm_callbacks = {}
-        samples = {"cell": [], "ue": []}
-        callback_error = []
-        observation_ready = threading.Event()
+        self.kpm_node_id = None
 
-        def collect(stream, sample):
-            try:
-                if isinstance(sample, dict):
-                    projected = dict(sample)
-                    projected["source_seq"] = int(projected["source_seq"])
-                    projected["timestamp_ms"] = int(projected["timestamp_ms"])
-                    projected["measurements"] = dict(projected["measurements"])
-                    if stream == "ue":
-                        projected["kpm_ue_key"] = str(projected["kpm_ue_key"])
-                else:
-                    projected = {
-                        "source_seq": int(sample.source_seq),
-                        "timestamp_ms": int(sample.timestamp_ms),
-                        "measurements": {
-                            str(item.name): (float(item.value) if item.has_value else None)
-                            for item in sample.measurements
-                        },
-                    }
-                    if stream == "ue":
-                        projected["kpm_ue_key"] = str(sample.kpm_ue_key)
-                    for field in ("rc_ue_id", "rnti"):
-                        if hasattr(sample, field):
-                            projected[field] = int(getattr(sample, field))
-                    if hasattr(sample, "source_seq_origin"):
-                        projected["source_seq_origin"] = str(sample.source_seq_origin)
-                projected["bridge_monotonic_receipt_ms"] = monotonic_ms()
-                samples[stream].append(projected)
-                minimum_samples = self.measurement_post.get("min_valid_paired_samples", 1)
-                if (
-                    isinstance(minimum_samples, int)
-                    and minimum_samples > 0
-                    and len(samples["cell"]) >= minimum_samples
-                    and len(samples["ue"]) >= minimum_samples
-                ):
-                    observation_ready.set()
-            except (AttributeError, KeyError, TypeError, ValueError):
-                callback_error.append(stream)
-                observation_ready.set()
+    def _record_kpm_sample(self, stream: str, sample: object) -> None:
+        try:
+            if isinstance(sample, dict):
+                projected = dict(sample)
+                projected["source_seq"] = int(projected["source_seq"])
+                projected["timestamp_ms"] = int(projected["timestamp_ms"])
+                projected["measurements"] = dict(projected["measurements"])
+                if stream == "ue":
+                    projected["kpm_ue_key"] = str(projected["kpm_ue_key"])
+            else:
+                projected = {
+                    "source_seq": int(sample.source_seq),
+                    "timestamp_ms": int(sample.timestamp_ms),
+                    "measurements": {
+                        str(item.name): (float(item.value) if item.has_value else None)
+                        for item in sample.measurements
+                    },
+                }
+                if stream == "ue":
+                    projected["kpm_ue_key"] = str(sample.kpm_ue_key)
+                for field in ("rc_ue_id", "rnti"):
+                    if hasattr(sample, field):
+                        projected[field] = int(getattr(sample, field))
+                if hasattr(sample, "source_seq_origin"):
+                    projected["source_seq_origin"] = str(sample.source_seq_origin)
+            projected["bridge_monotonic_receipt_ms"] = monotonic_ms()
+        except (AttributeError, KeyError, TypeError, ValueError):
+            with self.kpm_condition:
+                self.kpm_callback_error.append(stream)
+                self.kpm_condition.notify_all()
+            return
+        with self.kpm_condition:
+            cadence = self.kpm_cadence[stream]
+            received_at_ms = projected["bridge_monotonic_receipt_ms"]
+            if cadence["first_callback_monotonic_ms"] is None:
+                cadence["first_callback_monotonic_ms"] = received_at_ms
+            cadence["callback_count"] += 1
+            cadence["latest_ric_indication_sn"] = (
+                projected["source_seq"] if projected.get("source_seq_origin") == "e2_indication" else None
+            )
+            cadence["latest_event_time_ms"] = projected["timestamp_ms"]
+            self.kpm_samples[stream].append(projected)
+            del self.kpm_samples[stream][:-KPM_SAMPLE_BUFFER_LIMIT]
+            self.kpm_condition.notify_all()
 
+    def _ensure_kpm_subscriptions(self, node: dict) -> tuple[bool, dict | None]:
+        sdk = self.load()
+        if not hasattr(sdk, "subscribe_kpm"):
+            return False, {"ok": False, "error": "KPM_SUBSCRIPTION_PROVIDER_REQUIRED", "failed_stage": "subscription",
+                           "node_id": node["node_id"], "cell": [], "ue": [], "control_attempted": False}
+        if self.kpm_node_id == node["node_id"] and set(self.kpm_subscriptions) == {"cell", "ue"}:
+            return False, None
+        self._clear_kpm_subscriptions(sdk)
+        with self.kpm_condition:
+            self.kpm_node_id = node["node_id"]
+            self.kpm_samples = {"cell": [], "ue": []}
+            self.kpm_callback_error = []
+            self.kpm_cadence = {
+                stream: {
+                    "subscription_accepted_monotonic_ms": None,
+                    "first_callback_monotonic_ms": None,
+                    "callback_count": 0,
+                    "latest_ric_indication_sn": None,
+                    "latest_event_time_ms": None,
+                }
+                for stream in ("cell", "ue")
+            }
         try:
             for stream in ("cell", "ue"):
                 if hasattr(sdk, "kpm_cb"):
+                    native = self
+
                     class Callback(sdk.kpm_cb):
                         def handle(callback_self, sample, stream_name=stream):
-                            collect(stream_name, sample)
+                            native._record_kpm_sample(stream_name, sample)
 
                     callback = Callback()
                 else:
-                    callback = lambda sample, stream=stream: collect(stream, sample)
-                handle = sdk.subscribe_kpm(
-                    node["node_id"], stream, callback
-                )
+                    callback = lambda sample, stream_name=stream: self._record_kpm_sample(stream_name, sample)
+                handle = sdk.subscribe_kpm(node["node_id"], stream, callback)
                 if not handle:
                     raise RuntimeError("KPM_SUBSCRIPTION_PROVIDER_REQUIRED")
-                self.kpm_subscriptions[stream] = handle
-                self.kpm_callbacks[stream] = callback
+                with self.kpm_condition:
+                    self.kpm_subscriptions[stream] = handle
+                    self.kpm_callbacks[stream] = callback
+                    self.kpm_cadence[stream]["subscription_accepted_monotonic_ms"] = time.monotonic_ns() // 1_000_000
         except (AttributeError, RuntimeError, TypeError):
-            for handle in self.kpm_subscriptions.values():
-                if hasattr(sdk, "unsubscribe_kpm"):
-                    try:
-                        sdk.unsubscribe_kpm(handle)
-                    except (RuntimeError, TypeError):
-                        pass
-            self.kpm_subscriptions = {}
-            self.kpm_callbacks = {}
-            return {
-                "ok": False,
-                "error": "KPM_SUBSCRIPTION_PROVIDER_REQUIRED",
-                "failed_stage": "subscription",
-                "node_id": node["node_id"],
-                "cell": [],
-                "ue": [],
-                "control_attempted": False,
-            }
+            self._clear_kpm_subscriptions(sdk)
+            return False, {"ok": False, "error": "KPM_SUBSCRIPTION_PROVIDER_REQUIRED", "failed_stage": "subscription",
+                           "node_id": node["node_id"], "cell": [], "ue": [], "control_attempted": False}
+        return True, None
 
-        timeout_seconds = KPM_OBSERVATION_TIMEOUT_SECONDS if observation_timeout_seconds is None else observation_timeout_seconds
-        observation_ready.wait(max(0.0, min(float(timeout_seconds), KPM_OBSERVATION_TIMEOUT_SECONDS)))
+    def _wait_for_kpm_samples(self, minimum_samples: int, received_after_ms: int | None, timeout_seconds: float) -> tuple[dict, list[str]]:
+        deadline = time.monotonic() + max(0.0, min(float(timeout_seconds), KPM_OBSERVATION_TIMEOUT_SECONDS))
+        with self.kpm_condition:
+            while True:
+                samples = {
+                    stream: [
+                        sample for sample in self.kpm_samples[stream]
+                        if received_after_ms is None or sample["bridge_monotonic_receipt_ms"] > received_after_ms
+                    ]
+                    for stream in ("cell", "ue")
+                }
+                if self.kpm_callback_error or all(len(samples[stream]) >= minimum_samples for stream in samples):
+                    return samples, list(self.kpm_callback_error)
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return samples, list(self.kpm_callback_error)
+                self.kpm_condition.wait(remaining)
 
+    def _cadence_snapshot(self) -> dict:
+        with self.kpm_condition:
+            snapshot = {}
+            for stream, cadence in self.kpm_cadence.items():
+                accepted = cadence["subscription_accepted_monotonic_ms"]
+                first = cadence["first_callback_monotonic_ms"]
+                snapshot[stream] = {
+                    "subscription_accepted_monotonic_ms": accepted,
+                    "first_callback_latency_ms": None if accepted is None or first is None else max(0, first - accepted),
+                    "callback_count": cadence["callback_count"],
+                    "latest_ric_indication_sn": cadence["latest_ric_indication_sn"],
+                    "latest_event_time_ms": cadence["latest_event_time_ms"],
+                }
+            return snapshot
+
+    def observe(self, profile: str) -> dict:
+        node, failure = self._eligible_kpm_node(profile)
+        if failure is not None:
+            return failure
+        created, failure = self._ensure_kpm_subscriptions(node)
+        if failure is not None:
+            return failure
+        received_after_ms = None if created else monotonic_ms()
+        samples, callback_error = self._wait_for_kpm_samples(
+            KPM_CADENCE_MIN_CALLBACKS,
+            received_after_ms,
+            KPM_OBSERVATION_TIMEOUT_SECONDS,
+        )
+        cadence = self._cadence_snapshot()
         if callback_error:
-            return {
-                "ok": False,
-                "error": "KPM_CALLBACK_MALFORMED",
-                "failed_stage": "callback",
-                "node_id": node["node_id"],
-                "cell": [],
-                "ue": [],
-                "control_attempted": False,
-            }
+            return {"ok": False, "error": "KPM_CALLBACK_MALFORMED", "failed_stage": "callback", "node_id": node["node_id"],
+                    "cell": samples["cell"], "ue": samples["ue"], "cadence": cadence, "control_attempted": False}
+        if not all(len(samples[stream]) >= KPM_CADENCE_MIN_CALLBACKS for stream in samples):
+            return {"ok": False, "error": "KPM_STREAM_EMPTY", "failed_stage": "observation", "node_id": node["node_id"],
+                    "cell": samples["cell"], "ue": samples["ue"], "cadence": cadence, "control_attempted": False}
+        return {"ok": True, "node_id": node["node_id"], "cell": samples["cell"], "ue": samples["ue"],
+                "cadence": cadence, "control_attempted": False}
+
+    def qualify(
+        self,
+        profile: str,
+        observation_timeout_seconds: float | None = None,
+        received_after_ms: int | None = None,
+    ) -> dict:
+        node, failure = self._eligible_kpm_node(profile)
+        if failure is not None:
+            return failure
+        created, failure = self._ensure_kpm_subscriptions(node)
+        if failure is not None:
+            return failure
+        policy = self.measurement_post
+        minimum_samples = policy.get("min_valid_paired_samples", 1) if isinstance(policy, dict) else 1
+        if isinstance(minimum_samples, bool) or not isinstance(minimum_samples, int) or minimum_samples < 1:
+            minimum_samples = 1
+        if received_after_ms is None and not created:
+            received_after_ms = monotonic_ms()
+        timeout_seconds = KPM_OBSERVATION_TIMEOUT_SECONDS if observation_timeout_seconds is None else observation_timeout_seconds
+        samples, callback_error = self._wait_for_kpm_samples(minimum_samples, received_after_ms, timeout_seconds)
+        if callback_error:
+            return {"ok": False, "error": "KPM_CALLBACK_MALFORMED", "failed_stage": "callback", "node_id": node["node_id"],
+                    "cell": [], "ue": [], "control_attempted": False}
         if not samples["cell"] or not samples["ue"]:
-            return {
-                "ok": False,
-                "error": "KPM_STREAM_EMPTY",
-                "failed_stage": "observation",
-                "node_id": node["node_id"],
-                "cell": samples["cell"],
-                "ue": samples["ue"],
-                "control_attempted": False,
-            }
-        if not all(
-            sample.get("kpm_ue_key") and sample.get("rc_ue_id") and sample.get("rnti")
-            for sample in samples["ue"]
-        ):
-            return {
-                "ok": False,
-                "error": "TARGET_BINDING_REQUIRED",
-                "failed_stage": "binding",
-                "node_id": node["node_id"],
-                "cell": samples["cell"],
-                "ue": samples["ue"],
-                "control_attempted": False,
-            }
-        if not all(
-            sample["source_seq"] > 0 and sample.get("source_seq_origin") == "e2_indication"
-            for sample in samples["ue"]
-        ):
-            return {
-                "ok": False,
-                "error": "SOURCE_SEQUENCE_UNVERIFIED",
-                "failed_stage": "binding",
-                "node_id": node["node_id"],
-                "cell": samples["cell"],
-                "ue": samples["ue"],
-                "control_attempted": False,
-            }
+            return {"ok": False, "error": "KPM_STREAM_EMPTY", "failed_stage": "observation", "node_id": node["node_id"],
+                    "cell": samples["cell"], "ue": samples["ue"], "control_attempted": False}
+        if not all(sample.get("kpm_ue_key") and sample.get("rc_ue_id") and sample.get("rnti") for sample in samples["ue"]):
+            return {"ok": False, "error": "TARGET_BINDING_REQUIRED", "failed_stage": "binding", "node_id": node["node_id"],
+                    "cell": samples["cell"], "ue": samples["ue"], "control_attempted": False}
+        if not all(sample["source_seq"] > 0 and sample.get("source_seq_origin") == "e2_indication" for sample in samples["ue"]):
+            return {"ok": False, "error": "SOURCE_SEQUENCE_UNVERIFIED", "failed_stage": "binding", "node_id": node["node_id"],
+                    "cell": samples["cell"], "ue": samples["ue"], "control_attempted": False}
         pairs = pair_kpm_samples(samples)
         calibration = calibration_summary(pairs)
-        policy = self.measurement_post
         if not isinstance(policy, dict) or policy.get("status") != "FROZEN":
-            return {
-                "ok": False,
-                "error": "MEASUREMENT_POST_UNFROZEN",
-                "failed_stage": "qualification",
-                "node_id": node["node_id"],
-                "cell": samples["cell"],
-                "ue": samples["ue"],
-                "measurement_post": calibration,
-                "control_attempted": False,
-            }
+            return {"ok": False, "error": "MEASUREMENT_POST_UNFROZEN", "failed_stage": "qualification", "node_id": node["node_id"],
+                    "cell": samples["cell"], "ue": samples["ue"], "measurement_post": calibration, "control_attempted": False}
         try:
             freshness_window_ms = int(policy["freshness_window_ms"])
             max_skew_ms = int(policy["cell_ue_max_skew_ms"])
             minimum_samples = int(policy["min_valid_paired_samples"])
             expected_fingerprint = policy["fingerprint"]
         except (KeyError, TypeError, ValueError):
-            return {
-                "ok": False,
-                "error": "MEASUREMENT_POST_POLICY_INVALID",
-                "failed_stage": "qualification",
-                "node_id": node["node_id"],
-                "cell": samples["cell"],
-                "ue": samples["ue"],
-                "control_attempted": False,
-            }
+            return {"ok": False, "error": "MEASUREMENT_POST_POLICY_INVALID", "failed_stage": "qualification", "node_id": node["node_id"],
+                    "cell": samples["cell"], "ue": samples["ue"], "control_attempted": False}
         if freshness_window_ms < 0 or max_skew_ms < 0 or minimum_samples < 1 or not isinstance(expected_fingerprint, dict):
-            return {
-                "ok": False,
-                "error": "MEASUREMENT_POST_POLICY_INVALID",
-                "failed_stage": "qualification",
-                "node_id": node["node_id"],
-                "cell": samples["cell"],
-                "ue": samples["ue"],
-                "control_attempted": False,
-            }
-        if not all(
-            sample.get("source_seq_origin") == "e2_indication" and sample.get("timestamp_ms", 0) > 0
-            for stream in ("cell", "ue")
-            for sample in samples[stream]
-        ):
-            return {
-                "ok": False,
-                "error": "KPM_TIME_ORIGIN_UNPROVEN",
-                "failed_stage": "time-origin",
-                "node_id": node["node_id"],
-                "cell": samples["cell"],
-                "ue": samples["ue"],
-                "control_attempted": False,
-            }
+            return {"ok": False, "error": "MEASUREMENT_POST_POLICY_INVALID", "failed_stage": "qualification", "node_id": node["node_id"],
+                    "cell": samples["cell"], "ue": samples["ue"], "control_attempted": False}
+        if not all(sample.get("source_seq_origin") == "e2_indication" and sample.get("timestamp_ms", 0) > 0
+                   for stream in ("cell", "ue") for sample in samples[stream]):
+            return {"ok": False, "error": "KPM_TIME_ORIGIN_UNPROVEN", "failed_stage": "time-origin", "node_id": node["node_id"],
+                    "cell": samples["cell"], "ue": samples["ue"], "control_attempted": False}
         actual_fingerprint = {
-            "node_id": node["node_id"],
-            "kpm_styles": canonical_kpm_styles(node["kpm_styles"]),
+            "node_id": node["node_id"], "kpm_styles": canonical_kpm_styles(node["kpm_styles"]),
             "cell_metrics": sorted({name for sample in samples["cell"] for name in sample["measurements"]}),
             "ue_metrics": sorted({name for sample in samples["ue"] for name in sample["measurements"]}),
             "event_time_origin": "e2_indication_collectStartTime_ms",
         }
-        if actual_fingerprint != {
+        expected = {
             "node_id": expected_fingerprint.get("node_id"),
             "kpm_styles": canonical_kpm_styles(expected_fingerprint.get("kpm_styles")),
             "cell_metrics": expected_fingerprint.get("cell_metrics"),
             "ue_metrics": expected_fingerprint.get("ue_metrics"),
             "event_time_origin": expected_fingerprint.get("event_time_origin"),
-        }:
-            return {
-                "ok": False,
-                "error": "CALIBRATION_FINGERPRINT_CHANGED",
-                "failed_stage": "fingerprint",
-                "node_id": node["node_id"],
-                "cell": samples["cell"],
-                "ue": samples["ue"],
-                "control_attempted": False,
-            }
+        }
+        if actual_fingerprint != expected:
+            return {"ok": False, "error": "CALIBRATION_FINGERPRINT_CHANGED", "failed_stage": "fingerprint", "node_id": node["node_id"],
+                    "cell": samples["cell"], "ue": samples["ue"], "control_attempted": False}
         if any(skew_ms > max_skew_ms for _cell, _ue, skew_ms in pairs):
-            return {
-                "ok": False,
-                "error": "CELL_UE_SKEW_EXCEEDED",
-                "failed_stage": "alignment",
-                "node_id": node["node_id"],
-                "cell": samples["cell"],
-                "ue": samples["ue"],
-                "control_attempted": False,
-            }
+            return {"ok": False, "error": "CELL_UE_SKEW_EXCEEDED", "failed_stage": "alignment", "node_id": node["node_id"],
+                    "cell": samples["cell"], "ue": samples["ue"], "control_attempted": False}
         if len(pairs) < minimum_samples:
-            return {
-                "ok": False,
-                "error": "VALID_PAIRED_SAMPLES_REQUIRED",
-                "failed_stage": "pairing",
-                "node_id": node["node_id"],
-                "cell": samples["cell"],
-                "ue": samples["ue"],
-                "control_attempted": False,
-            }
+            return {"ok": False, "error": "VALID_PAIRED_SAMPLES_REQUIRED", "failed_stage": "pairing", "node_id": node["node_id"],
+                    "cell": samples["cell"], "ue": samples["ue"], "control_attempted": False}
         freshness_age_ms = calibration["max_freshness_age_ms"]
         if freshness_age_ms > freshness_window_ms:
-            return {
-                "ok": False,
-                "error": "KPM_FRESHNESS_EXPIRED",
-                "failed_stage": "freshness",
-                "node_id": node["node_id"],
-                "cell": samples["cell"],
-                "ue": samples["ue"],
-                "control_attempted": False,
-            }
+            return {"ok": False, "error": "KPM_FRESHNESS_EXPIRED", "failed_stage": "freshness", "node_id": node["node_id"],
+                    "cell": samples["cell"], "ue": samples["ue"], "control_attempted": False}
         selected_ue = pairs[0][1]
         return {
             "ok": True,
@@ -577,18 +604,13 @@ class NativeFlexric:
             "cell": samples["cell"],
             "ue": samples["ue"],
             "verified_target_binding": {
-                "node_id": node["node_id"],
-                "kpm_ue_key": selected_ue["kpm_ue_key"],
-                "rc_ue_id": selected_ue["rc_ue_id"],
-                "rnti": selected_ue["rnti"],
-                "source_seq": selected_ue["source_seq"],
-                "source_seq_origin": selected_ue["source_seq_origin"],
+                "node_id": node["node_id"], "kpm_ue_key": selected_ue["kpm_ue_key"],
+                "rc_ue_id": selected_ue["rc_ue_id"], "rnti": selected_ue["rnti"],
+                "source_seq": selected_ue["source_seq"], "source_seq_origin": selected_ue["source_seq_origin"],
             },
-            "measurement_post": {
-                "freshness_age_ms": freshness_age_ms,
-                "max_cell_ue_skew_ms": max(skew_ms for _cell, _ue, skew_ms in pairs),
-                "valid_paired_samples": len(pairs),
-            },
+            "measurement_post": {"freshness_age_ms": freshness_age_ms,
+                                 "max_cell_ue_skew_ms": max(skew_ms for _cell, _ue, skew_ms in pairs),
+                                 "valid_paired_samples": len(pairs)},
             "control_attempted": False,
         }
 
@@ -923,7 +945,15 @@ class Bridge:
             except OSError:
                 return {"ok": False, "error": "JOURNAL_WRITE_FAILED", "request_id": request["request_id"]}
         if request["operation"] == "observe":
-            return {"ok": False, "error": "KPM_NOT_QUALIFIED", "request_id": request["request_id"]}
+            if self.native is None or not hasattr(self.native, "observe"):
+                return {"ok": False, "error": "NATIVE_OBSERVATION_UNAVAILABLE", "request_id": request["request_id"]}
+            try:
+                result = dict(self.native.observe(self.profile))
+            except (ImportError, RuntimeError) as error:
+                return {"ok": False, "error": str(error), "request_id": request["request_id"]}
+            result.setdefault("request_id", request["request_id"])
+            result.setdefault("control_attempted", False)
+            return result
         if request["operation"] == "open":
             return self.open(request)
         if request["operation"] == "close":

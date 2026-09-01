@@ -90,6 +90,7 @@ fallback，source trace 仍不等於 runtime application。
 | --- | --- | --- |
 | Source-backed change ledger | Ready | [開啟 ledger](change-ledger.md) |
 | Chapter 00–10 工程教科書 | Review required | [從 Chapter 00 開始](chapters/00-cli-and-evidence.md) |
+| DRL Control Run evidence memo | Local seam implemented; live proof pending | [Chapter 08 memo](chapters/08-xapp-and-e2-control.md#15-control-run-orchestration-memo-architecture-decision) |
 | 個人進度 | 本機未追蹤 | 建立 `local-progress.md`；本目錄已忽略該檔 |
 
 ## 雙軸學習方式

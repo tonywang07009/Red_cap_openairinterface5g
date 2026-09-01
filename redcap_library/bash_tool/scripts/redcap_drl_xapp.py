@@ -3,7 +3,6 @@
 import argparse
 import fcntl
 import json
-import math
 import os
 from pathlib import Path
 import re
@@ -18,10 +17,17 @@ import uuid
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from redcap_library.drl_xapp.bridge_daemon import pair_kpm_samples, qualified_model_observation
+
 CONTRACT = REPO_ROOT / "redcap_interface/control/redcap_control_contract.yaml"
 WORKSPACE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
 ENTRYPOINT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*:[A-Za-z_][A-Za-z0-9_]*$")
 GNB_APPLY_MARKER = re.compile(r"RedCap UL PRB control RNTI ([0-9a-fA-F]{4}) requested (\d+) effective (\d+)")
+DISCOVERY_UDS_TIMEOUT_SECONDS = 30
+CONTROL_UDS_TIMEOUT_SECONDS = 5
 
 
 def monotonic_ms() -> int:
@@ -83,13 +89,6 @@ def stop_gnb_marker_collector(collector) -> None:
         except subprocess.TimeoutExpired:
             process.kill()
     reader.join(timeout=1)
-
-
-def pair_kpm_samples(cell, ue):
-    return zip(
-        sorted(cell, key=lambda sample: int(sample["timestamp_ms"])),
-        sorted(ue, key=lambda sample: int(sample["timestamp_ms"])),
-    )
 
 
 def parse_args() -> argparse.Namespace:
@@ -176,6 +175,7 @@ def parse_args() -> argparse.Namespace:
     freeze.add_argument("--min-valid-paired-samples", type=int, required=True, help="必要；實測後批准的最少有效 paired samples。")
     for name, summary in (
         ("discover-kpm", "讀取 live E2 node/KPM/RC capability；不訂閱、不控制。"),
+        ("probe-kpm", "以 cell/UE KPM callback cadence 做唯讀診斷；不控制。"),
         ("qualify-kpm", "先讀取 capability，再驗證 profile 所需 cell/UE KPM freshness、alignment 與 target binding。"),
         ("recover", "依 durable journal 嘗試恢復安全 baseline；不得重啟 simulator。"),
     ):
@@ -201,7 +201,6 @@ def parse_args() -> argparse.Namespace:
     run.add_argument("--controller", choices=("fixed", "greedy", "model"), default="model", help="預設 model；fixed/greedy 僅供 bounded validation。")
     run.add_argument("--entrypoint", help="model controller 必要；例如 src.policy:main。")
     run.add_argument("--enable-control", action="store_true", help="顯式開啟 control-once；預設 observation/offline only。")
-    run.add_argument("--episodes", type=int, help="禁止；generic episode 訓練需另行核定 profile。")
     run.add_argument("--teardown", action="store_true", help="完成後停止 workspace；預設保留。")
     return parser.parse_args()
 
@@ -238,59 +237,21 @@ def validation_candidate(controller: str, cell_samples: object) -> dict:
     }
 
 
-def model_observation(qualification: object) -> dict:
-    if not isinstance(qualification, dict):
-        return {"ok": False, "error": "MODEL_OBSERVATION_REQUIRED"}
-    cell = qualification.get("cell")
-    ue = qualification.get("ue")
-    if not isinstance(cell, list) or not isinstance(ue, list):
-        return {"ok": False, "error": "MODEL_OBSERVATION_REQUIRED"}
-    values = []
-    try:
-        pairs = pair_kpm_samples(cell, ue)
-        for cell_sample, ue_sample in pairs:
-            if (
-                cell_sample.get("source_seq_origin") != "e2_indication"
-                or ue_sample.get("source_seq_origin") != "e2_indication"
-                or int(cell_sample["timestamp_ms"]) <= 0
-                or int(ue_sample["timestamp_ms"]) <= 0
-            ):
-                continue
-            value = cell_sample["measurements"]["RRU.PrbTotUl"]
-            if isinstance(value, bool):
-                continue
-            value = float(value)
-            if 0 <= value <= 100 and math.isfinite(value):
-                values.append(value)
-    except (KeyError, TypeError, ValueError, OverflowError):
-        return {"ok": False, "error": "MODEL_OBSERVATION_REQUIRED"}
-    if len(values) < 30:
-        return {"ok": False, "error": "MODEL_OBSERVATION_REQUIRED"}
-    values = values[-30:]
-    return {
-        "ok": True,
-        "observation": {
-            "schema_version": 1,
-            "profile_id": "ul-prb-cap-v1",
-            "sample_count": 30,
-            "rru_prb_tot_ul_pct": {
-                "latest": values[-1],
-                "mean": sum(values) / len(values),
-                "min": min(values),
-                "max": max(values),
-            },
-        },
-    }
-
-
-def model_candidate(workspace: Path, entrypoint: str, qualification: object) -> dict:
-    summary = model_observation(qualification)
+def model_candidate(workspace: Path, entrypoint: str, qualification: object, run_dir: Path) -> dict:
+    summary = qualified_model_observation(qualification)
     if not summary["ok"]:
         return summary
-    observation_path = workspace / "run" / f"model-observation-{uuid.uuid4().hex}.json"
-    observation_path.parent.mkdir(parents=True, exist_ok=True)
-    write_json(observation_path, summary["observation"])
-    observation_path.chmod(0o444)
+    observation_path = workspace / "runtime-input" / f"model-observation-{uuid.uuid4().hex}.json"
+    evidence_observation = run_dir / "model_observation.json"
+    evidence_decision = run_dir / "model_decision.json"
+    try:
+        observation_path.parent.mkdir(parents=True, exist_ok=True)
+        write_json(observation_path, summary["observation"])
+        observation_path.chmod(0o444)
+        write_json(evidence_observation, summary["observation"])
+        evidence_observation.chmod(0o444)
+    except OSError:
+        return {"ok": False, "error": "EVIDENCE_WRITE_REQUIRED"}
     runtime_path = Path("/run/redcap-drl") / observation_path.name
     result = overlay_command(
         workspace,
@@ -314,7 +275,12 @@ def model_candidate(workspace: Path, entrypoint: str, qualification: object) -> 
             raise ValueError
     except (AttributeError, IndexError, KeyError, TypeError, ValueError, json.JSONDecodeError):
         return {"ok": False, "error": "MODEL_CANDIDATE_REQUIRED"}
-    return {"ok": True, "max_ul_prb": max_ul_prb, "source": "model", "observation_path": str(observation_path)}
+    try:
+        write_json(evidence_decision, {"max_ul_prb": max_ul_prb})
+        evidence_decision.chmod(0o444)
+    except OSError:
+        return {"ok": False, "error": "EVIDENCE_WRITE_REQUIRED"}
+    return {"ok": True, "max_ul_prb": max_ul_prb, "source": "model", "observation_path": str(evidence_observation)}
 
 
 def docker_json(args: list[str]) -> dict:
@@ -514,7 +480,12 @@ def build_release_locked(args: argparse.Namespace) -> int:
 
 
 def write_json(path: Path, value: dict) -> None:
-    path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+    try:
+        temporary.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def initialize(args: argparse.Namespace) -> int:
@@ -543,6 +514,7 @@ def initialize(args: argparse.Namespace) -> int:
         (temporary / "src").mkdir()
         (temporary / "artifacts/runs").mkdir(parents=True)
         (temporary / "runtime_configs").mkdir()
+        (temporary / "runtime-input").mkdir()
         (temporary / "run").mkdir()
         lock = {
             "schema_version": 1,
@@ -596,7 +568,7 @@ def initialize(args: argparse.Namespace) -> int:
                     "working_dir": "/workspace",
                     "volumes": [
                         {"type": "bind", "source": str(workspace / "src"), "target": "/workspace/src"},
-                        {"type": "bind", "source": str(workspace / "run"), "target": "/run/redcap-drl", "read_only": True},
+                        {"type": "bind", "source": str(workspace / "runtime-input"), "target": "/run/redcap-drl", "read_only": True},
                     ],
                     "tmpfs": ["/tmp"],
                     "cap_drop": ["ALL"],
@@ -714,7 +686,11 @@ def freeze_measurement_post(args: argparse.Namespace) -> int:
             fingerprint = current_fingerprint
         elif fingerprint != current_fingerprint:
             return fail("calibration fingerprint 不一致；未修改 lock")
-        for cell_sample, ue_sample in pair_kpm_samples(cell, ue):
+        try:
+            pairs = pair_kpm_samples({"cell": cell, "ue": ue})
+        except (KeyError, TypeError):
+            return fail(f"calibration time evidence 無效：{run_id}")
+        for cell_sample, ue_sample, skew_ms in pairs:
             try:
                 time_origins_proven = (
                     cell_sample["source_seq_origin"] == "e2_indication"
@@ -722,7 +698,7 @@ def freeze_measurement_post(args: argparse.Namespace) -> int:
                     and int(cell_sample["timestamp_ms"]) > 0
                     and int(ue_sample["timestamp_ms"]) > 0
                 )
-                skew_ms = abs(int(cell_sample["timestamp_ms"]) - int(ue_sample["timestamp_ms"]))
+                skew_ms = int(skew_ms)
             except (KeyError, TypeError, ValueError):
                 return fail(f"calibration time evidence 無效：{run_id}")
             if not time_origins_proven or skew_ms > args.cell_ue_max_skew_ms:
@@ -756,7 +732,7 @@ def freeze_measurement_post(args: argparse.Namespace) -> int:
 
 def overlay_command(workspace: Path, *args: str, capture: bool = False) -> subprocess.CompletedProcess:
     command = [
-        "docker", "compose", "-p", f"redcap-drl-{workspace.name}",
+        "docker", "compose", "-p", f"redcap-drl-{workspace.name.lower().replace('.', '-')}",
         "-f", str(workspace / "compose.overlay.json"), *args,
     ]
     return subprocess.run(command, text=True, capture_output=capture, check=False)
@@ -779,19 +755,34 @@ def lifecycle(args: argparse.Namespace) -> int:
     result = overlay_command(workspace, *compose_args)
     if result.returncode != 0:
         return fail(f"workspace {args.command} 失敗")
+    if args.command != "up":
+        try:
+            (workspace / "run/bridge.sock").unlink(missing_ok=True)
+        except OSError:
+            return fail("workspace bridge socket cleanup 失敗")
     status = {"up": "WORKSPACE_UP", "down": "WORKSPACE_DOWN", "remove": "WORKSPACE_RESOURCES_REMOVED"}[args.command]
     print(json.dumps({"workspace": str(workspace), "gate_status": status, "safe_next_command": f"redcap_drl_xapp.sh status --workspace {workspace}"}))
     return 0
 
 
-def uds_call(socket_path: Path, request: dict, timeout_seconds: int = 5) -> dict:
+def uds_call(socket_path: Path, request: dict, timeout_seconds: int = DISCOVERY_UDS_TIMEOUT_SECONDS) -> dict:
     import socket
 
-    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
-        client.settimeout(timeout_seconds)
-        client.connect(str(socket_path))
-        client.sendall(json.dumps(request).encode("utf-8"))
-        return json.loads(client.recv(1024 * 1024))
+    alias_dir = None
+    connect_path = str(socket_path)
+    if len(os.fsencode(connect_path)) >= 108:
+        alias_dir = Path(tempfile.mkdtemp(prefix="redcap-drl-uds-"))
+        connect_path = str(alias_dir / "bridge.sock")
+        (alias_dir / "bridge.sock").symlink_to(socket_path)
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+            client.settimeout(timeout_seconds)
+            client.connect(connect_path)
+            client.sendall(json.dumps(request).encode("utf-8"))
+            return json.loads(client.recv(1024 * 1024))
+    finally:
+        if alias_dir is not None:
+            shutil.rmtree(alias_dir, ignore_errors=True)
 
 
 def verify(args: argparse.Namespace) -> int:
@@ -856,6 +847,8 @@ def create_evidence(workspace: Path, lock: dict, command: str) -> tuple[Path, di
             "kpm": str(run_dir / "kpm_evidence.json"),
             "journal": str(run_dir / "control_journal.json"),
             "gnb_apply_excerpt": str(run_dir / "gnb_apply_excerpt.log"),
+            "model_observation": str(run_dir / "model_observation.json"),
+            "model_decision": str(run_dir / "model_decision.json"),
             "resolved_compose": str(workspace / "resolved-compose.json"),
             "generated_overlay": str(workspace / "compose.overlay.json"),
         },
@@ -869,17 +862,28 @@ def create_evidence(workspace: Path, lock: dict, command: str) -> tuple[Path, di
 
 
 def record_event(run_dir: Path, event: dict) -> None:
+    manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
+    if manifest.get("finalized_at"):
+        raise OSError("EVIDENCE_FINALIZED")
     with (run_dir / "events.ndjson").open("a", encoding="utf-8") as stream:
         stream.write(json.dumps(event, sort_keys=True) + "\n")
 
 
-def bridge_gate(args: argparse.Namespace) -> int:
+def emit_json(record: dict) -> None:
+    print(json.dumps(record))
+
+
+def evidence_writable(run_dir: Path) -> bool:
     try:
-        workspace, lock, _ = load_workspace(args.workspace)
-    except ValueError as error:
-        return fail(str(error))
-    run_dir, manifest = create_evidence(workspace, lock, args.command)
-    operations = ["discover", "qualify"] if args.command == "qualify-kpm" else [{"discover-kpm": "discover", "recover": "recover"}[args.command]]
+        for name in ("manifest.json", "events.ndjson", "control_journal.json"):
+            with (run_dir / name).open("a", encoding="utf-8"):
+                pass
+    except OSError:
+        return False
+    return True
+
+
+def bridge_operations(workspace: Path, lock: dict, operations: list[str], run_dir: Path, manifest: dict) -> dict:
     discovery = None
     result = {"ok": False}
     for operation in operations:
@@ -893,8 +897,8 @@ def bridge_gate(args: argparse.Namespace) -> int:
             result = uds_call(workspace / "run/bridge.sock", request)
         except (OSError, json.JSONDecodeError) as error:
             result = {"ok": False, "error": "BRIDGE_UNREACHABLE", "detail": str(error)}
-        gate_name = {"discover": "discover-kpm", "qualify": "qualify-kpm", "recover": "recover"}[operation]
-        record_event(run_dir, {"event": gate_name, "result": result})
+        gate_name = {"discover": "discover-kpm", "observe": "probe-kpm", "qualify": "qualify-kpm", "recover": "recover"}[operation]
+        record_event(run_dir, {"event": gate_name, "operation": operation, "result": result})
         manifest["gates"][gate_name] = result
         if operation == "discover":
             discovery = result
@@ -909,14 +913,30 @@ def bridge_gate(args: argparse.Namespace) -> int:
                 "capabilities": discovery.get("capabilities", {}),
                 "cell": result.get("cell", []),
                 "ue": result.get("ue", []),
+                "cadence": result.get("cadence"),
                 "measurement_post": result.get("measurement_post"),
-                "qualification": "QUALIFIED" if result.get("ok") and args.command == "qualify-kpm" else "UNPROVED",
+                "qualification": "QUALIFIED" if result.get("ok") and "qualify" in operations else "UNPROVED",
             },
         )
+    return result
+
+
+def bridge_gate(args: argparse.Namespace) -> int:
+    try:
+        workspace, lock, _ = load_workspace(args.workspace)
+    except ValueError as error:
+        return fail(str(error))
+    run_dir, manifest = create_evidence(workspace, lock, args.command)
+    operations = (
+        ["discover", "qualify"] if args.command == "qualify-kpm"
+        else ["discover", "observe"] if args.command == "probe-kpm"
+        else [{"discover-kpm": "discover", "recover": "recover"}[args.command]]
+    )
+    result = bridge_operations(workspace, lock, operations, run_dir, manifest)
     manifest["gate_status"] = "PASS" if result.get("ok") else "FAIL"
     manifest["safe_next_command"] = (
         f"redcap_drl_xapp.sh qualify-kpm --workspace {workspace}"
-        if result.get("ok") and args.command == "discover-kpm"
+        if result.get("ok") and args.command in {"discover-kpm", "probe-kpm"}
         else f"redcap_drl_xapp.sh status --workspace {workspace}"
     )
     write_json(run_dir / "manifest.json", manifest)
@@ -925,31 +945,34 @@ def bridge_gate(args: argparse.Namespace) -> int:
     return (status, result) if getattr(args, "capture_result", False) else status
 
 
-def control_once(workspace: Path, lock: dict, candidate: dict) -> int:
-    run_dir, manifest = create_evidence(workspace, lock, "run")
+def qualify_control_run(workspace: Path, lock: dict, run_dir: Path, manifest: dict) -> dict:
+    return bridge_operations(workspace, lock, ["discover", "qualify"], run_dir, manifest)
+
+
+def control_once_in_run(workspace: Path, lock: dict, candidate: dict, run_dir: Path, manifest: dict) -> int:
     manifest["candidate"] = candidate
     marker_collector = start_gnb_marker_collector(workspace, lock, run_dir / "gnb_apply_excerpt.log")
     if marker_collector is None:
         manifest["gates"]["control"] = {"collector": {"ok": False, "error": "GNB_MARKER_COLLECTOR_REQUIRED"}}
         manifest["gate_status"] = "FAIL"
-        write_json(run_dir / "manifest.json", manifest)
-        print(
-            json.dumps(
-                {
-                    "workspace": str(workspace),
-                    "run_id": manifest["run_id"],
-                    "gate_status": manifest["gate_status"],
-                    "evidence_manifest_path": str(run_dir / "manifest.json"),
-                    "safe_next_command": manifest["safe_next_command"],
-                }
-            )
-        )
+        return 4
+    if not evidence_writable(run_dir):
+        stop_gnb_marker_collector(marker_collector)
+        manifest["gates"]["control"] = {"evidence": {"ok": False, "error": "EVIDENCE_WRITE_REQUIRED"}}
+        manifest["gate_status"] = "FAIL"
+        return 4
+    try:
+        write_json(run_dir / "control_journal.json", {"state": "OPEN_PENDING", "control_attempted": True})
+    except OSError:
+        stop_gnb_marker_collector(marker_collector)
+        manifest["gates"]["control"] = {"evidence": {"ok": False, "error": "EVIDENCE_WRITE_REQUIRED"}}
+        manifest["gate_status"] = "FAIL"
         return 4
     socket_path = workspace / "run/bridge.sock"
 
     def call(request: dict) -> dict:
         try:
-            result = uds_call(socket_path, request)
+            result = uds_call(socket_path, request, timeout_seconds=CONTROL_UDS_TIMEOUT_SECONDS)
         except (OSError, json.JSONDecodeError) as error:
             result = {"ok": False, "error": "BRIDGE_UNREACHABLE", "detail": str(error)}
         record_event(run_dir, {"operation": request["operation"], "result": result})
@@ -994,50 +1017,102 @@ def control_once(workspace: Path, lock: dict, candidate: dict) -> int:
     manifest["gates"]["control"] = {"open": opened, "act": acted, "close": closed}
     manifest["gate_status"] = "PASS" if all(result.get("ok") for result in (opened, acted, closed)) else "FAIL"
     manifest["safe_next_command"] = f"redcap_drl_xapp.sh status --workspace {workspace}"
-    write_json(run_dir / "manifest.json", manifest)
-    print(
-        json.dumps(
-            {
-                "workspace": str(workspace),
-                "run_id": manifest["run_id"],
-                "gate_status": manifest["gate_status"],
-                "evidence_manifest_path": str(run_dir / "manifest.json"),
-                "safe_next_command": manifest["safe_next_command"],
-            }
-        )
-    )
     return 0 if manifest["gate_status"] == "PASS" else 4
 
 
-def run_model(args: argparse.Namespace) -> int:
+def control_once(workspace: Path, lock: dict, candidate: dict) -> int:
+    run_dir, manifest = create_evidence(workspace, lock, "run")
+    status = control_once_in_run(workspace, lock, candidate, run_dir, manifest)
     try:
-        workspace, lock, _ = load_workspace(args.workspace)
-    except ValueError as error:
-        return fail(str(error))
-    if getattr(args, "episodes", None) is not None:
-        return fail("PROFILE_SPECIFICATION_REQUIRED：generic episode 訓練需另行核定 profile；未啟動 runtime 或 control")
+        write_json(run_dir / "manifest.json", manifest)
+    except OSError:
+        return fail("EVIDENCE_FINALIZATION_FAILED")
+    emit_json(
+        {
+            "workspace": str(workspace),
+            "run_id": manifest["run_id"],
+            "gate_status": manifest["gate_status"],
+            "evidence_manifest_path": str(run_dir / "manifest.json"),
+            "safe_next_command": manifest["safe_next_command"],
+        }
+    )
+    return status
+
+
+def finalize_control_run(workspace: Path, run_dir: Path, manifest: dict, status: int) -> int:
+    manifest["gate_status"] = "PASS" if status == 0 else "FAIL"
+    manifest["finalized_at"] = datetime.now(timezone.utc).isoformat()
+    try:
+        record_event(run_dir, {"event": "CONTROL_RUN_FINISHED", "gate_status": manifest["gate_status"]})
+        write_json(run_dir / "manifest.json", manifest)
+    except OSError:
+        return fail("EVIDENCE_FINALIZATION_FAILED")
+    emit_json(
+        {
+            "event": "CONTROL_RUN_FINISHED",
+            "run_id": manifest["run_id"],
+            "gate_status": manifest["gate_status"],
+            "finalized_at": manifest["finalized_at"],
+            "evidence_manifest_path": str(run_dir / "manifest.json"),
+        }
+    )
+    return status
+
+
+def execute_control_run(args: argparse.Namespace, workspace: Path, lock: dict) -> int:
+    def preflight_failure(message: str) -> int:
+        status = finalize_control_run(workspace, run_dir, manifest, 4)
+        return fail(message) if status == 4 else status
+
+    run_dir, manifest = create_evidence(workspace, lock, "run")
+    try:
+        record_event(run_dir, {"event": "CONTROL_RUN_STARTED", "run_id": manifest["run_id"]})
+    except OSError:
+        return fail("EVIDENCE_WRITE_REQUIRED")
+    emit_json({"event": "CONTROL_RUN_STARTED", "run_id": manifest["run_id"], "evidence_manifest_path": str(run_dir / "manifest.json")})
+    if lock["profile"] == "none":
+        manifest["gates"]["profile"] = {"ok": False, "error": "PROFILE_FORBIDS_CONTROL"}
+        return preflight_failure("profile=none 禁止 E2 control")
+    smoke_status = verify(argparse.Namespace(workspace=workspace))
+    manifest["gates"]["verify"] = {"ok": smoke_status == 0}
+    try:
+        record_event(run_dir, {"event": "verify", "result": manifest["gates"]["verify"]})
+    except OSError:
+        return fail("EVIDENCE_WRITE_REQUIRED")
+    if smoke_status != 0:
+        return preflight_failure("runtime smoke 或 RIC reachability 未通過；qualification 與 control 均未啟動")
+    try:
+        qualification = qualify_control_run(workspace, lock, run_dir, manifest)
+    except OSError:
+        return fail("EVIDENCE_WRITE_REQUIRED")
+    if not qualification.get("ok"):
+        return preflight_failure("KPM qualification 未通過；模型與 control 均未啟動")
+    candidate = (
+        model_candidate(workspace, args.entrypoint, qualification, run_dir)
+        if args.controller == "model"
+        else validation_candidate(args.controller, qualification.get("cell", []))
+    )
+    try:
+        record_event(run_dir, {"event": "candidate", "result": candidate})
+    except OSError:
+        return fail("EVIDENCE_WRITE_REQUIRED")
+    if not candidate.get("ok"):
+        return preflight_failure(candidate["error"] + "；未發送 act")
+    return finalize_control_run(workspace, run_dir, manifest, control_once_in_run(workspace, lock, candidate, run_dir, manifest))
+
+
+def run_model(args: argparse.Namespace) -> int:
     if args.controller == "model":
         if not args.entrypoint:
             return fail("model controller 必須提供 --entrypoint module:callable")
         if not valid_entrypoint(args.entrypoint):
             return fail("entrypoint 必須是 module:callable")
+    try:
+        workspace, lock, _ = load_workspace(args.workspace)
+    except ValueError as error:
+        return fail(str(error))
     if args.enable_control:
-        if lock["profile"] == "none":
-            return fail("profile=none 禁止 E2 control")
-        if verify(argparse.Namespace(workspace=workspace)) != 0:
-            return fail("runtime smoke 或 RIC reachability 未通過；qualification 與 control 均未啟動")
-        qualifier = argparse.Namespace(command="qualify-kpm", workspace=workspace, capture_result=True)
-        qualification_gate = bridge_gate(qualifier)
-        if not isinstance(qualification_gate, tuple) or qualification_gate[0] != 0:
-            return fail("KPM qualification 未通過；模型與 control 均未啟動")
-        candidate = (
-            model_candidate(workspace, args.entrypoint, qualification_gate[1])
-            if args.controller == "model"
-            else validation_candidate(args.controller, qualification_gate[1].get("cell", []))
-        )
-        if not candidate.get("ok"):
-            return fail(candidate["error"] + "；未發送 act")
-        return control_once(workspace, lock, candidate)
+        return execute_control_run(args, workspace, lock)
     if args.controller != "model":
         return fail("fixed/greedy controller 僅能搭配 --enable-control 與完整 live gates")
     return fail("MODEL_OBSERVATION_REQUIRED：model controller 必須搭配 --enable-control 與 30 筆 qualified samples")
@@ -1103,7 +1178,7 @@ def main() -> int:
         return upgrade(args)
     if args.command == "freeze-measurement-post":
         return freeze_measurement_post(args)
-    if args.command in {"discover-kpm", "qualify-kpm", "recover"}:
+    if args.command in {"discover-kpm", "probe-kpm", "qualify-kpm", "recover"}:
         return bridge_gate(args)
     if args.command == "run":
         return run_model(args)

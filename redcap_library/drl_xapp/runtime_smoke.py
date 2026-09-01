@@ -7,7 +7,6 @@ import stable_baselines3
 import torch
 
 import redcap_xapp_sdk
-import redcap_drl
 
 
 class SmokeEnv(gymnasium.Env):
@@ -30,7 +29,6 @@ def main() -> None:
     assert gymnasium.__version__ == "1.3.0"
     assert stable_baselines3.__version__ == "2.9.0"
     assert redcap_xapp_sdk.SM_RC_ID == 3
-    assert redcap_drl.Client
     print("RUNTIME_SMOKE PASS")
 
 

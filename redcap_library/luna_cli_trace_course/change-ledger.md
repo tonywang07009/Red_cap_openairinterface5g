@@ -33,6 +33,7 @@ record、affected source、validation/evidence owner 的 change family 才能進
 | CL-07 | A-IoT Topology 2 Tag/Reader | Experimental protocol/RFsim evidence | 25/26 tasks | 06 |
 | CL-08 | AIOTF、NRF、Naiotf 與 N6 diagnostic | Layered runtime report | 20/22 tasks; standard path stopped | 07 |
 | CL-09 | xApp/dApp SDK、E2、guard 與 apply | Static/ACK/apply/bounded A/B | Mixed; 21/22 test-validation tasks | 08、09 |
+| CL-10 | DRL xApp Control Run evidence correlation | OpenSpec contract + local seam test | Local seam implemented; live proof pending | 08 |
 
 ## CL-01：RedCap PHY init constraints
 
@@ -125,6 +126,17 @@ record、affected source、validation/evidence owner 的 change family 才能進
 | Evidence owners | [G4 report](../../agent_doc/Project_management/projects/redcap_oran_sdk_workflow_v3/report/G4_rfsim_case_b_ul_prb_2026-07-04.md), [Gate E Core56 report](../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/report/gate_e_core56_ab_latency_2026-07-09.md) |
 | Current state | One bounded `redcap_ul_prb_cap` path has contract, ACK and gNB apply evidence; broader helpers are mixed and the SDK validation change is 21/22 |
 | Claim boundary | ACK does not imply apply; Core56 comparability does not establish latency improvement or generic dApp effectiveness |
+
+## CL-10：DRL xApp Control Run evidence correlation
+
+| 欄位 | Evidence |
+| --- | --- |
+| Planning/decision owner | [build-redcap-drl-xapp-gated-runtime design](../../openspec/changes/build-redcap-drl-xapp-gated-runtime/design.md), [evidence requirement](../../openspec/changes/build-redcap-drl-xapp-gated-runtime/specs/drl-xapp-evidence-guidance/spec.md), [TDD contract](../../openspec/changes/build-redcap-drl-xapp-gated-runtime/tdd.md) |
+| Current source owner | [`redcap_drl_xapp.py`](../bash_tool/scripts/redcap_drl_xapp.py): `run_model` delegates enabled control to `execute_control_run`; bridge qualification, model evidence, collector, and UDS results share one package |
+| Validation owner | [`test_redcap_drl_xapp.py`](../bash_tool/scripts/test_redcap_drl_xapp.py) and [Task 5.1 full GREEN log](../../test_log/compiler_logs/task51_architecture_full_green_final_2026-09-01_16-22-36.log) record 71 local tests passing |
+| Implemented target | Same-file `execute_control_run()` creates one `run_id`/package before preflight, appends all gates and results, emits started/finished records, seals terminal evidence with `finalized_at`, and keeps runtime input separate from the bridge UDS mount |
+| Current applicability | Local seam only: atomic evidence publication and runtime-client removal are validated without Docker, E2, or control traffic |
+| Claim boundary | No live E2SM-RC transaction, gNB application, clock equivalence, or 6.3 control success is claimed |
 
 ## 排除項目
 

@@ -235,3 +235,76 @@ UL-PRB apply marker。它不支持完整SDK、priority helper live path、DRX pa
 
 - Canonical SDK guide：[xApp/dApp guide](../../../agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/sdk_development_guide.zh-TW.md)。
 - Exact O-RAN parameter mapping仍 `[Needs Verification]`。
+
+## 15. Control Run orchestration memo (architecture decision)
+
+這是已實作並以 local seam 驗證的 Task 4.3/5.1 架構契約；不是 live E2 control
+成功證據。
+它處理「一次 `run --enable-control` 的證據如何不被 qualification 與 control
+分割」；不改變 Bridge 的 native lease、journal 或 apply-proof owner。
+
+先分兩層：缺少 required flag、unknown flag、格式錯誤等 CLI input 在
+`run_model()` 直接回報，沒有 `run_id`、也不建立 package；只有有效請求才成為
+Control Run，接著才為 execution preflight 留證。
+
+| 項目 | 目前 source | 已核定目標 | 不可宣稱 |
+| --- | --- | --- | --- |
+| CLI input | argparse/format error 直接拒絕 | 無效 input 不產生 `run_id` 或 package | input error 是一次 control attempt |
+| CLI flow | `run_model()` 將 enabled request 交給 `execute_control_run()` | 同檔內的 deep module 擁有完整 workflow | module 本身能證明 live apply |
+| Evidence | `execute_control_run()` 追加 qualification、model、collector、UDS 結果 | 一個 Control Run 在 preflight 前建立唯一 package | run ID 可證明 gNB apply |
+| Trace key | 現有 manifest 有 `run_id` | `run_id` 對應 `<workspace>/artifacts/runs/<run_id>/manifest.json` | run ID 可證明 gNB apply |
+| Terminal state | 現況只有 command result | 成功或失敗寫入 `finalized_at`；之後拒絕 append | ACK/finished record 是 apply proof |
+| Operator output | 現況 command 直接 `print(json.dumps(...))` | 同檔 `emit_json(record)` 輸出 started/finished record | 需要 callback、generator 或 class |
+
+```mermaid
+flowchart TD
+  CLI[run_model CLI seam] --> CR[Control Run module]
+  CR --> START[create package and emit CONTROL_RUN_STARTED]
+  START --> Q[verify and qualify: append same run_id]
+  Q --> M[model observation and strict decision]
+  M --> C[marker collector then UDS open act close]
+  C --> F[write finalized_at]
+  F --> END[emit CONTROL_RUN_FINISHED]
+  C --> B[Bridge native lease journal and proof]
+  B -. retained owner .-> C
+```
+
+`control_journal.json.control_attempted=false` 表示未曾嘗試 UDS `open`；變成
+`true` 只表示 request attempt，不能推論 ACK、marker 或 gNB application。
+若 package 無法在 UDS 前寫入，應以 `EVIDENCE_WRITE_REQUIRED` 停止；若控制後
+無法封存 manifest，應以 `EVIDENCE_FINALIZATION_FAILED` 結束，不重送 control。
+
+### 本 memo 的一個 learner lookup
+
+因符號 MCP 曾回覆 `repo_not_indexed`，這裡使用本機 SymDex CLI fallback。先預測：
+結果會定位 `run_model` 與已實作的 `execute_control_run`。
+
+```bash
+symdex --state-dir <local-symdex-state> find --repo <indexed-cli-repo> run_model --json
+```
+
+- Why now：確認 source owner 已符合已核定設計，仍不啟動 Docker。
+- Expected observation：`run_model(args: argparse.Namespace) -> int` 位於
+  `redcap_drl_xapp.py`。
+- Stop condition：找不到目前 symbol 或 index 非最新時，保留輸出並標記
+  `[Needs Verification]`；不要改 source 或啟動 Docker。
+
+### 理解檢查
+
+1. 為何 Control Run package 必須在 preflight 前建立？
+2. 為何 `control_attempted=true` 不能等同 gNB apply？
+3. 程序中斷後，為何不能用同一 `run_id` resume？
+
+### Handoff card
+
+```markdown
+## Control Run architecture handoff
+- Current source symbols: run_model / execute_control_run / control_once_in_run
+- Implemented module: execute_control_run (one package per enabled request)
+- Trace path: <workspace>/artifacts/runs/<run_id>/manifest.json
+- Pre-UDS evidence gate: EVIDENCE_WRITE_REQUIRED
+- Terminal evidence gate: EVIDENCE_FINALIZATION_FAILED
+- Native owner retained by Bridge: lease / journal / apply proof
+- Strongest evidence: OpenSpec contract plus local 71/71 seam test
+- Not claimed: live E2SM-RC or gNB control success
+```
