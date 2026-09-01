@@ -13,15 +13,30 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "chapters/03-bwp-ra-and-scheduling.md",
+                "file": "未命名.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "03-bwp-ra-and-scheduling"
+              "title": "未命名"
+            }
+          },
+          {
+            "id": "ac3e964c08d6b09a",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "未命名 1.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "未命名 1"
             }
           }
-        ]
+        ],
+        "currentTab": 1
       }
     ],
     "direction": "vertical"
@@ -83,8 +98,7 @@
       }
     ],
     "direction": "horizontal",
-    "width": 300,
-    "collapsed": true
+    "width": 300
   },
   "right": {
     "id": "a2d07c73aae26dc0",
@@ -189,21 +203,22 @@
       "bases:建立新的 base": false
     }
   },
-  "active": "32ee1ca4f865a0dc",
+  "active": "ac3e964c08d6b09a",
   "lastOpenFiles": [
-    "chapters/04-inactive-drx-and-sdt.md",
+    "未命名.md",
+    "chapters/05-runtime-validation.md",
+    "未命名 1.md",
     "chapters/03-bwp-ra-and-scheduling.md",
-    "chapters/02-redcap-config-and-capability.md",
     "chapters/01-change-intake-and-source-owner.md",
+    "chapters/04-inactive-drx-and-sdt.md",
+    "chapters/02-redcap-config-and-capability.md",
     "chapters/00-cli-and-evidence.md",
     "README.zh-TW.md",
     "chapters/10-change-replay-capstone.md",
-    "未命名.md",
     "change-ledger.md",
     "chapters/06-aiot-tag-and-reader.md",
     "chapters/09-dapp-guard-apply-and-rollback.md",
     "chapters/08-xapp-and-e2-control.md",
-    "chapters/07-aiotf-cn5g-and-standard-stop.md",
-    "chapters/05-runtime-validation.md"
+    "chapters/07-aiotf-cn5g-and-standard-stop.md"
   ]
 }

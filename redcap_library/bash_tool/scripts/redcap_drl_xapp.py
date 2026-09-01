@@ -3,6 +3,7 @@
 import argparse
 import fcntl
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -10,6 +11,8 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
+import threading
 from datetime import datetime, timezone
 import uuid
 
@@ -18,6 +21,68 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 CONTRACT = REPO_ROOT / "redcap_interface/control/redcap_control_contract.yaml"
 WORKSPACE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
 ENTRYPOINT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*:[A-Za-z_][A-Za-z0-9_]*$")
+GNB_APPLY_MARKER = re.compile(r"RedCap UL PRB control RNTI ([0-9a-fA-F]{4}) requested (\d+) effective (\d+)")
+
+
+def monotonic_ms() -> int:
+    return time.monotonic_ns() // 1_000_000
+
+
+def record_gnb_apply_marker(line: str, proof_path: Path, excerpt_path: Path) -> dict | None:
+    match = GNB_APPLY_MARKER.search(line)
+    if match is None:
+        return None
+    record = {
+        "rnti": int(match.group(1), 16),
+        "requested": int(match.group(2)),
+        "effective": int(match.group(3)),
+        "observed_monotonic_ms": monotonic_ms(),
+    }
+    with proof_path.open("a", encoding="utf-8") as stream:
+        stream.write(json.dumps(record, sort_keys=True) + "\n")
+    with excerpt_path.open("a", encoding="utf-8") as stream:
+        stream.write(line)
+    return record
+
+
+def start_gnb_marker_collector(workspace: Path, lock: dict, excerpt_path: Path):
+    try:
+        compose = lock["compose"]
+        gnb_service = lock["resolved"]["gnb_service"]
+    except (KeyError, TypeError):
+        return None
+    proof_path = workspace / "run/gnb_apply_proof.jsonl"
+    proof_path.parent.mkdir(parents=True, exist_ok=True)
+    proof_path.write_text("", encoding="utf-8")
+    try:
+        process = subprocess.Popen(
+            ["docker", "compose", "-f", str(compose), "logs", "--follow", "--timestamps", "--since", "0s", gnb_service],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+    except OSError:
+        return None
+
+    def collect() -> None:
+        assert process.stdout is not None
+        for line in process.stdout:
+            record_gnb_apply_marker(line, proof_path, excerpt_path)
+
+    reader = threading.Thread(target=collect, daemon=True)
+    reader.start()
+    return process, reader
+
+
+def stop_gnb_marker_collector(collector) -> None:
+    process, reader = collector
+    if process.poll() is None:
+        process.terminate()
+        try:
+            process.wait(timeout=1)
+        except subprocess.TimeoutExpired:
+            process.kill()
+    reader.join(timeout=1)
 
 
 def pair_kpm_samples(cell, ue):
@@ -136,6 +201,7 @@ def parse_args() -> argparse.Namespace:
     run.add_argument("--controller", choices=("fixed", "greedy", "model"), default="model", help="預設 model；fixed/greedy 僅供 bounded validation。")
     run.add_argument("--entrypoint", help="model controller 必要；例如 src.policy:main。")
     run.add_argument("--enable-control", action="store_true", help="顯式開啟 control-once；預設 observation/offline only。")
+    run.add_argument("--episodes", type=int, help="禁止；generic episode 訓練需另行核定 profile。")
     run.add_argument("--teardown", action="store_true", help="完成後停止 workspace；預設保留。")
     return parser.parse_args()
 
@@ -147,6 +213,108 @@ def fail(message: str) -> int:
 
 def valid_entrypoint(entrypoint: object) -> bool:
     return isinstance(entrypoint, str) and ENTRYPOINT.fullmatch(entrypoint) is not None
+
+
+def validation_candidate(controller: str, cell_samples: object) -> dict:
+    if controller == "fixed":
+        return {"ok": True, "max_ul_prb": 16, "source": "fixed"}
+    if controller != "greedy" or not isinstance(cell_samples, list) or not cell_samples:
+        return {"ok": False, "error": "UL_PRB_UTILIZATION_REQUIRED"}
+    try:
+        utilization = cell_samples[-1]["measurements"]["RRU.PrbTotUl"]
+        if isinstance(utilization, bool):
+            raise ValueError
+        utilization = float(utilization)
+    except (KeyError, TypeError, ValueError, OverflowError):
+        return {"ok": False, "error": "UL_PRB_UTILIZATION_REQUIRED"}
+    if not 0 <= utilization <= 100:
+        return {"ok": False, "error": "UL_PRB_UTILIZATION_REQUIRED"}
+    candidate = 16 if utilization < 55 else 32 if utilization <= 80 else 64
+    return {
+        "ok": True,
+        "max_ul_prb": candidate,
+        "source": "RRU.PrbTotUl",
+        "ul_prb_utilization_pct": utilization,
+    }
+
+
+def model_observation(qualification: object) -> dict:
+    if not isinstance(qualification, dict):
+        return {"ok": False, "error": "MODEL_OBSERVATION_REQUIRED"}
+    cell = qualification.get("cell")
+    ue = qualification.get("ue")
+    if not isinstance(cell, list) or not isinstance(ue, list):
+        return {"ok": False, "error": "MODEL_OBSERVATION_REQUIRED"}
+    values = []
+    try:
+        pairs = pair_kpm_samples(cell, ue)
+        for cell_sample, ue_sample in pairs:
+            if (
+                cell_sample.get("source_seq_origin") != "e2_indication"
+                or ue_sample.get("source_seq_origin") != "e2_indication"
+                or int(cell_sample["timestamp_ms"]) <= 0
+                or int(ue_sample["timestamp_ms"]) <= 0
+            ):
+                continue
+            value = cell_sample["measurements"]["RRU.PrbTotUl"]
+            if isinstance(value, bool):
+                continue
+            value = float(value)
+            if 0 <= value <= 100 and math.isfinite(value):
+                values.append(value)
+    except (KeyError, TypeError, ValueError, OverflowError):
+        return {"ok": False, "error": "MODEL_OBSERVATION_REQUIRED"}
+    if len(values) < 30:
+        return {"ok": False, "error": "MODEL_OBSERVATION_REQUIRED"}
+    values = values[-30:]
+    return {
+        "ok": True,
+        "observation": {
+            "schema_version": 1,
+            "profile_id": "ul-prb-cap-v1",
+            "sample_count": 30,
+            "rru_prb_tot_ul_pct": {
+                "latest": values[-1],
+                "mean": sum(values) / len(values),
+                "min": min(values),
+                "max": max(values),
+            },
+        },
+    }
+
+
+def model_candidate(workspace: Path, entrypoint: str, qualification: object) -> dict:
+    summary = model_observation(qualification)
+    if not summary["ok"]:
+        return summary
+    observation_path = workspace / "run" / f"model-observation-{uuid.uuid4().hex}.json"
+    observation_path.parent.mkdir(parents=True, exist_ok=True)
+    write_json(observation_path, summary["observation"])
+    observation_path.chmod(0o444)
+    runtime_path = Path("/run/redcap-drl") / observation_path.name
+    result = overlay_command(
+        workspace,
+        "exec",
+        "-T",
+        "drl-runtime",
+        "redcap-drl-run-entrypoint",
+        entrypoint,
+        str(runtime_path),
+        capture=True,
+    )
+    if result.returncode != 0:
+        return {"ok": False, "error": "MODEL_INFERENCE_FAILED"}
+    try:
+        lines = result.stdout.splitlines()
+        decision = json.loads(lines[0]) if len(lines) == 1 else None
+        max_ul_prb = decision["max_ul_prb"]
+        if set(decision) != {"max_ul_prb"} or isinstance(max_ul_prb, bool) or type(max_ul_prb) is not int:
+            raise ValueError
+        if not 1 <= max_ul_prb <= 51:
+            raise ValueError
+    except (AttributeError, IndexError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+        return {"ok": False, "error": "MODEL_CANDIDATE_REQUIRED"}
+    return {"ok": True, "max_ul_prb": max_ul_prb, "source": "model", "observation_path": str(observation_path)}
 
 
 def docker_json(args: list[str]) -> dict:
@@ -616,11 +784,11 @@ def lifecycle(args: argparse.Namespace) -> int:
     return 0
 
 
-def uds_call(socket_path: Path, request: dict) -> dict:
+def uds_call(socket_path: Path, request: dict, timeout_seconds: int = 5) -> dict:
     import socket
 
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
-        client.settimeout(5)
+        client.settimeout(timeout_seconds)
         client.connect(str(socket_path))
         client.sendall(json.dumps(request).encode("utf-8"))
         return json.loads(client.recv(1024 * 1024))
@@ -753,7 +921,92 @@ def bridge_gate(args: argparse.Namespace) -> int:
     )
     write_json(run_dir / "manifest.json", manifest)
     print(json.dumps({"workspace": str(workspace), "run_id": manifest["run_id"], "gate_status": manifest["gate_status"], "evidence_manifest_path": str(run_dir / "manifest.json"), "safe_next_command": manifest["safe_next_command"]}))
-    return 0 if result.get("ok") else 4
+    status = 0 if result.get("ok") else 4
+    return (status, result) if getattr(args, "capture_result", False) else status
+
+
+def control_once(workspace: Path, lock: dict, candidate: dict) -> int:
+    run_dir, manifest = create_evidence(workspace, lock, "run")
+    manifest["candidate"] = candidate
+    marker_collector = start_gnb_marker_collector(workspace, lock, run_dir / "gnb_apply_excerpt.log")
+    if marker_collector is None:
+        manifest["gates"]["control"] = {"collector": {"ok": False, "error": "GNB_MARKER_COLLECTOR_REQUIRED"}}
+        manifest["gate_status"] = "FAIL"
+        write_json(run_dir / "manifest.json", manifest)
+        print(
+            json.dumps(
+                {
+                    "workspace": str(workspace),
+                    "run_id": manifest["run_id"],
+                    "gate_status": manifest["gate_status"],
+                    "evidence_manifest_path": str(run_dir / "manifest.json"),
+                    "safe_next_command": manifest["safe_next_command"],
+                }
+            )
+        )
+        return 4
+    socket_path = workspace / "run/bridge.sock"
+
+    def call(request: dict) -> dict:
+        try:
+            result = uds_call(socket_path, request)
+        except (OSError, json.JSONDecodeError) as error:
+            result = {"ok": False, "error": "BRIDGE_UNREACHABLE", "detail": str(error)}
+        record_event(run_dir, {"operation": request["operation"], "result": result})
+        return result
+
+    try:
+        opened = call(
+            {
+                "protocol_version": 1,
+                "request_id": uuid.uuid4().hex,
+                "operation": "open",
+                "profile_id": lock["profile"],
+                "mode": "control-once",
+            }
+        )
+        session_id = opened.get("session_id") if opened.get("ok") else None
+        if isinstance(session_id, str):
+            acted = call(
+                {
+                    "protocol_version": 1,
+                    "request_id": uuid.uuid4().hex,
+                    "operation": "act",
+                    "profile_id": lock["profile"],
+                    "session_id": session_id,
+                    "action": {"max_ul_prb": candidate["max_ul_prb"]},
+                }
+            )
+            closed = call(
+                {
+                    "protocol_version": 1,
+                    "request_id": uuid.uuid4().hex,
+                    "operation": "close",
+                    "profile_id": lock["profile"],
+                    "session_id": session_id,
+                }
+            )
+        else:
+            acted = {"ok": False, "error": "CONTROL_OPEN_REQUIRED"}
+            closed = {"ok": False, "error": "CONTROL_OPEN_REQUIRED"}
+    finally:
+        stop_gnb_marker_collector(marker_collector)
+    manifest["gates"]["control"] = {"open": opened, "act": acted, "close": closed}
+    manifest["gate_status"] = "PASS" if all(result.get("ok") for result in (opened, acted, closed)) else "FAIL"
+    manifest["safe_next_command"] = f"redcap_drl_xapp.sh status --workspace {workspace}"
+    write_json(run_dir / "manifest.json", manifest)
+    print(
+        json.dumps(
+            {
+                "workspace": str(workspace),
+                "run_id": manifest["run_id"],
+                "gate_status": manifest["gate_status"],
+                "evidence_manifest_path": str(run_dir / "manifest.json"),
+                "safe_next_command": manifest["safe_next_command"],
+            }
+        )
+    )
+    return 0 if manifest["gate_status"] == "PASS" else 4
 
 
 def run_model(args: argparse.Namespace) -> int:
@@ -761,6 +1014,8 @@ def run_model(args: argparse.Namespace) -> int:
         workspace, lock, _ = load_workspace(args.workspace)
     except ValueError as error:
         return fail(str(error))
+    if getattr(args, "episodes", None) is not None:
+        return fail("PROFILE_SPECIFICATION_REQUIRED：generic episode 訓練需另行核定 profile；未啟動 runtime 或 control")
     if args.controller == "model":
         if not args.entrypoint:
             return fail("model controller 必須提供 --entrypoint module:callable")
@@ -771,17 +1026,21 @@ def run_model(args: argparse.Namespace) -> int:
             return fail("profile=none 禁止 E2 control")
         if verify(argparse.Namespace(workspace=workspace)) != 0:
             return fail("runtime smoke 或 RIC reachability 未通過；qualification 與 control 均未啟動")
-        qualifier = argparse.Namespace(command="qualify-kpm", workspace=workspace)
-        if bridge_gate(qualifier) != 0:
+        qualifier = argparse.Namespace(command="qualify-kpm", workspace=workspace, capture_result=True)
+        qualification_gate = bridge_gate(qualifier)
+        if not isinstance(qualification_gate, tuple) or qualification_gate[0] != 0:
             return fail("KPM qualification 未通過；模型與 control 均未啟動")
-        return fail("control-once runner 尚未取得可驗證 live binding；未發送 control")
+        candidate = (
+            model_candidate(workspace, args.entrypoint, qualification_gate[1])
+            if args.controller == "model"
+            else validation_candidate(args.controller, qualification_gate[1].get("cell", []))
+        )
+        if not candidate.get("ok"):
+            return fail(candidate["error"] + "；未發送 act")
+        return control_once(workspace, lock, candidate)
     if args.controller != "model":
         return fail("fixed/greedy controller 僅能搭配 --enable-control 與完整 live gates")
-    result = overlay_command(workspace, "exec", "-T", "drl-runtime", "redcap-drl-run-entrypoint", args.entrypoint)
-    if args.teardown:
-        overlay_command(workspace, "down")
-    print(json.dumps({"workspace": str(workspace), "gate_status": "MODEL_EXITED" if result.returncode == 0 else "MODEL_FAILED", "control": "NOT_ATTEMPTED", "safe_next_command": f"redcap_drl_xapp.sh status --workspace {workspace}"}))
-    return result.returncode
+    return fail("MODEL_OBSERVATION_REQUIRED：model controller 必須搭配 --enable-control 與 30 筆 qualified samples")
 
 
 def upgrade(args: argparse.Namespace) -> int:

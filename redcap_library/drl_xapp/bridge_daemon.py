@@ -18,10 +18,55 @@ PROTOCOL_VERSION = 1
 KPM_RAN_FUNCTION_ID = 2
 RC_RAN_FUNCTION_ID = 3
 KPM_OBSERVATION_TIMEOUT_SECONDS = 2.0
+APPLY_PROOF_WINDOW_MS = 1_000
 
 
 def monotonic_ms() -> int:
     return time.monotonic_ns() // 1_000_000
+
+
+def marker_proof(proof_path: Path, action: dict, sent_at_ms: int) -> dict:
+    """Return only a gNB marker that matches this action inside its proof window."""
+    try:
+        rnti = action["rnti"]
+        requested = action["max_ul_prb"]
+        if any(isinstance(value, bool) for value in (rnti, requested, sent_at_ms)):
+            raise ValueError
+        rnti = int(rnti)
+        requested = int(requested)
+        sent_at_ms = int(sent_at_ms)
+        if not 0 < rnti <= 0xFFFF or not 0 <= requested <= 275:
+            raise ValueError
+        records = proof_path.read_text(encoding="utf-8").splitlines()
+    except (KeyError, OSError, TypeError, ValueError):
+        return {"gnb_apply_marker": False}
+
+    deadline_ms = sent_at_ms + APPLY_PROOF_WINDOW_MS
+    for line in records:
+        try:
+            record = json.loads(line)
+            observed_ms = record["observed_monotonic_ms"]
+            if any(isinstance(value, bool) for value in (record["rnti"], record["requested"], record["effective"], observed_ms)):
+                continue
+            if (
+                int(record["rnti"]) == rnti
+                and int(record["requested"]) == requested
+                and sent_at_ms <= int(observed_ms) <= deadline_ms
+            ):
+                return {"gnb_apply_marker": True, "marker": record}
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+            continue
+    return {"gnb_apply_marker": False}
+
+
+def wait_marker_proof(proof_path: Path, action: dict, sent_at_ms: int) -> dict:
+    deadline_ms = sent_at_ms + APPLY_PROOF_WINDOW_MS
+    while monotonic_ms() <= deadline_ms:
+        result = marker_proof(proof_path, action, sent_at_ms)
+        if result["gnb_apply_marker"]:
+            return result
+        time.sleep(0.01)
+    return {"gnb_apply_marker": False}
 
 
 def canonical_kpm_styles(styles: object) -> list[dict]:
@@ -173,7 +218,64 @@ class NativeFlexric:
             )
         return {"nodes": nodes, "eligible_node_count": sum(node["kpm_advertised"] and node["rc_advertised"] for node in nodes)}
 
-    def qualify(self, profile: str) -> dict:
+    def control_ul_prb(self, action: dict) -> dict:
+        try:
+            if any(isinstance(action[field], bool) for field in ("rc_ue_id", "rnti", "max_ul_prb")):
+                raise ValueError
+            node_id = str(action["node_id"])
+            rc_ue_id = int(action["rc_ue_id"])
+            rnti = int(action["rnti"])
+            max_ul_prb = int(action["max_ul_prb"])
+        except (KeyError, TypeError, ValueError):
+            return {"acknowledged": False, "error": "INVALID_CONTROL_ACTION"}
+        if rc_ue_id <= 0 or rnti <= 0 or rnti > 0xFFFF or max_ul_prb < 0 or max_ul_prb > 275:
+            return {"acknowledged": False, "error": "INVALID_CONTROL_ACTION"}
+        sdk = self.load()
+        if not hasattr(sdk, "control_redcap_ul_prb_sm"):
+            return {"acknowledged": False, "error": "NATIVE_CONTROL_UNAVAILABLE"}
+        try:
+            nodes = list(sdk.conn_e2_nodes())
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            return {"acknowledged": False, "error": "NATIVE_CONTROL_UNAVAILABLE"}
+        for node in nodes:
+            if all(hasattr(node, field) for field in ("ran_type", "mcc", "mnc", "node_id")):
+                key = f"{int(node.ran_type)}:{int(node.mcc)}:{int(node.mnc)}:{int(node.node_id)}"
+            else:
+                native_id = node.id
+                key = f"{int(native_id.type)}:{int(native_id.plmn.mcc)}:{int(native_id.plmn.mnc)}:{int(native_id.nb_id.nb_id)}"
+            if key != node_id or not hasattr(node, "id"):
+                continue
+            try:
+                request_id = int(sdk.control_redcap_ul_prb_sm(node.id, rc_ue_id, rnti, max_ul_prb))
+            except (RuntimeError, TypeError, ValueError):
+                return {"acknowledged": False, "error": "NATIVE_CONTROL_FAILED"}
+            return {"acknowledged": request_id != 0, "ric_request_id": request_id}
+        return {"acknowledged": False, "error": "TARGET_NODE_UNAVAILABLE"}
+
+    def prove_ul_prb(self, action: dict, profile: str, proof_path: Path) -> dict:
+        sent_at_ms = monotonic_ms()
+        outcome = self.control_ul_prb(action)
+        if not isinstance(outcome, dict):
+            return {"acknowledged": False, "gnb_apply_marker": False, "later_kpm": False}
+        if outcome.get("acknowledged") is not True:
+            return {**outcome, "gnb_apply_marker": False, "later_kpm": False}
+
+        marker = wait_marker_proof(proof_path, action, sent_at_ms)
+        deadline_ms = sent_at_ms + APPLY_PROOF_WINDOW_MS
+        remaining_seconds = (deadline_ms - monotonic_ms()) / 1_000
+        if not marker["gnb_apply_marker"] or remaining_seconds <= 0:
+            return {**outcome, **marker, "later_kpm": False}
+        qualification = self.qualify(profile, observation_timeout_seconds=remaining_seconds)
+        binding = qualification.get("verified_target_binding") if isinstance(qualification, dict) else None
+        later_kpm = isinstance(qualification, dict) and bool(
+            qualification.get("ok")
+            and isinstance(binding, dict)
+            and all(binding.get(field) == action.get(field) for field in ("node_id", "rc_ue_id", "rnti"))
+            and monotonic_ms() <= deadline_ms
+        )
+        return {**outcome, **marker, "later_kpm": later_kpm}
+
+    def qualify(self, profile: str, observation_timeout_seconds: float | None = None) -> dict:
         if profile != "ul-prb-cap-v1":
             return {"ok": False, "error": "PROFILE_FORBIDS_LIVE_KPM", "control_attempted": False}
         capabilities = self.discover()
@@ -312,7 +414,8 @@ class NativeFlexric:
                 "control_attempted": False,
             }
 
-        observation_ready.wait(KPM_OBSERVATION_TIMEOUT_SECONDS)
+        timeout_seconds = KPM_OBSERVATION_TIMEOUT_SECONDS if observation_timeout_seconds is None else observation_timeout_seconds
+        observation_ready.wait(max(0.0, min(float(timeout_seconds), KPM_OBSERVATION_TIMEOUT_SECONDS)))
 
         if callback_error:
             return {
@@ -599,14 +702,34 @@ class Bridge:
             return None
         return {"node_id": node_id, "rc_ue_id": rc_ue_id, "rnti": rnti}
 
+    def _requalify_before_action(self) -> str | None:
+        if self.native is None or not hasattr(self.native, "qualify"):
+            return None
+        try:
+            qualification = self.native.qualify(self.profile)
+        except (ImportError, RuntimeError):
+            return "KPM_QUALIFICATION_REQUIRED"
+        if not qualification.get("ok"):
+            return qualification.get("error", "KPM_QUALIFICATION_REQUIRED")
+        binding = qualification.get("verified_target_binding")
+        if not isinstance(binding, dict):
+            return "TARGET_BINDING_REQUIRED"
+        current = self.verified_target_binding
+        if not isinstance(current, dict) or any(
+            binding.get(field) != current.get(field)
+            for field in ("node_id", "kpm_ue_key", "rc_ue_id", "rnti")
+        ):
+            return "TARGET_BINDING_CHANGED"
+        return None
+
     @staticmethod
-    def _proof_succeeded(outcome: object, candidate: bool = False) -> bool:
+    def _proof_succeeded(outcome: object) -> bool:
         if not isinstance(outcome, dict):
             return False
         return (
             outcome.get("acknowledged") is True
             and outcome.get("gnb_apply_marker") is True
-            and (not candidate or outcome.get("later_kpm") is True)
+            and outcome.get("later_kpm") is True
         )
 
     def _control_once(self, request: dict, session: dict) -> dict:
@@ -623,6 +746,11 @@ class Bridge:
         candidate = action.get("max_ul_prb") if isinstance(action, dict) else None
         if isinstance(candidate, bool) or not isinstance(candidate, int) or candidate < 0 or candidate > 275:
             response.update({"ok": False, "error": "CONTRACT_VALIDATION_FAILED"})
+            return response
+
+        qualification_error = self._requalify_before_action()
+        if qualification_error is not None:
+            response.update({"ok": False, "error": qualification_error})
             return response
 
         calls = []
@@ -643,8 +771,15 @@ class Bridge:
             response.update({"ok": False, "error": "ROLLBACK_UNCONFIRMED"})
             return response
 
+        qualification_error = self._requalify_before_action()
+        if qualification_error is not None:
+            self._write_journal("RECOVERED")
+            session["acted"] = True
+            response.update({"ok": False, "error": qualification_error})
+            return response
+
         candidate_result = apply("candidate", candidate, "CANDIDATE_PENDING")
-        if not self._proof_succeeded(candidate_result, candidate=True):
+        if not self._proof_succeeded(candidate_result):
             restored = apply("restore", 0, "ROLLBACK_PENDING")
             session["acted"] = True
             if self._proof_succeeded(restored):
@@ -653,6 +788,13 @@ class Bridge:
                 return response
             self._write_journal("ROLLBACK_UNCONFIRMED")
             response.update({"ok": False, "error": "ROLLBACK_UNCONFIRMED"})
+            return response
+
+        qualification_error = self._requalify_before_action()
+        if qualification_error is not None:
+            session["acted"] = True
+            self._write_journal("ROLLBACK_UNCONFIRMED")
+            response.update({"ok": False, "error": qualification_error})
             return response
 
         restored = apply("restore", 0, "RESTORE_PENDING")
@@ -811,9 +953,15 @@ class Bridge:
 
 
 def serve(socket_path: Path, profile: str, flexric_config: Path, workspace_id: str, measurement_post: dict) -> None:
+    native = NativeFlexric(flexric_config)
     bridge = Bridge(
         profile,
-        native=NativeFlexric(flexric_config),
+        native=native,
+        native_control=lambda action: native.prove_ul_prb(
+            action,
+            profile,
+            socket_path.parent / "gnb_apply_proof.jsonl",
+        ),
         measurement_post=measurement_post,
         workspace_id=workspace_id,
     )

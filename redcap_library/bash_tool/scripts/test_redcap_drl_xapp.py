@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 
+from contextlib import redirect_stderr
+import io
 import os
 from pathlib import Path
 import importlib.util
 import json
 import subprocess
+import sys
 import tempfile
 import threading
 from types import SimpleNamespace
@@ -116,6 +119,156 @@ class RedcapDrlXappCliTest(unittest.TestCase):
             self.assertEqual(cli_module.run_model(args), 2)
             self.assertEqual(qualification_calls, [])
 
+    def test_generic_episode_request_refuses_before_runtime_or_control(self) -> None:
+        cli_module = load_cli_module()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir)
+            lock = {"name": "test-workspace", "release": "test-release", "images": {}, "profile": "ul-prb-cap-v1"}
+            cli_module.load_workspace = lambda _workspace: (workspace, lock, {})
+            external_calls = []
+            cli_module.verify = lambda _args: external_calls.append("verify") or 0
+            cli_module.bridge_gate = lambda _args: external_calls.append("qualify") or 0
+            cli_module.overlay_command = lambda *_args: external_calls.append("runtime") or SimpleNamespace(returncode=0)
+            args = SimpleNamespace(
+                workspace=workspace,
+                controller="model",
+                entrypoint=None,
+                enable_control=True,
+                teardown=False,
+                episodes=2,
+            )
+            diagnostic = io.StringIO()
+            with redirect_stderr(diagnostic):
+                self.assertEqual(cli_module.run_model(args), 2)
+
+            self.assertEqual(external_calls, [])
+            self.assertIn("PROFILE_SPECIFICATION_REQUIRED", diagnostic.getvalue())
+
+    def test_validation_candidate_uses_approved_fixed_and_greedy_boundaries(self) -> None:
+        cli_module = load_cli_module()
+
+        self.assertEqual(
+            cli_module.validation_candidate("fixed", []),
+            {"ok": True, "max_ul_prb": 16, "source": "fixed"},
+        )
+        self.assertEqual(
+            cli_module.validation_candidate("greedy", [{"measurements": {"RRU.PrbTotUl": 54}}]),
+            {"ok": True, "max_ul_prb": 16, "source": "RRU.PrbTotUl", "ul_prb_utilization_pct": 54.0},
+        )
+        self.assertEqual(
+            cli_module.validation_candidate("greedy", [{"measurements": {"RRU.PrbTotUl": 55}}]),
+            {"ok": True, "max_ul_prb": 32, "source": "RRU.PrbTotUl", "ul_prb_utilization_pct": 55.0},
+        )
+        self.assertEqual(
+            cli_module.validation_candidate("greedy", [{"measurements": {"RRU.PrbTotUl": 80}}]),
+            {"ok": True, "max_ul_prb": 32, "source": "RRU.PrbTotUl", "ul_prb_utilization_pct": 80.0},
+        )
+        self.assertEqual(
+            cli_module.validation_candidate("greedy", [{"measurements": {"RRU.PrbTotUl": 81}}]),
+            {"ok": True, "max_ul_prb": 64, "source": "RRU.PrbTotUl", "ul_prb_utilization_pct": 81.0},
+        )
+
+    def test_greedy_candidate_refuses_missing_or_invalid_utilization(self) -> None:
+        cli_module = load_cli_module()
+
+        self.assertEqual(
+            cli_module.validation_candidate("greedy", [{"measurements": {}}]),
+            {"ok": False, "error": "UL_PRB_UTILIZATION_REQUIRED"},
+        )
+        self.assertEqual(
+            cli_module.validation_candidate("greedy", [{"measurements": {"RRU.PrbTotUl": 101}}]),
+            {"ok": False, "error": "UL_PRB_UTILIZATION_REQUIRED"},
+        )
+
+    def test_gnb_marker_record_projects_only_the_existing_apply_marker(self) -> None:
+        cli_module = load_cli_module()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            proof_path = Path(temp_dir) / "gnb_apply_proof.jsonl"
+            excerpt_path = Path(temp_dir) / "gnb_apply_excerpt.log"
+            cli_module.monotonic_ms = lambda: 321
+
+            result = cli_module.record_gnb_apply_marker(
+                "[MAC] RedCap UL PRB control RNTI 1234 requested 32 effective 32\n",
+                proof_path,
+                excerpt_path,
+            )
+
+            self.assertEqual(
+                result,
+                {"rnti": 4660, "requested": 32, "effective": 32, "observed_monotonic_ms": 321},
+            )
+            self.assertEqual(json.loads(proof_path.read_text(encoding="utf-8")), result)
+            self.assertIn("requested 32", excerpt_path.read_text(encoding="utf-8"))
+
+    def test_greedy_run_closes_after_apply_proof_failure(self) -> None:
+        cli_module = load_cli_module()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir)
+            lock = {"name": "test-workspace", "release": "test-release", "images": {}, "profile": "ul-prb-cap-v1"}
+            cli_module.load_workspace = lambda _workspace: (workspace, lock, {})
+            cli_module.verify = lambda _args: 0
+            cli_module.bridge_gate = lambda _args: (0, {"cell": [{"measurements": {"RRU.PrbTotUl": 55}}]})
+            requests = []
+
+            def fake_uds_call(_socket, request, timeout_seconds=5):
+                requests.append((request, timeout_seconds))
+                if request["operation"] == "open":
+                    return {"ok": True, "session_id": "session-1"}
+                if request["operation"] == "act":
+                    return {"ok": False, "error": "APPLY_PROOF_PROVIDER_REQUIRED"}
+                return {"ok": True}
+
+            cli_module.uds_call = fake_uds_call
+            collector = object()
+            cli_module.start_gnb_marker_collector = lambda *_args: collector
+            cli_module.stop_gnb_marker_collector = lambda actual: self.assertIs(actual, collector)
+            args = SimpleNamespace(workspace=workspace, controller="greedy", entrypoint=None, enable_control=True, teardown=False)
+
+            self.assertEqual(cli_module.run_model(args), 4)
+            self.assertEqual([request["operation"] for request, _timeout in requests], ["open", "act", "close"])
+            self.assertEqual(requests[1][0]["action"]["max_ul_prb"], 32)
+            self.assertEqual([timeout for _request, timeout in requests], [5, 5, 5])
+            run_dir = next((workspace / "artifacts/runs").iterdir())
+            events = [json.loads(line) for line in (run_dir / "events.ndjson").read_text(encoding="utf-8").splitlines()]
+            self.assertEqual([event["operation"] for event in events], ["open", "act", "close"])
+
+    def test_control_once_refuses_before_uds_when_marker_collector_is_unavailable(self) -> None:
+        cli_module = load_cli_module()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir)
+            lock = {"name": "test-workspace", "release": "test-release", "images": {}, "profile": "ul-prb-cap-v1"}
+            requests = []
+            cli_module.uds_call = lambda _socket, request, timeout_seconds=5: requests.append(request) or {"ok": True}
+
+            self.assertEqual(cli_module.control_once(workspace, lock, {"max_ul_prb": 16}), 4)
+            self.assertEqual(requests, [])
+
+    def test_fixed_run_selects_approved_candidate(self) -> None:
+        cli_module = load_cli_module()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir)
+            lock = {"name": "test-workspace", "release": "test-release", "images": {}, "profile": "ul-prb-cap-v1"}
+            cli_module.load_workspace = lambda _workspace: (workspace, lock, {})
+            cli_module.verify = lambda _args: 0
+            cli_module.bridge_gate = lambda _args: (0, {"cell": []})
+            requests = []
+
+            def fake_uds_call(_socket, request, timeout_seconds=5):
+                requests.append((request, timeout_seconds))
+                if request["operation"] == "open":
+                    return {"ok": True, "session_id": "session-1"}
+                return {"ok": True}
+
+            cli_module.uds_call = fake_uds_call
+            collector = object()
+            cli_module.start_gnb_marker_collector = lambda *_args: collector
+            cli_module.stop_gnb_marker_collector = lambda actual: self.assertIs(actual, collector)
+            args = SimpleNamespace(workspace=workspace, controller="fixed", entrypoint=None, enable_control=True, teardown=False)
+
+            self.assertEqual(cli_module.run_model(args), 0)
+            self.assertEqual([request["operation"] for request, _timeout in requests], ["open", "act", "close"])
+            self.assertEqual(requests[1][0]["action"]["max_ul_prb"], 16)
+
     def test_model_rejects_invalid_entrypoint_before_runtime_start(self) -> None:
         cli_module = load_cli_module()
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -134,6 +287,220 @@ class RedcapDrlXappCliTest(unittest.TestCase):
 
             self.assertEqual(cli_module.run_model(args), 2)
             self.assertEqual(runtime_calls, [])
+
+    def test_model_without_control_refuses_before_runtime_start(self) -> None:
+        cli_module = load_cli_module()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir)
+            lock = {"name": "test-workspace", "release": "test-release", "images": {}, "profile": "ul-prb-cap-v1"}
+            cli_module.load_workspace = lambda _workspace: (workspace, lock, {})
+            runtime_calls = []
+            cli_module.overlay_command = lambda *_args, **_kwargs: runtime_calls.append("runtime") or SimpleNamespace(returncode=0)
+            args = SimpleNamespace(
+                workspace=workspace,
+                controller="model",
+                entrypoint="policy:choose",
+                enable_control=False,
+                teardown=False,
+            )
+
+            with redirect_stderr(io.StringIO()) as diagnostic:
+                self.assertEqual(cli_module.run_model(args), 2)
+            self.assertIn("MODEL_OBSERVATION_REQUIRED", diagnostic.getvalue())
+            self.assertEqual(runtime_calls, [])
+
+    def test_model_entrypoint_receives_observation_and_emits_one_json_line(self) -> None:
+        runner = REPO_ROOT / "redcap_library/drl_xapp/run_entrypoint.py"
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / "policy.py").write_text(
+                "def choose(observation):\n"
+                "    print('model diagnostic')\n"
+                "    assert observation['sample_count'] == 30\n"
+                "    return {'max_ul_prb': 32}\n",
+                encoding="utf-8",
+            )
+            observation = root / "observation.json"
+            observation.write_text('{"sample_count": 30}\n', encoding="utf-8")
+            environment = dict(os.environ, PYTHONPATH=str(root))
+
+            result = subprocess.run(
+                [sys.executable, str(runner), "policy:choose", str(observation)],
+                cwd=root,
+                env=environment,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 0)
+            self.assertEqual(result.stdout, '{"max_ul_prb": 32}\n')
+            self.assertIn("model diagnostic", result.stderr)
+
+    def test_model_control_summarizes_30_samples_and_sends_one_candidate(self) -> None:
+        cli_module = load_cli_module()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir)
+            lock = {"name": "test-workspace", "release": "test-release", "images": {}, "profile": "ul-prb-cap-v1"}
+            cli_module.load_workspace = lambda _workspace: (workspace, lock, {})
+            cli_module.verify = lambda _args: 0
+            cell = [
+                {
+                    "timestamp_ms": index + 1,
+                    "source_seq_origin": "e2_indication",
+                    "measurements": {"RRU.PrbTotUl": index},
+                }
+                for index in range(30)
+            ]
+            ue = [
+                {"timestamp_ms": index + 1, "source_seq_origin": "e2_indication"}
+                for index in range(30)
+            ]
+            cli_module.bridge_gate = lambda _args: (0, {"cell": cell, "ue": ue})
+            runtime_calls = []
+
+            def fake_overlay_command(_workspace, *command, **_kwargs):
+                runtime_calls.append(command)
+                observation = workspace / "run" / Path(command[-1]).name
+                self.assertEqual(json.loads(observation.read_text(encoding="utf-8")), {
+                    "profile_id": "ul-prb-cap-v1",
+                    "rru_prb_tot_ul_pct": {"latest": 29.0, "max": 29.0, "mean": 14.5, "min": 0.0},
+                    "sample_count": 30,
+                    "schema_version": 1,
+                })
+                self.assertEqual(observation.stat().st_mode & 0o777, 0o444)
+                return SimpleNamespace(returncode=0, stdout='{"max_ul_prb": 51}\n', stderr="")
+
+            cli_module.overlay_command = fake_overlay_command
+            requests = []
+            cli_module.uds_call = lambda _socket, request, timeout_seconds=5: (
+                requests.append(request)
+                or ({"ok": True, "session_id": "session-1"} if request["operation"] == "open" else {"ok": True})
+            )
+            collector = object()
+            cli_module.start_gnb_marker_collector = lambda *_args: collector
+            cli_module.stop_gnb_marker_collector = lambda actual: self.assertIs(actual, collector)
+            args = SimpleNamespace(
+                workspace=workspace,
+                controller="model",
+                entrypoint="policy:choose",
+                enable_control=True,
+                teardown=False,
+            )
+
+            self.assertEqual(cli_module.run_model(args), 0)
+            self.assertEqual(len(runtime_calls), 1)
+            self.assertEqual([request["operation"] for request in requests], ["open", "act", "close"])
+            self.assertEqual(requests[1]["action"], {"max_ul_prb": 51})
+
+    def test_model_control_refuses_insufficient_samples_or_invalid_candidate_before_uds(self) -> None:
+        cli_module = load_cli_module()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir)
+            lock = {"name": "test-workspace", "release": "test-release", "images": {}, "profile": "ul-prb-cap-v1"}
+            cli_module.load_workspace = lambda _workspace: (workspace, lock, {})
+            cli_module.verify = lambda _args: 0
+            cell = [{"timestamp_ms": index + 1, "source_seq_origin": "e2_indication", "measurements": {"RRU.PrbTotUl": 20}}
+                    for index in range(29)]
+            ue = [{"timestamp_ms": index + 1, "source_seq_origin": "e2_indication"} for index in range(29)]
+            cli_module.bridge_gate = lambda _args: (0, {"cell": cell, "ue": ue})
+            runtime_calls = []
+            uds_calls = []
+            cli_module.overlay_command = lambda *_args, **_kwargs: runtime_calls.append("runtime") or SimpleNamespace(
+                returncode=0, stdout='{"max_ul_prb": 0}\n', stderr=""
+            )
+            cli_module.uds_call = lambda *_args, **_kwargs: uds_calls.append("uds") or {"ok": True}
+            args = SimpleNamespace(
+                workspace=workspace,
+                controller="model",
+                entrypoint="policy:choose",
+                enable_control=True,
+                teardown=False,
+            )
+
+            with redirect_stderr(io.StringIO()) as diagnostic:
+                self.assertEqual(cli_module.run_model(args), 2)
+            self.assertIn("MODEL_OBSERVATION_REQUIRED", diagnostic.getvalue())
+            self.assertEqual(runtime_calls, [])
+            self.assertEqual(uds_calls, [])
+
+            cell.append({"timestamp_ms": 30, "source_seq_origin": "e2_indication", "measurements": {"RRU.PrbTotUl": 20}})
+            ue.append({"timestamp_ms": 30, "source_seq_origin": "e2_indication"})
+            with redirect_stderr(io.StringIO()) as diagnostic:
+                self.assertEqual(cli_module.run_model(args), 2)
+            self.assertIn("MODEL_CANDIDATE_REQUIRED", diagnostic.getvalue())
+            self.assertEqual(runtime_calls, ["runtime"])
+            self.assertEqual(uds_calls, [])
+
+    def test_model_control_rejects_every_non_profile_candidate_before_uds(self) -> None:
+        cli_module = load_cli_module()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir)
+            lock = {"name": "test-workspace", "release": "test-release", "images": {}, "profile": "ul-prb-cap-v1"}
+            cli_module.load_workspace = lambda _workspace: (workspace, lock, {})
+            cli_module.verify = lambda _args: 0
+            cell = [{"timestamp_ms": index + 1, "source_seq_origin": "e2_indication", "measurements": {"RRU.PrbTotUl": 20}}
+                    for index in range(30)]
+            ue = [{"timestamp_ms": index + 1, "source_seq_origin": "e2_indication"} for index in range(30)]
+            cli_module.bridge_gate = lambda _args: (0, {"cell": cell, "ue": ue})
+            cli_module.uds_call = lambda *_args, **_kwargs: self.fail("invalid model output opened UDS")
+            args = SimpleNamespace(
+                workspace=workspace,
+                controller="model",
+                entrypoint="policy:choose",
+                enable_control=True,
+                teardown=False,
+            )
+
+            for output in (
+                '{"max_ul_prb": 0}\n',
+                '{"max_ul_prb": 52}\n',
+                '{"max_ul_prb": true}\n',
+                '{"max_ul_prb": 1.0}\n',
+                '{"max_ul_prb": "1"}\n',
+                '{}\n',
+                '{"max_ul_prb": 1, "unexpected": 2}\n',
+                '{"max_ul_prb": 1}\nextra\n',
+            ):
+                cli_module.overlay_command = lambda *_args, output=output, **_kwargs: SimpleNamespace(
+                    returncode=0, stdout=output, stderr=""
+                )
+                with redirect_stderr(io.StringIO()) as diagnostic:
+                    self.assertEqual(cli_module.run_model(args), 2)
+                self.assertIn("MODEL_CANDIDATE_REQUIRED", diagnostic.getvalue())
+
+    def test_model_control_accepts_lower_profile_boundary(self) -> None:
+        cli_module = load_cli_module()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir)
+            lock = {"name": "test-workspace", "release": "test-release", "images": {}, "profile": "ul-prb-cap-v1"}
+            cli_module.load_workspace = lambda _workspace: (workspace, lock, {})
+            cli_module.verify = lambda _args: 0
+            cell = [{"timestamp_ms": index + 1, "source_seq_origin": "e2_indication", "measurements": {"RRU.PrbTotUl": 20}}
+                    for index in range(30)]
+            ue = [{"timestamp_ms": index + 1, "source_seq_origin": "e2_indication"} for index in range(30)]
+            cli_module.bridge_gate = lambda _args: (0, {"cell": cell, "ue": ue})
+            cli_module.overlay_command = lambda *_args, **_kwargs: SimpleNamespace(
+                returncode=0, stdout='{"max_ul_prb": 1}\n', stderr=""
+            )
+            requests = []
+            cli_module.uds_call = lambda _socket, request, timeout_seconds=5: (
+                requests.append(request)
+                or ({"ok": True, "session_id": "session-1"} if request["operation"] == "open" else {"ok": True})
+            )
+            collector = object()
+            cli_module.start_gnb_marker_collector = lambda *_args: collector
+            cli_module.stop_gnb_marker_collector = lambda actual: self.assertIs(actual, collector)
+            args = SimpleNamespace(
+                workspace=workspace,
+                controller="model",
+                entrypoint="policy:choose",
+                enable_control=True,
+                teardown=False,
+            )
+
+            self.assertEqual(cli_module.run_model(args), 0)
+            self.assertEqual(requests[1]["action"], {"max_ul_prb": 1})
 
 
     def test_unsupported_bridge_protocol_is_rejected(self) -> None:
@@ -177,6 +544,48 @@ class RedcapDrlXappCliTest(unittest.TestCase):
         )
         self.assertEqual(result["error"], "TARGET_BINDING_REQUIRED")
         self.assertEqual(native_calls, [])
+
+    def test_control_refuses_missing_apply_proof_provider_before_baseline(self) -> None:
+        bridge_module = load_bridge_module()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bridge = bridge_module.Bridge(
+                profile="ul-prb-cap-v1",
+                qualified_binding={
+                    "node_id": "2:1:1:123",
+                    "kpm_ue_key": "ue-key-1",
+                    "rc_ue_id": 17,
+                    "rnti": 4660,
+                    "source_seq": 9,
+                },
+                lease_dir=root / "leases",
+                journal_path=root / "control_journal.json",
+            )
+            opened = bridge.handle(
+                {
+                    "protocol_version": 1,
+                    "request_id": "open-without-provider",
+                    "operation": "open",
+                    "profile_id": "ul-prb-cap-v1",
+                    "mode": "control-once",
+                }
+            )
+            result = bridge.handle(
+                {
+                    "protocol_version": 1,
+                    "request_id": "act-without-provider",
+                    "operation": "act",
+                    "profile_id": "ul-prb-cap-v1",
+                    "session_id": opened["session_id"],
+                    "action": {"max_ul_prb": 32},
+                }
+            )
+
+            self.assertEqual(result["error"], "APPLY_PROOF_PROVIDER_REQUIRED")
+            self.assertEqual(
+                json.loads((root / "control_journal.json").read_text(encoding="utf-8"))["state"],
+                "LEASE_ACQUIRED",
+            )
 
     def test_control_open_returns_target_busy_for_existing_node_lease(self) -> None:
         bridge_module = load_bridge_module()
@@ -296,6 +705,161 @@ class RedcapDrlXappCliTest(unittest.TestCase):
                 discovered["rc_styles"],
                 [{"style_type": 1, "header_format": 1, "message_format": 1, "outcome_format": 1, "action_ids": [1, 100]}],
             )
+
+    def test_native_control_ul_prb_preserves_swig_ack_request_id(self) -> None:
+        bridge_module = load_bridge_module()
+        native = bridge_module.NativeFlexric(Path("/unused/flexric.conf"))
+        node = SimpleNamespace(ran_type=2, mcc=1, mnc=1, node_id=3584, id="native-node")
+        calls = []
+
+        class SwigSdk:
+            @staticmethod
+            def conn_e2_nodes():
+                return [node]
+
+            @staticmethod
+            def control_redcap_ul_prb_sm(node_id, rc_ue_id, rnti, max_ul_prb):
+                calls.append((node_id, rc_ue_id, rnti, max_ul_prb))
+                return 37
+
+        native.sdk = SwigSdk()
+        result = native.control_ul_prb(
+            {"node_id": "2:1:1:3584", "rc_ue_id": 17, "rnti": 4660, "max_ul_prb": 32}
+        )
+
+        self.assertEqual(calls, [("native-node", 17, 4660, 32)])
+        self.assertEqual(result, {"acknowledged": True, "ric_request_id": 37})
+
+    def test_native_control_ul_prb_refuses_boolean_prb_without_swig_call(self) -> None:
+        bridge_module = load_bridge_module()
+        native = bridge_module.NativeFlexric(Path("/unused/flexric.conf"))
+        node = SimpleNamespace(ran_type=2, mcc=1, mnc=1, node_id=3584, id="native-node")
+        calls = []
+
+        class SwigSdk:
+            @staticmethod
+            def conn_e2_nodes():
+                return [node]
+
+            @staticmethod
+            def control_redcap_ul_prb_sm(*args):
+                calls.append(args)
+                return 37
+
+        native.sdk = SwigSdk()
+        result = native.control_ul_prb(
+            {"node_id": "2:1:1:3584", "rc_ue_id": 17, "rnti": 4660, "max_ul_prb": True}
+        )
+
+        self.assertEqual(result, {"acknowledged": False, "error": "INVALID_CONTROL_ACTION"})
+        self.assertEqual(calls, [])
+
+    def test_native_control_ul_prb_refuses_unavailable_node_provider_without_swig_call(self) -> None:
+        bridge_module = load_bridge_module()
+        native = bridge_module.NativeFlexric(Path("/unused/flexric.conf"))
+        calls = []
+
+        class SwigSdk:
+            @staticmethod
+            def conn_e2_nodes():
+                raise RuntimeError("E2 nodes unavailable")
+
+            @staticmethod
+            def control_redcap_ul_prb_sm(*args):
+                calls.append(args)
+                return 37
+
+        native.sdk = SwigSdk()
+        result = native.control_ul_prb(
+            {"node_id": "2:1:1:3584", "rc_ue_id": 17, "rnti": 4660, "max_ul_prb": 32}
+        )
+
+        self.assertEqual(result, {"acknowledged": False, "error": "NATIVE_CONTROL_UNAVAILABLE"})
+        self.assertEqual(calls, [])
+
+    def test_native_proof_combines_ack_marker_and_fresh_kpm_inside_one_second(self) -> None:
+        bridge_module = load_bridge_module()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            proof_path = Path(temp_dir) / "apply_proof.jsonl"
+            proof_path.write_text(
+                json.dumps({"rnti": 4660, "requested": 32, "effective": 32, "observed_monotonic_ms": 101}) + "\n",
+                encoding="utf-8",
+            )
+            native = bridge_module.NativeFlexric(Path("/unused/flexric.conf"))
+            native.control_ul_prb = lambda _action: {"acknowledged": True, "ric_request_id": 37}
+            native.qualify = lambda _profile, observation_timeout_seconds=None: {
+                "ok": True,
+                "verified_target_binding": {"node_id": "2:1:1:3584", "rc_ue_id": 17, "rnti": 4660},
+            }
+            timestamps = iter((100, 102, 103, 104))
+            bridge_module.monotonic_ms = lambda: next(timestamps)
+
+            result = native.prove_ul_prb(
+                {"node_id": "2:1:1:3584", "rc_ue_id": 17, "rnti": 4660, "max_ul_prb": 32},
+                "ul-prb-cap-v1",
+                proof_path,
+            )
+
+            self.assertEqual(result["ric_request_id"], 37)
+            self.assertTrue(result["acknowledged"])
+            self.assertTrue(result["gnb_apply_marker"])
+            self.assertTrue(result["later_kpm"])
+
+    def test_marker_proof_requires_matching_action_within_one_second(self) -> None:
+        bridge_module = load_bridge_module()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            proof_path = Path(temp_dir) / "apply_proof.jsonl"
+            sent_at_ms = bridge_module.monotonic_ms()
+            matching = {
+                "rnti": 4660,
+                "requested": 32,
+                "effective": 32,
+                "observed_monotonic_ms": sent_at_ms + 10,
+                "marker_line": "RedCap UL PRB control RNTI 1234 requested 32 effective 32",
+            }
+            proof_path.write_text(json.dumps(matching) + "\n", encoding="utf-8")
+
+            result = bridge_module.marker_proof(
+                proof_path,
+                {"rnti": 4660, "max_ul_prb": 32},
+                sent_at_ms,
+            )
+
+            self.assertEqual(result, {"gnb_apply_marker": True, "marker": matching})
+
+    def test_marker_proof_refuses_stale_or_mismatched_record(self) -> None:
+        bridge_module = load_bridge_module()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            proof_path = Path(temp_dir) / "apply_proof.jsonl"
+            sent_at_ms = bridge_module.monotonic_ms()
+            proof_path.write_text(
+                "\n".join(
+                    json.dumps(record)
+                    for record in (
+                        {"rnti": 4660, "requested": 32, "effective": 32, "observed_monotonic_ms": sent_at_ms - 1},
+                        {"rnti": 4660, "requested": 16, "effective": 16, "observed_monotonic_ms": sent_at_ms + 10},
+                    )
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            result = bridge_module.marker_proof(
+                proof_path,
+                {"rnti": 4660, "max_ul_prb": 32},
+                sent_at_ms,
+            )
+
+            self.assertEqual(result, {"gnb_apply_marker": False})
+
+    def test_every_control_phase_requires_ack_marker_and_later_kpm(self) -> None:
+        bridge_module = load_bridge_module()
+
+        self.assertFalse(
+            bridge_module.Bridge._proof_succeeded(
+                {"acknowledged": True, "gnb_apply_marker": True, "later_kpm": False}
+            )
+        )
 
     def test_qualification_refuses_missing_cell_stream_without_control(self) -> None:
         bridge_module = load_bridge_module()
@@ -901,6 +1465,161 @@ class RedcapDrlXappCliTest(unittest.TestCase):
             self.assertTrue(result["ok"])
             self.assertEqual(json.loads(journal.read_text(encoding="utf-8"))["state"], "LEASE_ACQUIRED")
 
+    def test_control_once_refuses_failed_fresh_qualification_before_baseline(self) -> None:
+        bridge_module = load_bridge_module()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            native_calls = []
+            binding = {"node_id": "node-a", "kpm_ue_key": "ue-1", "rc_ue_id": 17, "rnti": 4660, "source_seq": 9}
+
+            class QualificationSource:
+                def __init__(self):
+                    self.calls = 0
+
+                def qualify(self, profile):
+                    self.calls += 1
+                    if self.calls == 1:
+                        return {"ok": True, "verified_target_binding": binding}
+                    return {"ok": False, "error": "KPM_FRESHNESS_REQUIRED"}
+
+            bridge = bridge_module.Bridge(
+                profile="ul-prb-cap-v1",
+                native=QualificationSource(),
+                native_control=lambda action: native_calls.append(action),
+                lease_dir=root / "leases",
+                workspace_id="workspace-a",
+                journal_path=root / "control_journal.json",
+            )
+            opened = bridge.handle(
+                {
+                    "protocol_version": 1,
+                    "request_id": "open-freshness",
+                    "operation": "open",
+                    "profile_id": "ul-prb-cap-v1",
+                    "mode": "control-once",
+                }
+            )
+            result = bridge.handle(
+                {
+                    "protocol_version": 1,
+                    "request_id": "act-freshness",
+                    "operation": "act",
+                    "profile_id": "ul-prb-cap-v1",
+                    "session_id": opened["session_id"],
+                    "action": {"max_ul_prb": 32},
+                }
+            )
+
+            self.assertEqual(result["error"], "KPM_FRESHNESS_REQUIRED")
+            self.assertEqual(native_calls, [])
+
+    def test_control_once_refuses_failed_fresh_qualification_before_candidate(self) -> None:
+        bridge_module = load_bridge_module()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            native_calls = []
+            binding = {"node_id": "node-a", "kpm_ue_key": "ue-1", "rc_ue_id": 17, "rnti": 4660, "source_seq": 9}
+
+            class QualificationSource:
+                def __init__(self):
+                    self.calls = 0
+
+                def qualify(self, profile):
+                    self.calls += 1
+                    if self.calls < 3:
+                        return {"ok": True, "verified_target_binding": binding}
+                    return {"ok": False, "error": "KPM_FRESHNESS_REQUIRED"}
+
+            bridge = bridge_module.Bridge(
+                profile="ul-prb-cap-v1",
+                native=QualificationSource(),
+                native_control=lambda action: native_calls.append(action) or {
+                    "acknowledged": True,
+                    "gnb_apply_marker": True,
+                    "later_kpm": True,
+                },
+                lease_dir=root / "leases",
+                workspace_id="workspace-a",
+                journal_path=root / "control_journal.json",
+            )
+            opened = bridge.handle(
+                {
+                    "protocol_version": 1,
+                    "request_id": "open-candidate-freshness",
+                    "operation": "open",
+                    "profile_id": "ul-prb-cap-v1",
+                    "mode": "control-once",
+                }
+            )
+            result = bridge.handle(
+                {
+                    "protocol_version": 1,
+                    "request_id": "act-candidate-freshness",
+                    "operation": "act",
+                    "profile_id": "ul-prb-cap-v1",
+                    "session_id": opened["session_id"],
+                    "action": {"max_ul_prb": 32},
+                }
+            )
+
+            self.assertEqual(result["error"], "KPM_FRESHNESS_REQUIRED")
+            self.assertEqual([call["phase"] for call in native_calls], ["baseline"])
+            self.assertEqual(json.loads((root / "control_journal.json").read_text(encoding="utf-8"))["state"], "RECOVERED")
+
+    def test_control_once_locks_failed_fresh_qualification_before_restore(self) -> None:
+        bridge_module = load_bridge_module()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            native_calls = []
+            binding = {"node_id": "node-a", "kpm_ue_key": "ue-1", "rc_ue_id": 17, "rnti": 4660, "source_seq": 9}
+
+            class QualificationSource:
+                def __init__(self):
+                    self.calls = 0
+
+                def qualify(self, profile):
+                    self.calls += 1
+                    if self.calls < 4:
+                        return {"ok": True, "verified_target_binding": binding}
+                    return {"ok": False, "error": "KPM_FRESHNESS_REQUIRED"}
+
+            bridge = bridge_module.Bridge(
+                profile="ul-prb-cap-v1",
+                native=QualificationSource(),
+                native_control=lambda action: native_calls.append(action) or {
+                    "acknowledged": True,
+                    "gnb_apply_marker": True,
+                    "later_kpm": True,
+                },
+                lease_dir=root / "leases",
+                workspace_id="workspace-a",
+                journal_path=root / "control_journal.json",
+            )
+            opened = bridge.handle(
+                {
+                    "protocol_version": 1,
+                    "request_id": "open-restore-freshness",
+                    "operation": "open",
+                    "profile_id": "ul-prb-cap-v1",
+                    "mode": "control-once",
+                }
+            )
+            result = bridge.handle(
+                {
+                    "protocol_version": 1,
+                    "request_id": "act-restore-freshness",
+                    "operation": "act",
+                    "profile_id": "ul-prb-cap-v1",
+                    "session_id": opened["session_id"],
+                    "action": {"max_ul_prb": 32},
+                }
+            )
+
+            self.assertEqual(result["error"], "KPM_FRESHNESS_REQUIRED")
+            self.assertEqual([call["phase"] for call in native_calls], ["baseline", "candidate"])
+            self.assertEqual(json.loads((root / "control_journal.json").read_text(encoding="utf-8"))["state"], "ROLLBACK_UNCONFIRMED")
+            self.assertTrue((root / "leases/node-a.lock").exists())
+
     def test_control_once_accepts_upper_contract_bound_with_required_proofs(self) -> None:
         bridge_module = load_bridge_module()
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1049,7 +1768,7 @@ class RedcapDrlXappCliTest(unittest.TestCase):
             def native_control(action):
                 calls.append(action)
                 if action["phase"] == "recovery":
-                    return {"acknowledged": True, "gnb_apply_marker": True, "later_kpm": False}
+                    return {"acknowledged": True, "gnb_apply_marker": True, "later_kpm": True}
                 if action["phase"] in {"candidate", "restore"}:
                     return {"acknowledged": True, "gnb_apply_marker": False, "later_kpm": False}
                 return {"acknowledged": True, "gnb_apply_marker": True, "later_kpm": True}

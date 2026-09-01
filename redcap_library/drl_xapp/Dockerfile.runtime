@@ -6,7 +6,7 @@ ARG TORCH_INDEX_URL
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PYTHONPATH=/opt/redcap/xapp:/opt/redcap/drl
+    PYTHONPATH=/workspace/src:/opt/redcap/xapp:/opt/redcap/drl
 
 COPY redcap_library/drl_xapp/requirements.lock /tmp/requirements.lock
 RUN python3 -m pip install --no-cache-dir --index-url "${TORCH_INDEX_URL}" "${TORCH_SPEC}" \
