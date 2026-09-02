@@ -238,8 +238,8 @@ UL-PRB apply marker。它不支持完整SDK、priority helper live path、DRX pa
 
 ## 15. Control Run orchestration memo (architecture decision)
 
-這是已實作並以 local seam 驗證的 Task 4.3/5.1 架構契約；不是 live E2 control
-成功證據。
+這是已實作並以 local seam 驗證、且有一次 approved live fixed transaction 的
+Task 4.3/5.1 架構契約；它不是 DRL training 或通用 live 成功證據。
 它處理「一次 `run --enable-control` 的證據如何不被 qualification 與 control
 分割」；不改變 Bridge 的 native lease、journal 或 apply-proof owner。
 
@@ -305,6 +305,6 @@ symdex --state-dir <local-symdex-state> find --repo <indexed-cli-repo> run_model
 - Pre-UDS evidence gate: EVIDENCE_WRITE_REQUIRED
 - Terminal evidence gate: EVIDENCE_FINALIZATION_FAILED
 - Native owner retained by Bridge: lease / journal / apply proof
-- Strongest evidence: OpenSpec contract plus local 71/71 seam test
-- Not claimed: live E2SM-RC or gNB control success
+- Strongest evidence: OpenSpec contract, local 84/84 seam test, and live run `20260902T071437Z-b5133c57`
+- Not claimed: host/container clock equivalence, broad E2SM-RC/KPM interoperability, or DRL training effectiveness
 ```

@@ -18,10 +18,15 @@ import time
 PROTOCOL_VERSION = 1
 KPM_RAN_FUNCTION_ID = 2
 RC_RAN_FUNCTION_ID = 3
-KPM_OBSERVATION_TIMEOUT_SECONDS = 2.0
+KPM_OBSERVATION_TIMEOUT_SECONDS = 4.0
 KPM_CADENCE_MIN_CALLBACKS = 3
 KPM_SAMPLE_BUFFER_LIMIT = 64
 APPLY_PROOF_WINDOW_MS = 1_000
+POST_SEND_MINIMUM_SAMPLES = 1
+MODEL_OBSERVATION_SAMPLE_COUNT = 30
+PRB_UTILIZATION_MIN_PCT = 0.0
+PRB_UTILIZATION_MAX_PCT = 100.0
+MIN_E2_EVENT_TIME_MS = 1
 
 
 def monotonic_ms() -> int:
@@ -103,6 +108,7 @@ def calibration_summary(pairs: list[tuple[dict, dict, int]]) -> dict:
     if not valid:
         return {"event_time_origin": None, "valid_paired_samples": 0}
     evaluated_at_ms = monotonic_ms()
+    latest_cell, latest_ue, _latest_skew_ms = valid[-1]
     return {
         "event_time_origin": "e2_indication_collectStartTime_ms",
         "valid_paired_samples": len(valid),
@@ -110,6 +116,9 @@ def calibration_summary(pairs: list[tuple[dict, dict, int]]) -> dict:
         "max_freshness_age_ms": max(
             evaluated_at_ms - min(cell["bridge_monotonic_receipt_ms"], ue["bridge_monotonic_receipt_ms"])
             for cell, ue, _skew_ms in valid
+        ),
+        "latest_freshness_age_ms": evaluated_at_ms - min(
+            latest_cell["bridge_monotonic_receipt_ms"], latest_ue["bridge_monotonic_receipt_ms"]
         ),
     }
 
@@ -128,27 +137,27 @@ def qualified_model_observation(qualification: object) -> dict:
             if (
                 cell_sample.get("source_seq_origin") != "e2_indication"
                 or ue_sample.get("source_seq_origin") != "e2_indication"
-                or int(cell_sample["timestamp_ms"]) <= 0
-                or int(ue_sample["timestamp_ms"]) <= 0
+                or int(cell_sample["timestamp_ms"]) < MIN_E2_EVENT_TIME_MS
+                or int(ue_sample["timestamp_ms"]) < MIN_E2_EVENT_TIME_MS
             ):
                 continue
             value = cell_sample["measurements"]["RRU.PrbTotUl"]
             if isinstance(value, bool):
                 continue
             value = float(value)
-            if 0 <= value <= 100 and math.isfinite(value):
+            if PRB_UTILIZATION_MIN_PCT <= value <= PRB_UTILIZATION_MAX_PCT and math.isfinite(value):
                 values.append(value)
     except (KeyError, TypeError, ValueError, OverflowError):
         return {"ok": False, "error": "MODEL_OBSERVATION_REQUIRED"}
-    if len(values) < 30:
+    if len(values) < MODEL_OBSERVATION_SAMPLE_COUNT:
         return {"ok": False, "error": "MODEL_OBSERVATION_REQUIRED"}
-    values = values[-30:]
+    values = values[-MODEL_OBSERVATION_SAMPLE_COUNT:]
     return {
         "ok": True,
         "observation": {
             "schema_version": 1,
             "profile_id": "ul-prb-cap-v1",
-            "sample_count": 30,
+            "sample_count": MODEL_OBSERVATION_SAMPLE_COUNT,
             "rru_prb_tot_ul_pct": {
                 "latest": values[-1],
                 "mean": sum(values) / len(values),
@@ -322,6 +331,7 @@ class NativeFlexric:
             profile,
             observation_timeout_seconds=remaining_seconds,
             received_after_ms=sent_at_ms,
+            post_send_proof=True,
         )
         binding = qualification.get("verified_target_binding") if isinstance(qualification, dict) else None
         later_kpm = isinstance(qualification, dict) and bool(
@@ -464,7 +474,7 @@ class NativeFlexric:
         return True, None
 
     def _wait_for_kpm_samples(self, minimum_samples: int, received_after_ms: int | None, timeout_seconds: float) -> tuple[dict, list[str]]:
-        deadline = time.monotonic() + max(0.0, min(float(timeout_seconds), KPM_OBSERVATION_TIMEOUT_SECONDS))
+        deadline = time.monotonic() + max(0.0, float(timeout_seconds))
         with self.kpm_condition:
             while True:
                 samples = {
@@ -524,6 +534,7 @@ class NativeFlexric:
         profile: str,
         observation_timeout_seconds: float | None = None,
         received_after_ms: int | None = None,
+        post_send_proof: bool = False,
     ) -> dict:
         node, failure = self._eligible_kpm_node(profile)
         if failure is not None:
@@ -532,9 +543,10 @@ class NativeFlexric:
         if failure is not None:
             return failure
         policy = self.measurement_post
-        minimum_samples = policy.get("min_valid_paired_samples", 1) if isinstance(policy, dict) else 1
-        if isinstance(minimum_samples, bool) or not isinstance(minimum_samples, int) or minimum_samples < 1:
-            minimum_samples = 1
+        configured_minimum = policy.get("min_valid_paired_samples", 1) if isinstance(policy, dict) else 1
+        if isinstance(configured_minimum, bool) or not isinstance(configured_minimum, int) or configured_minimum < 1:
+            configured_minimum = 1
+        minimum_samples = POST_SEND_MINIMUM_SAMPLES if post_send_proof else configured_minimum
         if received_after_ms is None and not created:
             received_after_ms = monotonic_ms()
         timeout_seconds = KPM_OBSERVATION_TIMEOUT_SECONDS if observation_timeout_seconds is None else observation_timeout_seconds
@@ -559,12 +571,12 @@ class NativeFlexric:
         try:
             freshness_window_ms = int(policy["freshness_window_ms"])
             max_skew_ms = int(policy["cell_ue_max_skew_ms"])
-            minimum_samples = int(policy["min_valid_paired_samples"])
+            policy_minimum_samples = int(policy["min_valid_paired_samples"])
             expected_fingerprint = policy["fingerprint"]
         except (KeyError, TypeError, ValueError):
             return {"ok": False, "error": "MEASUREMENT_POST_POLICY_INVALID", "failed_stage": "qualification", "node_id": node["node_id"],
                     "cell": samples["cell"], "ue": samples["ue"], "control_attempted": False}
-        if freshness_window_ms < 0 or max_skew_ms < 0 or minimum_samples < 1 or not isinstance(expected_fingerprint, dict):
+        if freshness_window_ms < 0 or max_skew_ms < 0 or policy_minimum_samples < 1 or not isinstance(expected_fingerprint, dict):
             return {"ok": False, "error": "MEASUREMENT_POST_POLICY_INVALID", "failed_stage": "qualification", "node_id": node["node_id"],
                     "cell": samples["cell"], "ue": samples["ue"], "control_attempted": False}
         if not all(sample.get("source_seq_origin") == "e2_indication" and sample.get("timestamp_ms", 0) > 0
@@ -593,7 +605,7 @@ class NativeFlexric:
         if len(pairs) < minimum_samples:
             return {"ok": False, "error": "VALID_PAIRED_SAMPLES_REQUIRED", "failed_stage": "pairing", "node_id": node["node_id"],
                     "cell": samples["cell"], "ue": samples["ue"], "control_attempted": False}
-        freshness_age_ms = calibration["max_freshness_age_ms"]
+        freshness_age_ms = calibration["latest_freshness_age_ms"]
         if freshness_age_ms > freshness_window_ms:
             return {"ok": False, "error": "KPM_FRESHNESS_EXPIRED", "failed_stage": "freshness", "node_id": node["node_id"],
                     "cell": samples["cell"], "ue": samples["ue"], "control_attempted": False}

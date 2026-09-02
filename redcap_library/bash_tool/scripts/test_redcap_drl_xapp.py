@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -104,6 +105,9 @@ class RedcapDrlXappCliTest(unittest.TestCase):
             self.assertIn("discover-kpm", manifest["gates"])
             self.assertIn("qualify-kpm", manifest["gates"])
             self.assertNotIn("control", manifest["gates"])
+            self.assertIn("finalized_at", manifest)
+            with self.assertRaises(OSError):
+                cli_module.record_event(run_dir, {"event": "late-append"})
 
     def test_qualify_stops_after_failed_discovery(self) -> None:
         cli_module = load_cli_module()
@@ -124,6 +128,7 @@ class RedcapDrlXappCliTest(unittest.TestCase):
             manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
             self.assertIn("discover-kpm", manifest["gates"])
             self.assertNotIn("qualify-kpm", manifest["gates"])
+            self.assertIn("finalized_at", manifest)
 
     def test_qualify_evidence_projects_resolved_node_without_control(self) -> None:
         cli_module = load_cli_module()
@@ -218,11 +223,15 @@ class RedcapDrlXappCliTest(unittest.TestCase):
             self.assertEqual([json.loads(line)["event"] for line in output.getvalue().splitlines()], ["CONTROL_RUN_STARTED"])
             self.assertIn("EVIDENCE_FINALIZATION_FAILED", diagnostic.getvalue())
             self.assertNotIn("runtime smoke", diagnostic.getvalue())
+            run_dir = next((workspace / "artifacts/runs").iterdir())
+            events = [json.loads(line) for line in (run_dir / "events.ndjson").read_text(encoding="utf-8").splitlines()]
+            self.assertNotIn("CONTROL_RUN_FINISHED", [event.get("event") for event in events])
 
     def test_fixed_control_run_uses_one_package_and_emits_lifecycle_records(self) -> None:
         cli_module = load_cli_module()
         with tempfile.TemporaryDirectory() as temp_dir:
             workspace = Path(temp_dir)
+            (workspace / "run").mkdir()
             lock = {"name": "test-workspace", "release": "test-release", "images": {}, "profile": "ul-prb-cap-v1"}
             cli_module.load_workspace = lambda _workspace: (workspace, lock, {})
             cli_module.verify = lambda _args: 0
@@ -237,6 +246,11 @@ class RedcapDrlXappCliTest(unittest.TestCase):
                     return {"ok": True, "node_id": "node-a", "cell": [], "ue": []}
                 if request["operation"] == "open":
                     return {"ok": True, "session_id": "session-a"}
+                if request["operation"] == "act":
+                    cli_module.write_json(
+                        workspace / "run/control_journal.json",
+                        {"state": "COMPLETED", "workspace_id": "test-workspace", "node_id": "node-a"},
+                    )
                 return {"ok": True}
 
             cli_module.uds_call = fake_uds_call
@@ -252,10 +266,117 @@ class RedcapDrlXappCliTest(unittest.TestCase):
             lifecycle = [json.loads(line) for line in output.getvalue().splitlines()]
             self.assertEqual(manifest["gate_status"], "PASS")
             self.assertIn("finalized_at", manifest)
+            self.assertNotIn("model_observation", manifest["evidence"])
+            self.assertNotIn("model_decision", manifest["evidence"])
             self.assertEqual([event["operation"] for event in events if "operation" in event], ["discover", "qualify", "open", "act", "close"])
             self.assertEqual([record["event"] for record in lifecycle], ["CONTROL_RUN_STARTED", "CONTROL_RUN_FINISHED"])
             self.assertEqual(lifecycle[0]["run_id"], lifecycle[1]["run_id"])
             self.assertEqual(lifecycle[0]["run_id"], manifest["run_id"])
+
+    def test_control_run_finalizes_workspace_journal_in_evidence_package(self) -> None:
+        cli_module = load_cli_module()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir)
+            (workspace / "run").mkdir()
+            lock = {"name": "test-workspace", "release": "test-release", "images": {}, "profile": "ul-prb-cap-v1"}
+            cli_module.load_workspace = lambda _workspace: (workspace, lock, {})
+            cli_module.verify = lambda _args: 0
+            cli_module.qualify_control_run = lambda *_args: {"ok": True, "cell": [], "ue": []}
+            cli_module.start_gnb_marker_collector = lambda *_args: object()
+            cli_module.stop_gnb_marker_collector = lambda _collector: None
+
+            def fake_uds_call(_socket, request, timeout_seconds=20):
+                if request["operation"] == "open":
+                    return {"ok": True, "session_id": "session-1"}
+                if request["operation"] == "act":
+                    cli_module.write_json(
+                        workspace / "run/control_journal.json",
+                        {"state": "COMPLETED", "workspace_id": "test-workspace", "node_id": "node-a"},
+                    )
+                return {"ok": True}
+
+            cli_module.uds_call = fake_uds_call
+            args = SimpleNamespace(workspace=workspace, controller="fixed", entrypoint=None, enable_control=True, teardown=False)
+
+            self.assertEqual(cli_module.run_model(args), 0)
+            run_dir = next((workspace / "artifacts/runs").iterdir())
+            self.assertEqual(
+                json.loads((run_dir / "control_journal.json").read_text(encoding="utf-8")),
+                {
+                    "control_attempted": True,
+                    "state": "COMPLETED",
+                    "workspace_id": "test-workspace",
+                    "node_id": "node-a",
+                },
+            )
+
+    def test_control_run_refuses_finalization_without_workspace_journal(self) -> None:
+        cli_module = load_cli_module()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir)
+            lock = {"name": "test-workspace", "release": "test-release", "images": {}, "profile": "ul-prb-cap-v1"}
+            cli_module.load_workspace = lambda _workspace: (workspace, lock, {})
+            cli_module.verify = lambda _args: 0
+            cli_module.qualify_control_run = lambda *_args: {"ok": True, "cell": [], "ue": []}
+            cli_module.start_gnb_marker_collector = lambda *_args: object()
+            cli_module.stop_gnb_marker_collector = lambda _collector: None
+
+            def fake_uds_call(_socket, request, timeout_seconds=20):
+                if request["operation"] == "open":
+                    return {"ok": True, "session_id": "session-1"}
+                return {"ok": True}
+
+            cli_module.uds_call = fake_uds_call
+            args = SimpleNamespace(workspace=workspace, controller="fixed", entrypoint=None, enable_control=True, teardown=False)
+            diagnostic = io.StringIO()
+            with redirect_stderr(diagnostic):
+                self.assertEqual(cli_module.run_model(args), 2)
+
+            self.assertIn("EVIDENCE_FINALIZATION_FAILED", diagnostic.getvalue())
+            run_dir = next((workspace / "artifacts/runs").iterdir())
+            manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
+            self.assertNotIn("finalized_at", manifest)
+            self.assertNotIn(
+                "CONTROL_RUN_FINISHED",
+                [json.loads(line).get("event") for line in (run_dir / "events.ndjson").read_text(encoding="utf-8").splitlines()],
+            )
+
+    def test_control_run_refuses_nonterminal_workspace_journal(self) -> None:
+        cli_module = load_cli_module()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir)
+            (workspace / "run").mkdir()
+            lock = {"name": "test-workspace", "release": "test-release", "images": {}, "profile": "ul-prb-cap-v1"}
+            cli_module.load_workspace = lambda _workspace: (workspace, lock, {})
+            cli_module.verify = lambda _args: 0
+            cli_module.qualify_control_run = lambda *_args: {"ok": True, "cell": [], "ue": []}
+            cli_module.start_gnb_marker_collector = lambda *_args: object()
+            cli_module.stop_gnb_marker_collector = lambda _collector: None
+
+            def fake_uds_call(_socket, request, timeout_seconds=20):
+                if request["operation"] == "open":
+                    return {"ok": True, "session_id": "session-1"}
+                if request["operation"] == "act":
+                    cli_module.write_json(
+                        workspace / "run/control_journal.json",
+                        {"state": "OPEN_PENDING", "workspace_id": "test-workspace", "node_id": "node-a"},
+                    )
+                return {"ok": True}
+
+            cli_module.uds_call = fake_uds_call
+            args = SimpleNamespace(workspace=workspace, controller="fixed", entrypoint=None, enable_control=True, teardown=False)
+            diagnostic = io.StringIO()
+            with redirect_stderr(diagnostic):
+                self.assertEqual(cli_module.run_model(args), 2)
+
+            self.assertIn("EVIDENCE_FINALIZATION_FAILED", diagnostic.getvalue())
+            run_dir = next((workspace / "artifacts/runs").iterdir())
+            manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
+            self.assertNotIn("finalized_at", manifest)
+            self.assertNotIn(
+                "CONTROL_RUN_FINISHED",
+                [json.loads(line).get("event") for line in (run_dir / "events.ndjson").read_text(encoding="utf-8").splitlines()],
+            )
 
     def test_finalized_control_run_refuses_later_event_append(self) -> None:
         cli_module = load_cli_module()
@@ -268,6 +389,38 @@ class RedcapDrlXappCliTest(unittest.TestCase):
 
             with self.assertRaises(OSError):
                 cli_module.record_event(run_dir, {"event": "late-append"})
+
+    def test_control_run_teardown_calls_down_after_finalization(self) -> None:
+        cli_module = load_cli_module()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir)
+            (workspace / "run").mkdir()
+            lock = {"name": "test-workspace", "release": "test-release", "images": {}, "profile": "ul-prb-cap-v1"}
+            cli_module.load_workspace = lambda _workspace: (workspace, lock, {})
+            cli_module.verify = lambda _args: 0
+            cli_module.qualify_control_run = lambda *_args: {"ok": True, "cell": [], "ue": []}
+            cli_module.start_gnb_marker_collector = lambda *_args: object()
+            cli_module.stop_gnb_marker_collector = lambda _collector: None
+            teardown_calls = []
+            cli_module.lifecycle = lambda args: teardown_calls.append(args) or 0
+
+            def fake_uds_call(_socket, request, timeout_seconds=20):
+                if request["operation"] == "open":
+                    return {"ok": True, "session_id": "session-1"}
+                if request["operation"] == "act":
+                    cli_module.write_json(
+                        workspace / "run/control_journal.json",
+                        {"state": "COMPLETED", "workspace_id": "test-workspace", "node_id": "node-a"},
+                    )
+                return {"ok": True}
+
+            cli_module.uds_call = fake_uds_call
+            args = SimpleNamespace(workspace=workspace, controller="fixed", entrypoint=None, enable_control=True, teardown=True)
+
+            self.assertEqual(cli_module.run_model(args), 0)
+            self.assertEqual(len(teardown_calls), 1)
+            self.assertEqual(teardown_calls[0].command, "down")
+            self.assertIs(teardown_calls[0].workspace, workspace)
 
     def test_run_parser_rejects_removed_episodes_without_creating_workspace_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -373,6 +526,7 @@ class RedcapDrlXappCliTest(unittest.TestCase):
         cli_module = load_cli_module()
         with tempfile.TemporaryDirectory() as temp_dir:
             workspace = Path(temp_dir)
+            (workspace / "run").mkdir()
             lock = {"name": "test-workspace", "release": "test-release", "images": {}, "profile": "ul-prb-cap-v1"}
             cli_module.load_workspace = lambda _workspace: (workspace, lock, {})
             cli_module.verify = lambda _args: 0
@@ -384,6 +538,10 @@ class RedcapDrlXappCliTest(unittest.TestCase):
                 if request["operation"] == "open":
                     return {"ok": True, "session_id": "session-1"}
                 if request["operation"] == "act":
+                    cli_module.write_json(
+                        workspace / "run/control_journal.json",
+                        {"state": "COMPLETED", "workspace_id": "test-workspace", "node_id": "node-a"},
+                    )
                     return {"ok": False, "error": "APPLY_PROOF_PROVIDER_REQUIRED"}
                 return {"ok": True}
 
@@ -396,7 +554,7 @@ class RedcapDrlXappCliTest(unittest.TestCase):
             self.assertEqual(cli_module.run_model(args), 4)
             self.assertEqual([request["operation"] for request, _timeout in requests], ["open", "act", "close"])
             self.assertEqual(requests[1][0]["action"]["max_ul_prb"], 32)
-            self.assertEqual([timeout for _request, timeout in requests], [5, 5, 5])
+            self.assertEqual([timeout for _request, timeout in requests], [20, 20, 20])
             run_dir = next((workspace / "artifacts/runs").iterdir())
             events = [json.loads(line) for line in (run_dir / "events.ndjson").read_text(encoding="utf-8").splitlines()]
             self.assertEqual([event["operation"] for event in events if "operation" in event], ["open", "act", "close"])
@@ -416,6 +574,7 @@ class RedcapDrlXappCliTest(unittest.TestCase):
         cli_module = load_cli_module()
         with tempfile.TemporaryDirectory() as temp_dir:
             workspace = Path(temp_dir)
+            (workspace / "run").mkdir()
             lock = {"name": "test-workspace", "release": "test-release", "images": {}, "profile": "ul-prb-cap-v1"}
             cli_module.load_workspace = lambda _workspace: (workspace, lock, {})
             cli_module.verify = lambda _args: 0
@@ -426,6 +585,11 @@ class RedcapDrlXappCliTest(unittest.TestCase):
                 requests.append((request, timeout_seconds))
                 if request["operation"] == "open":
                     return {"ok": True, "session_id": "session-1"}
+                if request["operation"] == "act":
+                    cli_module.write_json(
+                        workspace / "run/control_journal.json",
+                        {"state": "COMPLETED", "workspace_id": "test-workspace", "node_id": "node-a"},
+                    )
                 return {"ok": True}
 
             cli_module.uds_call = fake_uds_call
@@ -510,6 +674,7 @@ class RedcapDrlXappCliTest(unittest.TestCase):
         cli_module = load_cli_module()
         with tempfile.TemporaryDirectory() as temp_dir:
             workspace = Path(temp_dir)
+            (workspace / "run").mkdir()
             lock = {"name": "test-workspace", "release": "test-release", "images": {}, "profile": "ul-prb-cap-v1"}
             cli_module.load_workspace = lambda _workspace: (workspace, lock, {})
             cli_module.verify = lambda _args: 0
@@ -542,10 +707,18 @@ class RedcapDrlXappCliTest(unittest.TestCase):
 
             cli_module.overlay_command = fake_overlay_command
             requests = []
-            cli_module.uds_call = lambda _socket, request, timeout_seconds=5: (
+            def fake_uds_call(_socket, request, timeout_seconds=5):
                 requests.append(request)
-                or ({"ok": True, "session_id": "session-1"} if request["operation"] == "open" else {"ok": True})
-            )
+                if request["operation"] == "open":
+                    return {"ok": True, "session_id": "session-1"}
+                if request["operation"] == "act":
+                    cli_module.write_json(
+                        workspace / "run/control_journal.json",
+                        {"state": "COMPLETED", "workspace_id": "test-workspace", "node_id": "node-a"},
+                    )
+                return {"ok": True}
+
+            cli_module.uds_call = fake_uds_call
             collector = object()
             cli_module.start_gnb_marker_collector = lambda *_args: collector
             cli_module.stop_gnb_marker_collector = lambda actual: self.assertIs(actual, collector)
@@ -562,6 +735,9 @@ class RedcapDrlXappCliTest(unittest.TestCase):
             self.assertEqual([request["operation"] for request in requests], ["open", "act", "close"])
             self.assertEqual(requests[1]["action"], {"max_ul_prb": 51})
             run_dir = next((workspace / "artifacts/runs").iterdir())
+            manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(manifest["evidence"]["model_observation"], str(run_dir / "model_observation.json"))
+            self.assertEqual(manifest["evidence"]["model_decision"], str(run_dir / "model_decision.json"))
             self.assertEqual(
                 json.loads((run_dir / "model_observation.json").read_text(encoding="utf-8"))["sample_count"],
                 30,
@@ -647,10 +823,16 @@ class RedcapDrlXappCliTest(unittest.TestCase):
                     self.assertEqual(cli_module.run_model(args), 2)
                 self.assertIn("MODEL_CANDIDATE_REQUIRED", diagnostic.getvalue())
 
+            for run_dir in (workspace / "artifacts/runs").iterdir():
+                manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
+                self.assertIn("model_observation", manifest["evidence"])
+                self.assertNotIn("model_decision", manifest["evidence"])
+
     def test_model_control_accepts_lower_profile_boundary(self) -> None:
         cli_module = load_cli_module()
         with tempfile.TemporaryDirectory() as temp_dir:
             workspace = Path(temp_dir)
+            (workspace / "run").mkdir()
             lock = {"name": "test-workspace", "release": "test-release", "images": {}, "profile": "ul-prb-cap-v1"}
             cli_module.load_workspace = lambda _workspace: (workspace, lock, {})
             cli_module.verify = lambda _args: 0
@@ -662,10 +844,18 @@ class RedcapDrlXappCliTest(unittest.TestCase):
                 returncode=0, stdout='{"max_ul_prb": 1}\n', stderr=""
             )
             requests = []
-            cli_module.uds_call = lambda _socket, request, timeout_seconds=5: (
+            def fake_uds_call(_socket, request, timeout_seconds=5):
                 requests.append(request)
-                or ({"ok": True, "session_id": "session-1"} if request["operation"] == "open" else {"ok": True})
-            )
+                if request["operation"] == "open":
+                    return {"ok": True, "session_id": "session-1"}
+                if request["operation"] == "act":
+                    cli_module.write_json(
+                        workspace / "run/control_journal.json",
+                        {"state": "COMPLETED", "workspace_id": "test-workspace", "node_id": "node-a"},
+                    )
+                return {"ok": True}
+
+            cli_module.uds_call = fake_uds_call
             collector = object()
             cli_module.start_gnb_marker_collector = lambda *_args: collector
             cli_module.stop_gnb_marker_collector = lambda actual: self.assertIs(actual, collector)
@@ -965,7 +1155,7 @@ class RedcapDrlXappCliTest(unittest.TestCase):
             )
             native = bridge_module.NativeFlexric(Path("/unused/flexric.conf"))
             native.control_ul_prb = lambda _action: {"acknowledged": True, "ric_request_id": 37}
-            native.qualify = lambda _profile, observation_timeout_seconds=None, received_after_ms=None: {
+            native.qualify = lambda _profile, observation_timeout_seconds=None, received_after_ms=None, post_send_proof=False: {
                 "ok": True,
                 "verified_target_binding": {"node_id": "2:1:1:3584", "rc_ue_id": 17, "rnti": 4660},
             }
@@ -982,6 +1172,99 @@ class RedcapDrlXappCliTest(unittest.TestCase):
             self.assertTrue(result["acknowledged"])
             self.assertTrue(result["gnb_apply_marker"])
             self.assertTrue(result["later_kpm"])
+
+    def test_native_later_kpm_uses_one_fresh_pair_when_policy_requires_thirty_samples(self) -> None:
+        bridge_module = load_bridge_module()
+        native = bridge_module.NativeFlexric(Path("/unused/flexric.conf"))
+        native.control_ul_prb = lambda _action: {"acknowledged": True, "ric_request_id": 37}
+        qualification_calls = []
+
+        def qualify(_profile, observation_timeout_seconds=None, received_after_ms=None, post_send_proof=False):
+            qualification_calls.append((observation_timeout_seconds, received_after_ms, post_send_proof))
+            if not post_send_proof:
+                return {"ok": False}
+            return {
+                "ok": True,
+                "verified_target_binding": {"node_id": "2:1:1:3584", "rc_ue_id": 17, "rnti": 4660},
+            }
+
+        native.qualify = qualify
+        with patch.object(bridge_module, "wait_marker_proof", return_value={"gnb_apply_marker": True}), \
+                patch.object(bridge_module, "monotonic_ms", side_effect=(100, 101, 102)):
+            result = native.prove_ul_prb(
+                {"node_id": "2:1:1:3584", "rc_ue_id": 17, "rnti": 4660, "max_ul_prb": 16},
+                "ul-prb-cap-v1",
+                Path("/unused/proof.jsonl"),
+            )
+
+        self.assertTrue(result["later_kpm"])
+        self.assertEqual(len(qualification_calls), 1)
+        self.assertEqual(qualification_calls[0][1], 100)
+        self.assertTrue(qualification_calls[0][2])
+
+    def test_native_qualification_collects_thirty_samples_at_measured_cadence(self) -> None:
+        bridge_module = load_bridge_module()
+        native = bridge_module.NativeFlexric(Path("/unused/flexric.conf"))
+        styles = [
+            {"style_type": 1, "action_definition_format": 0, "indication_header_format": 0, "indication_message_format": 0},
+            {"style_type": 4, "action_definition_format": 3, "indication_header_format": 0, "indication_message_format": 2},
+        ]
+        native.measurement_post = {
+            "status": "FROZEN",
+            "freshness_window_ms": 200,
+            "cell_ue_max_skew_ms": 20,
+            "min_valid_paired_samples": 30,
+            "fingerprint": {
+                "node_id": "2:1:1:3584",
+                "kpm_styles": styles,
+                "cell_metrics": ["RRU.PrbTotUl"],
+                "ue_metrics": ["OAI.RNTI"],
+                "event_time_origin": "e2_indication_collectStartTime_ms",
+            },
+        }
+        native.discover = lambda: {"eligible_node_count": 1, "nodes": [{
+            "node_id": "2:1:1:3584", "kpm_advertised": True, "rc_advertised": True, "kpm_styles": styles,
+        }]}
+        workers = []
+
+        def sample(stream, sequence):
+            if stream == "cell":
+                return {
+                    "source_seq": sequence,
+                    "source_seq_origin": "e2_indication",
+                    "timestamp_ms": 1_000 + sequence,
+                    "measurements": {"RRU.PrbTotUl": 7},
+                }
+            return {
+                "source_seq": sequence,
+                "source_seq_origin": "e2_indication",
+                "timestamp_ms": 1_000 + sequence,
+                "measurements": {"OAI.RNTI": 4660},
+                "kpm_ue_key": "gnb-ran:17",
+                "rc_ue_id": 17,
+                "rnti": 4660,
+            }
+
+        class SwigSdk:
+            @staticmethod
+            def subscribe_kpm(_node_id, stream, callback):
+                def emit():
+                    for sequence in range(1, 31):
+                        callback(sample(stream, sequence))
+                        time.sleep(0.09)
+
+                worker = threading.Thread(target=emit, daemon=True)
+                workers.append(worker)
+                worker.start()
+                return stream
+
+        native.sdk = SwigSdk()
+        result = native.qualify("ul-prb-cap-v1")
+        for worker in workers:
+            worker.join(timeout=5)
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["measurement_post"]["valid_paired_samples"], 30)
 
     def test_marker_proof_requires_matching_action_within_one_second(self) -> None:
         bridge_module = load_bridge_module()
@@ -2499,7 +2782,7 @@ class RedcapDrlXappCliTest(unittest.TestCase):
                     failures.append("drl-runtime receives the workspace.lock.json source or bridge lock target")
             self.assertEqual(failures, [])
 
-    def test_freeze_measurement_post_requires_explicit_calibration_approval(self) -> None:
+    def test_freeze_measurement_post_uses_latest_freshness_and_explicit_approval(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             workspace = Path(temp_dir) / "frozen-profile"
             run_id = "calibration-run"
@@ -2532,7 +2815,7 @@ class RedcapDrlXappCliTest(unittest.TestCase):
                                 "rc_ue_id": 17, "rnti": 4660}],
                         "measurement_post": {"event_time_origin": "e2_indication_collectStartTime_ms",
                                              "valid_paired_samples": 1, "max_cell_ue_skew_ms": 1,
-                                             "max_freshness_age_ms": 1},
+                                             "max_freshness_age_ms": 50, "latest_freshness_age_ms": 1},
                     },
                 },
             }

@@ -2,7 +2,7 @@
 title: Source-backed RedCap to AIOTF change ledger
 status: pilot-review-required
 evidence_tier: mixed
-last_reviewed: 2026-08-01
+last_reviewed: 2026-09-02
 ---
 
 # Source-backed change ledger
@@ -33,7 +33,7 @@ record、affected source、validation/evidence owner 的 change family 才能進
 | CL-07 | A-IoT Topology 2 Tag/Reader | Experimental protocol/RFsim evidence | 25/26 tasks | 06 |
 | CL-08 | AIOTF、NRF、Naiotf 與 N6 diagnostic | Layered runtime report | 20/22 tasks; standard path stopped | 07 |
 | CL-09 | xApp/dApp SDK、E2、guard 與 apply | Static/ACK/apply/bounded A/B | Mixed; 21/22 test-validation tasks | 08、09 |
-| CL-10 | DRL xApp Control Run evidence correlation | OpenSpec contract + local seam test | Local seam implemented; live proof pending | 08 |
+| CL-10 | DRL xApp Control Run evidence correlation | OpenSpec contract + 84-test seam + one live fixed run | One bounded live transaction passed; host-clock/interoperability limits remain `[Needs Verification]` | 08 |
 
 ## CL-01：RedCap PHY init constraints
 
@@ -133,10 +133,10 @@ record、affected source、validation/evidence owner 的 change family 才能進
 | --- | --- |
 | Planning/decision owner | [build-redcap-drl-xapp-gated-runtime design](../../openspec/changes/build-redcap-drl-xapp-gated-runtime/design.md), [evidence requirement](../../openspec/changes/build-redcap-drl-xapp-gated-runtime/specs/drl-xapp-evidence-guidance/spec.md), [TDD contract](../../openspec/changes/build-redcap-drl-xapp-gated-runtime/tdd.md) |
 | Current source owner | [`redcap_drl_xapp.py`](../bash_tool/scripts/redcap_drl_xapp.py): `run_model` delegates enabled control to `execute_control_run`; bridge qualification, model evidence, collector, and UDS results share one package |
-| Validation owner | [`test_redcap_drl_xapp.py`](../bash_tool/scripts/test_redcap_drl_xapp.py) and [Task 5.1 full GREEN log](../../test_log/compiler_logs/task51_architecture_full_green_final_2026-09-01_16-22-36.log) record 71 local tests passing |
+| Validation owner | [`test_redcap_drl_xapp.py`](../bash_tool/scripts/test_redcap_drl_xapp.py), [Task 6.4 full GREEN log](../../test_log/compiler_logs/task64_evidence_finalization_full_green_2026-09-02.log) record 84 local tests passing, and [approved live transcript](../../test_log/compiler_logs/task63_bounded_control_approved_2026-09-02.log) records one fixed transaction |
 | Implemented target | Same-file `execute_control_run()` creates one `run_id`/package before preflight, appends all gates and results, emits started/finished records, seals terminal evidence with `finalized_at`, and keeps runtime input separate from the bridge UDS mount |
-| Current applicability | Local seam only: atomic evidence publication and runtime-client removal are validated without Docker, E2, or control traffic |
-| Claim boundary | No live E2SM-RC transaction, gNB application, clock equivalence, or 6.3 control success is claimed |
+| Current applicability | The local seam covers package finalization and runtime-client removal; one approved live CPU run also proves a single fixed baseline→16→baseline transaction |
+| Claim boundary | The live run does not establish host/container monotonic-clock equivalence, broad E2SM-RC/KPM interoperability, model training, or generic DRL effectiveness |
 
 ## 排除項目
 

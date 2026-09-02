@@ -27,7 +27,9 @@ WORKSPACE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
 ENTRYPOINT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*:[A-Za-z_][A-Za-z0-9_]*$")
 GNB_APPLY_MARKER = re.compile(r"RedCap UL PRB control RNTI ([0-9a-fA-F]{4}) requested (\d+) effective (\d+)")
 DISCOVERY_UDS_TIMEOUT_SECONDS = 30
-CONTROL_UDS_TIMEOUT_SECONDS = 5
+# Three native phases each may spend the observation timeout on requalification.
+CONTROL_UDS_TIMEOUT_SECONDS = 20
+FINAL_CONTROL_JOURNAL_STATES = frozenset({"COMPLETED", "RECOVERED", "ROLLBACK_UNCONFIRMED"})
 
 
 def monotonic_ms() -> int:
@@ -665,10 +667,11 @@ def freeze_measurement_post(args: argparse.Namespace) -> int:
         if not isinstance(cell, list) or not isinstance(ue, list) or not cell or not ue:
             return fail(f"calibration evidence 缺少 cell/UE observations：{run_id}")
         try:
+            freshness_age_ms = calibration.get("latest_freshness_age_ms", calibration["max_freshness_age_ms"])
             if (
                 calibration["event_time_origin"] != "e2_indication_collectStartTime_ms"
                 or int(calibration["valid_paired_samples"]) < 1
-                or int(calibration["max_freshness_age_ms"]) > args.freshness_window_ms
+                or int(freshness_age_ms) > args.freshness_window_ms
             ):
                 return fail(f"calibration 不符合批准的 freshness 門檻：{run_id}")
         except (KeyError, TypeError, ValueError):
@@ -847,8 +850,6 @@ def create_evidence(workspace: Path, lock: dict, command: str) -> tuple[Path, di
             "kpm": str(run_dir / "kpm_evidence.json"),
             "journal": str(run_dir / "control_journal.json"),
             "gnb_apply_excerpt": str(run_dir / "gnb_apply_excerpt.log"),
-            "model_observation": str(run_dir / "model_observation.json"),
-            "model_decision": str(run_dir / "model_decision.json"),
             "resolved_compose": str(workspace / "resolved-compose.json"),
             "generated_overlay": str(workspace / "compose.overlay.json"),
         },
@@ -865,6 +866,16 @@ def record_event(run_dir: Path, event: dict) -> None:
     manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
     if manifest.get("finalized_at"):
         raise OSError("EVIDENCE_FINALIZED")
+    with (run_dir / "events.ndjson").open("a", encoding="utf-8") as stream:
+        stream.write(json.dumps(event, sort_keys=True) + "\n")
+
+
+def _record_final_event(run_dir: Path, event: dict) -> None:
+    if event.get("event") != "CONTROL_RUN_FINISHED":
+        raise OSError("FINAL_EVENT_REQUIRED")
+    manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
+    if not manifest.get("finalized_at"):
+        raise OSError("EVIDENCE_FINALIZATION_REQUIRED")
     with (run_dir / "events.ndjson").open("a", encoding="utf-8") as stream:
         stream.write(json.dumps(event, sort_keys=True) + "\n")
 
@@ -939,7 +950,11 @@ def bridge_gate(args: argparse.Namespace) -> int:
         if result.get("ok") and args.command in {"discover-kpm", "probe-kpm"}
         else f"redcap_drl_xapp.sh status --workspace {workspace}"
     )
-    write_json(run_dir / "manifest.json", manifest)
+    manifest["finalized_at"] = datetime.now(timezone.utc).isoformat()
+    try:
+        write_json(run_dir / "manifest.json", manifest)
+    except OSError:
+        return fail("EVIDENCE_FINALIZATION_FAILED")
     print(json.dumps({"workspace": str(workspace), "run_id": manifest["run_id"], "gate_status": manifest["gate_status"], "evidence_manifest_path": str(run_dir / "manifest.json"), "safe_next_command": manifest["safe_next_command"]}))
     status = 0 if result.get("ok") else 4
     return (status, result) if getattr(args, "capture_result", False) else status
@@ -1043,9 +1058,27 @@ def finalize_control_run(workspace: Path, run_dir: Path, manifest: dict, status:
     manifest["gate_status"] = "PASS" if status == 0 else "FAIL"
     manifest["finalized_at"] = datetime.now(timezone.utc).isoformat()
     try:
-        record_event(run_dir, {"event": "CONTROL_RUN_FINISHED", "gate_status": manifest["gate_status"]})
+        package_journal = run_dir / "control_journal.json"
+        journal = json.loads(package_journal.read_text(encoding="utf-8"))
+        if journal.get("control_attempted") is True:
+            workspace_journal = workspace / "run/control_journal.json"
+            if not workspace_journal.is_file():
+                raise OSError("workspace control journal required")
+            final_journal = json.loads(workspace_journal.read_text(encoding="utf-8"))
+            if not isinstance(final_journal, dict):
+                raise OSError("invalid workspace control journal")
+            final_state = final_journal.get("state")
+            if final_state not in FINAL_CONTROL_JOURNAL_STATES or (status == 0 and final_state != "COMPLETED"):
+                raise OSError("workspace control journal not terminal")
+            journal.update(final_journal)
+            journal["control_attempted"] = True
+            write_json(package_journal, journal)
         write_json(run_dir / "manifest.json", manifest)
-    except OSError:
+        _record_final_event(
+            run_dir,
+            {"event": "CONTROL_RUN_FINISHED", "gate_status": manifest["gate_status"]},
+        )
+    except (OSError, AttributeError, json.JSONDecodeError):
         return fail("EVIDENCE_FINALIZATION_FAILED")
     emit_json(
         {
@@ -1092,6 +1125,13 @@ def execute_control_run(args: argparse.Namespace, workspace: Path, lock: dict) -
         if args.controller == "model"
         else validation_candidate(args.controller, qualification.get("cell", []))
     )
+    if args.controller == "model":
+        model_observation = run_dir / "model_observation.json"
+        model_decision = run_dir / "model_decision.json"
+        if model_observation.is_file():
+            manifest["evidence"]["model_observation"] = str(model_observation)
+        if candidate.get("ok") and model_decision.is_file():
+            manifest["evidence"]["model_decision"] = str(model_decision)
     try:
         record_event(run_dir, {"event": "candidate", "result": candidate})
     except OSError:
@@ -1112,7 +1152,12 @@ def run_model(args: argparse.Namespace) -> int:
     except ValueError as error:
         return fail(str(error))
     if args.enable_control:
-        return execute_control_run(args, workspace, lock)
+        status = execute_control_run(args, workspace, lock)
+        if args.teardown:
+            teardown_status = lifecycle(argparse.Namespace(command="down", workspace=workspace))
+            if status == 0 and teardown_status != 0:
+                return teardown_status
+        return status
     if args.controller != "model":
         return fail("fixed/greedy controller 僅能搭配 --enable-control 與完整 live gates")
     return fail("MODEL_OBSERVATION_REQUIRED：model controller 必須搭配 --enable-control 與 30 筆 qualified samples")
