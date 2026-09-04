@@ -1035,25 +1035,6 @@ def control_once_in_run(workspace: Path, lock: dict, candidate: dict, run_dir: P
     return 0 if manifest["gate_status"] == "PASS" else 4
 
 
-def control_once(workspace: Path, lock: dict, candidate: dict) -> int:
-    run_dir, manifest = create_evidence(workspace, lock, "run")
-    status = control_once_in_run(workspace, lock, candidate, run_dir, manifest)
-    try:
-        write_json(run_dir / "manifest.json", manifest)
-    except OSError:
-        return fail("EVIDENCE_FINALIZATION_FAILED")
-    emit_json(
-        {
-            "workspace": str(workspace),
-            "run_id": manifest["run_id"],
-            "gate_status": manifest["gate_status"],
-            "evidence_manifest_path": str(run_dir / "manifest.json"),
-            "safe_next_command": manifest["safe_next_command"],
-        }
-    )
-    return status
-
-
 def finalize_control_run(workspace: Path, run_dir: Path, manifest: dict, status: int) -> int:
     manifest["gate_status"] = "PASS" if status == 0 else "FAIL"
     manifest["finalized_at"] = datetime.now(timezone.utc).isoformat()

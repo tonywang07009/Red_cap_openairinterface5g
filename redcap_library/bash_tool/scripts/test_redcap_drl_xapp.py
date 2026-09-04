@@ -559,16 +559,27 @@ class RedcapDrlXappCliTest(unittest.TestCase):
             events = [json.loads(line) for line in (run_dir / "events.ndjson").read_text(encoding="utf-8").splitlines()]
             self.assertEqual([event["operation"] for event in events if "operation" in event], ["open", "act", "close"])
 
-    def test_control_once_refuses_before_uds_when_marker_collector_is_unavailable(self) -> None:
+    def test_enabled_control_run_refuses_before_uds_when_marker_collector_is_unavailable(self) -> None:
         cli_module = load_cli_module()
         with tempfile.TemporaryDirectory() as temp_dir:
             workspace = Path(temp_dir)
             lock = {"name": "test-workspace", "release": "test-release", "images": {}, "profile": "ul-prb-cap-v1"}
             requests = []
+            cli_module.load_workspace = lambda _workspace: (workspace, lock, {})
+            cli_module.verify = lambda _args: 0
+            cli_module.qualify_control_run = lambda *_args: {"ok": True, "cell": []}
+            cli_module.start_gnb_marker_collector = lambda *_args: None
             cli_module.uds_call = lambda _socket, request, timeout_seconds=5: requests.append(request) or {"ok": True}
+            args = SimpleNamespace(workspace=workspace, controller="fixed", entrypoint=None, enable_control=True, teardown=False)
 
-            self.assertEqual(cli_module.control_once(workspace, lock, {"max_ul_prb": 16}), 4)
+            self.assertEqual(cli_module.run_model(args), 4)
             self.assertEqual(requests, [])
+            run_dir = next((workspace / "artifacts/runs").iterdir())
+            manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
+            journal = json.loads((run_dir / "control_journal.json").read_text(encoding="utf-8"))
+            self.assertEqual(manifest["gates"]["control"]["collector"]["error"], "GNB_MARKER_COLLECTOR_REQUIRED")
+            self.assertIn("finalized_at", manifest)
+            self.assertFalse(journal["control_attempted"])
 
     def test_fixed_run_selects_approved_candidate(self) -> None:
         cli_module = load_cli_module()
@@ -877,6 +888,50 @@ class RedcapDrlXappCliTest(unittest.TestCase):
         bridge = bridge_module.Bridge(profile="ul-prb-cap-v1", native_control=lambda action: native_calls.append(action))
         result = bridge.handle({"protocol_version": 99, "request_id": "old-client", "operation": "health"})
         self.assertEqual(result["error"], "UNSUPPORTED_PROTOCOL_VERSION")
+        self.assertEqual(native_calls, [])
+
+    def test_direct_observe_needs_no_session_or_control(self) -> None:
+        bridge_module = load_bridge_module()
+        native_calls = []
+
+        class Native:
+            def observe(self, profile):
+                self.profile = profile
+                return {"ok": True, "cell": []}
+
+        native = Native()
+        bridge = bridge_module.Bridge(
+            profile="ul-prb-cap-v1", native=native, native_control=lambda action: native_calls.append(action)
+        )
+        result = bridge.handle(
+            {"protocol_version": 1, "request_id": "observe-direct", "operation": "observe", "profile_id": "ul-prb-cap-v1"}
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(native.profile, "ul-prb-cap-v1")
+        self.assertFalse(result["control_attempted"])
+        self.assertNotIn("session_id", result)
+        self.assertEqual(native_calls, [])
+
+    def test_observation_only_open_is_rejected_without_native_control(self) -> None:
+        bridge_module = load_bridge_module()
+        native_calls = []
+        bridge = bridge_module.Bridge(
+            profile="ul-prb-cap-v1", native_control=lambda action: native_calls.append(action)
+        )
+        result = bridge.handle(
+            {
+                "protocol_version": 1,
+                "request_id": "removed-observation-session",
+                "operation": "open",
+                "profile_id": "ul-prb-cap-v1",
+                "mode": "observation-only",
+            }
+        )
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error"], "INVALID_MODE")
+        self.assertNotIn("session_id", result)
         self.assertEqual(native_calls, [])
 
     def test_profile_none_refuses_action_before_native_control(self) -> None:
@@ -2703,6 +2758,12 @@ class RedcapDrlXappCliTest(unittest.TestCase):
 
         self.assertNotIn("redcap_drl.py", dockerfile)
         self.assertNotIn("redcap_drl", smoke)
+
+    def test_model_developer_guide_uses_runtime_entrypoint_not_uds_client(self) -> None:
+        guide = (REPO_ROOT / "redcap_library/skills/redcap-drl-xapp-gates/SKILL.md").read_text(encoding="utf-8")
+
+        self.assertIn("module:callable(observation)", guide)
+        self.assertNotIn("redcap_drl.Client", guide)
 
     def test_init_writes_unfrozen_measurement_post_for_bridge_only(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

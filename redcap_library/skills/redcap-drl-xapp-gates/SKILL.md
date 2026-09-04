@@ -26,9 +26,11 @@ Gate model-developer work:
    discovery and records the combined result; use `discover-kpm` alone only
    for capability diagnostics.
 3. Edit only the bind-mounted workspace `src/` and expose a
-   `module:callable` entrypoint.
-4. Use the `redcap_drl.Client` interface; do not import SWIG, ASN.1, or C
-   objects in model code.
+   `module:callable(observation)` entrypoint. It receives the immutable
+   observation JSON selected by the CLI.
+4. Return one `{"max_ul_prb": integer}` decision. The CLI validates that
+   decision and the Bridge owns UDS control; do not import UDS, SWIG, ASN.1,
+   or C objects in model code.
 5. Stop when any gate fails and report its manifest and safe next command.
 
 Gate profile-maintainer work:

@@ -875,39 +875,38 @@ class Bridge:
 
     def open(self, request: dict) -> dict:
         mode = request.get("mode")
-        if mode not in {"observation-only", "control-once"}:
+        if mode != "control-once":
             return {"ok": False, "error": "INVALID_MODE", "request_id": request["request_id"]}
-        if mode == "control-once":
-            if self.profile == "none":
-                return {"ok": False, "error": "PROFILE_FORBIDS_CONTROL", "request_id": request["request_id"]}
-            if self.native is not None and hasattr(self.native, "qualify"):
-                try:
-                    qualification = self.native.qualify(self.profile)
-                except (ImportError, RuntimeError):
-                    qualification = {"ok": False, "error": "KPM_QUALIFICATION_REQUIRED"}
-                if not qualification.get("ok"):
-                    return {
-                        "ok": False,
-                        "error": qualification.get("error", "KPM_QUALIFICATION_REQUIRED"),
-                        "request_id": request["request_id"],
-                    }
-                self.verified_target_binding = qualification["verified_target_binding"]
-            elif self._binding_action_fields() is None:
-                return {"ok": False, "error": "TARGET_BINDING_REQUIRED", "request_id": request["request_id"]}
-            if self.recovery_required():
-                return {"ok": False, "error": "RECOVERY_REQUIRED", "request_id": request["request_id"]}
-            self.lease_dir.mkdir(parents=True, exist_ok=True)
+        if self.profile == "none":
+            return {"ok": False, "error": "PROFILE_FORBIDS_CONTROL", "request_id": request["request_id"]}
+        if self.native is not None and hasattr(self.native, "qualify"):
             try:
-                descriptor = os.open(self.lease_path(), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-            except FileExistsError:
-                return {"ok": False, "error": "TARGET_BUSY", "request_id": request["request_id"]}
-            with os.fdopen(descriptor, "w", encoding="utf-8") as lease:
-                lease.write(self.workspace_id + "\n")
-            try:
-                self._write_journal("LEASE_ACQUIRED")
-            except OSError:
-                self._release_lease()
-                return {"ok": False, "error": "JOURNAL_WRITE_FAILED", "request_id": request["request_id"]}
+                qualification = self.native.qualify(self.profile)
+            except (ImportError, RuntimeError):
+                qualification = {"ok": False, "error": "KPM_QUALIFICATION_REQUIRED"}
+            if not qualification.get("ok"):
+                return {
+                    "ok": False,
+                    "error": qualification.get("error", "KPM_QUALIFICATION_REQUIRED"),
+                    "request_id": request["request_id"],
+                }
+            self.verified_target_binding = qualification["verified_target_binding"]
+        elif self._binding_action_fields() is None:
+            return {"ok": False, "error": "TARGET_BINDING_REQUIRED", "request_id": request["request_id"]}
+        if self.recovery_required():
+            return {"ok": False, "error": "RECOVERY_REQUIRED", "request_id": request["request_id"]}
+        self.lease_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            descriptor = os.open(self.lease_path(), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        except FileExistsError:
+            return {"ok": False, "error": "TARGET_BUSY", "request_id": request["request_id"]}
+        with os.fdopen(descriptor, "w", encoding="utf-8") as lease:
+            lease.write(self.workspace_id + "\n")
+        try:
+            self._write_journal("LEASE_ACQUIRED")
+        except OSError:
+            self._release_lease()
+            return {"ok": False, "error": "JOURNAL_WRITE_FAILED", "request_id": request["request_id"]}
         session_id = secrets.token_hex(16)
         self.sessions[session_id] = {"mode": mode, "acted": False}
         return {"ok": True, "request_id": request["request_id"], "session_id": session_id, "profile_id": self.profile}
