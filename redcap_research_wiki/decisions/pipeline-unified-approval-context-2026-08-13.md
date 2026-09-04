@@ -1,7 +1,7 @@
 ---
 status: confirmed
 source_refs:
-  - openspec/changes/govern-skill-pipeline-contract/proposal.md
+  - openspec/changes/archive/2026-08-16-govern-skill-pipeline-contract/proposal.md
   - openspec/changes/implement-github-issue-mirror-publisher/proposal.md
   - .agents/skills/to-spec/SKILL.md
 evidence_tier: inference
@@ -11,6 +11,9 @@ related_pages:
 ---
 
 # Pipeline Unified Approval Context
+
+[Source Trace] This retained decision is bounded by its listed OpenSpec
+proposals and `to-spec` skill contract.
 
 - question: How should the governance contract and GitHub Issue publisher be
   approved as one pipeline parent task while retaining independent OpenSpec

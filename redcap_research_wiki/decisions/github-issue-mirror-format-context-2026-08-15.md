@@ -5,7 +5,7 @@ source_refs:
   - openspec/changes/implement-github-issue-mirror-publisher/design.md
   - openspec/changes/implement-github-issue-mirror-publisher/specs/github-issue-mirror-publication/spec.md
   - .agents/skills/to-spec/SKILL.md
-evidence_tier: human-decision
+evidence_tier: mixed
 last_reviewed: 2026-08-15
 related_pages:
   - redcap_research_wiki/governance.md
@@ -13,6 +13,9 @@ related_pages:
 ---
 
 # GitHub Issue Mirror Format Context
+
+[Source Trace] This retained decision is bounded by its listed OpenSpec
+artifacts and `to-spec` skill contract.
 
 - question: What fixed GitHub Issue format, generated-state boundary, and
   retention rule shall the OpenSpec mirror publisher use?

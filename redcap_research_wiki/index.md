@@ -54,6 +54,8 @@
 
 - [Simulator Decision Contract](decisions/simulator-decision-contract.md) — required contract before implementation or runtime execution.
 - [GitHub Issue Mirror Format Context](decisions/github-issue-mirror-format-context-2026-08-15.md) — approved mirror fields, state boundary, and retention rule.
+- [Pipeline Unified Approval Context](decisions/pipeline-unified-approval-context-2026-08-13.md) — independent approval and acceptance boundary.
+- [TDD Observable-Behavior Boundary Context](decisions/tdd-observable-behavior-context-2026-08-13.md) — public behavior and implementation-boundary rule.
 
 ## Cases
 

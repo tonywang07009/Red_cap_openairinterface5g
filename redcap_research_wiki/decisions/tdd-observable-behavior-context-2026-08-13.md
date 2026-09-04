@@ -12,6 +12,9 @@ related_pages:
 
 # TDD Observable-Behavior Boundary Context
 
+[Source Trace] This retained decision is bounded by its listed skills and
+publisher OpenSpec contract.
+
 - question: Which implementation details, if any, may TDD contract tests bind
   when the programmer needs freedom to refactor?
 - operation: decide

@@ -7,7 +7,7 @@ source_refs:
   - openair2/E2AP/flexric/src/xApp/swig/swig_wrapper.cpp
   - redcap_library/drl_xapp/bridge_daemon.py
   - redcap_library/bash_tool/scripts/test_redcap_drl_xapp.py
-  - openspec/changes/build-redcap-drl-xapp-gated-runtime/design.md
+  - openspec/changes/archive/2026-09-04-build-redcap-drl-xapp-gated-runtime/design.md
   - ci-scripts/redcap_ul_prb_ctrl_xapp.c
   - agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/Doc/sdk_development_guide.en.md
 evidence_tier: mixed
