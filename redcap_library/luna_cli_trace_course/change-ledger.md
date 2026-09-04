@@ -131,7 +131,7 @@ record、affected source、validation/evidence owner 的 change family 才能進
 
 | 欄位 | Evidence |
 | --- | --- |
-| Planning/decision owner | [build-redcap-drl-xapp-gated-runtime design](../../openspec/changes/build-redcap-drl-xapp-gated-runtime/design.md), [evidence requirement](../../openspec/changes/build-redcap-drl-xapp-gated-runtime/specs/drl-xapp-evidence-guidance/spec.md), [TDD contract](../../openspec/changes/build-redcap-drl-xapp-gated-runtime/tdd.md) |
+| Planning/decision owner | [build-redcap-drl-xapp-gated-runtime design](../../openspec/changes/archive/2026-09-04-build-redcap-drl-xapp-gated-runtime/design.md), [current evidence requirement](../../openspec/specs/drl-xapp-evidence-guidance/spec.md), [TDD contract](../../openspec/changes/archive/2026-09-04-build-redcap-drl-xapp-gated-runtime/tdd.md) |
 | Current source owner | [`redcap_drl_xapp.py`](../bash_tool/scripts/redcap_drl_xapp.py): `run_model` delegates enabled control to `execute_control_run`; bridge qualification, model evidence, collector, and UDS results share one package |
 | Validation owner | [`test_redcap_drl_xapp.py`](../bash_tool/scripts/test_redcap_drl_xapp.py), [Task 6.4 full GREEN log](../../test_log/compiler_logs/task64_evidence_finalization_full_green_2026-09-02.log) record 84 local tests passing, and [approved live transcript](../../test_log/compiler_logs/task63_bounded_control_approved_2026-09-02.log) records one fixed transaction |
 | Implemented target | Same-file `execute_control_run()` creates one `run_id`/package before preflight, appends all gates and results, emits started/finished records, seals terminal evidence with `finalized_at`, and keeps runtime input separate from the bridge UDS mount |

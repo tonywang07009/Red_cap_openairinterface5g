@@ -202,9 +202,11 @@ public seam, and assert the observable result. Do not copy its CMake target or
 assert private implementation call order into the Python bridge test.
 
 For this recorded slice the user selected GPT-5.6 Terra/high for TDD and
-GPT-5.6 Luna/max for the minimal GREEN implementation. The TDD contract and
-RED/GREEN evidence remain in
-`openspec/changes/build-redcap-drl-xapp-gated-runtime/design.md` and
+GPT-5.6 Luna/max for the minimal GREEN implementation. The planning record is
+in `openspec/changes/archive/2026-09-04-build-redcap-drl-xapp-gated-runtime/design.md`;
+the TDD contract is in
+`openspec/changes/archive/2026-09-04-build-redcap-drl-xapp-gated-runtime/tdd.md`;
+and RED/GREEN evidence remains in
 `test_log/compiler_logs/drl_xapp_task35_measurement_post_unfrozen_*.log`.
 
 Use GPT-5.6 Sol/high to design and write TDD tests. GPT-5.6 Terra/high is a
