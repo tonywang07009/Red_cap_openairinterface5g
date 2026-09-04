@@ -8,8 +8,8 @@ source_refs:
 evidence_tier: mixed
 last_reviewed: 2026-07-30
 related_pages:
-  - agent_doc/Project_management/redcap_research_wiki/concepts/evidence-first-research-method.md
-  - agent_doc/Project_management/redcap_research_wiki/decisions/simulator-decision-contract.md
+  - redcap_research_wiki/concepts/evidence-first-research-method.md
+  - redcap_research_wiki/decisions/simulator-decision-contract.md
 ---
 
 # RFsim Performance Evaluation

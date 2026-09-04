@@ -7,9 +7,9 @@ source_refs:
 evidence_tier: mixed
 last_reviewed: 2026-07-31
 related_pages:
-  - agent_doc/Project_management/redcap_research_wiki/sources/active-redcap-projects.md
-  - agent_doc/Project_management/redcap_research_wiki/cases/CASE-2026-001-oran-g4-report-index-drift.md
-  - agent_doc/Project_management/redcap_research_wiki/systems/aiot/overview.md
+  - redcap_research_wiki/sources/active-redcap-projects.md
+  - redcap_research_wiki/cases/CASE-2026-001-oran-g4-report-index-drift.md
+  - redcap_research_wiki/systems/aiot/overview.md
 ---
 
 # xApp and dApp Control System Map

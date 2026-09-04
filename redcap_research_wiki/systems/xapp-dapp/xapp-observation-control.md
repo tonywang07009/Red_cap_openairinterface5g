@@ -13,8 +13,8 @@ source_refs:
 evidence_tier: mixed
 last_reviewed: 2026-08-31
 related_pages:
-  - agent_doc/Project_management/redcap_research_wiki/systems/xapp-dapp/overview.md
-  - agent_doc/Project_management/redcap_research_wiki/systems/xapp-dapp/e2-transport.md
+  - redcap_research_wiki/systems/xapp-dapp/overview.md
+  - redcap_research_wiki/systems/xapp-dapp/e2-transport.md
 ---
 
 # xApp Observation and Control

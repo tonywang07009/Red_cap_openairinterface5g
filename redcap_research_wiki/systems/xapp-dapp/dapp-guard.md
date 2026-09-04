@@ -10,8 +10,8 @@ source_refs:
 evidence_tier: mixed
 last_reviewed: 2026-07-31
 related_pages:
-  - agent_doc/Project_management/redcap_research_wiki/systems/xapp-dapp/e2-transport.md
-  - agent_doc/Project_management/redcap_research_wiki/systems/xapp-dapp/gnb-apply-rollback.md
+  - redcap_research_wiki/systems/xapp-dapp/e2-transport.md
+  - redcap_research_wiki/systems/xapp-dapp/gnb-apply-rollback.md
 ---
 
 # dApp Guard and Local Policy

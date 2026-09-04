@@ -5,8 +5,8 @@ source_refs:
 evidence_tier: source-record
 last_reviewed: 2026-07-30
 related_pages:
-  - agent_doc/Project_management/redcap_research_wiki/governance.md
-  - agent_doc/Project_management/redcap_research_wiki/concepts/evidence-first-research-method.md
+  - redcap_research_wiki/governance.md
+  - redcap_research_wiki/concepts/evidence-first-research-method.md
 ---
 
 # Karpathy LLM Wiki Pattern

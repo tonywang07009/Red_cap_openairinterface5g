@@ -13,8 +13,8 @@ metadata:
 
 ## Load Contracts
 
-1. Read `agent_doc/Project_management/redcap_research_wiki/governance.md`.
-2. Read `agent_doc/Project_management/redcap_research_wiki/index.md`.
+1. Read `redcap_research_wiki/governance.md`.
+2. Read `redcap_research_wiki/index.md`.
 3. Read the target project's `project_plan.md` and `agent_rules.md`.
 4. Read only the source records and pages required by the active question.
 5. Read `redcap_library/redcap_doc_writer_skill/SKILL.md` only for an approved documentation-sync operation.

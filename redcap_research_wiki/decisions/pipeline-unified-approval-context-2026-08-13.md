@@ -7,7 +7,7 @@ source_refs:
 evidence_tier: inference
 last_reviewed: 2026-08-13
 related_pages:
-  - agent_doc/Project_management/redcap_research_wiki/ASK_MATT_ROUTING_MEMO.md
+  - redcap_research_wiki/ASK_MATT_ROUTING_MEMO.md
 ---
 
 # Pipeline Unified Approval Context

@@ -9,8 +9,8 @@ source_refs:
 evidence_tier: source-trace
 last_reviewed: 2026-07-31
 related_pages:
-  - agent_doc/Project_management/redcap_research_wiki/systems/redcap/overview.md
-  - agent_doc/Project_management/redcap_research_wiki/systems/redcap/rrc-access.md
+  - redcap_research_wiki/systems/redcap/overview.md
+  - redcap_research_wiki/systems/redcap/rrc-access.md
 ---
 
 # RedCap Configuration and Capability

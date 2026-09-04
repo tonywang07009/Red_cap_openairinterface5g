@@ -10,7 +10,8 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-WIKI_ROOT = REPO_ROOT / "agent_doc/Project_management/redcap_research_wiki"
+WIKI_ROOT_RELATIVE = Path("redcap_research_wiki")
+WIKI_ROOT = REPO_ROOT / WIKI_ROOT_RELATIVE
 CONTENT_DIRS = ("sources", "concepts", "systems", "decisions", "cases")
 REQUIRED_FILES = ("README.md", "governance.md", "agent_goals.md", "index.md", "log.md")
 REQUIRED_KEYS = ("status", "source_refs", "evidence_tier", "last_reviewed", "related_pages")
@@ -210,7 +211,7 @@ def validate(repo_root: Path = REPO_ROOT, wiki_root: Path = WIKI_ROOT) -> list[s
 def selftest() -> int:
     with tempfile.TemporaryDirectory() as temporary_directory:
         repo_root = Path(temporary_directory)
-        wiki_root = repo_root / "agent_doc/Project_management/redcap_research_wiki"
+        wiki_root = repo_root / WIKI_ROOT_RELATIVE
         for name in REQUIRED_FILES:
             (wiki_root / name).parent.mkdir(parents=True, exist_ok=True)
             (wiki_root / name).write_text("# fixture\n", encoding="utf-8")
@@ -242,7 +243,7 @@ evidence_refs:
 evidence_tier: source-trace
 last_reviewed: 2026-01-01
 related_pages:
-  - agent_doc/Project_management/redcap_research_wiki/systems/page.md
+  - redcap_research_wiki/systems/page.md
 ---
 
 # Fixture case

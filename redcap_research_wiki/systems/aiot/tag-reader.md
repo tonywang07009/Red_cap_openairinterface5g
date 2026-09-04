@@ -9,8 +9,8 @@ source_refs:
 evidence_tier: mixed
 last_reviewed: 2026-07-31
 related_pages:
-  - agent_doc/Project_management/redcap_research_wiki/systems/aiot/overview.md
-  - agent_doc/Project_management/redcap_research_wiki/systems/aiot/aiotf.md
+  - redcap_research_wiki/systems/aiot/overview.md
+  - redcap_research_wiki/systems/aiot/aiotf.md
 ---
 
 # A-IoT Tag and UE Reader

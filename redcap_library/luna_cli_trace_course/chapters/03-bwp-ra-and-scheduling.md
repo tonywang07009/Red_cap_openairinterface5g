@@ -18,7 +18,7 @@ last_reviewed: 2026-08-02
 
 [回到課程首頁](../README.zh-TW.md) ·
 [前一章](02-redcap-config-and-capability.md) ·
-[System map](../../../agent_doc/Project_management/redcap_research_wiki/systems/redcap/bwp-ra-scheduling.md)
+[System map](../../../redcap_research_wiki/systems/redcap/bwp-ra-scheduling.md)
 
 本章回答：**RedCap initial BWP 與 RACH partition 如何讓 gNB 在辨識 RedCap
 Msg1 後，為 Msg2 選到一致的 BWP、search space 與 CORESET view？**
@@ -251,5 +251,5 @@ Case A/B evidence；普遍頻寬／標準一致性為 `[Needs Verification]`。
 
 ## 15. 教材維護資訊
 
-- Canonical trace：[BWP/RA system map](../../../agent_doc/Project_management/redcap_research_wiki/systems/redcap/bwp-ra-scheduling.md)。
+- Canonical trace：[BWP/RA system map](../../../redcap_research_wiki/systems/redcap/bwp-ra-scheduling.md)。
 - Tests 與 reports 是 bounded owners；本章不複製完整 matrix。

@@ -16,7 +16,7 @@ evidence_refs:
 evidence_tier: source-record | 3gpp | paper | runtime | source-trace | mixed | inference
 last_reviewed: YYYY-MM-DD
 related_pages:
-  - agent_doc/Project_management/redcap_research_wiki/related-page.md
+  - redcap_research_wiki/related-page.md
 ---
 ```
 

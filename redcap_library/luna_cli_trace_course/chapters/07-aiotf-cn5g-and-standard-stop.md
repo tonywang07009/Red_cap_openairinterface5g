@@ -18,8 +18,8 @@ last_reviewed: 2026-08-02
 
 [回到課程首頁](../README.zh-TW.md) ·
 [前一章](06-aiot-tag-and-reader.md) ·
-[AIOTF map](../../../agent_doc/Project_management/redcap_research_wiki/systems/aiot/aiotf.md) ·
-[Standard-path boundary](../../../agent_doc/Project_management/redcap_research_wiki/systems/aiot/standard-path.md)
+[AIOTF map](../../../redcap_research_wiki/systems/aiot/aiotf.md) ·
+[Standard-path boundary](../../../redcap_research_wiki/systems/aiot/standard-path.md)
 
 本章回答：**40-byte diagnostic report 如何與 pending Inventory context
 關聯、完成 first-valid arbitration，並在哪裡明確停止，避免把 NRF/Naiotf
@@ -174,7 +174,7 @@ rtk openspec status --change integrate-aiotf-cn5g-tag-workflow --json
 ### Step 7：讀 negative source trace
 
 ```bash
-rtk sed -n '16,90p' agent_doc/Project_management/redcap_research_wiki/systems/aiot/standard-path.md
+rtk sed -n '16,90p' redcap_research_wiki/systems/aiot/standard-path.md
 ```
 
 預期：selected AMF route 404、無 matched Topology-2 NGAP/RRC owner、無

@@ -19,8 +19,8 @@ last_reviewed: 2026-08-02
 
 [回到課程首頁](../README.zh-TW.md) ·
 [前一章](08-xapp-and-e2-control.md) ·
-[dApp guard](../../../agent_doc/Project_management/redcap_research_wiki/systems/xapp-dapp/dapp-guard.md) ·
-[Apply/rollback](../../../agent_doc/Project_management/redcap_research_wiki/systems/xapp-dapp/gnb-apply-rollback.md)
+[dApp guard](../../../redcap_research_wiki/systems/xapp-dapp/dapp-guard.md) ·
+[Apply/rollback](../../../redcap_research_wiki/systems/xapp-dapp/gnb-apply-rollback.md)
 
 本章回答：**一個已解碼的控制請求（decoded control）何時會被本地安全判斷
 （guard）拒絕，何時可以寫入 gNB state？snapshot/rollback 為何必須按參數
@@ -157,7 +157,7 @@ rtk rg -n 'redcap_dapp_(guard_prb_allocation|access_pressure_policy|select_ra_pr
 ### Step 6：讀 guard/apply system boundary
 
 ```bash
-rtk rg -n 'implemented-called|dormant|ACCEPT|REJECT|apply|rollback|Claim Boundary' agent_doc/Project_management/redcap_research_wiki/systems/xapp-dapp/dapp-guard.md agent_doc/Project_management/redcap_research_wiki/systems/xapp-dapp/gnb-apply-rollback.md
+rtk rg -n 'implemented-called|dormant|ACCEPT|REJECT|apply|rollback|Claim Boundary' redcap_research_wiki/systems/xapp-dapp/dapp-guard.md redcap_research_wiki/systems/xapp-dapp/gnb-apply-rollback.md
 ```
 
 預期：PRB allocation/live DRX與其他helpers分級；apply marker不等於每個grant

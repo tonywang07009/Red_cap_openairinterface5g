@@ -18,7 +18,7 @@ last_reviewed: 2026-08-02
 
 [回到課程首頁](../README.zh-TW.md) ·
 [前一章](04-inactive-drx-and-sdt.md) ·
-[System map](../../../agent_doc/Project_management/redcap_research_wiki/systems/redcap/runtime-evidence.md)
+[System map](../../../redcap_research_wiki/systems/redcap/runtime-evidence.md)
 
 本章回答：**如何讀懂固定情境的 RFsim/CN5G 證據（frozen evidence），確認
 56/56 accepted 與 64 UE upper-bound failure 各自能支持什麼，而不在本輪重跑

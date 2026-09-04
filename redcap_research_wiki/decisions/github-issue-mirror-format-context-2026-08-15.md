@@ -8,8 +8,8 @@ source_refs:
 evidence_tier: human-decision
 last_reviewed: 2026-08-15
 related_pages:
-  - agent_doc/Project_management/redcap_research_wiki/governance.md
-  - agent_doc/Project_management/redcap_research_wiki/CONTEXT.md
+  - redcap_research_wiki/governance.md
+  - redcap_research_wiki/CONTEXT.md
 ---
 
 # GitHub Issue Mirror Format Context

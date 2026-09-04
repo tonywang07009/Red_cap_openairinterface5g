@@ -7,8 +7,8 @@ source_refs:
 evidence_tier: mixed
 last_reviewed: 2026-07-31
 related_pages:
-  - agent_doc/Project_management/redcap_research_wiki/systems/redcap/overview.md
-  - agent_doc/Project_management/redcap_research_wiki/systems/xapp-dapp/overview.md
+  - redcap_research_wiki/systems/redcap/overview.md
+  - redcap_research_wiki/systems/xapp-dapp/overview.md
 ---
 
 # A-IoT Tag, Reader, and AIOTF System Map

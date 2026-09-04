@@ -17,7 +17,7 @@ last_reviewed: 2026-08-02
 
 [回到課程首頁](../README.zh-TW.md) ·
 [查看 change ledger](../change-ledger.md) ·
-[研究方法](../../../agent_doc/Project_management/redcap_research_wiki/concepts/evidence-first-research-method.md)
+[研究方法](../../../redcap_research_wiki/concepts/evidence-first-research-method.md)
 
 本章只回答一個問題：**看到一項 RedCap 主張時，如何用唯讀查詢找到 owner，
 並把「存在」與「真的在 runtime 生效」分開？**
@@ -121,7 +121,7 @@ Pass criterion 不是可隨意調整的「參數」。它是實驗契約；更�
 | [`openair3`](../../../openair3/) | NAS/NGAP/GTP/AIOTF | core-facing owner 與 AIOTF 實作 |
 | [`agent_doc/Project_management`](../../../agent_doc/Project_management/) | project acceptance/decision | 專案範圍、狀態、停止點 |
 | [`openspec/changes`](../../../openspec/changes/) | change contract | requirement、design、tasks |
-| [research wiki](../../../agent_doc/Project_management/redcap_research_wiki/README.md) | source-backed routing | owner 地圖，不是新 runtime 證據 |
+| [research wiki](../../../redcap_research_wiki/README.md) | source-backed routing | owner 地圖，不是新 runtime 證據 |
 | [`redcap_library`](../../README.md) | reusable reports/config/tool routes | retained evidence 與重用入口 |
 
 ## 7. 從一個歷史案例重建證據鏈

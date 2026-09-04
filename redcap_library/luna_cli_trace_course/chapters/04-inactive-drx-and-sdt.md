@@ -20,7 +20,7 @@ last_reviewed: 2026-08-02
 
 [回到課程首頁](../README.zh-TW.md) ·
 [前一章](03-bwp-ra-and-scheduling.md) ·
-[System map](../../../agent_doc/Project_management/redcap_research_wiki/systems/redcap/inactive-power-sdt.md)
+[System map](../../../redcap_research_wiki/systems/redcap/inactive-power-sdt.md)
 
 本章回答：**RRC_INACTIVE、CG-SDT、connected DRX、eDRX 與 PSM 各自由誰
 擁有，為何不能用一個「低功耗成功」marker 取代？**
@@ -255,6 +255,6 @@ resource；沒有 pending LCID data 會使 occasion 合法卻無 TX；eDRX IE ab
 
 ## 14. 維護與證據附錄
 
-- Canonical owner：[Inactive/power/SDT map](../../../agent_doc/Project_management/redcap_research_wiki/systems/redcap/inactive-power-sdt.md)。
+- Canonical owner：[Inactive/power/SDT map](../../../redcap_research_wiki/systems/redcap/inactive-power-sdt.md)。
 - Exact clause 與未通過 feature combinations 維持 `[Needs Verification]`；本章
   不以 source trace、unit test 或單一路徑 marker 宣告整體 interoperability。

@@ -18,7 +18,7 @@ last_reviewed: 2026-08-02
 
 [回到課程首頁](../README.zh-TW.md) ·
 [前一章](05-runtime-validation.md) ·
-[System map](../../../agent_doc/Project_management/redcap_research_wiki/systems/aiot/tag-reader.md)
+[System map](../../../redcap_research_wiki/systems/aiot/tag-reader.md)
 
 本章回答：**預設關閉的 experimental Topology 2 profile，如何從 UE Reader
 的 operation window，經 R2D、external CW、Tag D2R/CRC，產生一份 40-byte

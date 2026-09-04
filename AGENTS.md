@@ -221,7 +221,7 @@ config or test impact.
 
 - Project management root: `agent_doc/Project_management/`.
 - Source-backed research and simulator decision wiki:
-  `agent_doc/Project_management/redcap_research_wiki/`.
+  `redcap_research_wiki/`.
 - Repository-owned CN5G deployment infrastructure: `oai-cn5g/`.
 - RedCap operator interface (staging only, see No-New-File Policy):
   `redcap_interface/`.

@@ -8,9 +8,9 @@ source_refs:
 evidence_tier: source-record
 last_reviewed: 2026-07-30
 related_pages:
-  - agent_doc/Project_management/redcap_research_wiki/systems/redcap/overview.md
-  - agent_doc/Project_management/redcap_research_wiki/systems/rfsim-performance-evaluation.md
-  - agent_doc/Project_management/redcap_research_wiki/systems/xapp-dapp/overview.md
+  - redcap_research_wiki/systems/redcap/overview.md
+  - redcap_research_wiki/systems/rfsim-performance-evaluation.md
+  - redcap_research_wiki/systems/xapp-dapp/overview.md
 ---
 
 # Active RedCap Project Source Records

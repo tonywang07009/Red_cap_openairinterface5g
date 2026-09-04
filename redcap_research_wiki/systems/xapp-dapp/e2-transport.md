@@ -9,8 +9,8 @@ source_refs:
 evidence_tier: mixed
 last_reviewed: 2026-07-31
 related_pages:
-  - agent_doc/Project_management/redcap_research_wiki/systems/xapp-dapp/xapp-observation-control.md
-  - agent_doc/Project_management/redcap_research_wiki/systems/xapp-dapp/dapp-guard.md
+  - redcap_research_wiki/systems/xapp-dapp/xapp-observation-control.md
+  - redcap_research_wiki/systems/xapp-dapp/dapp-guard.md
 ---
 
 # E2 Transport and Control Decode

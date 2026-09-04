@@ -20,7 +20,7 @@ last_reviewed: 2026-08-02
 
 [回到課程首頁](../README.zh-TW.md) ·
 [前一章](09-dapp-guard-apply-and-rollback.md) ·
-[Outcome evidence](../../../agent_doc/Project_management/redcap_research_wiki/systems/xapp-dapp/outcome-evidence.md)
+[Outcome evidence](../../../redcap_research_wiki/systems/xapp-dapp/outcome-evidence.md)
 
 本章讓您獨立重播一項範圍受限的變更（bounded change）：**`redcap_ul_prb_cap`
 從 xApp input，經 E2SM-RC request/ACK，到 gNB UE context apply marker。**

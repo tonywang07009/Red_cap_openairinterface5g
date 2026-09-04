@@ -1,14 +1,14 @@
 ---
 status: review-required
 source_refs:
-  - agent_doc/Project_management/redcap_research_wiki/concepts/evidence-first-research-method.md
+  - redcap_research_wiki/concepts/evidence-first-research-method.md
   - agent_doc/Project_management/projects/redcap_simulator_performance_eval_v1/validation/success_criteria.md
   - agent_doc/Project_management/redcap_ai_native_review_validation_workflow.md
 evidence_tier: inference
 last_reviewed: 2026-07-30
 related_pages:
-  - agent_doc/Project_management/redcap_research_wiki/systems/rfsim-performance-evaluation.md
-  - agent_doc/Project_management/redcap_research_wiki/agent_goals.md
+  - redcap_research_wiki/systems/rfsim-performance-evaluation.md
+  - redcap_research_wiki/agent_goals.md
 ---
 
 # Simulator Decision Contract

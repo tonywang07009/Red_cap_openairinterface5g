@@ -11,7 +11,7 @@ evidence_refs:
 evidence_tier: mixed
 last_reviewed: 2026-07-31
 related_pages:
-  - agent_doc/Project_management/redcap_research_wiki/systems/xapp-dapp/overview.md
+  - redcap_research_wiki/systems/xapp-dapp/overview.md
 ---
 
 # CASE-2026-001: O-RAN G4 Report-Index Drift
@@ -23,9 +23,9 @@ its bounded PASS after the project plan and Gate report record that result?
 
 ## Context and Reproduction
 
-The [Gate-report index](../../projects/redcap_oran_sdk_workflow_v3/report/README.md)
+The [Gate-report index](../../agent_doc/Project_management/projects/redcap_oran_sdk_workflow_v3/report/README.md)
 owns navigation to final Gate reports, while the
-[project plan](../../projects/redcap_oran_sdk_workflow_v3/project_plan.md) owns
+[project plan](../../agent_doc/Project_management/projects/redcap_oran_sdk_workflow_v3/project_plan.md) owns
 overall Gate status. Inspect the report-index correction with:
 
 ```bash
@@ -34,7 +34,7 @@ git diff -- agent_doc/Project_management/projects/redcap_oran_sdk_workflow_v3/re
 
 The tracked baseline said that no runtime Gate report existed and listed only
 G0 scaffold evidence. The current project plan and
-[G4 Gate report](../../projects/redcap_oran_sdk_workflow_v3/report/G4_rfsim_case_b_ul_prb_2026-07-04.md)
+[G4 Gate report](../../agent_doc/Project_management/projects/redcap_oran_sdk_workflow_v3/report/G4_rfsim_case_b_ul_prb_2026-07-04.md)
 already record the bounded G4 result.
 
 ## Expected versus Observed

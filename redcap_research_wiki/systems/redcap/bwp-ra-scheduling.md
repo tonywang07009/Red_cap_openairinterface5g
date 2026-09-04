@@ -9,8 +9,8 @@ source_refs:
 evidence_tier: mixed
 last_reviewed: 2026-07-31
 related_pages:
-  - agent_doc/Project_management/redcap_research_wiki/systems/redcap/rrc-access.md
-  - agent_doc/Project_management/redcap_research_wiki/systems/redcap/runtime-evidence.md
+  - redcap_research_wiki/systems/redcap/rrc-access.md
+  - redcap_research_wiki/systems/redcap/runtime-evidence.md
 ---
 
 # RedCap BWP, RA, and Scheduling

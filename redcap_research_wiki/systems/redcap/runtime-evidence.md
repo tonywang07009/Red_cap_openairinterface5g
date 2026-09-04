@@ -8,8 +8,8 @@ source_refs:
 evidence_tier: runtime
 last_reviewed: 2026-07-31
 related_pages:
-  - agent_doc/Project_management/redcap_research_wiki/systems/redcap/overview.md
-  - agent_doc/Project_management/redcap_research_wiki/systems/rfsim-performance-evaluation.md
+  - redcap_research_wiki/systems/redcap/overview.md
+  - redcap_research_wiki/systems/rfsim-performance-evaluation.md
 ---
 
 # RedCap Runtime Evidence

@@ -16,7 +16,7 @@ last_reviewed: 2026-08-02
 
 [回到課程首頁](../README.zh-TW.md) ·
 [查看 change ledger](../change-ledger.md) ·
-[System map](../../../agent_doc/Project_management/redcap_research_wiki/systems/redcap/configuration-capability.md)
+[System map](../../../redcap_research_wiki/systems/redcap/configuration-capability.md)
 
 本章只回答一個問題：**gNB 與 UE 各自讀入的 RedCap 設定，如何變成
 SIB1、UE capability 與「能否開始 RA」的決策？**
@@ -433,7 +433,7 @@ tier；只回答「參數錯了」不算完成。
 
 下一章從 `can_start_ra` 之後開始，沿 UE initial BWP、Msg1、gNB Msg2 BWP
 與 CORESET#0 追到 RA evidence。先讀
-[BWP、RA 與 scheduling system map](../../../agent_doc/Project_management/redcap_research_wiki/systems/redcap/bwp-ra-scheduling.md)，
+[BWP、RA 與 scheduling system map](../../../redcap_research_wiki/systems/redcap/bwp-ra-scheduling.md)，
 不要在本章提前把 access permission 當成 RA success。
 
 ## 16. 教材維護資訊

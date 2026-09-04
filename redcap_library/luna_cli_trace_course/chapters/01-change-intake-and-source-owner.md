@@ -18,7 +18,7 @@ last_reviewed: 2026-08-02
 
 [回到課程首頁](../README.zh-TW.md) ·
 [Change ledger](../change-ledger.md) ·
-[Decision contract](../../../agent_doc/Project_management/redcap_research_wiki/decisions/simulator-decision-contract.md)
+[Decision contract](../../../redcap_research_wiki/decisions/simulator-decision-contract.md)
 
 本章只回答一個問題：**接到「這幾個月 Codex 改了什麼」時，如何把需求
 縮成一個可驗證 change slice，而不是從大量 diff 猜故事？**
@@ -200,7 +200,7 @@ rtk rg -n 'get_redcap_config|redcap_sib1_access_allowed|test_nr_rrc_redcap' open
 ### Step 7：讀 retained conclusion，不重跑 runtime
 
 ```bash
-rtk rg -n 'Claim Boundary|Strongest claim|PASS|blocked|Needs Verification' agent_doc/Project_management/redcap_research_wiki/systems/redcap redcap_library/library_reports_summary
+rtk rg -n 'Claim Boundary|Strongest claim|PASS|blocked|Needs Verification' redcap_research_wiki/systems/redcap redcap_library/library_reports_summary
 ```
 
 預期：結論彼此範圍不同。只採用與所選 change、config、marker 相符者。

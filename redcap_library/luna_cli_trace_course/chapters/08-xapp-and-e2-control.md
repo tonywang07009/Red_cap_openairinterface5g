@@ -19,8 +19,8 @@ last_reviewed: 2026-08-02
 
 [回到課程首頁](../README.zh-TW.md) ·
 [前一章](07-aiotf-cn5g-and-standard-stop.md) ·
-[xApp map](../../../agent_doc/Project_management/redcap_research_wiki/systems/xapp-dapp/xapp-observation-control.md) ·
-[E2 map](../../../agent_doc/Project_management/redcap_research_wiki/systems/xapp-dapp/e2-transport.md)
+[xApp map](../../../redcap_research_wiki/systems/xapp-dapp/xapp-observation-control.md) ·
+[E2 map](../../../redcap_research_wiki/systems/xapp-dapp/e2-transport.md)
 
 本章回答：**xApp 如何把 UE identity、RNTI 與 UL PRB cap 編成 E2SM-RC
 request，找到 RC RAN function 並送出；為何 request dump 與
