@@ -67,8 +67,18 @@ content evidence; do not introduce an agent framework or live model test.
 
 ## Migration Plan
 
-1. Add the role, packet, and promotion contract to the existing skill assets.
-2. Add one deterministic refusal/success contract check and a bounded example.
+1. Add one deterministic, read-only contract test and record its RED result.
+2. Add the role, packet, and promotion contract to the existing skill asset.
 3. Run the contract check and existing full wiki validator.
 4. Review the change; rollback removes the new procedure and leaves current
    wiki content and active skill behavior intact.
+
+## TDD contract
+
+- Model / effort: GPT-5.6 Luna/high requested; active metadata [Needs Verification].
+- Test boundary: `bash redcap_library/bash_tool/scripts/test_research_wiki_skill_evolution.sh`.
+- Acceptance links: `research-wiki-skill-evolution` requirements in this change.
+- Irreversible side effects: none; the test reads the skill and prints PASS or FAIL.
+- Boundary gate: clear; the bounded packet and no-promotion outcome are explicit.
+- Test files: `test_research_wiki_skill_evolution.sh`.
+- Test evidence: timestamped RED and GREEN compiler logs.

@@ -6,6 +6,7 @@ metadata:
   output: Status, proposed paths, evidence paths, claim boundary, unresolved items, and next action.
   tool_dependencies:
     - validate_redcap_research_wiki
+    - test_research_wiki_skill_evolution
   openspec_change: evolve-redcap-research-wiki-english-cases
 ---
 
@@ -37,6 +38,40 @@ fragments verbatim.
 | `capture-triage` | One completed bounded operation | `none`, `log`, `update-page`, `case-draft`, or `decision-contract` |
 
 Reject mixed operations. Complete one bounded operation, report it, then accept the next task.
+
+## Evolution Roles
+
+| Role | Input | Authority | Output |
+|---|---|---|---|
+| Runner | One task and the active skill | Execute the active skill only | Bounded result envelope |
+| Evolution Worker | One root cause, two representative traces, one reviewed wiki pattern or case, and one existing validation command | Propose one candidate only | Minimal skill diff or refusal |
+
+### Water Spider Pull Rule
+
+Qualify a proposal only when the same root cause observed at least twice has
+positive and negative evidence. WIP = 1. The Water Spider is pull-only: it
+does not edit wiki content, skill content, or active-skill state.
+
+Refuse when the root cause is absent, the packet exceeds the stated envelope,
+or either evidence polarity is missing. Do not create or activate a candidate.
+Keep the active skill unchanged.
+
+## Candidate Contract
+
+Return exactly one candidate envelope:
+
+```text
+applicability:
+counterexample:
+stop_condition:
+validation_command: registered_read_only_tool
+rejection_reason: non-empty reason required
+```
+
+The candidate proposes a minimal diff only. Invoke only the registered read-only validation tool before review.
+Only a human may promote a validated candidate by editing the active skill;
+failure or incomplete evidence requires the rejection reason and keeps the
+active skill unchanged.
 
 ## Ingest
 

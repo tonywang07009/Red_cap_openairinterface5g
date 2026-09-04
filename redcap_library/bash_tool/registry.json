@@ -121,6 +121,17 @@
       },
       "side_effects": "Read-only Markdown and path checks; does not edit wiki pages, source files, or runtime state."
     },
+    "test_research_wiki_skill_evolution": {
+      "description": "Validate the bounded research-wiki skill evolution contract and its fail-closed promotion boundary.",
+      "script_path": "redcap_library/bash_tool/scripts/test_research_wiki_skill_evolution.sh",
+      "input": {},
+      "output": {
+        "log_path": "Caller-selected validation log.",
+        "exit_code": "Zero only when the bounded packet, pull rule, and human-promotion contract are present.",
+        "status_field": "Caller-managed task_log/tasks.json status."
+      },
+      "side_effects": "Read-only skill-contract check; does not edit wiki pages, skills, source files, or runtime state."
+    },
     "validate_dapp_xapp_sdk_docs": {
       "description": "Run the project static source, documentation, path, and evidence-contract checker.",
       "script_path": "agent_doc/Project_management/projects/redcap_dapp_xapp_sdk_test_validation_v1/scripts/check_dapp_xapp_sdk_test_validation.py",
