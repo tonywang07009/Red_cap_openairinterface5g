@@ -296,6 +296,65 @@ typedef enum {
 nr_ue_aiot_r2d_resource_result_t nr_ue_aiot_validate_r2d_resources(unsigned int prb_count,
                                                                unsigned int chips_per_symbol,
                                                                const char **reason);
+
+typedef enum {
+  NR_UE_AIOT_D2R_TBIT_2_TAU,
+  NR_UE_AIOT_D2R_TBIT_TAU,
+  NR_UE_AIOT_D2R_TBIT_TAU_OVER_2,
+  NR_UE_AIOT_D2R_TBIT_TAU_OVER_4,
+  NR_UE_AIOT_D2R_TBIT_TAU_OVER_8,
+  NR_UE_AIOT_D2R_TBIT_TAU_OVER_16,
+  NR_UE_AIOT_D2R_TBIT_TAU_OVER_32,
+  NR_UE_AIOT_D2R_TBIT_TAU_OVER_96,
+  NR_UE_AIOT_D2R_TBIT_COUNT,
+} nr_ue_aiot_d2r_tbit_t;
+
+typedef struct {
+  uint8_t x;
+  nr_ue_aiot_d2r_tbit_t tbit;
+  uint8_t sfs_bitmap;
+} nr_ue_aiot_d2r_scheduling_t;
+
+typedef enum {
+  NR_UE_AIOT_D2R_SCHED_OK,
+  NR_UE_AIOT_D2R_SCHED_ILLEGAL_SFS,
+  NR_UE_AIOT_D2R_SCHED_INVALID,
+  NR_UE_AIOT_D2R_SCHED_NOT_IMPLEMENTED,
+} nr_ue_aiot_d2r_scheduling_result_t;
+
+typedef struct {
+  uint32_t numerator;
+  uint32_t denominator;
+} nr_ue_aiot_time_ratio_t;
+
+typedef struct {
+  nr_ue_aiot_time_ratio_t tchip_prime;
+  nr_ue_aiot_time_ratio_t toffset;
+} nr_ue_aiot_d2r_timing_t;
+
+nr_ue_aiot_d2r_scheduling_result_t nr_ue_aiot_validate_d2r_scheduling(
+    const nr_ue_aiot_d2r_scheduling_t *scheduling,
+    unsigned int *n_sfs,
+    unsigned int *m,
+    const char **reason);
+
+bool nr_ue_aiot_derive_d2r_timing(const nr_ue_aiot_d2r_scheduling_t *scheduling,
+                                  unsigned int chips_per_symbol,
+                                  nr_ue_aiot_d2r_timing_t *timing,
+                                  const char **reason);
+
+typedef struct {
+  uint32_t tag_id;
+  openair0_timestamp timestamp;
+  unsigned int prb_count;
+  unsigned int chips_per_symbol;
+  const nr_ue_aiot_d2r_scheduling_t *d2r_scheduling;
+} nr_ue_aiot_r2d_request_t;
+
+/* Resource-aware preparation. On refusal, packet is left unchanged and no radio side effect occurs. */
+bool nr_ue_aiot_t2_prepare_r2d_with_resources(const nr_ue_aiot_r2d_request_t *request,
+                                               aiot_t2_rf_packet_t *packet,
+                                               const char **reason);
 nr_ue_aiot_t2_decode_result_t nr_ue_aiot_t2_decode_d2r(const aiot_t2_rf_packet_t *packet,
                                                        uint8_t *payload,
                                                        size_t payload_capacity,

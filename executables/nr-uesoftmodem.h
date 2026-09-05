@@ -35,6 +35,11 @@ extern uint16_t ue_id_g;
 #define  CONFIG_HLP_AIOT_T2_READER_HANDLE  "Stable AIOTF Reader handle for this UE Reader\n"
 #define  CONFIG_HLP_AIOT_T2_REPORT_IP      "IPv4 address receiving experimental UE user-plane reports\n"
 #define  CONFIG_HLP_AIOT_T2_REPORT_PORT    "UDP port receiving experimental UE user-plane reports\n"
+#define  CONFIG_HLP_AIOT_T2_R2D_PRBS       "R2D transmit PRB count for the experimental Reader gate\n"
+#define  CONFIG_HLP_AIOT_T2_R2D_DENSITY    "R2D chips per OFDM symbol for the experimental Reader gate\n"
+#define  CONFIG_HLP_AIOT_T2_D2R_X          "D2R time-resource count X (1..2) for the experimental Reader gate\n"
+#define  CONFIG_HLP_AIOT_T2_D2R_TBIT       "D2R Tbit row index (0=2tau, 1=tau, ..., 7=tau/96)\n"
+#define  CONFIG_HLP_AIOT_T2_D2R_SFS        "D2R broadcast SFS bitmap; leftmost bit is factor 1\n"
 
 /***************************************************************************************************************************************/
 /* command line options definitions, CMDLINE_XXXX_DESC macros are used to initialize paramdef_t arrays which are then used as argument
@@ -96,6 +101,11 @@ extern uint16_t ue_id_g;
   {"aiot-t2-reader",               CONFIG_HLP_AIOT_T2_READER, PARAMFLAG_BOOL,   .iptr=&nrUE_params.aiot_t2_reader,          .defintval=0,      TYPE_INT,      0}, \
   {"aiot-t2-observer",             CONFIG_HLP_AIOT_T2_OBSERVER, PARAMFLAG_BOOL, .iptr=&nrUE_params.aiot_t2_observer,        .defintval=0,      TYPE_INT,      0}, \
   {"aiot-t2-tag-id",               CONFIG_HLP_AIOT_T2_TAG_ID, 0,                .uptr=&nrUE_params.aiot_t2_tag_id,          .defuintval=0,     TYPE_UINT32,   0}, \
+  {"aiot-t2-r2d-prbs",              CONFIG_HLP_AIOT_T2_R2D_PRBS, 0,             .uptr=&nrUE_params.aiot_t2_r2d_prb_count,   .defuintval=1,     TYPE_UINT32,   0}, \
+  {"aiot-t2-r2d-density",           CONFIG_HLP_AIOT_T2_R2D_DENSITY, 0,          .uptr=&nrUE_params.aiot_t2_r2d_chips_per_symbol, .defuintval=2, TYPE_UINT32, 0}, \
+  {"aiot-t2-d2r-x",                 CONFIG_HLP_AIOT_T2_D2R_X, 0,                .uptr=&nrUE_params.aiot_t2_d2r_x,             .defuintval=1, TYPE_UINT32,   0}, \
+  {"aiot-t2-d2r-tbit",              CONFIG_HLP_AIOT_T2_D2R_TBIT, 0,             .uptr=&nrUE_params.aiot_t2_d2r_tbit,          .defuintval=1, TYPE_UINT32,   0}, \
+  {"aiot-t2-d2r-sfs",               CONFIG_HLP_AIOT_T2_D2R_SFS, 0,              .uptr=&nrUE_params.aiot_t2_d2r_sfs_bitmap,   .defuintval=0x80, TYPE_UINT32, 0}, \
   {"aiot-t2-window-period",        CONFIG_HLP_AIOT_T2_PERIOD, 0,                .uptr=&nrUE_params.aiot_t2_window_period,   .defuintval=0,     TYPE_UINT32,   0}, \
   {"aiot-t2-window-offset",        CONFIG_HLP_AIOT_T2_OFFSET, 0,                .uptr=&nrUE_params.aiot_t2_window_offset,   .defuintval=0,     TYPE_UINT32,   0}, \
   {"aiot-t2-window-duration",      CONFIG_HLP_AIOT_T2_DURATION, 0,              .uptr=&nrUE_params.aiot_t2_window_duration, .defuintval=1,     TYPE_UINT32,   0}, \
@@ -147,6 +157,11 @@ typedef struct {
   int aiot_t2_reader;
   int aiot_t2_observer;
   uint32_t aiot_t2_tag_id;
+  uint32_t aiot_t2_r2d_prb_count;
+  uint32_t aiot_t2_r2d_chips_per_symbol;
+  uint32_t aiot_t2_d2r_x;
+  uint32_t aiot_t2_d2r_tbit;
+  uint32_t aiot_t2_d2r_sfs_bitmap;
   uint32_t aiot_t2_window_period;
   uint32_t aiot_t2_window_offset;
   uint32_t aiot_t2_window_duration;

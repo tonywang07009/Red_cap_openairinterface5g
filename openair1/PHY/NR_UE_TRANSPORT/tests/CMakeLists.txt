@@ -1,6 +1,7 @@
 add_executable(test_nr_ue_aiot_r2d_resources
   test_nr_ue_aiot_r2d_resources.c
-  ../nr_ue_rf_helpers.c)
+  ../nr_ue_rf_helpers.c
+  ../../CODING/crc_byte.c)
 # Discard unrelated RF helpers so this pure admission test needs no softmodem globals.
 target_compile_options(test_nr_ue_aiot_r2d_resources PRIVATE -ffunction-sections -fdata-sections)
 target_link_options(test_nr_ue_aiot_r2d_resources PRIVATE -Wl,--no-export-dynamic -Wl,--gc-sections)

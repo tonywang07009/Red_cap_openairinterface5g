@@ -193,6 +193,12 @@ static void get_options(configmodule_interface_t *cfg)
     struct in_addr report_addr;
     AssertFatal(nrUE_params.aiot_t2_tag_id >= 1 && nrUE_params.aiot_t2_tag_id <= 60,
                 "--aiot-t2-tag-id must be in range 1..60\n");
+    AssertFatal(nrUE_params.aiot_t2_d2r_x >= 1 && nrUE_params.aiot_t2_d2r_x <= 2,
+                "--aiot-t2-d2r-x must be 1 or 2\n");
+    AssertFatal(nrUE_params.aiot_t2_d2r_tbit < NR_UE_AIOT_D2R_TBIT_COUNT,
+                "--aiot-t2-d2r-tbit must be in range 0..7\n");
+    AssertFatal(nrUE_params.aiot_t2_d2r_sfs_bitmap <= UINT8_MAX,
+                "--aiot-t2-d2r-sfs must fit in an 8-bit bitmap\n");
     AssertFatal(nrUE_params.aiot_t2_window_period > 0,
                 "--aiot-t2-window-period must be greater than zero\n");
     AssertFatal(nrUE_params.aiot_t2_window_duration > 0

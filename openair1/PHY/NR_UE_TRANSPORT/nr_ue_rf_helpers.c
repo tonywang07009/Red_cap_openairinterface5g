@@ -81,6 +81,134 @@ nr_ue_aiot_r2d_resource_result_t nr_ue_aiot_validate_r2d_resources(unsigned int 
   return NR_UE_AIOT_R2D_RESOURCE_OK;
 }
 
+nr_ue_aiot_d2r_scheduling_result_t nr_ue_aiot_validate_d2r_scheduling(
+    const nr_ue_aiot_d2r_scheduling_t *scheduling,
+    unsigned int *n_sfs,
+    unsigned int *m,
+    const char **reason)
+{
+  static const uint8_t allowed_sfs_masks[NR_UE_AIOT_D2R_TBIT_COUNT] = {
+      0xff,
+      0xfe,
+      0xfc,
+      0xf8,
+      0xf0,
+      0xe0,
+      0xc0,
+      0x80,
+  };
+
+  if (reason != NULL)
+    *reason = NULL;
+  if (scheduling == NULL) {
+    if (reason != NULL)
+      *reason = "invalid_d2r_scheduling";
+    return NR_UE_AIOT_D2R_SCHED_INVALID;
+  }
+  if (scheduling->x < 1 || scheduling->x > 2) {
+    if (reason != NULL)
+      *reason = "invalid_d2r_x";
+    return NR_UE_AIOT_D2R_SCHED_INVALID;
+  }
+  if (scheduling->tbit >= NR_UE_AIOT_D2R_TBIT_COUNT) {
+    if (reason != NULL)
+      *reason = "invalid_d2r_tbit";
+    return NR_UE_AIOT_D2R_SCHED_INVALID;
+  }
+
+  const uint8_t allowed_sfs = allowed_sfs_masks[scheduling->tbit];
+  if (scheduling->sfs_bitmap == 0) {
+    if (reason != NULL)
+      *reason = "empty_sfs_bitmap";
+    return NR_UE_AIOT_D2R_SCHED_INVALID;
+  }
+  if ((scheduling->sfs_bitmap & (uint8_t)~allowed_sfs) != 0) {
+    if (reason != NULL)
+      *reason = "illegal_sfs_for_tbit";
+    return NR_UE_AIOT_D2R_SCHED_ILLEGAL_SFS;
+  }
+
+  unsigned int enabled_factors = 0;
+  for (uint8_t bits = scheduling->sfs_bitmap; bits != 0; bits >>= 1)
+    enabled_factors += bits & 1;
+  if (n_sfs != NULL)
+    *n_sfs = enabled_factors;
+  if (m != NULL)
+    *m = enabled_factors * scheduling->x;
+  return NR_UE_AIOT_D2R_SCHED_OK;
+}
+
+bool nr_ue_aiot_derive_d2r_timing(const nr_ue_aiot_d2r_scheduling_t *scheduling,
+                                  unsigned int chips_per_symbol,
+                                  nr_ue_aiot_d2r_timing_t *timing,
+                                  const char **reason)
+{
+  if (reason != NULL)
+    *reason = NULL;
+  if (timing == NULL) {
+    if (reason != NULL)
+      *reason = "invalid_d2r_timing";
+    return false;
+  }
+
+  unsigned int n_sfs = 0;
+  if (nr_ue_aiot_validate_d2r_scheduling(scheduling, &n_sfs, NULL, reason)
+      != NR_UE_AIOT_D2R_SCHED_OK)
+    return false;
+
+  static const uint32_t tbit_numerator[NR_UE_AIOT_D2R_TBIT_COUNT] = {2, 1, 1, 1, 1, 1, 1, 1};
+  static const uint32_t tbit_denominator[NR_UE_AIOT_D2R_TBIT_COUNT] = {1, 1, 2, 4, 8, 16, 32, 96};
+  unsigned int first_factor_index = 0;
+  while ((scheduling->sfs_bitmap & (uint8_t)(0x80 >> first_factor_index)) == 0)
+    ++first_factor_index;
+  const uint32_t factor = 1U << first_factor_index;
+  const uint32_t raw_denominator = 2 * factor * tbit_denominator[scheduling->tbit];
+  uint32_t numerator = tbit_numerator[scheduling->tbit];
+  uint32_t denominator = raw_denominator;
+  while (denominator % numerator != 0) {
+    const uint32_t remainder = denominator % numerator;
+    denominator = numerator;
+    numerator = remainder;
+  }
+  denominator /= numerator;
+  numerator = 1;
+
+  nr_ue_aiot_time_ratio_t derived_tchip = {
+      .numerator = numerator,
+      .denominator = denominator,
+  };
+  nr_ue_aiot_time_ratio_t derived_toffset;
+  if (derived_tchip.numerator == 1 && derived_tchip.denominator <= 4) {
+    derived_toffset = (nr_ue_aiot_time_ratio_t){.numerator = 10, .denominator = 1};
+  } else if (derived_tchip.numerator == 1
+             && (derived_tchip.denominator == 8 || derived_tchip.denominator == 16)) {
+    derived_toffset = (nr_ue_aiot_time_ratio_t){.numerator = 5, .denominator = 1};
+  } else if (derived_tchip.numerator == 1
+             && (derived_tchip.denominator == 32 || derived_tchip.denominator == 64)) {
+    derived_toffset = (nr_ue_aiot_time_ratio_t){.numerator = 1, .denominator = 1};
+  } else if (derived_tchip.numerator == 1
+             && (derived_tchip.denominator == 128 || derived_tchip.denominator == 192)) {
+    if (chips_per_symbol == 2)
+      derived_toffset = (nr_ue_aiot_time_ratio_t){.numerator = 1, .denominator = 1};
+    else if (chips_per_symbol == 6 || chips_per_symbol == 12 || chips_per_symbol == 24)
+      derived_toffset = (nr_ue_aiot_time_ratio_t){.numerator = 1, .denominator = 4};
+    else {
+      if (reason != NULL)
+        *reason = "invalid_r2d_density";
+      return false;
+    }
+  } else {
+    if (reason != NULL)
+      *reason = "unsupported_d2r_timing";
+    return false;
+  }
+
+  (void)n_sfs;
+  timing->tchip_prime = derived_tchip;
+  timing->toffset = derived_toffset;
+  return true;
+}
+
 static size_t aiot_t2_crc_bits(size_t payload_len)
 {
   return payload_len * 8 <= 24 ? 6 : 16;
@@ -123,6 +251,38 @@ bool nr_ue_aiot_t2_prepare_r2d(uint32_t tag_id, openair0_timestamp timestamp, ai
     aiot_t2_encode_pair(bit, &packet->samples[i * AIOT_T2_MANCHESTER_CHIPS_PER_BIT]);
   }
   return true;
+}
+
+bool nr_ue_aiot_t2_prepare_r2d_with_resources(const nr_ue_aiot_r2d_request_t *request,
+                                               aiot_t2_rf_packet_t *packet,
+                                               const char **reason)
+{
+  if (reason != NULL)
+    *reason = NULL;
+
+  if (request == NULL || packet == NULL) {
+    if (reason != NULL)
+      *reason = "invalid_r2d_request";
+    return false;
+  }
+
+  if (nr_ue_aiot_validate_r2d_resources(request->prb_count, request->chips_per_symbol, reason)
+      != NR_UE_AIOT_R2D_RESOURCE_OK)
+    return false;
+
+  if (request->d2r_scheduling != NULL) {
+    nr_ue_aiot_d2r_timing_t timing;
+    if (!nr_ue_aiot_derive_d2r_timing(request->d2r_scheduling, request->chips_per_symbol, &timing, reason))
+      return false;
+  }
+
+  if (request->tag_id == 0 || request->tag_id > 60) {
+    if (reason != NULL)
+      *reason = "invalid_tag_id";
+    return false;
+  }
+
+  return nr_ue_aiot_t2_prepare_r2d(request->tag_id, request->timestamp, packet);
 }
 
 static bool aiot_t2_decode_pair(const c16_t *pair, uint8_t *bit)

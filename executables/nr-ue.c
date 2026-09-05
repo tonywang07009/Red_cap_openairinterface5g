@@ -1033,7 +1033,32 @@ static void aiot_t2_role_process_slot(PHY_VARS_NR_UE *UE,
       LOG_E(PHY, "AIOT_T2_R2D_REJECT reason=rf_control_unavailable tag_id=%u\n", params->aiot_t2_tag_id);
     } else {
       aiot_t2_rf_packet_t r2d;
-      const bool prepared = nr_ue_aiot_t2_prepare_r2d(params->aiot_t2_tag_id, timestamp, &r2d);
+      const nr_ue_aiot_d2r_scheduling_t d2r_scheduling = {
+          .x = params->aiot_t2_d2r_x,
+          .tbit = (nr_ue_aiot_d2r_tbit_t)params->aiot_t2_d2r_tbit,
+          .sfs_bitmap = (uint8_t)params->aiot_t2_d2r_sfs_bitmap,
+      };
+      const nr_ue_aiot_r2d_request_t request = {
+          .tag_id = params->aiot_t2_tag_id,
+          .timestamp = timestamp,
+          .prb_count = params->aiot_t2_r2d_prb_count,
+          .chips_per_symbol = params->aiot_t2_r2d_chips_per_symbol,
+          .d2r_scheduling = &d2r_scheduling,
+      };
+      const char *reason = NULL;
+      const bool prepared = nr_ue_aiot_t2_prepare_r2d_with_resources(&request, &r2d, &reason);
+      if (!prepared) {
+        LOG_I(PHY,
+              "AIOT_T2_R2D_REJECT reason=%s tag_id=%u prbs=%u chips_per_symbol=%u d2r_x=%u d2r_tbit=%u d2r_sfs=0x%02x absolute_slot=%lu\n",
+              reason != NULL ? reason : "preparation_failed",
+              params->aiot_t2_tag_id,
+              params->aiot_t2_r2d_prb_count,
+              params->aiot_t2_r2d_chips_per_symbol,
+              d2r_scheduling.x,
+              d2r_scheduling.tbit,
+              d2r_scheduling.sfs_bitmap,
+              absolute_slot);
+      }
       const int sent = prepared ? UE->rfdevice.trx_ctlsend_func(&UE->rfdevice, &r2d, sizeof(r2d)) : -1;
       if (sent == (int)sizeof(r2d))
         LOG_I(PHY,
@@ -1041,7 +1066,7 @@ static void aiot_t2_role_process_slot(PHY_VARS_NR_UE *UE,
               params->aiot_t2_tag_id,
               r2d.header.size,
               absolute_slot);
-      else
+      else if (prepared)
         LOG_E(PHY, "AIOT_T2_R2D_REJECT reason=rf_send_failed tag_id=%u\n", params->aiot_t2_tag_id);
     }
   }
