@@ -1,0 +1,136 @@
+profile_id: aiot-topology2-reader-profile-v1
+enabled_by_default: false
+claim: experimental_topology2_reader
+
+population:
+  gnb_cw_source: 1
+  redcap_ue_reader: 1
+  tags: 1
+
+radio_roles:
+  beam_a:
+    purpose: nr_uu_gnb_to_redcap_ue
+    independent_rf_waveform_proven: false
+  beam_b:
+    purpose: continuous_single_tone_cw_to_tag
+    source: gnb_or_independent_cw_node
+    cw_required_for_d2r_acceptance: true
+
+reader_window:
+  r2d_only_while_awake: true
+  resource_configuration_must_be_valid: true
+  response_timeout_ms: 100
+  timeout_basis: experimental_not_3gpp_timer
+
+payload:
+  unit: bytes
+  minimum: 1
+  maximum: 16
+  standard_d2r_tbs_maximum: 125
+  segmentation: false
+
+crc:
+  threshold_payload_bits: 24
+  at_or_below_threshold:
+    length_bits: 6
+    polynomial: "D^6 + D^5 + 1"
+  above_threshold:
+    length_bits: 16
+    polynomial: "D^16 + D^12 + D^5 + 1"
+
+r2d:
+  producer: redcap_ue_reader
+  line_encoding:
+    zero: "10"
+    one: "01"
+    invalid_pairs: ["00", "11"]
+
+d2r:
+  producer: tag
+  destination: redcap_ue_reader
+  backscatter_requires_cw: true
+  experimental_line_encoding:
+    standard: false
+    namespace: aiot-topology2-reader-profile-v1
+    insertion_point: after_crc_before_d2r_amble_and_sfs_modulation
+    zero: "10"
+    one: "01"
+    invalid_pairs: ["00", "11"]
+  block_repetition: 1
+  channel_coding: none
+  modulation: OOK
+  small_frequency_shift_factor: 1
+
+terminal_results:
+  success: roundtrip_ok
+  failures:
+    - invalid_line_code
+    - crc_failure
+    - cw_absent
+    - reader_asleep
+    - payload_length
+    - timeout
+
+rollback:
+  action: disable_profile
+  invariant: normal_nr_and_rfsim_behavior_unchanged
+
+multi_tag_extension:
+  status: implemented_experimental
+  inventory_tags: 60
+  tags_per_radio_transaction: 1
+  concurrent_tag_anti_collision: false
+  reader_handles: [ue1, ue2]
+  binding_epoch_required: true
+  bindings:
+    - tag_range: [1, 20]
+      eligible_readers: [ue1]
+      default_primary: ue1
+    - tag_range: [21, 30]
+      eligible_readers: [ue1, ue2]
+      default_primary: ue1
+    - tag_range: [31, 40]
+      eligible_readers: [ue1, ue2]
+      default_primary: ue2
+    - tag_range: [41, 60]
+      eligible_readers: [ue2]
+      default_primary: ue2
+  normal_mode_active_readers: 1
+  diversity_mode:
+    supported_tag_range: [21, 40]
+    r2d_primary_count: 1
+    d2r_observer_count: 1
+  report_arbitration:
+    result: first_binding_valid_crc_valid
+    retain_other_reports_as_evidence: true
+    conflicting_valid_payloads: mark_conflict
+    mrc_or_soft_combining: false
+  runtime_evidence:
+    diversity_tag_id: 25
+    r2d_senders: 1
+    independent_crc_valid_reports: 2
+    serialized_transaction_count: 60
+    first_response_slot: 1000
+    last_response_slot: 1059
+    ue1_default_primary_count: 30
+    ue2_default_primary_count: 30
+
+ue_report_wire:
+  transport: udp_over_ue_pdu_session
+  size_bytes: 40
+  fields:
+    - magic
+    - version
+    - payload_length
+    - flags
+    - reader_handle
+    - tag_id
+    - frame
+    - slot
+    - payload_16_bytes
+  missing_for_direct_aiotf_arbitration:
+    - correlation_id
+    - session_id
+    - binding_epoch
+  endpoint_context_required: true
+  end_to_end_aiotf_correlation: needs_verification
