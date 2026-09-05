@@ -24,6 +24,7 @@
 extern "C" {
 #endif
 #include "openair2/RRC/NR/MESSAGES/asn1_msg.h"
+#include "openair3/AIOTF/aiotf_inventory.h"
 #include "common/ran_context.h"
 #include <stdbool.h>
 #include "common/utils/assertions.h"
@@ -83,6 +84,97 @@ TEST(nr_asn1, paging)
 {
   unsigned char buf[1000];
   EXPECT_GT(do_NR_Paging(0, buf, 0), 0);
+}
+
+TEST(nr_asn1, paging_occasion_timeout)
+{
+  constexpr uint32_t kFivegSTmsi = 1;
+  constexpr uint32_t kTagId = 1;
+  constexpr uint32_t kConfiguredCycleFrames = 32;
+  constexpr uint16_t kPagingSfn = 97;
+  constexpr uint16_t kFrameStep = 1;
+  constexpr uint64_t kRadioFrameDurationMs = 10;
+  constexpr uint32_t kAiotfTimeoutMs = 100;
+  constexpr long kPagingSearchSpaceId = 1;
+  constexpr uint8_t kPagingDrx = NR_PagingCycle_rf32;
+  constexpr long kQuarterTOffset = 2;
+  constexpr uint16_t kQuarterTPagingSfn = 2;
+  constexpr uint32_t kQuarterTDivisor = 4;
+  constexpr uint64_t kDeadlineStepMs = 1;
+
+  NR_PCCH_Config_t pcch = {};
+  pcch.defaultPagingCycle = NR_PagingCycle_rf32;
+  pcch.nAndPagingFrameOffset.present = NR_PCCH_Config__nAndPagingFrameOffset_PR_oneT;
+  pcch.ns = NR_PCCH_Config__ns_one;
+
+  nr_rrc_paging_occasion_t occasion = {};
+  nr_rrc_paging_occasion_t before = {};
+  EXPECT_EQ(NR_RRC_PAGING_NOT_OCCASION,
+            nr_rrc_get_paging_occasion(&pcch,
+                                       kPagingSearchSpaceId,
+                                       kPagingDrx,
+                                       kFivegSTmsi,
+                                       kPagingSfn - kFrameStep,
+                                       &before));
+  ASSERT_EQ(NR_RRC_PAGING_OCCASION,
+            nr_rrc_get_paging_occasion(&pcch,
+                                       kPagingSearchSpaceId,
+                                       kPagingDrx,
+                                       kFivegSTmsi,
+                                       kPagingSfn,
+                                       &occasion));
+  nr_rrc_paging_occasion_t after = {};
+  EXPECT_EQ(NR_RRC_PAGING_NOT_OCCASION,
+            nr_rrc_get_paging_occasion(&pcch,
+                                       kPagingSearchSpaceId,
+                                       kPagingDrx,
+                                       kFivegSTmsi,
+                                       kPagingSfn + kFrameStep,
+                                       &after));
+  ASSERT_EQ(kPagingSfn, occasion.paging_frame);
+  ASSERT_EQ(NR_RRC_PAGING_FIRST_OCCASION, occasion.paging_occasion);
+
+  nr_rrc_paging_occasion_t invalid = {};
+  EXPECT_EQ(NR_RRC_PAGING_ERROR,
+            nr_rrc_get_paging_occasion(&pcch,
+                                       kPagingSearchSpaceId,
+                                       kPagingDrx,
+                                       kFivegSTmsi,
+                                       NR_RRC_PAGING_SFN_COUNT,
+                                       &invalid));
+
+  NR_PCCH_Config_t configured_offset_pcch = pcch;
+  configured_offset_pcch.nAndPagingFrameOffset.present = NR_PCCH_Config__nAndPagingFrameOffset_PR_quarterT;
+  configured_offset_pcch.nAndPagingFrameOffset.choice.quarterT = kQuarterTOffset;
+  nr_rrc_paging_parameters_t configured_parameters = {};
+  ASSERT_EQ(NR_RRC_PAGING_PARAMETERS_OK,
+            nr_rrc_get_paging_parameters(&configured_offset_pcch,
+                                         kPagingSearchSpaceId,
+                                         kPagingDrx,
+                                         &configured_parameters));
+  ASSERT_EQ(kConfiguredCycleFrames / kQuarterTDivisor, configured_parameters.paging_frames);
+  ASSERT_EQ(kQuarterTOffset, configured_parameters.paging_frame_offset);
+  nr_rrc_paging_occasion_t configured_offset = {};
+  ASSERT_EQ(NR_RRC_PAGING_OCCASION,
+            nr_rrc_get_paging_occasion(&configured_offset_pcch,
+                                       kPagingSearchSpaceId,
+                                       kPagingDrx,
+                                       kFivegSTmsi,
+                                       kQuarterTPagingSfn,
+                                       &configured_offset));
+
+  /* A radio frame is 10 ms. Ns=1 makes the exposed PF/PO boundary unambiguous. */
+  const uint64_t paging_occasion_ms = (uint64_t)occasion.paging_frame * kRadioFrameDurationMs;
+  const aiotf_inventory_request_t request = {.tag_id = kTagId, .timeout_ms = kAiotfTimeoutMs};
+  aiotf_inventory_context_t context = {};
+  aiotf_inventory_session_t session = {};
+  aiotf_inventory_context_init(&context);
+  ASSERT_EQ(AIOTF_REQUEST_ACCEPTED,
+            aiotf_inventory_start(&context, &request, paging_occasion_ms - request.timeout_ms, &session));
+  ASSERT_EQ(paging_occasion_ms, session.deadline_ms);
+  EXPECT_FALSE(aiotf_inventory_expire(&session, paging_occasion_ms - kDeadlineStepMs));
+  EXPECT_TRUE(aiotf_inventory_expire(&session, paging_occasion_ms));
+  EXPECT_FALSE(aiotf_inventory_expire(&session, paging_occasion_ms + kDeadlineStepMs));
 }
 
 void free_RRCReconfiguration_params(nr_rrc_reconfig_param_t params)

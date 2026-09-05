@@ -1536,6 +1536,126 @@ void free_MeasConfig(NR_MeasConfig_t *mc)
   ASN_STRUCT_FREE(asn_DEF_NR_MeasConfig, mc);
 }
 
+enum {
+  NR_RRC_PAGING_N_DIVISOR_ONE_T = 1,
+  NR_RRC_PAGING_N_DIVISOR_HALF_T = 2,
+  NR_RRC_PAGING_N_DIVISOR_QUARTER_T = 4,
+  NR_RRC_PAGING_N_DIVISOR_EIGHTH_T = 8,
+  NR_RRC_PAGING_N_DIVISOR_SIXTEENTH_T = 16,
+  NR_RRC_PAGING_CYCLE_RF32_FRAMES = 32,
+  NR_RRC_PAGING_CYCLE_RF64_FRAMES = 64,
+  NR_RRC_PAGING_CYCLE_RF128_FRAMES = 128,
+  NR_RRC_PAGING_CYCLE_RF256_FRAMES = 256,
+};
+
+int nr_rrc_get_paging_parameters(const NR_PCCH_Config_t *pcch_config,
+                                 long paging_search_space,
+                                 uint8_t paging_drx,
+                                 nr_rrc_paging_parameters_t *parameters)
+{
+  static const uint32_t paging_cycles[NR_RRC_PAGING_CYCLE_COUNT] = {
+      NR_RRC_PAGING_CYCLE_RF32_FRAMES,
+      NR_RRC_PAGING_CYCLE_RF64_FRAMES,
+      NR_RRC_PAGING_CYCLE_RF128_FRAMES,
+      NR_RRC_PAGING_CYCLE_RF256_FRAMES,
+  };
+  uint32_t n_divisor;
+  long paging_frame_offset;
+
+  if (parameters == NULL)
+    return NR_RRC_PAGING_ERROR;
+
+  *parameters = (nr_rrc_paging_parameters_t){0};
+  if (pcch_config == NULL || paging_drx > NR_PagingCycle_rf256
+      || pcch_config->defaultPagingCycle < NR_PagingCycle_rf32
+      || pcch_config->defaultPagingCycle > NR_PagingCycle_rf256)
+    return NR_RRC_PAGING_ERROR;
+
+  const uint32_t configured_cycle = paging_cycles[pcch_config->defaultPagingCycle];
+  const uint32_t ue_cycle = paging_cycles[paging_drx];
+  parameters->cycle_frames = configured_cycle < ue_cycle ? configured_cycle : ue_cycle;
+
+  switch (pcch_config->nAndPagingFrameOffset.present) {
+    case NR_PCCH_Config__nAndPagingFrameOffset_PR_oneT:
+      n_divisor = NR_RRC_PAGING_N_DIVISOR_ONE_T;
+      paging_frame_offset = NR_RRC_PAGING_NO_FRAME_OFFSET;
+      break;
+    case NR_PCCH_Config__nAndPagingFrameOffset_PR_halfT:
+      n_divisor = NR_RRC_PAGING_N_DIVISOR_HALF_T;
+      paging_frame_offset = pcch_config->nAndPagingFrameOffset.choice.halfT;
+      break;
+    case NR_PCCH_Config__nAndPagingFrameOffset_PR_quarterT:
+      n_divisor = NR_RRC_PAGING_N_DIVISOR_QUARTER_T;
+      paging_frame_offset = pcch_config->nAndPagingFrameOffset.choice.quarterT;
+      break;
+    case NR_PCCH_Config__nAndPagingFrameOffset_PR_oneEighthT:
+      n_divisor = NR_RRC_PAGING_N_DIVISOR_EIGHTH_T;
+      paging_frame_offset = pcch_config->nAndPagingFrameOffset.choice.oneEighthT;
+      break;
+    case NR_PCCH_Config__nAndPagingFrameOffset_PR_oneSixteenthT:
+      n_divisor = NR_RRC_PAGING_N_DIVISOR_SIXTEENTH_T;
+      paging_frame_offset = pcch_config->nAndPagingFrameOffset.choice.oneSixteenthT;
+      break;
+    default:
+      return NR_RRC_PAGING_ERROR;
+  }
+
+  if (paging_frame_offset < 0 || paging_frame_offset >= (long)n_divisor)
+    return NR_RRC_PAGING_ERROR;
+  parameters->paging_frame_offset = (uint32_t)paging_frame_offset;
+  parameters->paging_frames = parameters->cycle_frames / n_divisor;
+  if (parameters->paging_frames == 0)
+    return NR_RRC_PAGING_ERROR;
+
+  switch (pcch_config->ns) {
+    case NR_PCCH_Config__ns_four:
+      if (paging_search_space < NR_RRC_PAGING_FIRST_SEARCH_SPACE_ID)
+        return NR_RRC_PAGING_ERROR;
+      parameters->paging_occasions = NR_RRC_PAGING_NS_FOUR;
+      break;
+    case NR_PCCH_Config__ns_two:
+      parameters->paging_occasions = NR_RRC_PAGING_NS_TWO;
+      break;
+    case NR_PCCH_Config__ns_one:
+      parameters->paging_occasions = NR_RRC_PAGING_NS_ONE;
+      break;
+    default:
+      return NR_RRC_PAGING_ERROR;
+  }
+
+  return NR_RRC_PAGING_PARAMETERS_OK;
+}
+
+nr_rrc_paging_occasion_status_t nr_rrc_get_paging_occasion(const NR_PCCH_Config_t *pcch_config,
+                                                           long paging_search_space,
+                                                           uint8_t paging_drx,
+                                                           uint32_t fiveg_s_tmsi,
+                                                           uint16_t sfn,
+                                                           nr_rrc_paging_occasion_t *occasion)
+{
+  if (occasion == NULL)
+    return NR_RRC_PAGING_ERROR;
+
+  *occasion = (nr_rrc_paging_occasion_t){0};
+  if (sfn >= NR_RRC_PAGING_SFN_COUNT)
+    return NR_RRC_PAGING_ERROR;
+
+  nr_rrc_paging_parameters_t parameters = {0};
+  if (nr_rrc_get_paging_parameters(pcch_config, paging_search_space, paging_drx, &parameters)
+      != NR_RRC_PAGING_PARAMETERS_OK)
+    return NR_RRC_PAGING_ERROR;
+
+  /* TS 38.304, clause 7.1: UE_ID is 5G-S-TMSI modulo 1024; evaluate PF/PO identity. */
+  const uint32_t ue_id = fiveg_s_tmsi % NR_RRC_PAGING_UE_ID_MODULUS;
+  const uint32_t pf_lhs = (sfn + parameters.paging_frame_offset) % parameters.cycle_frames;
+  const uint32_t pf_rhs = (parameters.cycle_frames / parameters.paging_frames)
+                          * (ue_id % parameters.paging_frames);
+  occasion->paging_frame = sfn;
+  occasion->paging_occasion = (ue_id / parameters.paging_frames) % parameters.paging_occasions;
+
+  return pf_lhs == pf_rhs ? NR_RRC_PAGING_OCCASION : NR_RRC_PAGING_NOT_OCCASION;
+}
+
 int do_NR_Paging(uint8_t Mod_id, uint8_t *buffer, uint32_t tmsi)
 {
   LOG_D(NR_RRC, "[gNB %d] do_NR_Paging start\n", Mod_id);

@@ -53,6 +53,7 @@
 #include "NR_SecurityConfig.h"
 #include "NR_MeasurementReport.h"
 #include "NR_MeasurementTimingConfiguration.h"
+#include "NR_PCCH-Config.h"
 #include "NR_UE-CapabilityRAT-ContainerList.h"
 #include "ds/seq_arr.h"
 #include "ds/byte_array.h"
@@ -180,6 +181,64 @@ NR_MeasConfig_t *get_MeasConfig(const NR_MeasTiming_t *mt,
                                 seq_arr_t *neigh_seq);
 void free_MeasConfig(NR_MeasConfig_t *mc);
 int do_NR_Paging(uint8_t Mod_id, uint8_t *buffer, uint32_t tmsi);
+
+typedef struct {
+  uint32_t cycle_frames;
+  uint32_t paging_frames;
+  uint32_t paging_frame_offset;
+  uint32_t paging_occasions;
+} nr_rrc_paging_parameters_t;
+
+typedef struct {
+  uint16_t paging_frame;
+  uint32_t paging_occasion;
+} nr_rrc_paging_occasion_t;
+
+typedef enum {
+  NR_RRC_PAGING_ERROR = -1,
+  NR_RRC_PAGING_NOT_OCCASION = 0,
+  NR_RRC_PAGING_OCCASION = 1,
+} nr_rrc_paging_occasion_status_t;
+
+enum {
+  NR_RRC_PAGING_PARAMETERS_OK = 0,
+  NR_RRC_PAGING_SFN_COUNT = 1024,
+  NR_RRC_PAGING_UE_ID_MODULUS = NR_RRC_PAGING_SFN_COUNT,
+  NR_RRC_PAGING_SEARCH_SPACE_UNCONFIGURED = -1,
+  NR_RRC_PAGING_FIRST_SEARCH_SPACE_ID = 1,
+  NR_RRC_PAGING_NO_FRAME_OFFSET = 0,
+  NR_RRC_PAGING_FIRST_OCCASION = 0,
+  NR_RRC_PAGING_NS_ONE = 1,
+  NR_RRC_PAGING_NS_TWO = 2,
+  NR_RRC_PAGING_NS_FOUR = 4,
+  NR_RRC_PAGING_CYCLE_COUNT = NR_PagingCycle_rf256 + 1,
+};
+
+/** @brief Decode PF/PO parameters from the NR PCCH configuration.
+ *  @param pcch_config NR PCCH configuration from SIB1.
+ *  @param paging_search_space Configured paging search-space ID, or the unconfigured sentinel.
+ *  @param paging_drx UE default paging-cycle index.
+ *  @param parameters Output PF/PO parameters.
+ *  @return NR_RRC_PAGING_PARAMETERS_OK or NR_RRC_PAGING_ERROR. */
+int nr_rrc_get_paging_parameters(const NR_PCCH_Config_t *pcch_config,
+                                 long paging_search_space,
+                                 uint8_t paging_drx,
+                                 nr_rrc_paging_parameters_t *parameters);
+
+/** @brief Evaluate the TS 38.304 PF/PO identity for one SFN.
+ *  @param pcch_config NR PCCH configuration from SIB1.
+ *  @param paging_search_space Configured paging search-space ID, or the unconfigured sentinel.
+ *  @param paging_drx UE default paging-cycle index.
+ *  @param fiveg_s_tmsi UE 5G-S-TMSI used for UE_ID.
+ *  @param sfn System frame number to evaluate.
+ *  @param occasion Output PF/PO identity.
+ *  @return NR_RRC_PAGING_OCCASION, NR_RRC_PAGING_NOT_OCCASION, or NR_RRC_PAGING_ERROR. */
+nr_rrc_paging_occasion_status_t nr_rrc_get_paging_occasion(const NR_PCCH_Config_t *pcch_config,
+                                                           long paging_search_space,
+                                                           uint8_t paging_drx,
+                                                           uint32_t fiveg_s_tmsi,
+                                                           uint16_t sfn,
+                                                           nr_rrc_paging_occasion_t *occasion);
 
 byte_array_t get_HandoverPreparationInformation(nr_rrc_reconfig_param_t *params, int scell_pci);
 byte_array_t get_HandoverCommandMessage(nr_rrc_reconfig_param_t *params);

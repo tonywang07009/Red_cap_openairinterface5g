@@ -145,6 +145,18 @@ int main(void)
     return 1;
   }
 
+  const nr_ue_aiot_d2r_scheduling_t zero_x = {
+      .x = 0,
+      .tbit = NR_UE_AIOT_D2R_TBIT_TAU,
+      .sfs_bitmap = 0x80,
+  };
+  if (nr_ue_aiot_validate_d2r_scheduling(&zero_x, NULL, NULL, &scheduling_reason)
+          != NR_UE_AIOT_D2R_SCHED_INVALID
+      || scheduling_reason == NULL || strcmp(scheduling_reason, "invalid_d2r_x") != 0) {
+    fprintf(stderr, "FAIL RejectsZeroTimeResourceCount\n");
+    return 1;
+  }
+
   const nr_ue_aiot_d2r_scheduling_t invalid_tbit = {
       .x = 1,
       .tbit = NR_UE_AIOT_D2R_TBIT_COUNT,
