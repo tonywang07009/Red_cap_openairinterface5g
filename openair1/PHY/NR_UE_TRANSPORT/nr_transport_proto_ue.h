@@ -285,6 +285,17 @@ typedef enum {
 } nr_ue_aiot_t2_decode_result_t;
 
 bool nr_ue_aiot_t2_prepare_r2d(uint32_t tag_id, openair0_timestamp timestamp, aiot_t2_rf_packet_t *packet);
+/* Pure R2D resource admission; no waveform generation or radio side effects. */
+typedef enum {
+  NR_UE_AIOT_R2D_RESOURCE_OK,
+  NR_UE_AIOT_R2D_INSUFFICIENT_PRBS,
+  NR_UE_AIOT_R2D_INVALID_RESOURCE,
+  NR_UE_AIOT_R2D_NOT_IMPLEMENTED,
+} nr_ue_aiot_r2d_resource_result_t;
+
+nr_ue_aiot_r2d_resource_result_t nr_ue_aiot_validate_r2d_resources(unsigned int prb_count,
+                                                               unsigned int chips_per_symbol,
+                                                               const char **reason);
 nr_ue_aiot_t2_decode_result_t nr_ue_aiot_t2_decode_d2r(const aiot_t2_rf_packet_t *packet,
                                                        uint8_t *payload,
                                                        size_t payload_capacity,

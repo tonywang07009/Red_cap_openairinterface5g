@@ -39,6 +39,48 @@ extern PHY_VARS_NR_UE ***PHY_vars_UE_g;
 #define AIOT_T2_D2R_CHIPS_PER_BIT 4
 #define AIOT_T2_INVENTORY_COMMAND 0x01
 
+nr_ue_aiot_r2d_resource_result_t nr_ue_aiot_validate_r2d_resources(unsigned int prb_count,
+                                                               unsigned int chips_per_symbol,
+                                                               const char **reason)
+{
+  unsigned int minimum_prbs;
+
+  if (reason != NULL)
+    *reason = NULL;
+
+  /* TS 38.291 V19.3.0 table 4.3.3.3-1: minimum R2D PRBs by chip density. */
+  switch (chips_per_symbol) {
+    case 2:
+    case 6:
+      minimum_prbs = 1;
+      break;
+    case 12:
+      minimum_prbs = 2;
+      break;
+    case 24:
+      minimum_prbs = 3;
+      break;
+    default:
+      if (reason != NULL)
+        *reason = "invalid_r2d_density";
+      return NR_UE_AIOT_R2D_INVALID_RESOURCE;
+  }
+
+  if (prb_count == 0) {
+    if (reason != NULL)
+      *reason = "invalid_r2d_prbs";
+    return NR_UE_AIOT_R2D_INVALID_RESOURCE;
+  }
+
+  if (prb_count < minimum_prbs) {
+    if (reason != NULL)
+      *reason = "insufficient_r2d_prbs";
+    return NR_UE_AIOT_R2D_INSUFFICIENT_PRBS;
+  }
+
+  return NR_UE_AIOT_R2D_RESOURCE_OK;
+}
+
 static size_t aiot_t2_crc_bits(size_t payload_len)
 {
   return payload_len * 8 <= 24 ? 6 : 16;
