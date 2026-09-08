@@ -9,7 +9,7 @@ Use this skill for an unqualified repository request. A selected primary skill
 may invoke it only to fill an omitted necessary tool step; it remains the
 workflow authority.
 
-Read the retained criteria in [Ask Matt Routing Memo](../../../agent_doc/Project_management/redcap_research_wiki/ASK_MATT_ROUTING_MEMO.md)
+Read the retained criteria in [Ask Matt Routing Memo](../../../redcap_research_wiki/ASK_MATT_ROUTING_MEMO.md)
 before routing a repository request. That memo is the route-table authority.
 Read [root AGENTS.md](../../../AGENTS.md#file-query-workflow) after selecting
 the primary skill. It is the tool-route authority. Read the

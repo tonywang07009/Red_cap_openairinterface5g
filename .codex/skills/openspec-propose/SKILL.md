@@ -22,6 +22,11 @@ When ready to implement, run /opsx:apply
 
 **Input**: The user's request should include a change name (kebab-case) OR a description of what they want to build.
 
+Read the **Architecture-aware OpenSpec** section of `workflow.md` bundled
+with the available `grill-with-docs` skill and apply its artifact-writing checks. Resolve that
+skill through the current skill catalog; do not assume a repository-local
+installation or invoke its interview for already-settled decisions.
+
 **Steps**
 
 1. **If no clear input provided, ask what they want to build**

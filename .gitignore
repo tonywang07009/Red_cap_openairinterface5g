@@ -40,6 +40,7 @@ agent_doc/*
 !agent_doc/Project_management/
 agent_doc/Project_management/*
 !agent_doc/Project_management/redcap_toolbox.md
+!agent_doc/Project_management/redcap_ai_native_review_validation_workflow.md
 !.agents/
 .agents/*
 !.agents/skills/

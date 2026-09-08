@@ -5,7 +5,8 @@ description: Test-driven development. Use when the user wants to build features 
 
 # Test-Driven Development
 
-Follow the mandatory lookup route in [root AGENTS.md](../../../AGENTS.md#file-query-workflow).
+Read the current project's applicable `AGENTS.md` for tool routing and constraints.
+Resolve project paths from that project, not from this installed skill.
 
 TDD is the red → green loop. This skill is the reference that makes that loop produce tests worth keeping: what a good test is, where tests go, the anti-patterns, and the rules of the loop. Every section applies on every cycle — consult them before and during the loop, not after.
 
@@ -42,7 +43,7 @@ public seam's exit code, human-readable reason, and absence of the specified
 irreversible side effects. Do not modify an existing high-risk refusal-path
 test to add this case; record its boundary and validation evidence.
 
-Follow [the root Model Switch Gate](../../../AGENTS.md#model-switch-gate).
+Follow the current project's model-choice rules.
 The user selects the model. Do not open a fallback subagent or infer a model
 switch automatically.
 
@@ -67,9 +68,8 @@ Each test name states a behavior, keeps
 Arrange/Act/Assert readable, uses an independent expected value, and covers one
 rule at a time.
 
-Put module behavior tests beside their existing `openair1/2/3` owner tests.
-Put only reusable cross-module smoke operations in the registered
-`redcap_library/bash_tool/` path. A pure documentation or governance change
+Put behavior tests beside existing owner tests using the project's conventions.
+Reuse project Toolbox commands where applicable. A documentation or governance change
 uses a `Validation contract` in `design.md` instead of inventing a TDD test.
 
 Use normal version control and CI for ordinary TDD tracers. Record a fixed
@@ -86,6 +86,18 @@ condition. A changed acceptance condition returns to OpenSpec.
 - **Horizontal slicing** — writing all tests first, then all implementation. Bulk tests verify _imagined_ behavior: you test the _shape_ of things rather than user-facing behavior, the tests go insensitive to real changes, and you commit to test structure before understanding the implementation. Work in **vertical slices** instead — one test → one implementation → repeat, each test a **tracer bullet** that responds to what the last cycle taught you.
 
 ## Rules of the loop
+
+Before production edits, identify the existing owner and callers, reusable
+path, interface, locality, and simplest sufficient change. Record material
+decisions in the design contract. Escalate architecture review only for unclear
+ownership, major seam changes, or an interface that cannot test the behavior.
+This replaces the separate `implement` entrypoint.
+
+Keep one acceptance condition per slice. Difficult state or concurrency work
+needs counterexamples and focused review, not weaker acceptance. Use the user's
+selected model and effort. Run affected build/type checks and regressions after
+GREEN. Apply hash/read-only checks only to designated protected tests. Finish
+with `code-review`; implementation does not authorize commit or push.
 
 - **Red before green.** Write the failing test first, then only enough code to pass it. Don't anticipate future tests or add speculative features.
 - **One slice at a time.** One seam, one test, one minimal implementation per cycle.

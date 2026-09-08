@@ -8,9 +8,11 @@ Two-axis review of the diff between `HEAD` and a fixed point the user supplies:
 - **Standards** — does the code conform to this repo's documented coding standards?
 - **Spec** — does the code faithfully implement the originating issue / PRD / spec?
 
-Both axes run as **parallel sub-agents** so they don't pollute each other's context, then this skill aggregates their findings.
+Keep the axes separate. Use parallel subagents when available and permitted;
+otherwise perform two focused passes with the same evidence and selected model.
 
-Follow the mandatory lookup route in [root AGENTS.md](../../../AGENTS.md#file-query-workflow).
+Read the current project's applicable `AGENTS.md` and relevant Toolbox commands.
+Resolve paths from that project, not this installed skill.
 
 Every report labels relevant findings through three lenses without merging the
 two axes:
@@ -30,7 +32,9 @@ evidence only and cannot add a requirement, schedule, or acceptance condition.
 
 ### 1. Pin the fixed point
 
-Whatever the user said is the fixed point — a commit SHA, branch name, tag, `main`, `HEAD~5`, etc. If they didn't specify one, ask for it.
+Use the user's fixed point or infer it from approved change context when clear.
+Ask only when ambiguous. Include staged and unstaged changes for a work-in-progress
+review; a HEAD-only diff does not cover them.
 
 Capture the diff command once: `git diff <fixed-point>...HEAD` (three-dot, so the comparison is against the merge-base). Also note the list of commits via `git log <fixed-point>..HEAD --oneline`.
 
@@ -54,10 +58,16 @@ source and inspect links, rule consistency, claim boundaries, parent task, and
 approved revision traceability. Do not require a program test that the change
 does not have.
 
-For a code change, read the TDD contract before review. Execute the frozen
-tests and compare their final SHA-256 values and frozen test-diff baseline. Do not write or
+For code, read the TDD contract and execute the relevant tests. Compare hashes
+and frozen baselines only for designated protected high-risk tests. Ordinary
+tests use version control and CI. Do not write or
 modify a TDD test. Missing coverage for an existing acceptance condition returns
 to TDD; a changed acceptance condition returns to OpenSpec.
+
+Read the **Architecture-aware OpenSpec** section of `workflow.md` bundled
+with the available `grill-with-docs` skill and apply its review checks. Resolve that
+skill through the current skill catalog; do not assume a repository-local
+installation or invoke its interview for already-settled decisions.
 
 ### 3. Identify the standards sources
 
@@ -85,7 +95,8 @@ Each smell reads *what it is* → *how to fix*; match it against the diff:
 
 ### 4. Spawn both sub-agents in parallel
 
-Send a single message with two `Agent` tool calls. Use the `general-purpose` subagent for both.
+Use two review agents when available and permitted; otherwise apply the briefs
+below in separate passes without changing models.
 
 **Standards sub-agent prompt** — include:
 
@@ -108,6 +119,12 @@ Present the two reports under `## Standards` and `## Spec` headings, verbatim or
 End with a one-line summary: total findings per axis, and the worst issue _within each axis_ (if any). Don't pick a single winner across axes — that's the reranking the separation exists to prevent.
 
 ## Why two axes
+
+For performance claims, require baseline/candidate revisions, controlled
+workload and environment, warm-up, repeat count, raw samples and spread, and
+the agreed regression threshold. One run or code coverage cannot prove
+performance. Distinguish unit, integration, simulator, and hardware evidence.
+Missing measurements support an unverified finding, not a PASS.
 
 A change can pass one axis and fail the other:
 

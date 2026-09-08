@@ -54,8 +54,10 @@ Archive a completed change in the experimental workflow.
 
 4. **Check canonical completion evidence**
 
-   Before archiving, verify a valid approved annotated tag for the revision.
-   For a code change, verify its frozen TDD evidence and code-review result.
+   Verify approval in the form required by the current project's AGENTS.md and
+   OpenSpec contract. Require an annotated tag only when that project mandates
+   one. Verify applicable TDD and review evidence; frozen hashes apply only to
+   designated protected high-risk tests.
    For a documentation or governance change, verify its validation contract and
    documentation/governance review result. Stop when any required evidence is
    absent. A GitHub Issue mirror is external projection evidence only: it does

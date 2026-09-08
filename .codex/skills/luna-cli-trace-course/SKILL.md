@@ -5,8 +5,8 @@ description: Coach a self-learner through a documented RedCap, A-IoT/AIOTF, or x
 
 # Luna CLI Trace Course
 
-Teach evidence first. GPT-5.6 Luna/high is the recommended one-step learner
-guide; it asks the learner for a prediction, gives one read-only lookup, and
+Teach evidence first using the user's selected model and effort. The learner
+guide asks the learner for a prediction, gives one read-only lookup, and
 reasons only from returned raw output. Do not build, change configuration, or
 infer unprovided output on the learner's behalf.
 

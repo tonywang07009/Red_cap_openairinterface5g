@@ -11,6 +11,12 @@ metadata:
 
 Implement tasks from an OpenSpec change.
 
+Read the current project's `AGENTS.md` for tool routing, authority, and model
+choice. Read Toolbox only for the needed command. Use the existing owner and
+one acceptance-driven slice at a time; `tdd` includes the implementation design
+check formerly in `implement`. Keep run/review evidence in existing evidence
+records; link it from design/tasks rather than appending logs to design.
+
 **Input**: Optionally specify a change name. If omitted, check if it can be inferred from conversation context. If vague or ambiguous you MUST prompt for available changes.
 
 **Steps**
@@ -58,6 +64,11 @@ Implement tasks from an OpenSpec change.
    The files depend on the schema being used:
    - **spec-driven**: proposal, specs, design, tasks
    - Other schemas: follow the contextFiles from CLI output
+
+Read the **Architecture-aware OpenSpec** section of `workflow.md` bundled
+with the available `grill-with-docs` skill and apply its implementation checks. Resolve that
+skill through the current skill catalog; do not assume a repository-local
+installation or invoke its interview for already-settled decisions.
 
 5. **Show current progress**
 

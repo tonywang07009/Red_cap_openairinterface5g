@@ -27,8 +27,8 @@ tool-routing packet that follows root `AGENTS.md`:
 - A directly selected primary skill keeps its explicit tool instructions.
   Use this table only for an omitted necessary step.
 - The router selects tools; the primary skill executes its own workflow.
-- Research-wiki work first follows [Context Gate](redcap_research_wiki/CONTEXT.md)
-  and [Ask Matt Routing Memo](redcap_research_wiki/ASK_MATT_ROUTING_MEMO.md).
+- Research-wiki work first follows [Context Gate](../../redcap_research_wiki/CONTEXT.md)
+  and [Ask Matt Routing Memo](../../redcap_research_wiki/ASK_MATT_ROUTING_MEMO.md).
 
 ## Cost Control Policy
 
@@ -95,7 +95,7 @@ tool route.
 - [rtk command shape]
   - [Current]: `rtk` works well for normal commands but not every shell builtin or complex predicate.
   - [Evidence]: `rtk test -f ...` and `rtk find ... -type f \( ... \)` are not reliable.
-  - [Recommended use]: use `rtk` for normal commands; use raw shell only for shell builtins, complex `find`, or syntax unsupported by `rtk`.
+  - [Recommended use]: follow root `AGENTS.md` for current routing: RTK first for Git, Symdex MCP first for symbol relationships, and direct reads for documents and logs. Commands below are historical references, not a replacement for that route.
 
 - [symdex command naming]
   - [Current]: MCP tool names and CLI subcommands are not identical.
