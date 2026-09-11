@@ -18,6 +18,14 @@ I'll create a change with artifacts:
 
 When ready to implement, run /opsx:apply
 
+For this project's adopted workflow, read
+[workflow](../../../.agents/skills/workflow/SKILL.md) and its
+[trace contract](../../../.agents/skills/workflow/references/code-trace.md).
+After specification confirmation, synchronize the trace. Under `$workflow`,
+hand off directly to apply within confirmed scope; the standalone proposal-only
+request still ends after proposal delivery. Do not add a proposal when the user
+explicitly waived it for the current maintenance edit.
+
 ---
 
 **Input**: The user's request should include a change name (kebab-case) OR a description of what they want to build.

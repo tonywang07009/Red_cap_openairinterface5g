@@ -9,6 +9,46 @@
 
 ## Workflow Authorities
 
+Use [`$workflow`](../../.agents/skills/workflow/SKILL.md) for development start
+and resume. Confirm one change's scope and acceptance, continue through its
+normal stage handoffs, and stop after successful archive. A single active
+workflow resumes directly; multiple plausible workflows require selection.
+An explicit status-only or stage-only request does not authorize later stages.
+
+Adopt new changes immediately and existing changes only when resumed. Preserve
+their decisions, evidence, and paths; do not bulk-migrate or rewrite archives.
+Keep existing project plans and Toolbox here. Subsequent change requirements,
+design, tasks, and acceptance live in OpenSpec, with links from project plans
+instead of a second progress ledger.
+
+Synchronize [code trace and read-only Archify views](../../.agents/skills/workflow/references/code-trace.md)
+after specification confirmation, implementation updates, and validation/review
+results. Update canonical records first. A failed refresh marks the view stale
+and permits independent work; a stale or missing required trace blocks archive.
+Preserve the final trace with the archived change and verify relocated links.
+
+For this workflow-integration maintenance edit, the user explicitly waived an
+OpenSpec proposal on 2026-09-11. Validate against the confirmed conversation;
+do not create a change or claim an archive for this edit. Future work retains
+the normal OpenSpec routing unless the user supplies a scoped exception.
+
+Integration validation (2026-09-11): 9 installed/updated files, 32 local Markdown
+links, and staged skill hashes checked. The new workflow skill passed metadata
+validation; the three existing OpenSpec skills retain their pre-existing
+`compatibility` frontmatter warning. Archify smoke validate/deliver passed 9/9;
+receipt hashes matched, invalid input was rejected without replacing last-good
+HTML, and four desktop viewport checks passed. Light/dark smoke screenshots were
+inspected for readable nodes and routes; this is not a full-change runtime test.
+Standards/accepted-decisions inspection covered single/multiple/no workflow,
+status-only, explicit stage stops, progressive adoption, stale/missing traces,
+concurrent input changes, and final archive path repair. These are instruction
+checks, not an automated agent lifecycle test.
+Backup and runnable smoke evidence: `/tmp/redcap-workflow-align.Tqj2tQ/`
+(`before.tar`, `check.cjs`, `validation-20260911.log`, diagram receipts/screenshots).
+This directory and the discovered Archify CLI are temporary. The `.agents`
+skill files remain local under the existing Git ignore policy; no commit/push
+or protocol source change was made.
+
 | Concern | Source | Use |
 |---|---|---|
 | Tool selection and model choice | [Root rules](../../AGENTS.md#file-query-workflow) | Follow the required-first tool and fallback; the user chooses model and effort. |

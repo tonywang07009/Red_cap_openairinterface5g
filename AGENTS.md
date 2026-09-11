@@ -235,8 +235,23 @@ config or test impact.
 
 ## Initial RedCap Project Menu
 
-At the start of a new RedCap project discussion, if no mode is
-selected, ask which entry the user wants:
+Use `$workflow` as the unified development start/resume entry. Read
+[workflow](.agents/skills/workflow/SKILL.md); if the session catalog has not
+refreshed, open that file directly. Keep direct OpenSpec entries available.
+Apply the workflow to new changes and to existing changes when resumed; do not
+bulk-migrate active changes or rewrite archives. After the selected change's
+scope and acceptance are confirmed, continue through validation, review, sync,
+and archive, then stop before the next change. Existing explicit stage-only or
+RED-only requests take precedence.
+
+Preserve project-plan and Toolbox locations. OpenSpec owns subsequent change
+requirements, design, tasks, and acceptance; Archify is a read-only trace view.
+See the [trace contract](.agents/skills/workflow/references/code-trace.md) for
+stage synchronization and the archive gate. This is workflow documentation;
+protocol ownership and the No-New-File Policy for RedCap code remain applicable.
+
+For an explicitly requested onboarding or teaching entry, offer:
+
 1. `進入專案`
 2. `開啟教學`
 3. `函式介紹與查詢`

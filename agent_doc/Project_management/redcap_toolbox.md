@@ -181,6 +181,52 @@ rtk /home/tonywang/miniforge3/envs/mcp/bin/python mcp/magic-pdf/redcap_doc_miner
 
 ## Documentation Checks
 
+### Archify trace synchronization
+
+The [workflow trace contract](../../.agents/skills/workflow/references/code-trace.md)
+owns stage freshness, evidence mapping, and the archive gate. Archify renders a
+derived read-only view; it does not write OpenSpec or manage task state.
+
+Resolve an available Archify skill/CLI before use. Set `ARCHIFY_CLI` to its actual
+`bin/archify.mjs` and `TRACE_ROOT` to the CLI-resolved selected change directory.
+These are command inputs, not new persistent configuration. Inspect its skill,
+workflow/common schemas, and matching example before authoring a trace. Use
+workflow schema v2 and `meta.quality_profile: "showcase"` for new sources.
+Keep Traditional Chinese authored text; the current viewer's fixed UI falls
+back to English when no supported locale matches.
+
+```bash
+node "$ARCHIFY_CLI" doctor
+node "$ARCHIFY_CLI" validate workflow "$TRACE_ROOT/code-trace.archify.json" --quality showcase --json
+node "$ARCHIFY_CLI" deliver workflow "$TRACE_ROOT/code-trace.archify.json" "$TRACE_ROOT/code-trace.html" --quality showcase --json
+node "$ARCHIFY_CLI" visual-check "$TRACE_ROOT/code-trace.html" --json
+```
+
+Capture `deliver` stdout as `code-trace.delivery.json`; inspect both exit status
+and receipt before accepting it. Run visual-check only after a successful fresh
+delivery. Require 9/9 showcase checks, zero composition errors/warnings,
+`ok: true`, and matching specification/artifact SHA-256 values. These validate the
+diagram, not protocol behavior. Record browser and perceptual inspection outcomes
+separately; missing browser evidence is not a browser PASS.
+
+Effects: doctor reads inputs; validate uses temporary render/check files;
+deliver writes trace HTML/receipt and temporary delivery snapshots;
+visual-check writes browser-evidence sidecars. Invoke the native CLI directly;
+no new build wrapper, watcher, or persistent progress service is required.
+Failure: preserve the last good HTML, mark stale, continue independent work,
+and block archive until repaired and consistent. Recheck inputs after generation
+to detect concurrent source changes.
+
+2026-09-11 local probe found `/tmp/skills-Lofopc/archify/bin/archify.mjs` and its
+doctor passed. This temporary path is discovery evidence, not a durable install;
+resolve/probe again before each run. A missing CLI is a stale-trace condition,
+not permission to install packages or substitute an unvalidated renderer.
+The sandboxed validation probe returned empty child-process output; the same
+command passed in the permitted elevated execution context. Diagnose execution
+restrictions before modifying the renderer or declaring the JSON invalid.
+
+### Document references
+
 ```bash
 rtk rg -n "<new-path-or-marker>" AGENTS.md agent_doc redcap_doc redcap_library redcap_interface -g '*.md' -g '*.sh' -g '*.bash' -g '*.yml' -g '*.yaml'
 rtk git diff --check -- AGENTS.md agent_doc redcap_doc redcap_library redcap_interface

@@ -17,6 +17,15 @@ one acceptance-driven slice at a time; `tdd` includes the implementation design
 check formerly in `implement`. Keep run/review evidence in existing evidence
 records; link it from design/tasks rather than appending logs to design.
 
+For new changes or existing changes resumed after workflow adoption, follow
+[workflow](../../../.agents/skills/workflow/SKILL.md) and its
+[trace contract](../../../.agents/skills/workflow/references/code-trace.md).
+Synchronize the read-only trace after implementation slices and validation/review
+results, including failures. Mark failed generation stale and continue independent
+work; do not archive a stale trace. Under `$workflow`, completion/all_done is a
+handoff to remaining review, validation, sync, and archive, not a new approval
+prompt. Preserve explicit stage-only and RED-only limits.
+
 **Input**: Optionally specify a change name. If omitted, check if it can be inferred from conversation context. If vague or ambiguous you MUST prompt for available changes.
 
 **Steps**
@@ -91,7 +100,7 @@ installation or invoke its interview for already-settled decisions.
    **Pause if:**
    - Task is unclear → ask for clarification
    - Implementation reveals a design issue → suggest updating artifacts
-   - Error or blocker encountered → report and wait for guidance
+   - Failure encountered → diagnose and fix within authorization; pause only if unresolved or additional authority is required
    - User interrupts
 
 7. **Review completed work**
@@ -168,7 +177,7 @@ What would you like to do?
 - Do not report implementation complete until applicable TDD or narrow validation and code review have completed
 - Keep code changes minimal and scoped to each task
 - Update task checkbox immediately after completing each task
-- Pause on errors, blockers, or unclear requirements - don't guess
+- Resolve authorized failures; pause on unresolved blockers or unclear requirements, not routine stage handoffs
 - Use contextFiles from CLI output, don't assume specific file names
 
 **Fluid Workflow Integration**
