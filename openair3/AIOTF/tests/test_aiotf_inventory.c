@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <limits.h>
 #include <stdio.h>
+#include <string.h>
 
 static aiotf_inventory_report_t valid_report(uint32_t tag_id)
 {
@@ -31,6 +32,41 @@ static void assert_binding(const aiotf_binding_table_t *table,
   assert(binding->primary_reader == primary);
   assert(binding->binding_epoch == 1);
   assert(binding->resource_policy == AIOTF_RESOURCE_SERIALIZED_SINGLE_TAG);
+}
+
+static void test_cfa_visibility_profile(void)
+{
+  aiotf_cfa_visibility_map_t first;
+  aiotf_cfa_visibility_map_t replay;
+
+  assert(!aiotf_cfa_visibility_map_init(NULL, 100, 73));
+  assert(!aiotf_cfa_visibility_map_init(&first, 0, 73));
+  assert(!aiotf_cfa_visibility_map_init(&first, 101, 73));
+  assert(aiotf_cfa_visibility_map_init(&first, 100, 73));
+  assert(aiotf_cfa_visibility_map_init(&replay, 100, 73));
+  assert(first.tag_count == 100 && first.seed == 73);
+  assert(memcmp(first.reader_by_tag, replay.reader_by_tag, sizeof(first.reader_by_tag)) == 0);
+  assert(aiotf_cfa_visibility_map_validate(&first));
+  const size_t reader1 = aiotf_cfa_visibility_map_visible_count(&first, 1);
+  const size_t reader2 = aiotf_cfa_visibility_map_visible_count(&first, 2);
+  const size_t reader3 = aiotf_cfa_visibility_map_visible_count(&first, 3);
+  assert(reader1 > 0 && reader2 > 0 && reader3 > 0 && reader1 + reader2 + reader3 < 100);
+  assert(aiotf_cfa_visibility_map_reader_for_tag(&first, 0) == 0);
+  assert(aiotf_cfa_visibility_map_reader_for_tag(&first, 101) == 0);
+
+  first.reader_by_tag[1] = AIOTF_CFA_READER_COUNT + 1;
+  assert(!aiotf_cfa_visibility_map_validate(&first));
+  assert(aiotf_cfa_visibility_map_init(&first, 100, 73));
+  first.tag_count = 99;
+  first.reader_by_tag[100] = AIOTF_CFA_READER_1;
+  assert(!aiotf_cfa_visibility_map_validate(&first));
+  printf("AIOTF_CFA_PROFILE seed=%llu tags=%u reader1=%zu reader2=%zu reader3=%zu unseen=%zu\n",
+         (unsigned long long)replay.seed,
+         replay.tag_count,
+         reader1,
+         reader2,
+         reader3,
+         replay.tag_count - reader1 - reader2 - reader3);
 }
 
 static void test_bounded_binding_profile(void)
@@ -555,6 +591,7 @@ static void test_timeout_boundaries(void)
 
 int main(void)
 {
+  test_cfa_visibility_profile();
   test_bounded_binding_profile();
   test_binding_profile_rejects_invalid_state();
   test_pre_r2d_failover();

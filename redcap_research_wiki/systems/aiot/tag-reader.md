@@ -5,9 +5,12 @@ source_refs:
   - radio/rfsimulator/simulator.cpp
   - openair1/PHY/NR_UE_TRANSPORT/nr_ue_rf_helpers.c
   - executables/nr-ue.c
+  - openair3/AIOTF/aiotf_inventory.h
+  - openspec/changes/add-aiot-cfa-rfsim-ber-measurement/code.md
+  - openspec/changes/add-aiot-cfa-rfsim-ber-measurement/validation.txt
   - redcap_doc/manuals/aiot_tag_aiotf_architecture.en.md
 evidence_tier: mixed
-last_reviewed: 2026-07-31
+last_reviewed: 2026-09-18
 related_pages:
   - redcap_research_wiki/systems/aiot/overview.md
   - redcap_research_wiki/systems/aiot/aiotf.md
@@ -18,14 +21,16 @@ related_pages:
 ## Role
 
 Own the experimental Topology-2 CW/Tag behavior, R2D/D2R relay and codec, UE
-wake gate, and 40-byte diagnostic report producer.
+Reader slot flow, 40-byte diagnostic report producer, and the fixed measurement
+observation export used by the CFA RFsim experiment.
 
 ## Inputs and Outputs
 
 - Inputs: `aiot_t2` profile, Tag identity/payload, reader handle, frame/slot,
   R2D command, and external CW.
-- Outputs: CRC-qualified D2R payload and a 40-byte UE report sent through the
-  UE's PDU session on the diagnostic N6 path.
+- Outputs: CRC-qualified or CRC-failed D2R payload, a 40-byte delivery report
+  sent through the UE's PDU session on the diagnostic N6 path, and a fixed
+  80-byte observation report for TX/RX comparison.
 
 ## Owner and Source Trace
 
@@ -45,6 +50,30 @@ not the complete standard path.
 - [Needs Verification] Manchester/SFS behavior is experimental and is not
   presented as current TS 38.291 conformance.
 
+## CFA RFsim BER measurement (review-required)
+
+[Source Trace] The accepted measurement slice keeps the existing 16-byte
+inventory payload and adds a separate 80-byte, network-order observation
+report. `stored_node.c` emits TX truth, `simulator.cpp` routes by Reader handle
+and applies the paired 3 dB Rician/noise model to D2R, and `nr-ue.c` compares
+the decoded payload against the truth before exporting status, bit counters,
+sample-tick timestamps, and channel provenance.
+
+[Runtime Evidence] The isolated RFsim/UE build, nearest codec test, RFsim
+self-test, seventeen Python unit tests, a fixed 4,000-row numerical-model
+campaign smoke, and run13 one-Reader RFsim UDP ingest passed. Run13 captured
+CW relay, TX truth, K=3 dB/noise=0.1 D2R relay, CRC failure with 2/128 errors,
+and JSON `ber=0.015625`, `packet_loss_rate=0.0`, and provenance `10491263`.
+This evidence does not establish a complete three-Reader RFsim campaign or
+measured/reference BER agreement.
+
+[Needs Verification] The full three-Reader, 100-Tag, fixed-budget campaign,
+live no-D2R timeout capture, and real-Reader equivalence are still open. The
+source-owned RFsim timeout is implemented, but its no-D2R runtime case is not
+claimed. The legacy AIOTF 60-Tag/two-Reader profile remains a separate owner;
+the opt-in CFA visibility adapter supports 100 Tags and three Readers without
+changing that legacy profile.
+
 ## Failure Propagation
 
 Wrong Tag binding, frame/slot, reader eligibility, payload length, or CRC state
@@ -54,8 +83,10 @@ selected Topology-2 energy path before AIOTF.
 ## Repair Inventory
 
 - Existing owners: RFsim stored node/relay, UE PHY helper, and UE executable.
-- Boundaries: Tag 1/60, reader 1/2, payload 1/16, frame 0/1023, slot 0/159,
-  invalid CRC, missing CW, duplicate reader report, and ambiguous context.
+- Boundaries: Tag 1/100 in the CFA profile (legacy inventory remains 1/60),
+  Reader 1/3 in the CFA profile, payload 1/16, frame 0/1023, slot 0/159,
+  invalid CRC, missing CW, undetected timeout, duplicate reader report, and
+  ambiguous context.
 - Do not create a second Tag/Reader implementation outside these owners.
 
 ## Research Reading Card

@@ -143,3 +143,23 @@ All entries are append-only and use `## [YYYY-MM-DD] operation | subject`.
 - evidence_paths: release `1.0.14`, `test_log/compiler_logs/task35_e2_indication_sn_live_qualification_2026-08-31.log`, and retained manifest `/tmp/task35-e2-sn-live/task35-e2-sn-live/artifacts/runs/20260831T112450Z-137662c5/manifest.json`.
 - claim_boundary: cell/UE KPM qualification and fail-closed measurement-post refusal are observed; no E2SM-RC control or apply evidence is claimed.
 - unresolved_items: a human must freeze profile-owned thresholds from more representative live calibration evidence before a later control transaction.
+
+## [2026-09-18] capture | CFA RFsim BER observation slice
+
+- status: `NEEDS_REVIEW`
+- capture result: `update-page`
+- changed_or_proposed_paths: `systems/aiot/tag-reader.md`; the active research-wiki skill remains unchanged.
+- evidence_paths: `openspec/changes/add-aiot-cfa-rfsim-ber-measurement/code.md`, `codebase.md`, `code-trace.md`, `validation.txt`, isolated RFsim/UE build output, nearest codec test, RFsim self-test, fifteen Python tests, and the fixed 80-byte UDP loopback.
+- claim_boundary: the observation wire, TX-truth separation, Reader-handle routing, paired numerical channel model, JSON loss accounting, and tool boundary are source/build/test supported. A full three-Reader RFsim campaign, measured/reference agreement, real-Reader equivalence, and source-owned undetected timeout remain unverified.
+- unresolved_items: complete the fixed-budget campaign and review the evolution candidate before any promotion or stable documentation sync.
+- next_action: retain the page as `review-required`; run the registered wiki validator and evolution-contract check, then obtain human review.
+
+## [2026-09-18] capture | CFA RFsim one-Reader runtime and fixed-budget tool slice
+
+- status: `NEEDS_REVIEW`
+- capture result: `update-page`
+- changed_or_proposed_paths: `systems/aiot/tag-reader.md`; the active research-wiki skill remains unchanged.
+- evidence_paths: `openspec/changes/add-aiot-cfa-rfsim-ber-measurement/code.md`, `codebase.md`, `code-trace.md`, `validation.txt`, run13 RFsim marker/UDP evidence, seventeen Python tests, packed-provenance RED/GREEN codec test, and the AIOTF CFA profile test.
+- claim_boundary: one Reader runtime reached CW relay, TX truth, K=3 dB/noise=0.1 D2R, CRC-failed comparison, and JSON BER/loss/provenance. The fixed 4,000-row smoke is labelled `source=numerical_model`. No three-Reader campaign, measured/reference agreement, real-Reader equivalence, or live no-D2R timeout capture is claimed.
+- unresolved_items: execute the three-Reader RFsim campaign and review the evolution candidate before promotion or stable documentation sync.
+- next_action: retain `review-required`; run the registered wiki validator and evolution-contract check, then obtain human review.

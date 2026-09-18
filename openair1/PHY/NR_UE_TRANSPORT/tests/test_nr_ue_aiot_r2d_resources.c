@@ -49,6 +49,14 @@ int main(void)
     return 1;
   }
 
+  const uint32_t packed_target = AIOT_T2_PACK_R2D_TARGET(100, 3, 7);
+  if (AIOT_T2_UNPACK_R2D_TAG(packed_target) != 100
+      || AIOT_T2_UNPACK_R2D_READER(packed_target) != 3
+      || AIOT_T2_UNPACK_R2D_TBIT(packed_target) != 7) {
+    fprintf(stderr, "FAIL PacksR2dReaderWithoutChangingBeamSelector\n");
+    return 1;
+  }
+
   const nr_ue_aiot_d2r_scheduling_t factor_eight = {
       .x = 1,
       .tbit = NR_UE_AIOT_D2R_TBIT_TAU_OVER_16,
@@ -309,6 +317,23 @@ int main(void)
           != NR_UE_AIOT_T2_DECODE_OK
       || decoded_payload_len != 1 || decoded_payload[0] != 0x01) {
     fprintf(stderr, "FAIL DecodesSingleLayerTwoChipD2rFrame\n");
+    return 1;
+  }
+
+  d2r_packet.samples[7 * 2].r = 1;
+  d2r_packet.samples[7 * 2 + 1].r = 3;
+  if (nr_ue_aiot_t2_decode_d2r(&d2r_packet, decoded_payload, sizeof(decoded_payload), &decoded_payload_len)
+          != NR_UE_AIOT_T2_DECODE_OK
+      || decoded_payload_len != 1 || decoded_payload[0] != 0x01) {
+    fprintf(stderr, "FAIL DecodesNoisyTwoChipEnergyOrdering\n");
+    return 1;
+  }
+
+  d2r_packet.header.option_value = AIOT_T2_PACK_TAG_PROVENANCE(1, 42);
+  if (nr_ue_aiot_t2_decode_d2r(&d2r_packet, decoded_payload, sizeof(decoded_payload), &decoded_payload_len)
+          != NR_UE_AIOT_T2_DECODE_OK
+      || decoded_payload_len != 1 || decoded_payload[0] != 0x01) {
+    fprintf(stderr, "FAIL DecodesPackedTagProvenance\n");
     return 1;
   }
 

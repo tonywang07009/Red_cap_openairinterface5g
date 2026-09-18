@@ -227,6 +227,8 @@ static bool aiot_parse_hex(const char *text, uint8_t *payload, size_t *payload_l
   return true;
 }
 
+static bool aiot_samples_to_chips(const c16_t *samples, size_t sample_count, uint8_t *chips);
+
 static aiot_fault_t aiot_parse_fault(const char *text, bool *valid)
 {
   *valid = true;
@@ -332,6 +334,8 @@ static int aiot_tag_self_test(void)
   const c16_t cw_samples[2] = {{.r = 100, .i = -50}, {.r = 100, .i = -50}};
   const uint8_t ook_chips[2] = {1, 0};
   c16_t reflected[2] = {0};
+  const c16_t noisy_pair[2] = {{.r = 1}, {.r = 3}};
+  uint8_t noisy_pair_chips[2] = {0};
   for (size_t i = 0; i < sizeofArray(ook_chips); ++i) {
     reflected[i].r = cw_samples[i].r * ook_chips[i];
     reflected[i].i = cw_samples[i].i * ook_chips[i];
@@ -356,8 +360,11 @@ static int aiot_tag_self_test(void)
                       && aiot_expect(AIOT_RESULT_TIMEOUT, &ready, one_byte, sizeof(one_byte), AIOT_FAULT_TIMEOUT)
                       && reflected[0].r == cw_samples[0].r && reflected[0].i == cw_samples[0].i
                       && reflected[1].r == 0 && reflected[1].i == 0;
-  printf("AIOT_T2_SELF_TEST %s\n", passed ? "PASS" : "FAIL");
-  return passed ? 0 : 1;
+  const bool noisy_pair_decodes_by_energy = aiot_samples_to_chips(noisy_pair, sizeofArray(noisy_pair), noisy_pair_chips)
+                                             && noisy_pair_chips[0] == 0 && noisy_pair_chips[1] == 1;
+  const bool all_checks_pass = passed && noisy_pair_decodes_by_energy;
+  printf("AIOT_T2_SELF_TEST %s\n", all_checks_pass ? "PASS" : "FAIL");
+  return all_checks_pass ? 0 : 1;
 }
 
 volatile int             oai_exit = 0;
@@ -517,10 +524,20 @@ static bool aiot_parse_u32(const char *text, uint32_t minimum, uint32_t maximum,
 
 static bool aiot_samples_to_chips(const c16_t *samples, size_t sample_count, uint8_t *chips)
 {
-  if (samples == NULL || chips == NULL || sample_count == 0 || sample_count > AIOT_T2_MAX_RF_SAMPLES)
+  if (samples == NULL || chips == NULL || sample_count == 0 || sample_count > AIOT_T2_MAX_RF_SAMPLES || sample_count % 2 != 0)
     return false;
-  for (size_t i = 0; i < sample_count; ++i)
-    chips[i] = samples[i].r != 0 || samples[i].i != 0;
+  for (size_t i = 0; i < sample_count; i += 2) {
+    const int64_t first_real = samples[i].r;
+    const int64_t first_imag = samples[i].i;
+    const int64_t second_real = samples[i + 1].r;
+    const int64_t second_imag = samples[i + 1].i;
+    const uint64_t first_energy = (uint64_t)(first_real * first_real + first_imag * first_imag);
+    const uint64_t second_energy = (uint64_t)(second_real * second_real + second_imag * second_imag);
+    if (first_energy == second_energy)
+      return false;
+    const uint8_t bit = second_energy > first_energy;
+    aiot_encode_pair(bit, &chips[i]);
+  }
   return true;
 }
 
@@ -544,21 +561,28 @@ static void aiot_write_rfsim_packet(int fd, const samplesBlockHeader_t *header, 
 
 static int aiot_cw_rfsim_cli(int argc, char **argv)
 {
-  if (argc != 6) {
-    fprintf(stderr, "Usage: %s --aiot-cw-rfsim <server> <port> <samples> <amplitude>\n", argv[0]);
+  if (argc != 6 && argc != 7) {
+    fprintf(stderr, "Usage: %s --aiot-cw-rfsim <server> <port> <samples> <amplitude> [cycles]\n", argv[0]);
     return 2;
   }
 
   uint32_t port = 0;
   uint32_t sample_count = 0;
   uint32_t amplitude = 0;
+  uint32_t cycles = 1;
   if (!aiot_parse_u32(argv[3], 1, UINT16_MAX, &port)
       || !aiot_parse_u32(argv[4], 1, AIOT_RFSIM_MAX_SAMPLES, &sample_count)
-      || !aiot_parse_u32(argv[5], 1, INT16_MAX, &amplitude)) {
+      || !aiot_parse_u32(argv[5], 1, INT16_MAX, &amplitude)
+      || (argc == 7 && !aiot_parse_u32(argv[6], 1, 10000, &cycles))) {
     fprintf(stderr, "AIOT_T2_ARGUMENT_REJECT\n");
     return 2;
   }
 
+  c16_t *cw = calloc(sample_count, sizeof(*cw));
+  if (cw == NULL)
+    return 1;
+  for (size_t i = 0; i < sample_count; ++i)
+    cw[i].r = amplitude;
   const int socket = client_start(argv[2], port);
   setblocking(socket, blocking);
   samplesBlockHeader_t sync_header;
@@ -566,26 +590,30 @@ static int aiot_cw_rfsim_cli(int argc, char **argv)
   size_t sync_capacity = 0;
   if (!aiot_read_rfsim_packet(socket, &sync_header, &sync_samples, &sync_capacity)) {
     free(sync_samples);
+    close(socket);
+    free(cw);
     fprintf(stderr, "AIOT_T2_RFSIM_SYNC_REJECT\n");
     return 1;
   }
   free(sync_samples);
-
-  c16_t *cw = calloc(sample_count, sizeof(*cw));
-  if (cw == NULL)
-    return 1;
-  for (size_t i = 0; i < sample_count; ++i)
-    cw[i].r = amplitude;
-  const samplesBlockHeader_t header = {
-      .size = sample_count,
-      .nbAnt = 1,
-      .timestamp = sync_header.timestamp + sync_header.size,
-      .option_value = 0,
-      .option_flag = OPTION_AIOT_T2_CW,
-      .beam_map = 1,
-  };
-  aiot_write_rfsim_packet(socket, &header, cw);
-  printf("AIOT_T2_CW_SOURCE samples=%u amplitude=%u\n", sample_count, amplitude);
+  for (uint32_t cycle = 0; cycle < cycles; ++cycle) {
+    const samplesBlockHeader_t header = {
+        .size = sample_count,
+        .nbAnt = 1,
+        .timestamp = sync_header.timestamp + sync_header.size + (uint64_t)cycle * sample_count,
+        .option_value = 0,
+        .option_flag = OPTION_AIOT_T2_CW,
+        .beam_map = 1,
+    };
+    aiot_write_rfsim_packet(socket, &header, cw);
+    printf("AIOT_T2_CW_SOURCE samples=%u amplitude=%u cycle=%u/%u\n",
+           sample_count,
+           amplitude,
+           cycle + 1,
+           cycles);
+    if (cycle + 1 < cycles)
+      usleep(500000);
+  }
   free(cw);
   close(socket);
   return 0;
@@ -593,17 +621,19 @@ static int aiot_cw_rfsim_cli(int argc, char **argv)
 
 static int aiot_tag_rfsim_cli(int argc, char **argv)
 {
-  if (argc != 6) {
-    fprintf(stderr, "Usage: %s --aiot-tag-rfsim <server> <port> <tag-id> <inventory-hex>\n", argv[0]);
+  if (argc != 6 && argc != 7) {
+    fprintf(stderr, "Usage: %s --aiot-tag-rfsim <server> <port> <tag-id> <inventory-hex> [cycles]\n", argv[0]);
     return 2;
   }
 
   uint32_t port = 0;
   uint32_t tag_id = 0;
+  uint32_t cycles = 1;
   uint8_t inventory[AIOT_MAX_PAYLOAD_BYTES];
   size_t inventory_len = 0;
   if (!aiot_parse_u32(argv[3], 1, UINT16_MAX, &port) || !aiot_parse_u32(argv[4], 1, AIOT_T2_MAX_TAG_ID, &tag_id)
-      || !aiot_parse_hex(argv[5], inventory, &inventory_len)) {
+      || !aiot_parse_hex(argv[5], inventory, &inventory_len)
+      || (argc == 7 && !aiot_parse_u32(argv[6], 1, 10000, &cycles))) {
     fprintf(stderr, "AIOT_T2_ARGUMENT_REJECT\n");
     return 2;
   }
@@ -639,8 +669,10 @@ static int aiot_tag_rfsim_cli(int argc, char **argv)
   c16_t cw[AIOT_T2_MAX_RF_SAMPLES];
   size_t cw_samples = 0;
   uint64_t cw_timestamp = 0;
+  uint32_t r2d_tbit = 0;
   bool r2d_received = false;
   uint64_t r2d_timestamp = 0;
+  uint32_t completed_cycles = 0;
   while (aiot_read_rfsim_packet(socket, &header, &samples, &capacity)) {
     if (header.option_flag & OPTION_AIOT_T2_CW) {
       if (header.nbAnt != 1 || header.size < chips_len) {
@@ -653,7 +685,7 @@ static int aiot_tag_rfsim_cli(int argc, char **argv)
       printf("AIOT_T2_CW_CAPTURE samples=%zu\n", cw_samples);
     }
 
-    if ((header.option_flag & OPTION_AIOT_T2_R2D) && header.option_value == tag_id) {
+    if ((header.option_flag & OPTION_AIOT_T2_R2D) && AIOT_T2_UNPACK_R2D_TAG(header.option_value) == tag_id) {
       uint8_t r2d_chips[AIOT_T2_MAX_RF_SAMPLES];
       uint8_t command = 0;
       if (header.nbAnt != 1 || !aiot_samples_to_chips(samples, header.size, r2d_chips)
@@ -664,6 +696,7 @@ static int aiot_tag_rfsim_cli(int argc, char **argv)
       }
       r2d_received = true;
       r2d_timestamp = header.timestamp;
+      r2d_tbit = AIOT_T2_UNPACK_R2D_TBIT(header.option_value);
       printf("AIOT_T2_R2D_ACCEPT tag_id=%u\n", tag_id);
     }
 
@@ -684,15 +717,40 @@ static int aiot_tag_rfsim_cli(int argc, char **argv)
         .nbAnt = 1,
         .timestamp = cw_timestamp > r2d_timestamp ? cw_timestamp : r2d_timestamp,
         .option_value = tag_id,
-        .option_flag = OPTION_AIOT_T2_D2R,
+        .option_flag = OPTION_AIOT_T2_D2R | AIOT_T2_PACK_D2R_TBIT(r2d_tbit),
         .beam_map = 1,
     };
+    c16_t tx_truth[AIOT_T2_MAX_PAYLOAD_BYTES] = {0};
+    for (size_t i = 0; i < inventory_len; ++i)
+      tx_truth[i].r = inventory[i];
+    const samplesBlockHeader_t truth = {
+        .size = inventory_len,
+        .nbAnt = 1,
+        .timestamp = d2r.timestamp,
+        .option_value = tag_id,
+        .option_flag = OPTION_AIOT_T2_TX_TRUTH | AIOT_T2_PACK_D2R_TBIT(r2d_tbit),
+        .beam_map = 1,
+    };
+    aiot_write_rfsim_packet(socket, &truth, tx_truth);
+    printf("AIOT_T2_TX_TRUTH_SENT tag_id=%u payload_bytes=%zu\n", tag_id, inventory_len);
     aiot_write_rfsim_packet(socket, &d2r, reflected);
-    printf("AIOT_T2_BACKSCATTER tag_id=%u cw_samples=%zu d2r_samples=%zu\n", tag_id, cw_samples, chips_len);
+    ++completed_cycles;
+    printf("AIOT_T2_BACKSCATTER tag_id=%u cw_samples=%zu d2r_samples=%zu cycle=%u/%u\n",
+           tag_id,
+           cw_samples,
+           chips_len,
+           completed_cycles,
+           cycles);
     free(reflected);
-    free(samples);
-    close(socket);
-    return 0;
+    if (completed_cycles >= cycles) {
+      free(samples);
+      close(socket);
+      return 0;
+    }
+    cw_samples = 0;
+    cw_timestamp = 0;
+    r2d_received = false;
+    r2d_timestamp = 0;
   }
 
   free(samples);

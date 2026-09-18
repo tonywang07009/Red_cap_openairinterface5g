@@ -692,14 +692,56 @@ typedef int(*oai_transport_initfunc_t)(openair0_device *device, openair0_config_
 #define OPTION_AIOT_T2_TAG_REGISTER 0x10000000 // option_value is the stable Tag ID
 #define OPTION_AIOT_T2_CW 0x20000000           // independent CW-node samples
 #define OPTION_AIOT_T2_D2R 0x40000000          // Tag-reflected D2R samples
+#define OPTION_AIOT_T2_TX_TRUTH 0x80000000     // RFsim-only transmitted payload evidence
 #define AIOT_T2_MAX_TAG_ID 100
 #define AIOT_T2_MAX_READER_HANDLES 3
 #define AIOT_T2_MAX_PAYLOAD_BYTES 16
 #define AIOT_T2_MAX_RF_SAMPLES 576              // 16-byte payload, CRC16, Manchester plus SFS
 #define AIOT_T2_MAX_QUEUED_REPORTS 100
+/* RFsim-only guard after TX truth; it is a measurement timeout, not a TS timer. */
+#define AIOT_T2_OBSERVATION_TIMEOUT_SAMPLES (AIOT_T2_MAX_RF_SAMPLES * 64U)
+#define AIOT_T2_TAG_OPTION_BITS 8U
+#define AIOT_T2_TAG_OPTION_MASK ((1U << AIOT_T2_TAG_OPTION_BITS) - 1U)
+#define AIOT_T2_READER_OPTION_BITS 2U
+#define AIOT_T2_READER_OPTION_SHIFT AIOT_T2_TAG_OPTION_BITS
+#define AIOT_T2_READER_OPTION_MASK ((1U << AIOT_T2_READER_OPTION_BITS) - 1U)
+#define AIOT_T2_R2D_TBIT_BITS 3U
+#define AIOT_T2_R2D_TBIT_SHIFT (AIOT_T2_READER_OPTION_SHIFT + AIOT_T2_READER_OPTION_BITS)
+#define AIOT_T2_R2D_TBIT_MASK ((1U << AIOT_T2_R2D_TBIT_BITS) - 1U)
+#define AIOT_T2_PACK_R2D_TARGET(tag_id, reader_handle, tbit) \
+  ((((uint32_t)(reader_handle) & AIOT_T2_READER_OPTION_MASK) << AIOT_T2_READER_OPTION_SHIFT) \
+   | (((uint32_t)(tbit) & AIOT_T2_R2D_TBIT_MASK) << AIOT_T2_R2D_TBIT_SHIFT) \
+   | ((uint32_t)(tag_id) & AIOT_T2_TAG_OPTION_MASK))
+#define AIOT_T2_UNPACK_R2D_TAG(option_value) ((uint32_t)(option_value) & AIOT_T2_TAG_OPTION_MASK)
+#define AIOT_T2_UNPACK_R2D_READER(option_value) \
+  (((uint32_t)(option_value) >> AIOT_T2_READER_OPTION_SHIFT) & AIOT_T2_READER_OPTION_MASK)
+#define AIOT_T2_UNPACK_R2D_TBIT(option_value) \
+  (((uint32_t)(option_value) >> AIOT_T2_R2D_TBIT_SHIFT) & AIOT_T2_R2D_TBIT_MASK)
+/* Experimental metadata bits in option_flag; the low flag bits retain packet type. */
+#define AIOT_T2_D2R_TBIT_SHIFT 16U
+#define AIOT_T2_D2R_TBIT_MASK (AIOT_T2_R2D_TBIT_MASK << AIOT_T2_D2R_TBIT_SHIFT)
+#define AIOT_T2_PACK_D2R_TBIT(tbit) (((uint32_t)(tbit) & AIOT_T2_R2D_TBIT_MASK) << AIOT_T2_D2R_TBIT_SHIFT)
+#define AIOT_T2_UNPACK_D2R_TBIT(option_flag) \
+  (((uint32_t)(option_flag) >> AIOT_T2_D2R_TBIT_SHIFT) & AIOT_T2_R2D_TBIT_MASK)
+#define AIOT_T2_PROVENANCE_MASK 0x00ffffffU
+#define AIOT_T2_PACK_TAG_PROVENANCE(tag_id, provenance) \
+  ((((uint32_t)(provenance) & AIOT_T2_PROVENANCE_MASK) << AIOT_T2_TAG_OPTION_BITS) \
+   | ((uint32_t)(tag_id) & AIOT_T2_TAG_OPTION_MASK))
+#define AIOT_T2_UNPACK_TAG(option_value) ((uint32_t)(option_value) & AIOT_T2_TAG_OPTION_MASK)
+#define AIOT_T2_UNPACK_PROVENANCE(option_value) \
+  (((uint32_t)(option_value) >> AIOT_T2_TAG_OPTION_BITS) & AIOT_T2_PROVENANCE_MASK)
 #define AIOT_T2_REPORT_MAGIC 0x41494f54U         // "AIOT" in network byte order on the wire
 #define AIOT_T2_REPORT_VERSION 1
 #define AIOT_T2_REPORT_FLAG_CRC_VALID 0x0001
+#define AIOT_T2_OBSERVATION_MAGIC 0x41494f42U // "AIOB"
+#define AIOT_T2_OBSERVATION_VERSION 1
+#define AIOT_T2_OBS_COMPLETE 1
+#define AIOT_T2_OBS_CRC_FAILURE 2
+#define AIOT_T2_OBS_UNDETECTED 3
+#define AIOT_T2_OBS_UNALIGNED 4
+#define AIOT_T2_OBS_INVALID 5
+#define AIOT_T2_OBS_FLAG_CRC_VALID 0x0001
+#define AIOT_T2_OBS_FLAG_IDEAL_ACQUISITION 0x0002
 
 
 typedef struct {
@@ -734,10 +776,35 @@ typedef struct __attribute__((packed)) {
   uint8_t payload[AIOT_T2_MAX_PAYLOAD_BYTES];
 } aiot_t2_inventory_report_t;
 
+/* RFsim-only measurement evidence. All multi-byte fields are network byte order. */
+typedef struct __attribute__((packed)) {
+  uint32_t magic;
+  uint8_t version;
+  uint8_t status;
+  uint16_t flags;
+  uint32_t reader_handle;
+  uint32_t tag_id;
+  uint64_t tx_timestamp;
+  uint64_t completion_timestamp;
+  uint8_t payload_len;
+  uint8_t reserved[3];
+  uint16_t compared_bits;
+  uint16_t erroneous_bits;
+  uint8_t tx_payload[AIOT_T2_MAX_PAYLOAD_BYTES];
+  uint8_t decoded_payload[AIOT_T2_MAX_PAYLOAD_BYTES];
+  uint64_t channel_provenance;
+} aiot_t2_observation_report_t;
+
 #ifdef __cplusplus
 static_assert(sizeof(aiot_t2_inventory_report_t) == 40, "Unexpected A-IoT report wire size");
 #else
 _Static_assert(sizeof(aiot_t2_inventory_report_t) == 40, "Unexpected A-IoT report wire size");
+#endif
+
+#ifdef __cplusplus
+static_assert(sizeof(aiot_t2_observation_report_t) == 80, "Unexpected A-IoT observation wire size");
+#else
+_Static_assert(sizeof(aiot_t2_observation_report_t) == 80, "Unexpected A-IoT observation wire size");
 #endif
 
 #ifdef __cplusplus

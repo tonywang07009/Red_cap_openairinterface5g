@@ -28,7 +28,7 @@ extern uint16_t ue_id_g;
 #define  CONFIG_HLP_EXTRA_PDU_ID           "ID of an additional PDU session to configure alongside default PDU session\n"
 #define  CONFIG_HLP_AIOT_T2_READER         "Enable the experimental RFsim Topology 2 UE Reader\n"
 #define  CONFIG_HLP_AIOT_T2_OBSERVER       "Enable the experimental RFsim Topology 2 D2R-only UE observer\n"
-#define  CONFIG_HLP_AIOT_T2_TAG_ID         "Tag ID selected for the experimental Reader transaction (1..60)\n"
+#define  CONFIG_HLP_AIOT_T2_TAG_ID         "Tag ID selected for the experimental Reader transaction (1..100)\n"
 #define  CONFIG_HLP_AIOT_T2_PERIOD         "Reader operation-window period in slots\n"
 #define  CONFIG_HLP_AIOT_T2_OFFSET         "Reader operation-window start offset inside the period\n"
 #define  CONFIG_HLP_AIOT_T2_DURATION       "Reader operation-window duration in slots\n"

@@ -12,6 +12,15 @@
 #define AIOTF_READER_UE1 1U
 #define AIOTF_READER_UE2 2U
 
+/* CFA RFsim owns a separate population contract. Keep the legacy
+ * experimental_n6 60-Tag/two-Reader ABI above unchanged. */
+#define AIOTF_CFA_MAX_TAGS 100U
+#define AIOTF_CFA_READER_COUNT 3U
+#define AIOTF_CFA_READER_1 1U
+#define AIOTF_CFA_READER_2 2U
+#define AIOTF_CFA_READER_3 3U
+#define AIOTF_CFA_READER_UNSEEN 0U
+
 typedef enum {
   AIOTF_RESULT_REJECTED = 0,
   AIOTF_RESULT_PENDING,
@@ -59,6 +68,12 @@ typedef struct {
   uint64_t next_correlation_id;
   uint64_t next_session_id;
 } aiotf_inventory_context_t;
+
+typedef struct {
+  uint64_t seed;
+  uint32_t tag_count;
+  uint8_t reader_by_tag[AIOTF_CFA_MAX_TAGS + 1U];
+} aiotf_cfa_visibility_map_t;
 
 typedef enum {
   AIOTF_RESOURCE_SERIALIZED_SINGLE_TAG = 1,
@@ -222,6 +237,15 @@ typedef struct {
 
 /* The caller serializes access to a context and its sessions. */
 void aiotf_inventory_context_init(aiotf_inventory_context_t *context);
+
+/* Deterministic CFA topology adapter; the legacy AIOTF profile is unchanged. */
+bool aiotf_cfa_visibility_map_init(aiotf_cfa_visibility_map_t *map, uint32_t tag_count, uint64_t seed);
+
+bool aiotf_cfa_visibility_map_validate(const aiotf_cfa_visibility_map_t *map);
+
+size_t aiotf_cfa_visibility_map_visible_count(const aiotf_cfa_visibility_map_t *map, uint32_t reader_handle);
+
+uint32_t aiotf_cfa_visibility_map_reader_for_tag(const aiotf_cfa_visibility_map_t *map, uint32_t tag_id);
 
 bool aiotf_binding_table_init(aiotf_binding_table_t *table);
 

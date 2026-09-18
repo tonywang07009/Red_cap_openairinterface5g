@@ -285,13 +285,20 @@ bool nr_ue_aiot_t2_prepare_r2d_with_resources(const nr_ue_aiot_r2d_request_t *re
   return nr_ue_aiot_t2_prepare_r2d(request->tag_id, request->timestamp, packet);
 }
 
+static uint64_t aiot_t2_sample_energy(const c16_t *sample)
+{
+  const int64_t real = sample->r;
+  const int64_t imag = sample->i;
+  return (uint64_t)(real * real + imag * imag);
+}
+
 static bool aiot_t2_decode_pair(const c16_t *pair, uint8_t *bit)
 {
-  const bool first = pair[0].r != 0 || pair[0].i != 0;
-  const bool second = pair[1].r != 0 || pair[1].i != 0;
-  if (first == second)
+  const uint64_t first_energy = aiot_t2_sample_energy(&pair[0]);
+  const uint64_t second_energy = aiot_t2_sample_energy(&pair[1]);
+  if (first_energy == second_energy)
     return false;
-  *bit = second;
+  *bit = second_energy > first_energy;
   return true;
 }
 
@@ -300,9 +307,10 @@ nr_ue_aiot_t2_decode_result_t nr_ue_aiot_t2_decode_d2r(const aiot_t2_rf_packet_t
                                                        size_t payload_capacity,
                                                        size_t *payload_len)
 {
+  const uint32_t tag_id = packet == NULL ? 0 : AIOT_T2_UNPACK_TAG(packet->header.option_value);
   if (packet == NULL || payload == NULL || payload_len == NULL || packet->header.nbAnt != 1
-      || (packet->header.option_flag & OPTION_AIOT_T2_D2R) == 0 || packet->header.option_value == 0
-      || packet->header.option_value > AIOT_T2_MAX_TAG_ID || packet->header.size == 0 || packet->header.size > AIOT_T2_MAX_RF_SAMPLES
+      || (packet->header.option_flag & OPTION_AIOT_T2_D2R) == 0 || tag_id == 0
+      || tag_id > AIOT_T2_MAX_TAG_ID || packet->header.size == 0 || packet->header.size > AIOT_T2_MAX_RF_SAMPLES
       || packet->header.size % AIOT_T2_D2R_CHIPS_PER_BIT != 0)
     return NR_UE_AIOT_T2_INVALID_LENGTH;
 

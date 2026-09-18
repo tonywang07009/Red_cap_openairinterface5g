@@ -950,8 +950,17 @@ static int aiot_t2_report_socket(PHY_VARS_NR_UE *UE)
   char ifname[IFNAMSIZ];
   tun_generate_ue_ifname(ifname, UE->Mod_id, -1);
   if (setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, ifname, strlen(ifname) + 1) != 0) {
-    close(sock);
-    return -1;
+    const int bind_errno = errno;
+    if (strcmp(params->aiot_t2_report_ip, "127.0.0.1") != 0) {
+      close(sock);
+      errno = bind_errno;
+      return -1;
+    }
+    LOG_W(PHY,
+          "AIOT_T2_REPORT_TRANSPORT_FALLBACK interface=%s errno=%d destination=%s\n",
+          ifname,
+          bind_errno,
+          params->aiot_t2_report_ip);
   }
 
   struct sockaddr_in destination = {
@@ -971,37 +980,67 @@ static int aiot_t2_report_socket(PHY_VARS_NR_UE *UE)
   return sock;
 }
 
-static bool aiot_t2_send_report(PHY_VARS_NR_UE *UE,
-                                int *report_socket,
-                                const aiot_t2_rf_packet_t *d2r,
-                                const uint8_t *payload,
-                                size_t payload_len,
-                                uint64_t absolute_slot)
+typedef struct {
+  bool valid;
+  uint32_t tag_id;
+  uint8_t payload_len;
+  uint8_t payload[AIOT_T2_MAX_PAYLOAD_BYTES];
+  uint64_t timestamp;
+  uint64_t provenance;
+} aiot_t2_truth_cache_t;
+
+static uint64_t aiot_t2_htonll(uint64_t value)
 {
-  if (payload_len == 0 || payload_len > AIOT_T2_MAX_PAYLOAD_BYTES)
-    return false;
+  return ((uint64_t)htonl((uint32_t)value) << 32) | htonl((uint32_t)(value >> 32));
+}
+
+static bool aiot_t2_send_observation(PHY_VARS_NR_UE *UE,
+                                     int *report_socket,
+                                     const aiot_t2_rf_packet_t *d2r,
+                                     const aiot_t2_truth_cache_t *truth,
+                                     const uint8_t *decoded_payload,
+                                     uint8_t status,
+                                     uint16_t compared_bits,
+                                     uint16_t erroneous_bits,
+                                     uint64_t completion_timestamp)
+{
   if (*report_socket < 0)
     *report_socket = aiot_t2_report_socket(UE);
   if (*report_socket < 0)
     return false;
-
   const nrUE_params_t *params = get_nrUE_params();
-  const uint32_t slots_per_frame = UE->frame_parms.slots_per_frame;
-  aiot_t2_inventory_report_t report = {
-      .magic = htonl(AIOT_T2_REPORT_MAGIC),
-      .version = AIOT_T2_REPORT_VERSION,
-      .payload_len = payload_len,
-      .flags = htons(AIOT_T2_REPORT_FLAG_CRC_VALID),
-      .reader_handle = htonl(params->aiot_t2_reader_handle),
-      .tag_id = htonl(d2r->header.option_value),
-      .frame = htonl(slots_per_frame == 0 ? 0 : (absolute_slot / slots_per_frame) % MAX_FRAME_NUMBER),
-      .slot = htonl(slots_per_frame == 0 ? 0 : absolute_slot % slots_per_frame),
-  };
-  memcpy(report.payload, payload, payload_len);
+  const uint32_t tag_id = AIOT_T2_UNPACK_TAG(d2r->header.option_value);
+  const uint64_t provenance = AIOT_T2_UNPACK_PROVENANCE(d2r->header.option_value);
+  aiot_t2_observation_report_t report = {0};
+  report.magic = htonl(AIOT_T2_OBSERVATION_MAGIC);
+  report.version = AIOT_T2_OBSERVATION_VERSION;
+  report.status = status;
+  report.flags = htons(AIOT_T2_OBS_FLAG_IDEAL_ACQUISITION
+                       | (status == AIOT_T2_OBS_COMPLETE ? AIOT_T2_OBS_FLAG_CRC_VALID : 0));
+  report.reader_handle = htonl(params->aiot_t2_reader_handle);
+  report.tag_id = htonl(tag_id);
+  report.tx_timestamp = aiot_t2_htonll(truth != NULL && truth->valid ? truth->timestamp : d2r->header.timestamp);
+  report.completion_timestamp = aiot_t2_htonll(completion_timestamp);
+  report.payload_len = truth != NULL && truth->valid ? truth->payload_len : 0;
+  report.compared_bits = htons(compared_bits);
+  report.erroneous_bits = htons(erroneous_bits);
+  if (truth != NULL && truth->valid)
+    memcpy(report.tx_payload, truth->payload, truth->payload_len);
+  if (decoded_payload != NULL && truth != NULL && truth->valid)
+    memcpy(report.decoded_payload, decoded_payload, truth->payload_len);
+  report.channel_provenance = aiot_t2_htonll(provenance);
   const ssize_t sent = send(*report_socket, &report, sizeof(report), MSG_DONTWAIT);
-  if (sent == (ssize_t)sizeof(report))
+  if (sent == (ssize_t)sizeof(report)) {
+    LOG_I(PHY,
+          "AIOT_T2_OBSERVATION_SENT status=%u tag_id=%u reader_handle=%u compared_bits=%u erroneous_bits=%u provenance=%lu\n",
+          status,
+          tag_id,
+          params->aiot_t2_reader_handle,
+          compared_bits,
+          erroneous_bits,
+          provenance);
     return true;
-
+  }
   const int send_errno = sent < 0 ? errno : EMSGSIZE;
   close(*report_socket);
   *report_socket = -1;
@@ -1016,12 +1055,39 @@ static void aiot_t2_role_process_slot(PHY_VARS_NR_UE *UE,
                                       int *report_socket)
 {
   const nrUE_params_t *params = get_nrUE_params();
+  static aiot_t2_truth_cache_t truth = {0};
   if (!params->aiot_t2_reader && !params->aiot_t2_observer)
     return;
 
   const bool window_active = aiot_t2_role_window_active(params, absolute_slot);
-  const bool role_awake = window_active && phy_data->ue_connected && phy_data->connected_drx_active;
+  /* The accepted RFsim profile guarantees D2R acquisition after the R2D
+   * turnaround.  Keep the configured service window and Uu connection gate,
+   * but do not let an unrelated connected-DRX transition discard that
+   * already-admitted reflection. */
+  const bool role_awake = window_active && phy_data->ue_connected;
   const uint32_t period_slot = absolute_slot % params->aiot_t2_window_period;
+  if (truth.valid && timestamp > truth.timestamp
+      && timestamp - truth.timestamp > AIOT_T2_OBSERVATION_TIMEOUT_SAMPLES) {
+    aiot_t2_rf_packet_t timeout_packet = {0};
+    timeout_packet.header.option_flag = OPTION_AIOT_T2_D2R;
+    timeout_packet.header.option_value = AIOT_T2_PACK_TAG_PROVENANCE(truth.tag_id, truth.provenance);
+    timeout_packet.header.timestamp = truth.timestamp;
+    (void)aiot_t2_send_observation(UE,
+                                   report_socket,
+                                   &timeout_packet,
+                                   &truth,
+                                   NULL,
+                                   AIOT_T2_OBS_UNDETECTED,
+                                   0,
+                                   0,
+                                   timestamp);
+    LOG_I(PHY,
+          "AIOT_T2_OBSERVATION_TIMEOUT tag_id=%u reader_handle=%u provenance=%lu\n",
+          truth.tag_id,
+          params->aiot_t2_reader_handle,
+          truth.provenance);
+    truth.valid = false;
+  }
   if (params->aiot_t2_reader && period_slot == params->aiot_t2_window_offset) {
     if (!role_awake) {
       LOG_I(PHY,
@@ -1059,6 +1125,12 @@ static void aiot_t2_role_process_slot(PHY_VARS_NR_UE *UE,
               d2r_scheduling.sfs_bitmap,
               absolute_slot);
       }
+      if (prepared) {
+        r2d.header.option_value = AIOT_T2_PACK_R2D_TARGET(params->aiot_t2_tag_id,
+                                                          params->aiot_t2_reader_handle,
+                                                          (uint32_t)params->aiot_t2_d2r_tbit);
+        r2d.header.beam_map = 1;
+      }
       const int sent = prepared ? UE->rfdevice.trx_ctlsend_func(&UE->rfdevice, &r2d, sizeof(r2d)) : -1;
       if (sent == (int)sizeof(r2d))
         LOG_I(PHY,
@@ -1076,12 +1148,41 @@ static void aiot_t2_role_process_slot(PHY_VARS_NR_UE *UE,
   aiot_t2_rf_packet_t d2r;
   int received = 0;
   while ((received = UE->rfdevice.trx_ctlrecv_func(&UE->rfdevice, &d2r, sizeof(d2r))) > 0) {
-    if (received != (int)sizeof(d2r) || !role_awake) {
+    const uint32_t tag_id = AIOT_T2_UNPACK_TAG(d2r.header.option_value);
+    const uint64_t provenance = AIOT_T2_UNPACK_PROVENANCE(d2r.header.option_value);
+    if (received != (int)sizeof(d2r)) {
       LOG_I(PHY,
             "AIOT_T2_D2R_REJECT reason=%s tag_id=%u absolute_slot=%lu\n",
-            received == (int)sizeof(d2r) ? "outside_reader_wake_window" : "invalid_control_length",
-            d2r.header.option_value,
+            "invalid_control_length",
+            tag_id,
             absolute_slot);
+      continue;
+    }
+
+    if (d2r.header.option_flag & OPTION_AIOT_T2_TX_TRUTH) {
+      if (d2r.header.size == 0 || d2r.header.size > AIOT_T2_MAX_PAYLOAD_BYTES) {
+        LOG_W(PHY, "AIOT_T2_TX_TRUTH_REJECT reason=invalid_payload_length tag_id=%u\n", tag_id);
+        truth.valid = false;
+        continue;
+      }
+      truth.valid = true;
+      truth.tag_id = tag_id;
+      truth.payload_len = d2r.header.size;
+      truth.timestamp = d2r.header.timestamp;
+      truth.provenance = provenance;
+      for (size_t i = 0; i < truth.payload_len; ++i)
+        truth.payload[i] = (uint8_t)d2r.samples[i].r;
+      LOG_I(PHY,
+            "AIOT_T2_TX_TRUTH_CAPTURE tag_id=%u payload_bytes=%u provenance=%lu\n",
+            truth.tag_id,
+            truth.payload_len,
+            truth.provenance);
+      continue;
+    }
+    if ((d2r.header.option_flag & OPTION_AIOT_T2_D2R) == 0)
+      continue;
+    if (!role_awake) {
+      LOG_I(PHY, "AIOT_T2_D2R_REJECT reason=outside_reader_wake_window tag_id=%u absolute_slot=%lu\n", tag_id, absolute_slot);
       continue;
     }
 
@@ -1089,30 +1190,83 @@ static void aiot_t2_role_process_slot(PHY_VARS_NR_UE *UE,
     size_t payload_len = 0;
     const nr_ue_aiot_t2_decode_result_t result =
         nr_ue_aiot_t2_decode_d2r(&d2r, payload, sizeof(payload), &payload_len);
-    if (result != NR_UE_AIOT_T2_DECODE_OK) {
-      const char *reason = result == NR_UE_AIOT_T2_INVALID_LINE_CODE ? "invalid_line_code"
-                           : result == NR_UE_AIOT_T2_CRC_FAILURE    ? "crc_failure"
-                                                                    : "invalid_length";
-      LOG_I(PHY, "AIOT_T2_D2R_REJECT reason=%s tag_id=%u\n", reason, d2r.header.option_value);
+    if (!truth.valid || truth.tag_id != tag_id || truth.payload_len != payload_len || truth.provenance != provenance) {
+      LOG_W(PHY, "AIOT_T2_OBSERVATION_REJECT reason=missing_tx_truth tag_id=%u\n", tag_id);
+      (void)aiot_t2_send_observation(UE,
+                                     report_socket,
+                                     &d2r,
+                                     NULL,
+                                     NULL,
+                                     AIOT_T2_OBS_INVALID,
+                                     0,
+                                     0,
+                                     timestamp);
+      truth.valid = false;
       continue;
     }
-
-    char payload_hex[AIOT_T2_MAX_PAYLOAD_BYTES * 2 + 1];
-    for (size_t i = 0; i < payload_len; ++i)
-      snprintf(payload_hex + i * 2, sizeof(payload_hex) - i * 2, "%02x", payload[i]);
-    LOG_I(PHY,
-          "AIOT_T2_D2R_CRC_OK tag_id=%u payload=%s absolute_slot=%lu\n",
-          d2r.header.option_value,
-          payload_hex,
-          absolute_slot);
-    if (aiot_t2_send_report(UE, report_socket, &d2r, payload, payload_len, absolute_slot))
+    if (result == NR_UE_AIOT_T2_INVALID_LINE_CODE) {
+      LOG_I(PHY, "AIOT_T2_D2R_REJECT reason=invalid_line_code tag_id=%u\n", tag_id);
+      (void)aiot_t2_send_observation(UE,
+                                     report_socket,
+                                     &d2r,
+                                     &truth,
+                                     NULL,
+                                     AIOT_T2_OBS_UNALIGNED,
+                                     0,
+                                     0,
+                                     timestamp);
+      truth.valid = false;
+      continue;
+    }
+    if (result == NR_UE_AIOT_T2_INVALID_LENGTH) {
+      LOG_I(PHY, "AIOT_T2_D2R_REJECT reason=invalid_length tag_id=%u\n", tag_id);
+      (void)aiot_t2_send_observation(UE,
+                                     report_socket,
+                                     &d2r,
+                                     &truth,
+                                     NULL,
+                                     AIOT_T2_OBS_INVALID,
+                                     0,
+                                     0,
+                                     timestamp);
+      truth.valid = false;
+      continue;
+    }
+    uint16_t erroneous_bits = 0;
+    for (size_t i = 0; i < truth.payload_len; ++i)
+      erroneous_bits += __builtin_popcount((unsigned)(truth.payload[i] ^ payload[i]));
+    const uint16_t compared_bits = (uint16_t)(truth.payload_len * 8);
+    const uint8_t status = result == NR_UE_AIOT_T2_DECODE_OK ? AIOT_T2_OBS_COMPLETE : AIOT_T2_OBS_CRC_FAILURE;
+    if (result != NR_UE_AIOT_T2_DECODE_OK)
+      LOG_I(PHY, "AIOT_T2_D2R_REJECT reason=crc_failure tag_id=%u errors=%u\n", tag_id, erroneous_bits);
+    else {
+      char payload_hex[AIOT_T2_MAX_PAYLOAD_BYTES * 2 + 1];
+      for (size_t i = 0; i < payload_len; ++i)
+        snprintf(payload_hex + i * 2, sizeof(payload_hex) - i * 2, "%02x", payload[i]);
+      LOG_I(PHY,
+            "AIOT_T2_D2R_CRC_OK tag_id=%u payload=%s absolute_slot=%lu\n",
+            tag_id,
+            payload_hex,
+            absolute_slot);
+    }
+    if (aiot_t2_send_observation(UE,
+                                 report_socket,
+                                 &d2r,
+                                 &truth,
+                                 payload,
+                                 status,
+                                 compared_bits,
+                                 erroneous_bits,
+                                 timestamp)
+        && result == NR_UE_AIOT_T2_DECODE_OK)
       LOG_I(PHY,
             "AIOT_T2_UE_REPORT_SENT tag_id=%u reader_handle=%u transport=udp bytes=%zu\n",
-            d2r.header.option_value,
+            tag_id,
             params->aiot_t2_reader_handle,
-            sizeof(aiot_t2_inventory_report_t));
-    else
-      LOG_E(PHY, "AIOT_T2_UE_REPORT_REJECT reason=udp_send_failed tag_id=%u errno=%d\n", d2r.header.option_value, errno);
+            sizeof(aiot_t2_observation_report_t));
+    else if (result == NR_UE_AIOT_T2_DECODE_OK)
+      LOG_E(PHY, "AIOT_T2_UE_REPORT_REJECT reason=udp_send_failed tag_id=%u errno=%d\n", tag_id, errno);
+    truth.valid = false;
   }
 }
 

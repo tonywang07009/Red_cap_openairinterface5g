@@ -3,6 +3,63 @@
 #include <limits.h>
 #include <string.h>
 
+static uint64_t aiotf_cfa_next_state(uint64_t *state)
+{
+  *state += UINT64_C(0x9e3779b97f4a7c15);
+  uint64_t value = *state;
+  value = (value ^ (value >> 30)) * UINT64_C(0xbf58476d1ce4e5b9);
+  value = (value ^ (value >> 27)) * UINT64_C(0x94d049bb133111eb);
+  return value ^ (value >> 31);
+}
+
+bool aiotf_cfa_visibility_map_init(aiotf_cfa_visibility_map_t *map, uint32_t tag_count, uint64_t seed)
+{
+  if (map == NULL || tag_count == 0 || tag_count > AIOTF_CFA_MAX_TAGS)
+    return false;
+
+  memset(map, 0, sizeof(*map));
+  map->seed = seed;
+  map->tag_count = tag_count;
+  uint64_t state = seed ^ UINT64_C(0xd1b54a32d192ed03);
+  for (uint32_t tag_id = 1; tag_id <= tag_count; ++tag_id)
+    map->reader_by_tag[tag_id] = (uint8_t)(aiotf_cfa_next_state(&state) & 3U);
+  return true;
+}
+
+bool aiotf_cfa_visibility_map_validate(const aiotf_cfa_visibility_map_t *map)
+{
+  if (map == NULL || map->tag_count == 0 || map->tag_count > AIOTF_CFA_MAX_TAGS)
+    return false;
+  for (uint32_t tag_id = 1; tag_id <= AIOTF_CFA_MAX_TAGS; ++tag_id) {
+    const uint8_t reader = map->reader_by_tag[tag_id];
+    if (tag_id <= map->tag_count) {
+      if (reader > AIOTF_CFA_READER_COUNT)
+        return false;
+    } else if (reader != AIOTF_CFA_READER_UNSEEN) {
+      return false;
+    }
+  }
+  return true;
+}
+
+size_t aiotf_cfa_visibility_map_visible_count(const aiotf_cfa_visibility_map_t *map, uint32_t reader_handle)
+{
+  if (!aiotf_cfa_visibility_map_validate(map) || reader_handle == AIOTF_CFA_READER_UNSEEN
+      || reader_handle > AIOTF_CFA_READER_COUNT)
+    return 0;
+  size_t count = 0;
+  for (uint32_t tag_id = 1; tag_id <= map->tag_count; ++tag_id)
+    count += map->reader_by_tag[tag_id] == reader_handle;
+  return count;
+}
+
+uint32_t aiotf_cfa_visibility_map_reader_for_tag(const aiotf_cfa_visibility_map_t *map, uint32_t tag_id)
+{
+  if (!aiotf_cfa_visibility_map_validate(map) || tag_id == 0 || tag_id > map->tag_count)
+    return AIOTF_CFA_READER_UNSEEN;
+  return map->reader_by_tag[tag_id];
+}
+
 void aiotf_inventory_context_init(aiotf_inventory_context_t *context)
 {
   if (context != NULL) {

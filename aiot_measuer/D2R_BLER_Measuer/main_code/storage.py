@@ -16,13 +16,19 @@ class JsonExperimentStorage:
         if not isinstance(record, dict):
             raise ValueError("record must be a dictionary")
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        with tempfile.NamedTemporaryFile(
-            mode="w", encoding="utf-8", dir=self._path.parent, prefix=f".{self._path.name}.", delete=False
-        ) as temporary:
-            json.dump(record, temporary, ensure_ascii=False, indent=2, allow_nan=False)
-            temporary.write("\n")
-            temporary_path = Path(temporary.name)
-        os.replace(temporary_path, self._path)
+        temporary_path = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w", encoding="utf-8", dir=self._path.parent, prefix=f".{self._path.name}.", delete=False
+            ) as temporary:
+                temporary_path = Path(temporary.name)
+                json.dump(record, temporary, ensure_ascii=False, indent=2, allow_nan=False)
+                temporary.write("\n")
+            os.replace(temporary_path, self._path)
+            temporary_path = None
+        finally:
+            if temporary_path is not None:
+                temporary_path.unlink(missing_ok=True)
 
     def load(self) -> dict:
         with self._path.open(encoding="utf-8") as source:
