@@ -24,12 +24,13 @@
 
 #include <common/utils/simple_executable.h>
 #include "PHY/CODING/coding_defs.h"
+#include "radio/COMMON/common_lib.h"
 
 #define AIOT_MAX_PAYLOAD_BYTES 16
 #define AIOT_MAX_FRAME_BITS (AIOT_MAX_PAYLOAD_BYTES * 8 + 16)
 #define AIOT_MANCHESTER_CHIPS_PER_BIT 2
 #define AIOT_SFS_FACTOR 1
-#define AIOT_D2R_CHIPS_PER_FRAME_BIT (AIOT_MANCHESTER_CHIPS_PER_BIT * 2 * AIOT_SFS_FACTOR)
+#define AIOT_D2R_CHIPS_PER_FRAME_BIT (AIOT_MANCHESTER_CHIPS_PER_BIT * AIOT_SFS_FACTOR)
 #define AIOT_RESPONSE_TIMEOUT_MS 100
 #define AIOT_INVENTORY_COMMAND 0x01
 #define AIOT_RFSIM_MAX_SAMPLES (1U << 20)
@@ -88,14 +89,6 @@ static bool aiot_decode_pair(const uint8_t *pair, uint8_t *bit)
   return false;
 }
 
-static void aiot_encode_frame_bit(uint8_t bit, uint8_t *chips)
-{
-  uint8_t line_pair[2];
-  aiot_encode_pair(bit, line_pair);
-  aiot_encode_pair(line_pair[0], chips);
-  aiot_encode_pair(line_pair[1], chips + 2);
-}
-
 static aiot_result_t aiot_encode_frame(const uint8_t *payload,
                                        size_t payload_len,
                                        bool apply_sfs,
@@ -118,10 +111,7 @@ static aiot_result_t aiot_encode_frame(const uint8_t *payload,
   for (size_t i = 0; i < frame_bits; ++i) {
     const uint8_t bit = i < payload_bits ? (payload[i / 8] >> (7 - i % 8)) & 1
                                          : (crc >> (crc_bits - 1 - (i - payload_bits))) & 1;
-    if (apply_sfs)
-      aiot_encode_frame_bit(bit, chips + i * chips_per_bit);
-    else
-      aiot_encode_pair(bit, chips + i * chips_per_bit);
+    aiot_encode_pair(bit, chips + i * chips_per_bit);
   }
   *chips_len = required_chips;
   return AIOT_RESULT_OK;
@@ -150,15 +140,7 @@ static aiot_result_t aiot_decode_frame(const uint8_t *chips,
   uint8_t frame[AIOT_MAX_FRAME_BITS] = {0};
   for (size_t i = 0; i < frame_bits; ++i) {
     const uint8_t *encoded = chips + i * chips_per_bit;
-    if (!apply_sfs) {
-      if (!aiot_decode_pair(encoded, &frame[i]))
-        return AIOT_RESULT_INVALID_LINE_CODE;
-      continue;
-    }
-
-    uint8_t line_pair[2];
-    if (!aiot_decode_pair(encoded, &line_pair[0]) || !aiot_decode_pair(encoded + 2, &line_pair[1])
-        || !aiot_decode_pair(line_pair, &frame[i]))
+    if (!aiot_decode_pair(encoded, &frame[i]))
       return AIOT_RESULT_INVALID_LINE_CODE;
   }
 
@@ -175,11 +157,11 @@ static aiot_result_t aiot_decode_frame(const uint8_t *chips,
 static void aiot_apply_fault(uint8_t *chips, size_t chips_len, aiot_fault_t fault)
 {
   if (fault == AIOT_FAULT_INVALID_00) {
-    aiot_encode_pair(0, chips);
-    aiot_encode_pair(0, chips + 2);
+    chips[0] = 0;
+    chips[1] = 0;
   } else if (fault == AIOT_FAULT_INVALID_11) {
-    aiot_encode_pair(1, chips);
-    aiot_encode_pair(1, chips + 2);
+    chips[0] = 1;
+    chips[1] = 1;
   } else if (fault == AIOT_FAULT_CRC) {
     for (size_t i = chips_len - AIOT_D2R_CHIPS_PER_FRAME_BIT; i < chips_len; ++i)
       chips[i] ^= 1;
@@ -360,7 +342,7 @@ static int aiot_tag_self_test(void)
                       && aiot_encode_frame(
                              one_byte, sizeof(one_byte), true, direction_chips, sizeof(direction_chips), &d2r_chips_len)
                              == AIOT_RESULT_OK
-                      && d2r_chips_len == r2d_chips_len * 2
+                      && d2r_chips_len == r2d_chips_len
                       && aiot_expect(AIOT_RESULT_OK, &ready, one_byte, sizeof(one_byte), AIOT_FAULT_NONE)
                       && aiot_expect(AIOT_RESULT_OK, &ready, max_payload, sizeof(max_payload), AIOT_FAULT_NONE)
                       && aiot_expect(AIOT_RESULT_INVALID_LINE_CODE, &ready, one_byte, sizeof(one_byte), AIOT_FAULT_INVALID_00)
@@ -620,7 +602,7 @@ static int aiot_tag_rfsim_cli(int argc, char **argv)
   uint32_t tag_id = 0;
   uint8_t inventory[AIOT_MAX_PAYLOAD_BYTES];
   size_t inventory_len = 0;
-  if (!aiot_parse_u32(argv[3], 1, UINT16_MAX, &port) || !aiot_parse_u32(argv[4], 1, 60, &tag_id)
+  if (!aiot_parse_u32(argv[3], 1, UINT16_MAX, &port) || !aiot_parse_u32(argv[4], 1, AIOT_T2_MAX_TAG_ID, &tag_id)
       || !aiot_parse_hex(argv[5], inventory, &inventory_len)) {
     fprintf(stderr, "AIOT_T2_ARGUMENT_REJECT\n");
     return 2;
@@ -727,7 +709,7 @@ static int aiot_reader_rfsim_cli(int argc, char **argv)
 
   uint32_t port = 0;
   uint32_t tag_id = 0;
-  if (!aiot_parse_u32(argv[3], 1, UINT16_MAX, &port) || !aiot_parse_u32(argv[4], 1, 60, &tag_id)
+  if (!aiot_parse_u32(argv[3], 1, UINT16_MAX, &port) || !aiot_parse_u32(argv[4], 1, AIOT_T2_MAX_TAG_ID, &tag_id)
       || (strcmp(argv[5], "reader:awake") != 0 && strcmp(argv[5], "reader:asleep") != 0)) {
     fprintf(stderr, "AIOT_T2_ARGUMENT_REJECT\n");
     return 2;

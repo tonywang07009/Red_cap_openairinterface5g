@@ -27,12 +27,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "未命名 1.md",
+                "file": "chapters/06-aiot-tag-and-reader.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "未命名 1"
+              "title": "06-aiot-tag-and-reader"
             }
           }
         ],
@@ -205,20 +205,20 @@
   },
   "active": "ac3e964c08d6b09a",
   "lastOpenFiles": [
-    "未命名.md",
     "chapters/05-runtime-validation.md",
-    "未命名 1.md",
-    "chapters/03-bwp-ra-and-scheduling.md",
-    "chapters/01-change-intake-and-source-owner.md",
     "chapters/04-inactive-drx-and-sdt.md",
-    "chapters/02-redcap-config-and-capability.md",
+    "chapters/08-xapp-and-e2-control.md",
+    "chapters/03-bwp-ra-and-scheduling.md",
     "chapters/00-cli-and-evidence.md",
+    "未命名 1.md",
+    "未命名.md",
+    "chapters/01-change-intake-and-source-owner.md",
+    "chapters/02-redcap-config-and-capability.md",
     "README.zh-TW.md",
     "chapters/10-change-replay-capstone.md",
     "change-ledger.md",
     "chapters/06-aiot-tag-and-reader.md",
     "chapters/09-dapp-guard-apply-and-rollback.md",
-    "chapters/08-xapp-and-e2-control.md",
     "chapters/07-aiotf-cn5g-and-standard-stop.md"
   ]
 }

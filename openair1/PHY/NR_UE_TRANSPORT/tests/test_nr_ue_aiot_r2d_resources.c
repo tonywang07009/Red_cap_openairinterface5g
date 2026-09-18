@@ -297,6 +297,26 @@ int main(void)
     return 1;
   }
 
+  aiot_t2_rf_packet_t d2r_packet;
+  if (!nr_ue_aiot_t2_prepare_r2d(1, 100, &d2r_packet)) {
+    fprintf(stderr, "FAIL PreparesKnownTwoChipD2rPacket\n");
+    return 1;
+  }
+  d2r_packet.header.option_flag = OPTION_AIOT_T2_D2R;
+  uint8_t decoded_payload[AIOT_T2_MAX_PAYLOAD_BYTES] = {0};
+  size_t decoded_payload_len = 0;
+  if (nr_ue_aiot_t2_decode_d2r(&d2r_packet, decoded_payload, sizeof(decoded_payload), &decoded_payload_len)
+          != NR_UE_AIOT_T2_DECODE_OK
+      || decoded_payload_len != 1 || decoded_payload[0] != 0x01) {
+    fprintf(stderr, "FAIL DecodesSingleLayerTwoChipD2rFrame\n");
+    return 1;
+  }
+
+  if (!nr_ue_aiot_t2_prepare_r2d(100, 100, &d2r_packet)) {
+    fprintf(stderr, "FAIL AcceptsScenarioMaximumTagId\n");
+    return 1;
+  }
+
   puts("PASS R2dResourceAdmissionTable");
   return 0;
 }

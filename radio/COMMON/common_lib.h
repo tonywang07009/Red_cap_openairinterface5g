@@ -692,9 +692,11 @@ typedef int(*oai_transport_initfunc_t)(openair0_device *device, openair0_config_
 #define OPTION_AIOT_T2_TAG_REGISTER 0x10000000 // option_value is the stable Tag ID
 #define OPTION_AIOT_T2_CW 0x20000000           // independent CW-node samples
 #define OPTION_AIOT_T2_D2R 0x40000000          // Tag-reflected D2R samples
+#define AIOT_T2_MAX_TAG_ID 100
+#define AIOT_T2_MAX_READER_HANDLES 3
 #define AIOT_T2_MAX_PAYLOAD_BYTES 16
 #define AIOT_T2_MAX_RF_SAMPLES 576              // 16-byte payload, CRC16, Manchester plus SFS
-#define AIOT_T2_MAX_QUEUED_REPORTS 60
+#define AIOT_T2_MAX_QUEUED_REPORTS 100
 #define AIOT_T2_REPORT_MAGIC 0x41494f54U         // "AIOT" in network byte order on the wire
 #define AIOT_T2_REPORT_VERSION 1
 #define AIOT_T2_REPORT_FLAG_CRC_VALID 0x0001

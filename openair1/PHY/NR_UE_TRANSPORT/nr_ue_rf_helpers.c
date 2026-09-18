@@ -36,7 +36,7 @@
 extern PHY_VARS_NR_UE ***PHY_vars_UE_g;
 
 #define AIOT_T2_MANCHESTER_CHIPS_PER_BIT 2
-#define AIOT_T2_D2R_CHIPS_PER_BIT 4
+#define AIOT_T2_D2R_CHIPS_PER_BIT 2
 #define AIOT_T2_INVENTORY_COMMAND 0x01
 
 nr_ue_aiot_r2d_resource_result_t nr_ue_aiot_validate_r2d_resources(unsigned int prb_count,
@@ -228,7 +228,7 @@ static void aiot_t2_encode_pair(uint8_t bit, c16_t *pair)
 
 bool nr_ue_aiot_t2_prepare_r2d(uint32_t tag_id, openair0_timestamp timestamp, aiot_t2_rf_packet_t *packet)
 {
-  if (packet == NULL || tag_id == 0 || tag_id > 60)
+  if (packet == NULL || tag_id == 0 || tag_id > AIOT_T2_MAX_TAG_ID)
     return false;
 
   const uint8_t command = AIOT_T2_INVENTORY_COMMAND;
@@ -276,7 +276,7 @@ bool nr_ue_aiot_t2_prepare_r2d_with_resources(const nr_ue_aiot_r2d_request_t *re
       return false;
   }
 
-  if (request->tag_id == 0 || request->tag_id > 60) {
+  if (request->tag_id == 0 || request->tag_id > AIOT_T2_MAX_TAG_ID) {
     if (reason != NULL)
       *reason = "invalid_tag_id";
     return false;
@@ -302,7 +302,7 @@ nr_ue_aiot_t2_decode_result_t nr_ue_aiot_t2_decode_d2r(const aiot_t2_rf_packet_t
 {
   if (packet == NULL || payload == NULL || payload_len == NULL || packet->header.nbAnt != 1
       || (packet->header.option_flag & OPTION_AIOT_T2_D2R) == 0 || packet->header.option_value == 0
-      || packet->header.option_value > 60 || packet->header.size == 0 || packet->header.size > AIOT_T2_MAX_RF_SAMPLES
+      || packet->header.option_value > AIOT_T2_MAX_TAG_ID || packet->header.size == 0 || packet->header.size > AIOT_T2_MAX_RF_SAMPLES
       || packet->header.size % AIOT_T2_D2R_CHIPS_PER_BIT != 0)
     return NR_UE_AIOT_T2_INVALID_LENGTH;
 
@@ -316,12 +316,9 @@ nr_ue_aiot_t2_decode_result_t nr_ue_aiot_t2_decode_d2r(const aiot_t2_rf_packet_t
 
   uint8_t frame_bits_decoded[AIOT_T2_MAX_RF_SAMPLES / AIOT_T2_D2R_CHIPS_PER_BIT];
   for (size_t i = 0; i < frame_bits; ++i) {
-    uint8_t line_pair[2];
     const c16_t *encoded = &packet->samples[i * AIOT_T2_D2R_CHIPS_PER_BIT];
-    if (!aiot_t2_decode_pair(encoded, &line_pair[0]) || !aiot_t2_decode_pair(encoded + 2, &line_pair[1])
-        || (line_pair[0] == line_pair[1]))
+    if (!aiot_t2_decode_pair(encoded, &frame_bits_decoded[i]))
       return NR_UE_AIOT_T2_INVALID_LINE_CODE;
-    frame_bits_decoded[i] = line_pair[1];
   }
 
   memset(payload, 0, *payload_len);

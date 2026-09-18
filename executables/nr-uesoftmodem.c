@@ -191,8 +191,8 @@ static void get_options(configmodule_interface_t *cfg)
               "--aiot-t2-reader and --aiot-t2-observer are mutually exclusive\n");
   if (nrUE_params.aiot_t2_reader || nrUE_params.aiot_t2_observer) {
     struct in_addr report_addr;
-    AssertFatal(nrUE_params.aiot_t2_tag_id >= 1 && nrUE_params.aiot_t2_tag_id <= 60,
-                "--aiot-t2-tag-id must be in range 1..60\n");
+    AssertFatal(nrUE_params.aiot_t2_tag_id >= 1 && nrUE_params.aiot_t2_tag_id <= AIOT_T2_MAX_TAG_ID,
+                "--aiot-t2-tag-id must be in range 1..%u\n", AIOT_T2_MAX_TAG_ID);
     AssertFatal(nrUE_params.aiot_t2_d2r_x >= 1 && nrUE_params.aiot_t2_d2r_x <= 2,
                 "--aiot-t2-d2r-x must be 1 or 2\n");
     AssertFatal(nrUE_params.aiot_t2_d2r_tbit < NR_UE_AIOT_D2R_TBIT_COUNT,
@@ -206,8 +206,9 @@ static void get_options(configmodule_interface_t *cfg)
                     && nrUE_params.aiot_t2_window_duration
                            <= nrUE_params.aiot_t2_window_period - nrUE_params.aiot_t2_window_offset,
                 "A-IoT Reader/observer window must fit inside its period\n");
-    AssertFatal(nrUE_params.aiot_t2_reader_handle >= 1 && nrUE_params.aiot_t2_reader_handle <= 2,
-                "--aiot-t2-reader-handle must be 1 or 2\n");
+    AssertFatal(nrUE_params.aiot_t2_reader_handle >= 1
+                    && nrUE_params.aiot_t2_reader_handle <= AIOT_T2_MAX_READER_HANDLES,
+                "--aiot-t2-reader-handle must be in range 1..%u\n", AIOT_T2_MAX_READER_HANDLES);
     AssertFatal(nrUE_params.aiot_t2_report_ip != NULL
                     && inet_pton(AF_INET, nrUE_params.aiot_t2_report_ip, &report_addr) == 1,
                 "--aiot-t2-report-ip must be a valid IPv4 address\n");
