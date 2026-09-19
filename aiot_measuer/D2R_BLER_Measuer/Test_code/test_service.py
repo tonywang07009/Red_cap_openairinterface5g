@@ -12,19 +12,24 @@ sys.path.insert(0, str(MAIN_CODE))
 from fourmula import (
     AIOT_T2_OBSERVATION_MAGIC,
     AIOT_T2_OBSERVATION_VERSION,
+    CFA_OBSERVATION_STRUCT,
     OBSERVATION_STRUCT,
     D2RMeasurementService,
     D2RReservationScheduler,
     CAMPAIGN_DURATION_MULTIPLIERS,
+    aggregate_cfa_campaign_rows,
     aggregate_campaign_rows,
     PairedRicianChannelBank,
     decode_observation_datagram,
+    decode_cfa_observation_datagram,
     estimate_rician_energy_ber,
     generate_visibility_map,
     sample_ticks_to_ns,
     validate_visibility_map,
+    cfa_frame_components,
 )
 from storage import JsonExperimentStorage
+from cfa_epoch import TalanetEpochController
 
 
 class CompletedPacketObservationTests(unittest.TestCase):
@@ -307,6 +312,134 @@ class CompletedPacketObservationTests(unittest.TestCase):
             aggregate_campaign_rows([row, dict(row)])
         with self.assertRaises(ValueError):
             aggregate_campaign_rows([row])
+
+
+class CfaCampaignTests(unittest.TestCase):
+    @staticmethod
+    def _rows(count=10_000):
+        for attempt_index in range(count):
+            failed = attempt_index >= count - 10
+            yield {
+                "m": 6,
+                "snr_db_x10": 0,
+                "attempt_index": attempt_index,
+                "channel_epoch": 1,
+                "epoch_ack": True,
+                "channel_readback": True,
+                "compared_bits": 216,
+                "erroneous_bits": 1 if failed else 0,
+                "crc_ok": not failed,
+                "payload_match": not failed,
+                "d2r_attempted": not failed,
+                "r2d_on_air_duration_ns": 1_000,
+            }
+
+    def test_cfa_aggregation_is_fixed_budget_and_keeps_failed_airtime(self):
+        record = aggregate_cfa_campaign_rows(list(self._rows()))
+
+        self.assertEqual(record["campaign"]["packet_budget"], 10_000)
+        point = record["points"][0]
+        self.assertEqual(point["attempted_packets"], 10_000)
+        self.assertEqual(point["crc_failures"], 10)
+        self.assertEqual(point["compared_bits"], 2_160_000)
+        self.assertEqual(point["erroneous_bits"], 10)
+        self.assertEqual(point["payload_bler"], 10 / 10_000)
+        self.assertEqual(point["goodput_bps"], 216 * 9_990 / 0.01)
+        self.assertAlmostEqual(point["payload_bler_ci95"]["upper"], 0.00184, places=4)
+
+    def test_cfa_aggregation_rejects_missing_attempt_and_invalid_epoch_evidence(self):
+        rows = list(self._rows())
+        rows.pop()
+        with self.assertRaises(ValueError):
+            aggregate_cfa_campaign_rows(rows)
+
+        rows = list(self._rows())
+        rows[0]["epoch_ack"] = False
+        record = aggregate_cfa_campaign_rows(rows)
+        point = record["points"][0]
+        self.assertFalse(point["valid"])
+        self.assertIsNone(point["payload_ber"])
+        self.assertIsNone(point["goodput_bps"])
+        self.assertIn("missing_channel_readback", point["invalid_reasons"])
+
+        rows = list(self._rows())
+        rows[0]["d2r_attempted"] = True
+        rows[0]["crc_ok"] = False
+        gate_record = aggregate_cfa_campaign_rows(rows)
+        self.assertIn("d2r_gate_violation", gate_record["points"][0]["invalid_reasons"])
+
+        different_grid = list(self._rows())
+        different_grid.extend({**row, "m": 2, "snr_db_x10": 10} for row in self._rows())
+        with self.assertRaisesRegex(ValueError, "common SNR grid"):
+            aggregate_cfa_campaign_rows(different_grid)
+
+    def test_cfa_frame_components_cover_the_four_supported_m_values(self):
+        expected_symbols = {2: 238, 6: 81, 12: 42, 24: 24}
+        for m, symbols in expected_symbols.items():
+            frame = cfa_frame_components(m=m, prb_count=3)
+            self.assertEqual(frame["frame_symbols"], symbols)
+            self.assertEqual(frame["prdch_chips"], 464)
+            self.assertEqual(frame["phy_bits"], 232)
+
+        with self.assertRaises(ValueError):
+            cfa_frame_components(m=3, prb_count=3)
+
+    def test_talanet_epoch_controller_requires_drain_and_monotonic_readback(self):
+        requests = []
+        responses = iter(
+            [
+                "AIOT_T2_CHANNEL_EPOCH epoch=2 attenuation_db=10.000 noise_power=0.100000 seed=9 readback=ok queued=0",
+                "AIOT_T2_CHANNEL_EPOCH epoch=1 attenuation_db=10.000 noise_power=0.100000 seed=9 readback=ok queued=0",
+            ]
+        )
+        controller = TalanetEpochController(request=lambda command: (requests.append(command), next(responses))[1])
+        with self.assertRaises(ValueError):
+            controller.set_epoch(attenuation_db=10, noise_power=0.1, seed=9, drained=False)
+        self.assertEqual(controller.set_epoch(attenuation_db=10, noise_power=0.1, seed=9, drained=True)["epoch"], 2)
+        with self.assertRaises(RuntimeError):
+            controller.set_epoch(attenuation_db=10, noise_power=0.1, seed=9, drained=True)
+        self.assertEqual(requests, ["rfsimu aiot_epoch set 10 0.1 9", "rfsimu aiot_epoch set 10 0.1 9"])
+
+        queued_controller = TalanetEpochController(
+            request=lambda _command: "AIOT_T2_CHANNEL_EPOCH epoch=3 attenuation_db=10.000 noise_power=0.100000 seed=9 readback=ok queued=1"
+        )
+        with self.assertRaises(RuntimeError):
+            queued_controller.set_epoch(attenuation_db=10, noise_power=0.1, seed=9, drained=True)
+
+    def test_cfa_observation_v2_preserves_pdu_epoch_and_gate_fields(self):
+        datagram = CFA_OBSERVATION_STRUCT.pack(
+            AIOT_T2_OBSERVATION_MAGIC,
+            2,
+            1,
+            1,
+            1,
+            100,
+            10,
+            20,
+            3,
+            0x1234,
+            50,
+            6,
+            3,
+            1,
+            2,
+            216,
+            2,
+            480,
+            1,
+            bytes(range(27)),
+            bytes(reversed(range(27))),
+            bytes(11),
+        )
+        report = decode_cfa_observation_datagram(datagram)
+        self.assertEqual(report["channel_epoch"], 3)
+        self.assertEqual(report["channel_provenance"], 0x1234)
+        self.assertEqual(report["m"], 6)
+        self.assertEqual(report["gate_status"], 2)
+        self.assertEqual(report["tx_pdu"], bytes(range(27)))
+
+        with self.assertRaises(ValueError):
+            decode_cfa_observation_datagram(datagram[:-1])
 
 
 if __name__ == "__main__":

@@ -6,11 +6,12 @@ source_refs:
   - openair1/PHY/NR_UE_TRANSPORT/nr_ue_rf_helpers.c
   - executables/nr-ue.c
   - openair3/AIOTF/aiotf_inventory.h
-  - openspec/changes/add-aiot-cfa-rfsim-ber-measurement/code.md
-  - openspec/changes/add-aiot-cfa-rfsim-ber-measurement/validation.txt
+  - openspec/changes/archive/2026-09-18-add-aiot-cfa-rfsim-ber-measurement/code.md
+  - openspec/specs/aiot-cfa-rfsim-ber-measurement/spec.md
+  - openspec/changes/archive/2026-09-18-add-aiot-cfa-rfsim-ber-measurement/validation.txt
   - redcap_doc/manuals/aiot_tag_aiotf_architecture.en.md
 evidence_tier: mixed
-last_reviewed: 2026-09-18
+last_reviewed: 2026-09-19
 related_pages:
   - redcap_research_wiki/systems/aiot/overview.md
   - redcap_research_wiki/systems/aiot/aiotf.md
@@ -55,24 +56,28 @@ not the complete standard path.
 [Source Trace] The accepted measurement slice keeps the existing 16-byte
 inventory payload and adds a separate 80-byte, network-order observation
 report. `stored_node.c` emits TX truth, `simulator.cpp` routes by Reader handle
-and applies the paired 3 dB Rician/noise model to D2R, and `nr-ue.c` compares
-the decoded payload against the truth before exporting status, bit counters,
-sample-tick timestamps, and channel provenance.
+and applies independent duration-specific two-leg 3 dB Rician/noise samples to
+D2R, and `nr-ue.c` compares the decoded payload against the truth before
+exporting status, bit counters, sample-tick timestamps, and channel provenance.
 
 [Runtime Evidence] The isolated RFsim/UE build, nearest codec test, RFsim
-self-test, seventeen Python unit tests, a fixed 4,000-row numerical-model
-campaign smoke, and run13 one-Reader RFsim UDP ingest passed. Run13 captured
-CW relay, TX truth, K=3 dB/noise=0.1 D2R relay, CRC failure with 2/128 errors,
-and JSON `ber=0.015625`, `packet_loss_rate=0.0`, and provenance `10491263`.
-This evidence does not establish a complete three-Reader RFsim campaign or
-measured/reference BER agreement.
+self-test, seventeen Python unit tests, corrected 40-job three-Reader RFsim
+matrix, fixed 4,000-row RFsim aggregate, independent numerical reference, and
+run13 one-Reader RFsim UDP ingest passed. Run13 captured CW relay, TX truth,
+K=3 dB/noise=0.1 D2R relay, CRC failure with 2/128 errors, and JSON
+`ber=0.015625`, `packet_loss_rate=0.0`, and provenance `10491263`. The v3
+aggregate contains `complete=6745`, `crc_failure=5199`, `undetected=45`, and
+`unaligned=11`; the eight-duration reference comparison stays within
+exploratory absolute BER tolerance 0.02 (maximum absolute difference
+0.0185627926). A separate no-D2R run emitted one
+`undetected` report and JSON `packet_loss_rate=1.0` in the TX-attempt window.
+This evidence is simulator/model evidence and does not establish real-Reader
+equivalence.
 
-[Needs Verification] The full three-Reader, 100-Tag, fixed-budget campaign,
-live no-D2R timeout capture, and real-Reader equivalence are still open. The
-source-owned RFsim timeout is implemented, but its no-D2R runtime case is not
-claimed. The legacy AIOTF 60-Tag/two-Reader profile remains a separate owner;
-the opt-in CFA visibility adapter supports 100 Tags and three Readers without
-changing that legacy profile.
+[Needs Verification] Real-Reader equivalence remains open. The legacy AIOTF
+60-Tag/two-Reader profile remains a separate owner; the opt-in CFA visibility
+adapter supports 100 Tags and three Readers without changing that legacy
+profile.
 
 ## Failure Propagation
 

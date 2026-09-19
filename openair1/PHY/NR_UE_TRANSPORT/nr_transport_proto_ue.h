@@ -285,6 +285,82 @@ typedef enum {
 } nr_ue_aiot_t2_decode_result_t;
 
 bool nr_ue_aiot_t2_prepare_r2d(uint32_t tag_id, openair0_timestamp timestamp, aiot_t2_rf_packet_t *packet);
+
+#define NR_UE_AIOT_CFA_PDU_BITS 216U
+#define NR_UE_AIOT_CFA_PDU_BYTES (NR_UE_AIOT_CFA_PDU_BITS / 8U)
+#define NR_UE_AIOT_CFA_PHY_BITS (NR_UE_AIOT_CFA_PDU_BITS + 16U)
+#define NR_UE_AIOT_CFA_PHY_BYTES (NR_UE_AIOT_CFA_PHY_BITS / 8U)
+#define NR_UE_AIOT_CFA_SECURITY_BYTES 16U
+#define NR_UE_AIOT_CFA_FROZEN_D2R_SCHEDULING_INFO 0x00300a0fU
+
+typedef struct {
+  uint32_t serial;
+  uint8_t security_parameter[NR_UE_AIOT_CFA_SECURITY_BYTES];
+  uint32_t d2r_scheduling_info;
+} nr_ue_aiot_cfa_pdu_fields_t;
+
+typedef struct {
+  uint8_t bit_duration;
+  uint8_t frequency_resource_broadcast;
+  uint8_t block_repetition;
+  uint8_t channel_coding;
+  uint8_t interval_bits;
+  uint8_t sequence_length;
+  uint8_t additional_midamble;
+  uint8_t d2r_tbs;
+} nr_ue_aiot_cfa_d2r_scheduling_t;
+
+typedef struct {
+  uint8_t m;
+  uint8_t prb_count;
+  int32_t reference_snr_db_x10;
+  uint32_t formal_packet_budget;
+  uint64_t data_seed;
+  uint64_t noise_seed;
+  const int32_t *snr_grid_db_x10;
+  size_t snr_grid_count;
+  uint32_t d2r_scheduling_info;
+} nr_ue_aiot_cfa_campaign_config_t;
+
+typedef struct {
+  uint8_t m;
+  uint8_t prb_count;
+  uint16_t prdch_chips;
+  uint16_t frame_symbols;
+  uint16_t occupied_chip_positions;
+} nr_ue_aiot_cfa_frame_t;
+
+bool nr_ue_aiot_cfa_validate_serial(uint32_t serial,
+                                    const uint32_t *existing_serials,
+                                    size_t existing_count,
+                                    const char **reason);
+bool nr_ue_aiot_cfa_build_pdu(const nr_ue_aiot_cfa_pdu_fields_t *fields,
+                              uint8_t pdu[NR_UE_AIOT_CFA_PDU_BYTES],
+                              const char **reason);
+bool nr_ue_aiot_cfa_parse_pdu(const uint8_t pdu[NR_UE_AIOT_CFA_PDU_BYTES],
+                              nr_ue_aiot_cfa_pdu_fields_t *fields,
+                              const char **reason);
+bool nr_ue_aiot_cfa_append_crc(const uint8_t pdu[NR_UE_AIOT_CFA_PDU_BYTES],
+                               uint8_t phy_payload[NR_UE_AIOT_CFA_PHY_BYTES]);
+bool nr_ue_aiot_cfa_verify_crc(const uint8_t phy_payload[NR_UE_AIOT_CFA_PHY_BYTES]);
+bool nr_ue_aiot_cfa_pack_d2r_scheduling(const nr_ue_aiot_cfa_d2r_scheduling_t *scheduling,
+                                        uint32_t *packed,
+                                        const char **reason);
+bool nr_ue_aiot_cfa_validate_campaign_config(const nr_ue_aiot_cfa_campaign_config_t *config,
+                                             const char **reason);
+bool nr_ue_aiot_cfa_derive_frame(uint8_t m,
+                                 uint8_t prb_count,
+                                 nr_ue_aiot_cfa_frame_t *frame,
+                                 const char **reason);
+bool nr_ue_aiot_cfa_prepare_r2d(const nr_ue_aiot_cfa_pdu_fields_t *fields,
+                                uint32_t tag_id,
+                                uint32_t reader_handle,
+                                openair0_timestamp timestamp,
+                                uint8_t m,
+                                uint8_t prb_count,
+                                aiot_t2_rf_packet_t *packet,
+                                const char **reason);
+
 /* Pure R2D resource admission; no waveform generation or radio side effects. */
 typedef enum {
   NR_UE_AIOT_R2D_RESOURCE_OK,

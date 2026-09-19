@@ -693,13 +693,14 @@ typedef int(*oai_transport_initfunc_t)(openair0_device *device, openair0_config_
 #define OPTION_AIOT_T2_CW 0x20000000           // independent CW-node samples
 #define OPTION_AIOT_T2_D2R 0x40000000          // Tag-reflected D2R samples
 #define OPTION_AIOT_T2_TX_TRUTH 0x80000000     // RFsim-only transmitted payload evidence
+#define OPTION_AIOT_T2_R2D_CFA 0x01000000      // opt-in CFA 216-bit R2D profile
 #define AIOT_T2_MAX_TAG_ID 100
 #define AIOT_T2_MAX_READER_HANDLES 3
 #define AIOT_T2_MAX_PAYLOAD_BYTES 16
 #define AIOT_T2_MAX_RF_SAMPLES 576              // 16-byte payload, CRC16, Manchester plus SFS
 #define AIOT_T2_MAX_QUEUED_REPORTS 100
 /* RFsim-only guard after TX truth; it is a measurement timeout, not a TS timer. */
-#define AIOT_T2_OBSERVATION_TIMEOUT_SAMPLES (AIOT_T2_MAX_RF_SAMPLES * 64U)
+#define AIOT_T2_OBSERVATION_TIMEOUT_SAMPLES (AIOT_T2_MAX_RF_SAMPLES * 2048U)
 #define AIOT_T2_TAG_OPTION_BITS 8U
 #define AIOT_T2_TAG_OPTION_MASK ((1U << AIOT_T2_TAG_OPTION_BITS) - 1U)
 #define AIOT_T2_READER_OPTION_BITS 2U
@@ -717,6 +718,15 @@ typedef int(*oai_transport_initfunc_t)(openair0_device *device, openair0_config_
   (((uint32_t)(option_value) >> AIOT_T2_READER_OPTION_SHIFT) & AIOT_T2_READER_OPTION_MASK)
 #define AIOT_T2_UNPACK_R2D_TBIT(option_value) \
   (((uint32_t)(option_value) >> AIOT_T2_R2D_TBIT_SHIFT) & AIOT_T2_R2D_TBIT_MASK)
+#define AIOT_T2_CFA_M_SHIFT 13U
+#define AIOT_T2_CFA_M_BITS 5U
+#define AIOT_T2_CFA_M_MASK ((1U << AIOT_T2_CFA_M_BITS) - 1U)
+#define AIOT_T2_PACK_CFA_R2D_TARGET(tag_id, reader_handle, m) \
+  ((((uint32_t)(reader_handle) & AIOT_T2_READER_OPTION_MASK) << AIOT_T2_READER_OPTION_SHIFT) \
+   | (((uint32_t)(m) & AIOT_T2_CFA_M_MASK) << AIOT_T2_CFA_M_SHIFT) \
+   | ((uint32_t)(tag_id) & AIOT_T2_TAG_OPTION_MASK))
+#define AIOT_T2_UNPACK_CFA_M(option_value) \
+  (((uint32_t)(option_value) >> AIOT_T2_CFA_M_SHIFT) & AIOT_T2_CFA_M_MASK)
 /* Experimental metadata bits in option_flag; the low flag bits retain packet type. */
 #define AIOT_T2_D2R_TBIT_SHIFT 16U
 #define AIOT_T2_D2R_TBIT_MASK (AIOT_T2_R2D_TBIT_MASK << AIOT_T2_D2R_TBIT_SHIFT)
@@ -735,6 +745,11 @@ typedef int(*oai_transport_initfunc_t)(openair0_device *device, openair0_config_
 #define AIOT_T2_REPORT_FLAG_CRC_VALID 0x0001
 #define AIOT_T2_OBSERVATION_MAGIC 0x41494f42U // "AIOB"
 #define AIOT_T2_OBSERVATION_VERSION 1
+#define AIOT_T2_CFA_OBSERVATION_VERSION 2
+#define AIOT_T2_CFA_PDU_PROFILE_VERSION 1
+#define AIOT_T2_CFA_GATE_REFUSED 0
+#define AIOT_T2_CFA_GATE_ELIGIBLE 1
+#define AIOT_T2_CFA_GATE_D2R_ATTEMPTED 2
 #define AIOT_T2_OBS_COMPLETE 1
 #define AIOT_T2_OBS_CRC_FAILURE 2
 #define AIOT_T2_OBS_UNDETECTED 3
@@ -795,6 +810,33 @@ typedef struct __attribute__((packed)) {
   uint64_t channel_provenance;
 } aiot_t2_observation_report_t;
 
+/* CFA M/SNR evidence. Version 2 keeps the legacy 80-byte report intact and
+ * carries the 27-byte MAC PDU, epoch/readback identity, and gate outcome. */
+typedef struct __attribute__((packed)) {
+  uint32_t magic;
+  uint8_t version;
+  uint8_t status;
+  uint16_t flags;
+  uint32_t reader_handle;
+  uint32_t tag_id;
+  uint64_t tx_timestamp;
+  uint64_t completion_timestamp;
+  uint64_t channel_epoch;
+  uint64_t channel_provenance;
+  int16_t snr_db_x10;
+  uint8_t m;
+  uint8_t prb_count;
+  uint8_t pdu_profile_version;
+  uint8_t gate_status;
+  uint16_t compared_bits;
+  uint16_t erroneous_bits;
+  uint32_t full_airtime_samples;
+  uint8_t d2r_attempted;
+  uint8_t tx_pdu[27];
+  uint8_t decoded_pdu[27];
+  uint8_t reserved[11];
+} aiot_t2_cfa_observation_report_t;
+
 #ifdef __cplusplus
 static_assert(sizeof(aiot_t2_inventory_report_t) == 40, "Unexpected A-IoT report wire size");
 #else
@@ -805,6 +847,12 @@ _Static_assert(sizeof(aiot_t2_inventory_report_t) == 40, "Unexpected A-IoT repor
 static_assert(sizeof(aiot_t2_observation_report_t) == 80, "Unexpected A-IoT observation wire size");
 #else
 _Static_assert(sizeof(aiot_t2_observation_report_t) == 80, "Unexpected A-IoT observation wire size");
+#endif
+
+#ifdef __cplusplus
+static_assert(sizeof(aiot_t2_cfa_observation_report_t) == 128, "Unexpected CFA observation wire size");
+#else
+_Static_assert(sizeof(aiot_t2_cfa_observation_report_t) == 128, "Unexpected CFA observation wire size");
 #endif
 
 #ifdef __cplusplus

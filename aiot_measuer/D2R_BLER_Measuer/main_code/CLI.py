@@ -9,6 +9,7 @@ import sys
 
 from fourmula import (
     D2RMeasurementService,
+    aggregate_cfa_campaign_rows,
     aggregate_campaign_rows,
     estimate_rician_energy_ber,
     generate_visibility_map,
@@ -95,7 +96,11 @@ def _ingest_udp(args: argparse.Namespace) -> dict:
                 break
             report = decode_observation_datagram(data)
             service.record_wire_observation(report, sample_rate_hz=sample_rate_hz)
+            # Completed packets close in their decode window; known acquisition
+            # losses are accounted in their TX-attempt window. Keep both so a
+            # loss-only capture is visible in the persisted JSON.
             window_indices.add(sample_ticks_to_ns(report["completion_timestamp"], sample_rate_hz) // 500_000)
+            window_indices.add(sample_ticks_to_ns(report["tx_timestamp"], sample_rate_hz) // 500_000)
             record.setdefault("wire_records", []).append(
                 {key: (value.hex() if isinstance(value, bytes) else value) for key, value in report.items()}
             )
@@ -114,11 +119,13 @@ def _write_reference(args: argparse.Namespace) -> None:
         estimate_rician_energy_ber(
             duration_multiplier=multiplier,
             bits=args.bits,
-            seed=args.seed,
+            # Keep each duration's numerical sample independent; the measured
+            # campaign also uses independent RFsim runs per duration/repeat.
+            seed=args.seed + index,
             k_db=3.0,
             noise_power=0.1,
         )
-        for multiplier in args.multipliers
+        for index, multiplier in enumerate(args.multipliers)
     ]
     JsonExperimentStorage(args.output).save({"schema_version": 2, "reference_results": points})
 
@@ -131,25 +138,38 @@ def _campaign(args: argparse.Namespace) -> None:
         rows = value.get("rows", value) if isinstance(value, dict) else value
     if not isinstance(rows, list):
         raise ValueError("campaign input must be a JSON array, {rows: [...]}, or JSONL")
-    JsonExperimentStorage(args.output).save(aggregate_campaign_rows(rows))
+    aggregate = aggregate_cfa_campaign_rows(rows) if args.profile == "cfa" else aggregate_campaign_rows(rows)
+    JsonExperimentStorage(args.output).save(aggregate)
 
 
-def _plot(record: dict, output: Path) -> None:
+def _plot(record: dict, output: Path, profile: str = "legacy") -> None:
     try:
         os.environ.setdefault("MPLCONFIGDIR", "/tmp/d2r-ber-matplotlib")
         import matplotlib.pyplot as plt
     except ImportError as error:
         raise RuntimeError("matplotlib is required for plot") from error
 
-    points = record.get("duration_results", [])
-    if not points or any(point.get("ber") is None for point in points):
-        raise ValueError("duration_results must contain non-null duration_ns and ber values")
-    durations = [point["duration_ns"] for point in points]
-    bers = [point["ber"] for point in points]
     figure, axis = plt.subplots()
-    axis.plot(durations, bers, marker="o")
-    axis.set_xlabel("D2R bit duration (ns)")
-    axis.set_ylabel("BER")
+    if profile == "cfa":
+        points = record.get("points", [])
+        if not points or any(point.get("payload_ber") is None for point in points):
+            raise ValueError("CFA points must contain non-null payload_ber values")
+        for m in sorted({point["m"] for point in points}):
+            selected = sorted((point for point in points if point["m"] == m), key=lambda point: point["snr_db_x10"])
+            axis.plot([point["snr_db_x10"] / 10 for point in selected], [point["payload_ber"] for point in selected], marker="o", label=f"M={m}")
+        axis.set_xlabel("SNR (dB), Tag ideal-acquisition reference plane")
+        axis.set_ylabel("216-bit payload BER")
+        axis.set_title("CFA R2D; PRDCH-only power normalization; full-airtime goodput separate")
+        axis.legend()
+    else:
+        points = record.get("duration_results", [])
+        if not points or any(point.get("ber") is None for point in points):
+            raise ValueError("duration_results must contain non-null duration_ns and ber values")
+        durations = [point["duration_ns"] for point in points]
+        bers = [point["ber"] for point in points]
+        axis.plot(durations, bers, marker="o")
+        axis.set_xlabel("D2R bit duration (ns)")
+        axis.set_ylabel("BER")
     axis.grid(True)
     figure.tight_layout()
     figure.savefig(output)
@@ -168,6 +188,7 @@ def main(argv: list[str] | None = None) -> int:
     plot = commands.add_parser("plot", help="plot saved duration BER values")
     plot.add_argument("--input", type=Path, required=True)
     plot.add_argument("--output", type=Path, required=True)
+    plot.add_argument("--profile", choices=("legacy", "cfa"), default="legacy")
     ingest = commands.add_parser("ingest-udp", help="ingest fixed RFsim observation datagrams")
     ingest.add_argument("--input", type=Path, required=True)
     ingest.add_argument("--output", type=Path, required=True)
@@ -184,6 +205,7 @@ def main(argv: list[str] | None = None) -> int:
     campaign = commands.add_parser("campaign", help="aggregate a fixed-budget RFsim campaign manifest")
     campaign.add_argument("--input", type=Path, required=True, help="JSON array/object or JSONL manifest")
     campaign.add_argument("--output", type=Path, required=True)
+    campaign.add_argument("--profile", choices=("legacy", "cfa"), default="legacy")
     args = parser.parse_args(argv)
 
     if args.command == "init":
@@ -225,7 +247,7 @@ def main(argv: list[str] | None = None) -> int:
         print(render_status(record))
         return 0
     try:
-        _plot(record, args.output)
+        _plot(record, args.output, args.profile)
     except (RuntimeError, ValueError) as error:
         print(f"plot rejected: {error}", file=sys.stderr)
         return 2

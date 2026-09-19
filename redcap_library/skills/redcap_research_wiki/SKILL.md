@@ -119,6 +119,18 @@ active skill unchanged.
 4. Preserve historical reports and their original evidence paths.
 5. Invoke the registered documentation checker that owns the changed route.
 
+## Reconcile Derived Evidence
+
+When a bounded capture changes source-owned runtime evidence, rerun the
+registered validator, refresh every derived wiki/trace artifact in the route,
+and compare its recorded hashes with the current canonical inputs before
+returning. Preserve superseded evidence paths and append the new capture to
+the activity log.
+
+If a derived artifact is stale or its hashes do not match, keep the operation
+`review-required`, retain the last good artifact, and do not promote or archive
+until the mismatch is repaired.
+
 ## Lint
 
 1. Invoke `validate_redcap_research_wiki`.

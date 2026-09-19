@@ -163,3 +163,33 @@ All entries are append-only and use `## [YYYY-MM-DD] operation | subject`.
 - claim_boundary: one Reader runtime reached CW relay, TX truth, K=3 dB/noise=0.1 D2R, CRC-failed comparison, and JSON BER/loss/provenance. The fixed 4,000-row smoke is labelled `source=numerical_model`. No three-Reader campaign, measured/reference agreement, real-Reader equivalence, or live no-D2R timeout capture is claimed.
 - unresolved_items: execute the three-Reader RFsim campaign and review the evolution candidate before promotion or stable documentation sync.
 - next_action: retain `review-required`; run the registered wiki validator and evolution-contract check, then obtain human review.
+
+## [2026-09-19] capture | CFA RFsim three-Reader campaign and timeout evidence
+
+- status: `NEEDS_REVIEW`
+- capture result: `update-page`
+- changed_or_proposed_paths: `systems/aiot/tag-reader.md`; the active research-wiki skill remains unchanged.
+- evidence_paths: corrected v2 RFsim matrix (40 jobs, 120 Reader files, 4,000 aggregate rows), `/tmp/aiot-rfsim-reference-comparison-v2.json`, `/tmp/aiot-no-d2r.json`, `openspec/changes/add-aiot-cfa-rfsim-ber-measurement/code.md`, `codebase.md`, `code-trace.md`, and `validation.txt`.
+- claim_boundary: independent duration-specific RFsim sampling, three-Reader identity routing, BER/loss aggregation, exploratory numerical comparison, and source-owned undetected timeout are runtime-supported. No real-Reader equivalence, DRL model, or reward claim is made.
+- unresolved_items: refresh the read-only Archify artifact after documentation edits, complete OpenSpec/spec synchronization and human review, and keep the evolution candidate fail-closed unless its two-trace requirement is met.
+- next_action: run recursive wiki validation and the registered skill-evolution contract, then submit the updated page and trace for human review.
+
+## [2026-09-19] capture | CFA RFsim duration-included provenance campaign
+
+- status: `NEEDS_REVIEW`
+- capture result: `update-page`
+- changed_or_proposed_paths: `systems/aiot/tag-reader.md`; the active research-wiki skill remains unchanged.
+- evidence_paths: corrected v3 RFsim matrix (40 jobs, 120 Reader files, 4,000 aggregate rows), `/tmp/aiot-rfsim-reference-comparison-v3.json`, `/tmp/aiot-no-d2r.json`, and the updated OpenSpec `code.md`, `codebase.md`, `code-trace.md`, and `validation.txt`.
+- claim_boundary: duration-included independent RFsim provenance, three-Reader identity routing, BER/loss aggregation, exploratory numerical comparison, and source-owned undetected timeout are runtime-supported. No real-Reader equivalence, DRL model, or reward claim is made.
+- unresolved_items: complete final OpenSpec specification sync and human review; keep the evolution candidate fail-closed unless its two-independent-documentation-traces condition is met.
+- next_action: rerun wiki validation/evolution checks after the v3 evidence update and submit the page/trace for human review.
+
+## [2026-09-19] capture | CFA RFsim workflow reconciliation and bounded skill maintenance
+
+- status: `NEEDS_REVIEW`
+- capture result: `update-page`
+- changed_or_proposed_paths: `systems/aiot/tag-reader.md`, `openspec/specs/aiot-cfa-rfsim-ber-measurement/spec.md`, `openspec/changes/archive/2026-09-18-add-aiot-cfa-rfsim-ber-measurement/code.md`, and `redcap_library/skills/redcap_research_wiki/SKILL.md`.
+- evidence_paths: final v3 RFsim matrix, no-D2R timeout, final Archify delivery/visual sidecars, the canonical synced spec, and the two bounded derived-artifact drift traces recorded in `llm-wiki-evolution-candidate.md`.
+- claim_boundary: the minimal reconciliation rule requires validator and hash checks before promotion/archive; it does not promote the AIoT page to `confirmed`, establish real-Reader equivalence, or add DRL/reward behavior.
+- unresolved_items: historical v2 paths remain retained as superseded evidence; no new runtime or real-Reader claim is opened.
+- next_action: retain the archived trace and require a new OpenSpec change for any future extension.

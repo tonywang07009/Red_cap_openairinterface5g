@@ -20,7 +20,14 @@ BASE_BIT_DURATION_US = 2_000_000 / 15_000
 CAMPAIGN_DURATION_MULTIPLIERS = (1 / 96, 1 / 32, 1 / 16, 1 / 8, 1 / 4, 1 / 2, 1.0, 2.0)
 CAMPAIGN_REPEAT_COUNT = 5
 CAMPAIGN_CYCLES_PER_REPEAT = 100
+CFA_SUPPORTED_M = (2, 6, 12, 24)
+CFA_PRB_COUNT = 3
+CFA_PDU_BITS = 216
+CFA_PHY_BITS = 232
+CFA_PRDCH_CHIPS = CFA_PHY_BITS * 2
+CFA_FORMAL_PACKET_BUDGET = 10_000
 OBSERVATION_STRUCT = struct.Struct("!IBBHIIQQB3sHH16s16sQ")
+CFA_OBSERVATION_STRUCT = struct.Struct("!IBBHIIQQQQhBBBBHHIB27s27s11s")
 OBSERVATION_STATUS = {
     1: "complete",
     2: "crc_failure",
@@ -84,6 +91,68 @@ def decode_observation_datagram(data: bytes) -> dict:
         "tx_payload": bytes(tx_payload[:payload_len]),
         "decoded_payload": bytes(decoded_payload[:payload_len]),
         "channel_provenance": channel_provenance,
+    }
+
+
+def decode_cfa_observation_datagram(data: bytes) -> dict:
+    """Decode the version-2 CFA evidence record without accepting legacy width."""
+    if len(data) != CFA_OBSERVATION_STRUCT.size:
+        raise ValueError(f"CFA observation datagram must be {CFA_OBSERVATION_STRUCT.size} bytes")
+    (
+        magic,
+        version,
+        status,
+        flags,
+        reader_handle,
+        tag_id,
+        tx_timestamp,
+        completion_timestamp,
+        channel_epoch,
+        channel_provenance,
+        snr_db_x10,
+        m,
+        prb_count,
+        pdu_profile_version,
+        gate_status,
+        compared_bits,
+        erroneous_bits,
+        full_airtime_samples,
+        d2r_attempted,
+        tx_pdu,
+        decoded_pdu,
+        _reserved,
+    ) = CFA_OBSERVATION_STRUCT.unpack(data)
+    if magic != AIOT_T2_OBSERVATION_MAGIC or version != 2:
+        raise ValueError("unsupported CFA observation report")
+    if status not in OBSERVATION_STATUS:
+        raise ValueError("unknown CFA observation status")
+    if m not in CFA_SUPPORTED_M or prb_count != CFA_PRB_COUNT or pdu_profile_version != 1:
+        raise ValueError("unsupported CFA profile fields")
+    if gate_status not in {0, 1, 2} or d2r_attempted not in {0, 1}:
+        raise ValueError("invalid CFA gate fields")
+    if compared_bits > CFA_PDU_BITS or erroneous_bits > compared_bits:
+        raise ValueError("invalid CFA bit counters")
+    return {
+        "status": OBSERVATION_STATUS[status],
+        "status_code": status,
+        "flags": flags,
+        "reader_id": reader_handle,
+        "tag_id": tag_id,
+        "tx_timestamp": tx_timestamp,
+        "completion_timestamp": completion_timestamp,
+        "channel_epoch": channel_epoch,
+        "channel_provenance": channel_provenance,
+        "snr_db_x10": snr_db_x10,
+        "m": m,
+        "prb_count": prb_count,
+        "pdu_profile_version": pdu_profile_version,
+        "gate_status": gate_status,
+        "compared_bits": compared_bits,
+        "erroneous_bits": erroneous_bits,
+        "full_airtime_samples": full_airtime_samples,
+        "d2r_attempted": bool(d2r_attempted),
+        "tx_pdu": tx_pdu,
+        "decoded_pdu": decoded_pdu,
     }
 
 
@@ -311,7 +380,6 @@ def aggregate_campaign_rows(
     }
     seen: set[tuple[int, int, int]] = set()
     source: str | None = None
-    channel_keys: dict[tuple[int, int], dict[int, object]] = {}
     totals = [
         {"actual_tx_packets": 0, "undetected_packets": 0, "unaligned_packets": 0,
          "compared_bits": 0, "erroneous_bits": 0, "deferrals": 0, "invalid_runs": 0}
@@ -349,17 +417,9 @@ def aggregate_campaign_rows(
         if not isinstance(invalid, bool):
             raise ValueError("invalid must be boolean")
         total["invalid_runs"] += int(invalid)
-        if "channel_key" in row:
-            pair_key = (repeat, cycle)
-            duration_keys = channel_keys.setdefault(pair_key, {})
-            duration_keys[duration_index] = row["channel_key"]
-
     missing = sorted(expected - seen)
     if missing:
         raise ValueError(f"campaign manifest is missing {len(missing)} fixed-budget variants")
-    for pair_key, duration_keys in channel_keys.items():
-        if len(duration_keys) == len(duration_multipliers) and len(set(duration_keys.values())) != 1:
-            raise ValueError(f"channel_key is not paired across durations for {pair_key}")
 
     duration_results = []
     for duration_index, multiplier in enumerate(duration_multipliers):
@@ -389,9 +449,167 @@ def aggregate_campaign_rows(
             "variant_count": len(seen),
             "fixed_stop": True,
             "source": source,
-            "pairing_key": "repeat,cycle,physical_link,tag_id",
+            "sampling": "independent channel/noise draws per duration, repeat, physical link, Tag, and cycle",
         },
         "duration_results": duration_results,
+    }
+
+
+def _wilson_interval(failures: int, trials: int) -> dict[str, float] | None:
+    if trials < 0 or failures < 0 or failures > trials:
+        raise ValueError("Wilson interval counts are invalid")
+    if trials == 0:
+        return None
+    z = 1.96
+    proportion = failures / trials
+    denominator = 1.0 + z * z / trials
+    centre = (proportion + z * z / (2.0 * trials)) / denominator
+    radius = z * math.sqrt(proportion * (1.0 - proportion) / trials + z * z / (4.0 * trials * trials)) / denominator
+    return {"lower": max(0.0, centre - radius), "upper": min(1.0, centre + radius)}
+
+
+def cfa_frame_components(*, m: int, prb_count: int = CFA_PRB_COUNT) -> dict:
+    """Return the implemented CFA analytical frame accounting.
+
+    The RFsim waveform still owns the emitted sample count.  This helper only
+    exposes the fixed 232-bit/464-chip profile and the M=24 usable-position
+    exception, so a tool cannot silently replace measured airtime with a
+    generic M-only division.
+    """
+    if isinstance(m, bool) or m not in CFA_SUPPORTED_M:
+        raise ValueError("m must be one of 2, 6, 12, or 24")
+    if isinstance(prb_count, bool) or prb_count != CFA_PRB_COUNT:
+        raise ValueError("cfa profile requires exactly three R2D PRBs")
+    usable_chips_per_symbol = 22 if m == 24 else m
+    data_and_overhead_chips = 472
+    symbols_after_sip = (data_and_overhead_chips + usable_chips_per_symbol - 1) // usable_chips_per_symbol
+    return {
+        "profile": "cfa_r2d_m_snr",
+        "m": m,
+        "prb_count": prb_count,
+        "scs_khz": 15,
+        "phy_bits": CFA_PHY_BITS,
+        "manchester_pairs": CFA_PHY_BITS,
+        "prdch_chips": CFA_PRDCH_CHIPS,
+        "data_and_overhead_chips": data_and_overhead_chips,
+        "usable_chips_per_symbol": usable_chips_per_symbol,
+        "symbols_after_sip": symbols_after_sip,
+        "frame_symbols": 2 + symbols_after_sip,
+        "occupied_chip_positions": 8 + symbols_after_sip * m,
+        "m24_mapping_exception": m == 24,
+    }
+
+
+def aggregate_cfa_campaign_rows(rows: list[dict], *, packet_budget: int = CFA_FORMAL_PACKET_BUDGET) -> dict:
+    """Aggregate fixed-budget CFA M/SNR evidence without fabricating missing RF state."""
+    if packet_budget != CFA_FORMAL_PACKET_BUDGET:
+        raise ValueError("formal CFA packet budget must be exactly 10000")
+    if not isinstance(rows, list) or not rows:
+        raise ValueError("CFA campaign rows must be a non-empty list")
+
+    groups: dict[tuple[int, int], dict] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            raise ValueError("CFA campaign rows must be JSON objects")
+        m = row.get("m")
+        snr_db_x10 = row.get("snr_db_x10")
+        if isinstance(m, bool) or not isinstance(m, int) or m not in CFA_SUPPORTED_M:
+            raise ValueError("row m is not a supported CFA value")
+        if isinstance(snr_db_x10, bool) or not isinstance(snr_db_x10, int):
+            raise ValueError("snr_db_x10 must be an integer")
+        key = (m, snr_db_x10)
+        group = groups.setdefault(key, {"rows": [], "invalid_reasons": set()})
+        group["rows"].append(row)
+
+        attempt_index = row.get("attempt_index")
+        if isinstance(attempt_index, bool) or not isinstance(attempt_index, int) or not 0 <= attempt_index < packet_budget:
+            raise ValueError("attempt_index is outside the fixed budget")
+        channel_epoch = row.get("channel_epoch")
+        if isinstance(channel_epoch, bool) or not isinstance(channel_epoch, int) or channel_epoch <= 0:
+            group["invalid_reasons"].add("missing_channel_epoch")
+        if row.get("epoch_ack") is not True or row.get("channel_readback") is not True:
+            group["invalid_reasons"].add("missing_channel_readback")
+        for name in ("compared_bits", "erroneous_bits", "r2d_on_air_duration_ns"):
+            value = row.get(name)
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise ValueError(f"{name} must be a non-negative integer")
+        if row["compared_bits"] > CFA_PDU_BITS or row["erroneous_bits"] > row["compared_bits"]:
+            raise ValueError("CFA bit counters exceed the 216-bit PDU")
+        if row["r2d_on_air_duration_ns"] <= 0:
+            raise ValueError("r2d_on_air_duration_ns must be positive")
+        for name in ("crc_ok", "payload_match", "d2r_attempted"):
+            if not isinstance(row.get(name), bool):
+                raise ValueError(f"{name} must be boolean")
+        if row["d2r_attempted"] and not (row["crc_ok"] and row["payload_match"]):
+            group["invalid_reasons"].add("d2r_gate_violation")
+
+    snr_grid_by_m: dict[int, set[int]] = {}
+    for m, snr_db_x10 in groups:
+        snr_grid_by_m.setdefault(m, set()).add(snr_db_x10)
+    grids = list(snr_grid_by_m.values())
+    if grids and any(grid != grids[0] for grid in grids[1:]):
+        raise ValueError("CFA M values must share one common SNR grid")
+
+    points = []
+    for (m, snr_db_x10), group in sorted(groups.items()):
+        point_rows = sorted(group["rows"], key=lambda row: row["attempt_index"])
+        indices = [row["attempt_index"] for row in point_rows]
+        if len(point_rows) != packet_budget or indices != list(range(packet_budget)):
+            raise ValueError(f"CFA point {(m, snr_db_x10)} must contain exactly 10000 unique attempts")
+        epochs = [row.get("channel_epoch") for row in point_rows if isinstance(row.get("channel_epoch"), int)]
+        if epochs and any(current < previous for previous, current in zip(epochs, epochs[1:])):
+            group["invalid_reasons"].add("non_monotonic_channel_epoch")
+
+        attempted = len(point_rows)
+        compared_bits = sum(row["compared_bits"] for row in point_rows)
+        erroneous_bits = sum(row["erroneous_bits"] for row in point_rows)
+        crc_failures = sum(not row["crc_ok"] for row in point_rows)
+        correctly_delivered = sum(row["crc_ok"] and row["payload_match"] for row in point_rows)
+        payload_block_errors = attempted - correctly_delivered
+        d2r_attempts = sum(row["d2r_attempted"] for row in point_rows)
+        full_airtime_ns = sum(row["r2d_on_air_duration_ns"] for row in point_rows)
+        invalid_reasons = sorted(group["invalid_reasons"])
+        valid = not invalid_reasons
+        points.append(
+            {
+                "m": m,
+                "prb_count": CFA_PRB_COUNT,
+                "snr_db_x10": snr_db_x10,
+                "frame": cfa_frame_components(m=m),
+                "attempted_packets": attempted,
+                "compared_bits": compared_bits,
+                "erroneous_bits": erroneous_bits,
+                "crc_failures": crc_failures,
+                "payload_block_errors": payload_block_errors,
+                "d2r_attempts": d2r_attempts,
+                "d2r_gate_refusals": attempted - d2r_attempts,
+                "full_r2d_airtime_ns": full_airtime_ns,
+                "payload_ber": None if compared_bits == 0 or not valid else erroneous_bits / compared_bits,
+                "payload_bler": None if compared_bits == 0 or not valid else payload_block_errors / attempted,
+                "payload_bler_ci95": None if compared_bits == 0 or not valid else _wilson_interval(payload_block_errors, attempted),
+                "goodput_bps": (
+                    None
+                    if full_airtime_ns == 0 or not valid
+                    else CFA_PDU_BITS * correctly_delivered / (full_airtime_ns / 1_000_000_000)
+                ),
+                "valid": valid,
+                "invalid_reasons": invalid_reasons,
+            }
+        )
+    return {
+        "schema_version": 3,
+        "campaign": {
+            "profile": "cfa_r2d_m_snr",
+            "packet_budget": CFA_FORMAL_PACKET_BUDGET,
+            "pdu_bits": CFA_PDU_BITS,
+            "phy_bits": CFA_PHY_BITS,
+            "scs_khz": 15,
+            "prb_count": CFA_PRB_COUNT,
+            "receiver_reference_plane": "Tag ideal acquisition square-law chip energy",
+            "goodput_definition": "216 * correctly_delivered_blocks / full_R2D_airtime_seconds",
+            "fixed_stop": True,
+        },
+        "points": points,
     }
 
 
@@ -500,6 +718,7 @@ def estimate_rician_energy_ber(
         errors += decoded != bit
     return {
         "reference_kind": "numerical_cascaded_rician_energy_detector",
+        "seed": seed,
         "duration_multiplier": duration_multiplier,
         "duration_ns": duration_multiplier * BASE_BIT_DURATION_US * 1_000.0,
         "samples_per_chip": samples_per_chip,

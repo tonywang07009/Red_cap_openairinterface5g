@@ -220,6 +220,360 @@ static uint32_t aiot_t2_crc(const uint8_t *payload, size_t payload_len)
                                             : crc16((uint8_t *)payload, payload_len * 8) >> 16;
 }
 
+static void nr_ue_aiot_cfa_put_bits(uint8_t *bytes, size_t *offset, uint64_t value, unsigned int width)
+{
+  for (unsigned int bit = 0; bit < width; ++bit) {
+    const size_t position = *offset + bit;
+    const uint8_t mask = (uint8_t)(1U << (7U - (position % 8U)));
+    if ((value >> (width - 1U - bit)) & 1U)
+      bytes[position / 8U] |= mask;
+  }
+  *offset += width;
+}
+
+static uint64_t nr_ue_aiot_cfa_get_bits(const uint8_t *bytes, size_t *offset, unsigned int width)
+{
+  uint64_t value = 0;
+  for (unsigned int bit = 0; bit < width; ++bit) {
+    const size_t position = *offset + bit;
+    value = (value << 1U) | ((bytes[position / 8U] >> (7U - (position % 8U))) & 1U);
+  }
+  *offset += width;
+  return value;
+}
+
+bool nr_ue_aiot_cfa_validate_serial(uint32_t serial,
+                                    const uint32_t *existing_serials,
+                                    size_t existing_count,
+                                    const char **reason)
+{
+  if (reason != NULL)
+    *reason = NULL;
+  if (serial == 0) {
+    if (reason != NULL)
+      *reason = "invalid_serial";
+    return false;
+  }
+  if (existing_count != 0 && existing_serials == NULL) {
+    if (reason != NULL)
+      *reason = "invalid_serial_set";
+    return false;
+  }
+  for (size_t index = 0; index < existing_count; ++index) {
+    if (existing_serials[index] == serial) {
+      if (reason != NULL)
+        *reason = "duplicate_serial";
+      return false;
+    }
+  }
+  return true;
+}
+
+bool nr_ue_aiot_cfa_build_pdu(const nr_ue_aiot_cfa_pdu_fields_t *fields,
+                              uint8_t pdu[NR_UE_AIOT_CFA_PDU_BYTES],
+                              const char **reason)
+{
+  if (reason != NULL)
+    *reason = NULL;
+  if (fields == NULL || pdu == NULL) {
+    if (reason != NULL)
+      *reason = "invalid_pdu_argument";
+    return false;
+  }
+  if (!nr_ue_aiot_cfa_validate_serial(fields->serial, NULL, 0, reason))
+    return false;
+  if (fields->d2r_scheduling_info != NR_UE_AIOT_CFA_FROZEN_D2R_SCHEDULING_INFO) {
+    if (reason != NULL)
+      *reason = "invalid_scheduling_info";
+    return false;
+  }
+
+  memset(pdu, 0, NR_UE_AIOT_CFA_PDU_BYTES);
+  size_t offset = 0;
+  nr_ue_aiot_cfa_put_bits(pdu, &offset, 1, 3); /* A-IoT Paging */
+  nr_ue_aiot_cfa_put_bits(pdu, &offset, 26, 7); /* 27-byte TBS codepoint */
+  nr_ue_aiot_cfa_put_bits(pdu, &offset, 1, 1); /* SPPI */
+  for (size_t index = 0; index < NR_UE_AIOT_CFA_SECURITY_BYTES; ++index)
+    nr_ue_aiot_cfa_put_bits(pdu, &offset, fields->security_parameter[index], 8);
+  nr_ue_aiot_cfa_put_bits(pdu, &offset, 0, 1); /* CFA */
+  nr_ue_aiot_cfa_put_bits(pdu, &offset, 42, 10);
+  nr_ue_aiot_cfa_put_bits(pdu, &offset, 1, 2); /* Permanent Identifier */
+  nr_ue_aiot_cfa_put_bits(pdu, &offset, 0x08, 8); /* unstructured 32-bit ID */
+  nr_ue_aiot_cfa_put_bits(pdu, &offset, fields->serial, 32);
+  nr_ue_aiot_cfa_put_bits(pdu, &offset, fields->d2r_scheduling_info & 0x00ffffffU, 24);
+  return offset == NR_UE_AIOT_CFA_PDU_BITS;
+}
+
+bool nr_ue_aiot_cfa_parse_pdu(const uint8_t pdu[NR_UE_AIOT_CFA_PDU_BYTES],
+                              nr_ue_aiot_cfa_pdu_fields_t *fields,
+                              const char **reason)
+{
+  if (reason != NULL)
+    *reason = NULL;
+  if (pdu == NULL || fields == NULL) {
+    if (reason != NULL)
+      *reason = "invalid_pdu_argument";
+    return false;
+  }
+
+  nr_ue_aiot_cfa_pdu_fields_t parsed = {0};
+  size_t offset = 0;
+  if (nr_ue_aiot_cfa_get_bits(pdu, &offset, 3) != 1) {
+    if (reason != NULL)
+      *reason = "invalid_message_type";
+    return false;
+  }
+  if (nr_ue_aiot_cfa_get_bits(pdu, &offset, 7) != 26) {
+    if (reason != NULL)
+      *reason = "invalid_tbs";
+    return false;
+  }
+  if (nr_ue_aiot_cfa_get_bits(pdu, &offset, 1) != 1) {
+    if (reason != NULL)
+      *reason = "security_parameter_absent";
+    return false;
+  }
+  for (size_t index = 0; index < NR_UE_AIOT_CFA_SECURITY_BYTES; ++index)
+    parsed.security_parameter[index] = (uint8_t)nr_ue_aiot_cfa_get_bits(pdu, &offset, 8);
+  if (nr_ue_aiot_cfa_get_bits(pdu, &offset, 1) != 0) {
+    if (reason != NULL)
+      *reason = "invalid_access_type";
+    return false;
+  }
+  if (nr_ue_aiot_cfa_get_bits(pdu, &offset, 10) != 42) {
+    if (reason != NULL)
+      *reason = "invalid_paging_id_length";
+    return false;
+  }
+  if (nr_ue_aiot_cfa_get_bits(pdu, &offset, 2) != 1
+      || nr_ue_aiot_cfa_get_bits(pdu, &offset, 8) != 0x08) {
+    if (reason != NULL)
+      *reason = "invalid_paging_id_type";
+    return false;
+  }
+  parsed.serial = (uint32_t)nr_ue_aiot_cfa_get_bits(pdu, &offset, 32);
+  if (!nr_ue_aiot_cfa_validate_serial(parsed.serial, NULL, 0, reason))
+    return false;
+  parsed.d2r_scheduling_info = (uint32_t)nr_ue_aiot_cfa_get_bits(pdu, &offset, 24);
+  if (offset != NR_UE_AIOT_CFA_PDU_BITS)
+    return false;
+  *fields = parsed;
+  return true;
+}
+
+bool nr_ue_aiot_cfa_append_crc(const uint8_t pdu[NR_UE_AIOT_CFA_PDU_BYTES],
+                               uint8_t phy_payload[NR_UE_AIOT_CFA_PHY_BYTES])
+{
+  if (pdu == NULL || phy_payload == NULL)
+    return false;
+  memcpy(phy_payload, pdu, NR_UE_AIOT_CFA_PDU_BYTES);
+  const uint16_t crc = (uint16_t)(crc16((uint8_t *)pdu, NR_UE_AIOT_CFA_PDU_BITS) >> 16);
+  phy_payload[NR_UE_AIOT_CFA_PDU_BYTES] = (uint8_t)(crc >> 8);
+  phy_payload[NR_UE_AIOT_CFA_PDU_BYTES + 1U] = (uint8_t)crc;
+  return true;
+}
+
+bool nr_ue_aiot_cfa_verify_crc(const uint8_t phy_payload[NR_UE_AIOT_CFA_PHY_BYTES])
+{
+  if (phy_payload == NULL)
+    return false;
+  const uint16_t expected = (uint16_t)(crc16((uint8_t *)phy_payload, NR_UE_AIOT_CFA_PDU_BITS) >> 16);
+  const uint16_t received = ((uint16_t)phy_payload[NR_UE_AIOT_CFA_PDU_BYTES] << 8U)
+                            | phy_payload[NR_UE_AIOT_CFA_PDU_BYTES + 1U];
+  return expected == received;
+}
+
+bool nr_ue_aiot_cfa_pack_d2r_scheduling(const nr_ue_aiot_cfa_d2r_scheduling_t *scheduling,
+                                        uint32_t *packed,
+                                        const char **reason)
+{
+  if (reason != NULL)
+    *reason = NULL;
+  if (scheduling == NULL || packed == NULL) {
+    if (reason != NULL)
+      *reason = "invalid_scheduling_argument";
+    return false;
+  }
+  if (scheduling->bit_duration >= NR_UE_AIOT_D2R_TBIT_COUNT) {
+    if (reason != NULL)
+      *reason = "invalid_d2r_tbit";
+    return false;
+  }
+  const nr_ue_aiot_d2r_scheduling_t legacy_schedule = {
+      .x = 1,
+      .tbit = (nr_ue_aiot_d2r_tbit_t)scheduling->bit_duration,
+      .sfs_bitmap = scheduling->frequency_resource_broadcast,
+  };
+  if (nr_ue_aiot_validate_d2r_scheduling(&legacy_schedule, NULL, NULL, reason)
+      != NR_UE_AIOT_D2R_SCHED_OK)
+    return false;
+  if (scheduling->block_repetition > 1 || scheduling->channel_coding > 1
+      || scheduling->interval_bits > 3 || scheduling->sequence_length > 1
+      || scheduling->additional_midamble > 1 || scheduling->d2r_tbs == 0
+      || scheduling->d2r_tbs > 125) {
+    if (reason != NULL)
+      *reason = "invalid_scheduling_field";
+    return false;
+  }
+
+  uint8_t bytes[3] = {0};
+  size_t offset = 0;
+  nr_ue_aiot_cfa_put_bits(bytes, &offset, scheduling->bit_duration, 3);
+  nr_ue_aiot_cfa_put_bits(bytes, &offset, scheduling->frequency_resource_broadcast, 8);
+  nr_ue_aiot_cfa_put_bits(bytes, &offset, scheduling->block_repetition, 1);
+  nr_ue_aiot_cfa_put_bits(bytes, &offset, scheduling->channel_coding, 1);
+  nr_ue_aiot_cfa_put_bits(bytes, &offset, scheduling->interval_bits, 2);
+  nr_ue_aiot_cfa_put_bits(bytes, &offset, scheduling->sequence_length, 1);
+  nr_ue_aiot_cfa_put_bits(bytes, &offset, scheduling->additional_midamble, 1);
+  nr_ue_aiot_cfa_put_bits(bytes, &offset, scheduling->d2r_tbs - 1U, 7);
+  *packed = ((uint32_t)bytes[0] << 16) | ((uint32_t)bytes[1] << 8) | bytes[2];
+  return true;
+}
+
+bool nr_ue_aiot_cfa_validate_campaign_config(const nr_ue_aiot_cfa_campaign_config_t *config,
+                                             const char **reason)
+{
+  if (reason != NULL)
+    *reason = NULL;
+  if (config == NULL) {
+    if (reason != NULL)
+      *reason = "invalid_campaign_argument";
+    return false;
+  }
+  if (config->m != 2 && config->m != 6 && config->m != 12 && config->m != 24) {
+    if (reason != NULL)
+      *reason = "invalid_m";
+    return false;
+  }
+  if (config->prb_count != 3) {
+    if (reason != NULL)
+      *reason = "invalid_prb_count";
+    return false;
+  }
+  if (config->formal_packet_budget != 10000) {
+    if (reason != NULL)
+      *reason = "invalid_formal_budget";
+    return false;
+  }
+  if (config->data_seed == 0 || config->noise_seed == 0 || config->data_seed == config->noise_seed) {
+    if (reason != NULL)
+      *reason = config->data_seed == config->noise_seed ? "duplicate_seed" : "invalid_seed";
+    return false;
+  }
+  if (config->snr_grid_db_x10 == NULL || config->snr_grid_count == 0) {
+    if (reason != NULL)
+      *reason = "invalid_snr_grid";
+    return false;
+  }
+  for (size_t index = 1; index < config->snr_grid_count; ++index) {
+    if (config->snr_grid_db_x10[index] <= config->snr_grid_db_x10[index - 1]) {
+      if (reason != NULL)
+        *reason = "invalid_snr_grid";
+      return false;
+    }
+  }
+  if (config->d2r_scheduling_info != NR_UE_AIOT_CFA_FROZEN_D2R_SCHEDULING_INFO) {
+    if (reason != NULL)
+      *reason = "invalid_scheduling_info";
+    return false;
+  }
+  return true;
+}
+
+bool nr_ue_aiot_cfa_derive_frame(uint8_t m,
+                                 uint8_t prb_count,
+                                 nr_ue_aiot_cfa_frame_t *frame,
+                                 const char **reason)
+{
+  if (reason != NULL)
+    *reason = NULL;
+  if (frame == NULL) {
+    if (reason != NULL)
+      *reason = "invalid_frame_argument";
+    return false;
+  }
+  if (prb_count != 3) {
+    if (reason != NULL)
+      *reason = "invalid_prb_count";
+    return false;
+  }
+  if (nr_ue_aiot_validate_r2d_resources(prb_count, m, reason) != NR_UE_AIOT_R2D_RESOURCE_OK)
+    return false;
+
+  const uint16_t data_and_overhead_chips = 472; /* CAP + 464 PRDCH chips + postamble. */
+  const uint16_t usable_chips_per_symbol = m == 24 ? 22 : m;
+  const uint16_t symbols_after_sip = (data_and_overhead_chips + usable_chips_per_symbol - 1U)
+                                     / usable_chips_per_symbol;
+  *frame = (nr_ue_aiot_cfa_frame_t){
+      .m = m,
+      .prb_count = prb_count,
+      .prdch_chips = 464,
+      .frame_symbols = (uint16_t)(2U + symbols_after_sip),
+      .occupied_chip_positions = (uint16_t)(8U + symbols_after_sip * m),
+  };
+  return true;
+}
+
+bool nr_ue_aiot_cfa_prepare_r2d(const nr_ue_aiot_cfa_pdu_fields_t *fields,
+                                uint32_t tag_id,
+                                uint32_t reader_handle,
+                                openair0_timestamp timestamp,
+                                uint8_t m,
+                                uint8_t prb_count,
+                                aiot_t2_rf_packet_t *packet,
+                                const char **reason)
+{
+  if (reason != NULL)
+    *reason = NULL;
+  if (fields == NULL || packet == NULL) {
+    if (reason != NULL)
+      *reason = "invalid_r2d_request";
+    return false;
+  }
+  if (tag_id == 0 || tag_id > AIOT_T2_MAX_TAG_ID) {
+    if (reason != NULL)
+      *reason = "invalid_tag_id";
+    return false;
+  }
+  if (reader_handle == 0 || reader_handle > AIOT_T2_MAX_READER_HANDLES) {
+    if (reason != NULL)
+      *reason = "invalid_reader_handle";
+    return false;
+  }
+  nr_ue_aiot_cfa_frame_t frame;
+  if (!nr_ue_aiot_cfa_derive_frame(m, prb_count, &frame, reason))
+    return false;
+  if (fields->d2r_scheduling_info != NR_UE_AIOT_CFA_FROZEN_D2R_SCHEDULING_INFO) {
+    if (reason != NULL)
+      *reason = "invalid_scheduling_info";
+    return false;
+  }
+
+  uint8_t pdu[NR_UE_AIOT_CFA_PDU_BYTES] = {0};
+  uint8_t phy_payload[NR_UE_AIOT_CFA_PHY_BYTES] = {0};
+  if (!nr_ue_aiot_cfa_build_pdu(fields, pdu, reason)
+      || !nr_ue_aiot_cfa_append_crc(pdu, phy_payload))
+    return false;
+
+  *packet = (aiot_t2_rf_packet_t){
+      .header = {
+          .size = NR_UE_AIOT_CFA_PHY_BITS * AIOT_T2_MANCHESTER_CHIPS_PER_BIT,
+          .nbAnt = 1,
+          .timestamp = timestamp,
+          .option_value = AIOT_T2_PACK_CFA_R2D_TARGET(tag_id, reader_handle, m),
+          .option_flag = OPTION_AIOT_T2_R2D | OPTION_AIOT_T2_R2D_CFA,
+          .beam_map = 1,
+      },
+  };
+  for (size_t bit_index = 0; bit_index < NR_UE_AIOT_CFA_PHY_BITS; ++bit_index) {
+    const uint8_t bit = (phy_payload[bit_index / 8U] >> (7U - (bit_index % 8U))) & 1U;
+    packet->samples[2U * bit_index].r = bit ? 0 : 1;
+    packet->samples[2U * bit_index + 1U].r = bit ? 1 : 0;
+  }
+  (void)frame;
+  return true;
+}
+
 static void aiot_t2_encode_pair(uint8_t bit, c16_t *pair)
 {
   pair[0].r = bit ? 0 : 1;

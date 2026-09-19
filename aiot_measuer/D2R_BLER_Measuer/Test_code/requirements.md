@@ -2,6 +2,15 @@
 
 ## Formula concept
 
+## CFA M/SNR campaign profile
+
+- The opt-in CFA profile compares only `M = 2, 6, 12, 24`, 15 kHz SCS, and three R2D PRBs.
+- Each formal `(M, SNR)` point has exactly 10,000 attempted R2D packets. Missing or duplicate attempt indices are rejected.
+- Each row carries one acknowledged `channel_epoch` and `channel_readback=true`; otherwise the point is invalid evidence and its BER/BLER/goodput are `null`.
+- Payload BER compares the 216 MAC bits. Payload BLER counts blocks that are not both CRC-valid and payload-matching; its 95% interval is Wilson.
+- Goodput is `216 * correctly_delivered_blocks / full_R2D_airtime_seconds`; failed R2D attempts remain in the denominator and cannot trigger early stopping.
+- Run it with `bash run_ui.sh campaign --profile cfa --input campaign.jsonl --output campaign.json`.
+
 - A Tag payload bit uses one Manchester/OOK pair at `SFS = 1`: `0 -> 10` and `1 -> 01`.
 - The ideal-isolation received baseband model is `y_k = rho_k h_GT h_TR s_k + n_k`.
 - `rho_k` is `1` for an ON chip and `0` for an OFF chip. The direct illuminating-CW to Reader path is excluded by the accepted ideal beam-isolation assumption.
@@ -10,7 +19,7 @@
 - Packet-loss rate is `(undetected_packets + unaligned_packets) / actual_tx_packets`; a transmitted packet is counted even when no comparable payload exists.
 - A complete packet is assigned to the 0.5 ms window containing its decode completion. An empty window has `ber = null`; known acquisition loss remains valid loss evidence, while missing comparison evidence invalidates the affected result and sets its loss rate to `null`.
 - `ReaderBerObservation.to_dict()` is the JSON-ready boundary for persisting all counters and validity fields.
-- The numerical reference is a separate model check, not a runtime result. Equal chip energy follows the decoder boundary: the pair is unaligned and excluded from BER. RFsim ticks use the explicit sample rate with exact decimal arithmetic and half-up rounding.
+- The numerical reference is a separate model check, not a runtime result. Each duration uses an independent deterministic seed; the pilot comparison is exploratory and does not claim real-Reader equivalence. Equal chip energy follows the decoder boundary: the pair is unaligned and excluded from BER. RFsim ticks use the explicit sample rate with exact decimal arithmetic and half-up rounding.
 
 ## Parameters
 
@@ -30,7 +39,7 @@
 | `packet_loss_rate` | `(undetected_packets + unaligned_packets) / actual_tx_packets` | `null` when no packet was transmitted |
 | `ideal_cross_reader_isolation` | Ignore other Readers' reflection as interference | Confirmed idealization |
 | `ideal_acquisition_alignment` | Packet detection and alignment are available | Confirmed idealization; decoding can still fail |
-| `channel_provenance` | Deterministic RFsim channel key carried by the observation wire report | Required for runtime-to-record traceability |
+| `channel_provenance` | Deterministic duration-specific RFsim channel key carried by the observation wire report | Required for runtime-to-record traceability |
 | `campaign_manifest` | JSON array/object or JSONL rows keyed by duration, repeat, and cycle | Must contain all `8 x 5 x 100 = 4,000` variants; missing or duplicate rows are rejected |
 
 ## RFsim observation wire contract
@@ -38,7 +47,7 @@
 - `AIOT_T2_OBSERVATION_MAGIC = 0x41494f42`, version `1`, fixed size `80` bytes, network byte order for multi-byte fields.
 - `complete` and `crc_failure` carry TX truth and decoded payload; CRC failures remain comparable BER samples.
 - `undetected` and `unaligned` increment the corresponding packet-loss counter. `invalid` preserves an invalid-evidence reason and leaves packet loss `null`.
-- The two Rician legs use independent deterministic keys `(seed, repeat, physical-link, tag, cycle)`, `K = 3 dB`, unit mean power. The relay applies total complex noise power `0.1` to D2R samples only.
+- The two Rician legs use independent deterministic keys `(seed, duration, repeat, physical-link, tag, cycle)`, `K = 3 dB`, unit mean power. Duration variants are independent RFsim runs. The relay applies total complex noise power `0.1` to D2R samples only.
 - Three-Reader isolation is represented by the runtime reader handle and relay routing. The legacy AIOTF 60-Tag profile remains separate from the accepted 100-Tag topology.
 
 ## Acceptance
@@ -59,6 +68,7 @@ bash run_ui.sh campaign --input campaign.jsonl --output campaign.json
 - The tool does not generate synthetic BER values or a DRL reward/model.
 - `reference` writes a numerical ON/OFF energy-detector baseline and labels it separately from measured observations; `plot` accepts only measured non-null BER points.
 - `campaign` aggregates only complete fixed-budget manifests. It preserves packet, bit, loss, deferral, and invalid-run counters per duration; it never fills missing RFsim variants.
+- The corrected pilot campaign has 40 RFsim jobs, 120 Reader files, and 4,000 cycle rows. Its exploratory numerical-reference comparison uses absolute BER tolerance `0.02`; it is not real-Reader equivalence evidence.
 - The UE source emits `undetected` after the explicit RFsim observation guard when TX truth was captured but no D2R packet arrived. The guard is a measurement bound, not a 3GPP timer.
 
 ## Future DRL observation interface

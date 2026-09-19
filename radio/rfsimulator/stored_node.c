@@ -33,6 +33,11 @@
 #define AIOT_D2R_CHIPS_PER_FRAME_BIT (AIOT_MANCHESTER_CHIPS_PER_BIT * AIOT_SFS_FACTOR)
 #define AIOT_RESPONSE_TIMEOUT_MS 100
 #define AIOT_INVENTORY_COMMAND 0x01
+#define AIOT_CFA_PDU_BYTES 27
+#define AIOT_CFA_PHY_BYTES 29
+#define AIOT_CFA_FRAME_BITS (AIOT_CFA_PHY_BYTES * 8)
+#define AIOT_CFA_CHIPS_PER_FRAME (AIOT_CFA_FRAME_BITS * AIOT_MANCHESTER_CHIPS_PER_BIT)
+#define AIOT_CFA_FROZEN_D2R_SCHEDULING_INFO 0x00300a0fU
 #define AIOT_RFSIM_MAX_SAMPLES (1U << 20)
 
 typedef enum {
@@ -87,6 +92,74 @@ static bool aiot_decode_pair(const uint8_t *pair, uint8_t *bit)
     return true;
   }
   return false;
+}
+
+static void aiot_cfa_put_bits(uint8_t *bytes, size_t *offset, uint64_t value, unsigned int width)
+{
+  for (unsigned int bit = 0; bit < width; ++bit) {
+    const size_t position = *offset + bit;
+    if ((value >> (width - 1U - bit)) & 1U)
+      bytes[position / 8U] |= (uint8_t)(1U << (7U - position % 8U));
+  }
+  *offset += width;
+}
+
+static uint64_t aiot_cfa_get_bits(const uint8_t *bytes, size_t *offset, unsigned int width)
+{
+  uint64_t value = 0;
+  for (unsigned int bit = 0; bit < width; ++bit) {
+    const size_t position = *offset + bit;
+    value = (value << 1U) | ((bytes[position / 8U] >> (7U - position % 8U)) & 1U);
+  }
+  *offset += width;
+  return value;
+}
+
+static aiot_result_t aiot_decode_cfa_r2d_frame(const uint8_t *chips,
+                                               size_t chips_len,
+                                               uint8_t pdu[AIOT_CFA_PDU_BYTES],
+                                               uint32_t *serial,
+                                               uint32_t *d2r_scheduling_info)
+{
+  if (chips == NULL || pdu == NULL || serial == NULL || chips_len != AIOT_CFA_CHIPS_PER_FRAME)
+    return AIOT_RESULT_PAYLOAD_LENGTH;
+
+  memset(pdu, 0, AIOT_CFA_PDU_BYTES);
+  uint32_t received_crc = 0;
+  for (size_t bit_index = 0; bit_index < AIOT_CFA_FRAME_BITS; ++bit_index) {
+    uint8_t bit = 0;
+    if (!aiot_decode_pair(chips + bit_index * AIOT_MANCHESTER_CHIPS_PER_BIT, &bit))
+      return AIOT_RESULT_INVALID_LINE_CODE;
+    if (bit_index < AIOT_CFA_PDU_BYTES * 8U) {
+      if (bit)
+        pdu[bit_index / 8U] |= (uint8_t)(1U << (7U - bit_index % 8U));
+    } else {
+      received_crc = (received_crc << 1U) | bit;
+    }
+  }
+  if (received_crc != aiot_crc(pdu, AIOT_CFA_PDU_BYTES))
+    return AIOT_RESULT_CRC_FAILURE;
+
+  size_t offset = 0;
+  if (aiot_cfa_get_bits(pdu, &offset, 3) != 1
+      || aiot_cfa_get_bits(pdu, &offset, 7) != 26
+      || aiot_cfa_get_bits(pdu, &offset, 1) != 1) {
+    return AIOT_RESULT_INVALID_LINE_CODE;
+  }
+  offset += 8U * 16U; /* security parameter */
+  if (aiot_cfa_get_bits(pdu, &offset, 1) != 0
+      || aiot_cfa_get_bits(pdu, &offset, 10) != 42
+      || aiot_cfa_get_bits(pdu, &offset, 2) != 1
+      || aiot_cfa_get_bits(pdu, &offset, 8) != 0x08) {
+    return AIOT_RESULT_INVALID_LINE_CODE;
+  }
+  *serial = (uint32_t)aiot_cfa_get_bits(pdu, &offset, 32);
+  if (*serial == 0)
+    return AIOT_RESULT_INVALID_LINE_CODE;
+  *d2r_scheduling_info = (uint32_t)aiot_cfa_get_bits(pdu, &offset, 24);
+  if (*d2r_scheduling_info != AIOT_CFA_FROZEN_D2R_SCHEDULING_INFO)
+    return AIOT_RESULT_INVALID_LINE_CODE;
+  return offset == AIOT_CFA_PDU_BYTES * 8U ? AIOT_RESULT_OK : AIOT_RESULT_INVALID_LINE_CODE;
 }
 
 static aiot_result_t aiot_encode_frame(const uint8_t *payload,
@@ -336,6 +409,19 @@ static int aiot_tag_self_test(void)
   c16_t reflected[2] = {0};
   const c16_t noisy_pair[2] = {{.r = 1}, {.r = 3}};
   uint8_t noisy_pair_chips[2] = {0};
+  uint8_t cfa_pdu[AIOT_CFA_PDU_BYTES] = {0};
+  uint8_t cfa_phy[AIOT_CFA_PHY_BYTES] = {0};
+  uint8_t cfa_chips[AIOT_CFA_CHIPS_PER_FRAME] = {0};
+  uint8_t cfa_decoded[AIOT_CFA_PDU_BYTES] = {0};
+  uint8_t cfa_bad_crc_chips[AIOT_CFA_CHIPS_PER_FRAME] = {0};
+  uint8_t cfa_bad_field_pdu[AIOT_CFA_PDU_BYTES] = {0};
+  uint8_t cfa_bad_field_phy[AIOT_CFA_PHY_BYTES] = {0};
+  uint8_t cfa_bad_field_chips[AIOT_CFA_CHIPS_PER_FRAME] = {0};
+  c16_t cfa_samples[AIOT_CFA_CHIPS_PER_FRAME] = {0};
+  uint8_t cfa_sample_chips[AIOT_CFA_CHIPS_PER_FRAME] = {0};
+  uint8_t cfa_reject_pdu[AIOT_CFA_PDU_BYTES] = {0};
+  uint32_t cfa_reject_serial = 0;
+  uint32_t cfa_reject_schedule = 0;
   for (size_t i = 0; i < sizeofArray(ook_chips); ++i) {
     reflected[i].r = cw_samples[i].r * ook_chips[i];
     reflected[i].i = cw_samples[i].i * ook_chips[i];
@@ -362,7 +448,59 @@ static int aiot_tag_self_test(void)
                       && reflected[1].r == 0 && reflected[1].i == 0;
   const bool noisy_pair_decodes_by_energy = aiot_samples_to_chips(noisy_pair, sizeofArray(noisy_pair), noisy_pair_chips)
                                              && noisy_pair_chips[0] == 0 && noisy_pair_chips[1] == 1;
-  const bool all_checks_pass = passed && noisy_pair_decodes_by_energy;
+  size_t cfa_offset = 0;
+  aiot_cfa_put_bits(cfa_pdu, &cfa_offset, 1, 3);
+  aiot_cfa_put_bits(cfa_pdu, &cfa_offset, 26, 7);
+  aiot_cfa_put_bits(cfa_pdu, &cfa_offset, 1, 1);
+  for (size_t i = 0; i < 16; ++i)
+    aiot_cfa_put_bits(cfa_pdu, &cfa_offset, i, 8);
+  aiot_cfa_put_bits(cfa_pdu, &cfa_offset, 0, 1);
+  aiot_cfa_put_bits(cfa_pdu, &cfa_offset, 42, 10);
+  aiot_cfa_put_bits(cfa_pdu, &cfa_offset, 1, 2);
+  aiot_cfa_put_bits(cfa_pdu, &cfa_offset, 0x08, 8);
+  aiot_cfa_put_bits(cfa_pdu, &cfa_offset, 100, 32);
+  aiot_cfa_put_bits(cfa_pdu, &cfa_offset, AIOT_CFA_FROZEN_D2R_SCHEDULING_INFO, 24);
+  memcpy(cfa_phy, cfa_pdu, sizeof(cfa_pdu));
+  const uint16_t cfa_crc = (uint16_t)aiot_crc(cfa_pdu, sizeof(cfa_pdu));
+  cfa_phy[AIOT_CFA_PDU_BYTES] = (uint8_t)(cfa_crc >> 8);
+  cfa_phy[AIOT_CFA_PDU_BYTES + 1U] = (uint8_t)cfa_crc;
+  for (size_t bit_index = 0; bit_index < AIOT_CFA_FRAME_BITS; ++bit_index) {
+    const uint8_t bit = (cfa_phy[bit_index / 8U] >> (7U - bit_index % 8U)) & 1U;
+    aiot_encode_pair(bit, cfa_chips + bit_index * AIOT_MANCHESTER_CHIPS_PER_BIT);
+    cfa_samples[bit_index * AIOT_MANCHESTER_CHIPS_PER_BIT].r = cfa_chips[bit_index * 2U] ? 2 : 1;
+    cfa_samples[bit_index * AIOT_MANCHESTER_CHIPS_PER_BIT + 1U].r = cfa_chips[bit_index * 2U + 1U] ? 2 : 1;
+  }
+  memcpy(cfa_bad_crc_chips, cfa_chips, sizeof(cfa_chips));
+  cfa_bad_crc_chips[AIOT_CFA_CHIPS_PER_FRAME - 2U] ^= 1U;
+  cfa_bad_crc_chips[AIOT_CFA_CHIPS_PER_FRAME - 1U] ^= 1U;
+  memcpy(cfa_bad_field_pdu, cfa_pdu, sizeof(cfa_pdu));
+  cfa_bad_field_pdu[0] ^= 0x80U;
+  memcpy(cfa_bad_field_phy, cfa_bad_field_pdu, sizeof(cfa_bad_field_pdu));
+  const uint16_t bad_field_crc = (uint16_t)aiot_crc(cfa_bad_field_pdu, sizeof(cfa_bad_field_pdu));
+  cfa_bad_field_phy[AIOT_CFA_PDU_BYTES] = (uint8_t)(bad_field_crc >> 8);
+  cfa_bad_field_phy[AIOT_CFA_PDU_BYTES + 1U] = (uint8_t)bad_field_crc;
+  for (size_t bit_index = 0; bit_index < AIOT_CFA_FRAME_BITS; ++bit_index) {
+    const uint8_t bit = (cfa_bad_field_phy[bit_index / 8U] >> (7U - bit_index % 8U)) & 1U;
+    aiot_encode_pair(bit, cfa_bad_field_chips + bit_index * AIOT_MANCHESTER_CHIPS_PER_BIT);
+  }
+  const aiot_result_t cfa_accept_result = aiot_decode_cfa_r2d_frame(
+      cfa_chips, sizeof(cfa_chips), cfa_decoded, &cfa_reject_serial, &cfa_reject_schedule);
+  const bool cfa_accepts_valid_frame = cfa_accept_result == AIOT_RESULT_OK && cfa_reject_serial == 100
+                                       && cfa_reject_schedule == AIOT_CFA_FROZEN_D2R_SCHEDULING_INFO
+                                       && memcmp(cfa_decoded, cfa_pdu, sizeof(cfa_pdu)) == 0;
+  const bool cfa_samples_decode = aiot_samples_to_chips(cfa_samples, sizeofArray(cfa_samples), cfa_sample_chips)
+                                  && memcmp(cfa_sample_chips, cfa_chips, sizeof(cfa_chips)) == 0;
+  const bool cfa_crc_rejected = aiot_decode_cfa_r2d_frame(
+                                    cfa_bad_crc_chips, sizeof(cfa_bad_crc_chips), cfa_decoded, &cfa_reject_serial, &cfa_reject_schedule)
+                                 == AIOT_RESULT_CRC_FAILURE;
+  const bool cfa_bad_field_rejected = aiot_decode_cfa_r2d_frame(
+                                          cfa_bad_field_chips, sizeof(cfa_bad_field_chips), cfa_decoded, &cfa_reject_serial, &cfa_reject_schedule)
+                                      == AIOT_RESULT_INVALID_LINE_CODE;
+  const bool cfa_short_frame_rejected = aiot_decode_cfa_r2d_frame(
+                                            direction_chips, 2, cfa_reject_pdu, &cfa_reject_serial, &cfa_reject_schedule)
+                                         == AIOT_RESULT_PAYLOAD_LENGTH;
+  const bool all_checks_pass = passed && noisy_pair_decodes_by_energy && cfa_accepts_valid_frame && cfa_samples_decode
+                               && cfa_crc_rejected && cfa_bad_field_rejected && cfa_short_frame_rejected;
   printf("AIOT_T2_SELF_TEST %s\n", all_checks_pass ? "PASS" : "FAIL");
   return all_checks_pass ? 0 : 1;
 }
@@ -687,16 +825,41 @@ static int aiot_tag_rfsim_cli(int argc, char **argv)
 
     if ((header.option_flag & OPTION_AIOT_T2_R2D) && AIOT_T2_UNPACK_R2D_TAG(header.option_value) == tag_id) {
       uint8_t r2d_chips[AIOT_T2_MAX_RF_SAMPLES];
-      uint8_t command = 0;
-      if (header.nbAnt != 1 || !aiot_samples_to_chips(samples, header.size, r2d_chips)
-          || aiot_decode_frame(r2d_chips, header.size, sizeof(command), false, false, true, &command) != AIOT_RESULT_OK
-          || command != AIOT_INVENTORY_COMMAND) {
+      const bool cfa = (header.option_flag & OPTION_AIOT_T2_R2D_CFA) != 0;
+      if (header.nbAnt != 1 || !aiot_samples_to_chips(samples, header.size, r2d_chips)) {
         fprintf(stderr, "AIOT_T2_R2D_REJECT reason=decode tag_id=%u\n", tag_id);
         continue;
       }
+      if (cfa) {
+        const uint32_t m = AIOT_T2_UNPACK_CFA_M(header.option_value);
+        uint8_t cfa_pdu[AIOT_CFA_PDU_BYTES] = {0};
+        uint32_t serial = 0;
+        uint32_t d2r_scheduling_info = 0;
+        const aiot_result_t result = aiot_decode_cfa_r2d_frame(
+            r2d_chips, header.size, cfa_pdu, &serial, &d2r_scheduling_info);
+        if ((m != 2 && m != 6 && m != 12 && m != 24) || result != AIOT_RESULT_OK || serial != tag_id) {
+          fprintf(stderr,
+                  "AIOT_T2_R2D_REJECT reason=%s tag_id=%u serial=%u m=%u result=%d\n",
+                  serial != tag_id && result == AIOT_RESULT_OK ? "id_mismatch" : "cfa_decode",
+                  tag_id,
+                  serial,
+                  m,
+                  result);
+          continue;
+        }
+        r2d_tbit = (d2r_scheduling_info >> 21U) & 0x7U;
+        printf("AIOT_T2_R2D_CFA_ACCEPT tag_id=%u serial=%u m=%u\n", tag_id, serial, m);
+      } else {
+        uint8_t command = 0;
+        if (aiot_decode_frame(r2d_chips, header.size, sizeof(command), false, false, true, &command) != AIOT_RESULT_OK
+            || command != AIOT_INVENTORY_COMMAND) {
+          fprintf(stderr, "AIOT_T2_R2D_REJECT reason=decode tag_id=%u\n", tag_id);
+          continue;
+        }
+        r2d_tbit = AIOT_T2_UNPACK_R2D_TBIT(header.option_value);
+      }
       r2d_received = true;
       r2d_timestamp = header.timestamp;
-      r2d_tbit = AIOT_T2_UNPACK_R2D_TBIT(header.option_value);
       printf("AIOT_T2_R2D_ACCEPT tag_id=%u\n", tag_id);
     }
 

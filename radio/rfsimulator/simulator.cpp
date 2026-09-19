@@ -108,6 +108,7 @@ typedef enum { SIMU_ROLE_SERVER = 1, SIMU_ROLE_CLIENT } simuRole;
   UINT64PARAM("offset",                 "<channel offset in samps>\n",              simOpt, &rfsimulator->chan_offset,        0L),                     \
   DOUBLEPARAM("prop_delay",             "<propagation delay in ms>\n",              simOpt, &(rfsimulator->prop_delay_ms),    0.0),                   \
   DOUBLEPARAM("aiot_k_db",               "<A-IoT per-leg Rician K in dB>\n",        simOpt, &rfsimulator->aiot_t2_k_db,       3.0),                   \
+  DOUBLEPARAM("aiot_attenuation_db",     "<A-IoT deterministic attenuation in dB>\n", simOpt, &rfsimulator->aiot_t2_attenuation_db, 0.0), \
   DOUBLEPARAM("aiot_noise_power",        "<A-IoT complex noise power>\n",            simOpt, &rfsimulator->aiot_t2_noise_power, 0.1),                 \
   DOUBLEPARAM("aiot_sample_scale",       "<A-IoT c16 normalization scale>\n",        simOpt, &rfsimulator->aiot_t2_sample_scale, 1024.0),              \
   UINT64PARAM("aiot_seed",               "<A-IoT deterministic channel seed>\n",     simOpt, &rfsimulator->aiot_t2_seed,       1L),                    \
@@ -130,6 +131,7 @@ static int rfsimu_getdistance_cmd(char *buff, int debug, telnet_printfunc_t prnt
 static int rfsimu_vtime_cmd(char *buff, int debug, telnet_printfunc_t prnt, void *arg);
 static int rfsimu_set_beam(char *buff, int debug, telnet_printfunc_t prnt, void *arg);
 static int rfsimu_set_beamids(char *buff, int debug, telnet_printfunc_t prnt, void *arg);
+static int rfsimu_aiot_epoch_cmd(char *buff, int debug, telnet_printfunc_t prnt, void *arg);
 // clang-format off
 static telnetshell_cmddef_t rfsimu_cmdarray[] = {
     {"show models", "", (cmdfunc_t)rfsimu_setchanmod_cmd, {(webfunc_t)getset_currentchannels_type}, TELNETSRV_CMDFLAG_WEBSRVONLY | TELNETSRV_CMDFLAG_GETWEBTBLDATA, NULL},
@@ -139,6 +141,7 @@ static telnetshell_cmddef_t rfsimu_cmdarray[] = {
     {"vtime", "", (cmdfunc_t)rfsimu_vtime_cmd, {NULL}, TELNETSRV_CMDFLAG_PUSHINTPOOLQ | TELNETSRV_CMDFLAG_AUTOUPDATE},
     {"setbeam", "beam_map", (cmdfunc_t)rfsimu_set_beam, {NULL}, TELNETSRV_CMDFLAG_PUSHINTPOOLQ},
     {"setbeamids", "beam_id1,beam_id2,...", (cmdfunc_t)rfsimu_set_beamids, {NULL}, TELNETSRV_CMDFLAG_PUSHINTPOOLQ},
+    {"aiot_epoch", "<show|set attenuation_db noise_power seed>", (cmdfunc_t)rfsimu_aiot_epoch_cmd, {NULL}, TELNETSRV_CMDFLAG_PUSHINTPOOLQ | TELNETSRV_CMDFLAG_NEEDPARAM},
     {"", "", NULL},
 };
 // clang-format on
@@ -223,9 +226,12 @@ typedef struct {
   size_t aiot_t2_d2r_head;
   size_t aiot_t2_d2r_count;
   double aiot_t2_k_db;
+  double aiot_t2_attenuation_db;
   double aiot_t2_noise_power;
   double aiot_t2_sample_scale;
   uint64_t aiot_t2_seed;
+  uint64_t aiot_t2_epoch;
+  bool aiot_t2_epoch_ack;
 } rfsimulator_state_t;
 
 /**
@@ -508,9 +514,17 @@ static uint64_t aiot_t2_mix(uint64_t value)
   return value ^ (value >> 31);
 }
 
-static uint64_t aiot_t2_provenance(const rfsimulator_state_t *t, const buffer_t *source, uint64_t timestamp)
+static uint64_t aiot_t2_provenance(const rfsimulator_state_t *t,
+                                   const buffer_t *source,
+                                   uint32_t tag_id,
+                                   uint32_t reader_handle,
+                                   uint64_t timestamp,
+                                   uint32_t tbit)
 {
-  uint64_t value = t->aiot_t2_seed ^ ((uint64_t)source->aiot_t2_tag_id << 32) ^ source->aiot_t2_reader_handle;
+  const uint32_t effective_tag_id = tag_id != 0 ? tag_id : source->aiot_t2_tag_id;
+  const uint32_t effective_reader_handle = reader_handle != 0 ? reader_handle : source->aiot_t2_reader_handle;
+  uint64_t value = t->aiot_t2_seed ^ ((uint64_t)effective_tag_id << 32)
+                   ^ ((uint64_t)effective_reader_handle << 16) ^ ((t->aiot_t2_epoch & 0xffffU) << 8) ^ tbit;
   return aiot_t2_mix(value ^ timestamp);
 }
 
@@ -525,13 +539,15 @@ static int16_t aiot_t2_clamp_sample(double value)
 
 static void aiot_t2_apply_channel(const rfsimulator_state_t *t,
                                   const buffer_t *source,
+                                  uint32_t tag_id,
+                                  uint32_t reader_handle,
                                   uint64_t timestamp,
                                   uint32_t tbit,
                                   const c16_t *input,
                                   c16_t *output,
                                   size_t sample_count)
 {
-  const uint64_t seed = aiot_t2_provenance(t, source, timestamp);
+  const uint64_t seed = aiot_t2_provenance(t, source, tag_id, reader_handle, timestamp, tbit);
   std::mt19937_64 generator(seed);
   std::normal_distribution<double> normal(0.0, 1.0);
   const double k = std::pow(10.0, t->aiot_t2_k_db / 10.0);
@@ -540,6 +556,7 @@ static void aiot_t2_apply_channel(const rfsimulator_state_t *t,
   const std::complex<double> h_gt(los + diffuse * normal(generator), diffuse * normal(generator));
   const std::complex<double> h_tr(los + diffuse * normal(generator), diffuse * normal(generator));
   const std::complex<double> channel = h_gt * h_tr;
+  const double attenuation = std::pow(10.0, -t->aiot_t2_attenuation_db / 20.0);
   const double scale = t->aiot_t2_sample_scale > 0.0 ? t->aiot_t2_sample_scale : 1024.0;
   static const uint32_t duration_samples[8] = {16, 8, 4, 2, 1, 1, 1, 1};
   const uint32_t integration_samples = duration_samples[tbit];
@@ -548,15 +565,17 @@ static void aiot_t2_apply_channel(const rfsimulator_state_t *t,
   for (size_t i = 0; i < sample_count; ++i) {
     const std::complex<double> signal((double)input[i].r / scale, (double)input[i].i / scale);
     const std::complex<double> noise(noise_sd * normal(generator), noise_sd * normal(generator));
-    const std::complex<double> received = signal * channel + noise;
+    const std::complex<double> received = signal * channel * attenuation + noise;
     output[i].r = aiot_t2_clamp_sample(received.real() * scale);
     output[i].i = aiot_t2_clamp_sample(received.imag() * scale);
   }
   LOG_I(HW,
-        "AIOT_T2_CHANNEL_APPLIED tag_id=%u reader_handle=%u tbit=%u integration_samples=%u k_db=%.1f noise_power=%.3f effective_noise_power=%.3f provenance=%lu h_real=%.6f h_imag=%.6f\n",
-        source->aiot_t2_tag_id,
-        source->aiot_t2_reader_handle,
+        "AIOT_T2_CHANNEL_APPLIED epoch=%lu tag_id=%u reader_handle=%u tbit=%u attenuation_db=%.3f integration_samples=%u k_db=%.1f noise_power=%.3f effective_noise_power=%.3f provenance=%lu h_real=%.6f h_imag=%.6f\n",
+        t->aiot_t2_epoch,
+        tag_id != 0 ? tag_id : source->aiot_t2_tag_id,
+        reader_handle != 0 ? reader_handle : source->aiot_t2_reader_handle,
         tbit,
+        t->aiot_t2_attenuation_db,
         integration_samples,
         t->aiot_t2_k_db,
         t->aiot_t2_noise_power,
@@ -573,6 +592,12 @@ static int aiot_t2_relay_packet(rfsimulator_state_t *t, const buffer_t *source, 
   const bool d2r = (header.option_flag & OPTION_AIOT_T2_D2R) != 0;
   const bool tx_truth = (header.option_flag & OPTION_AIOT_T2_TX_TRUTH) != 0;
   const bool r2d = (header.option_flag & OPTION_AIOT_T2_R2D) != 0;
+  const uint32_t r2d_tag_id = r2d ? AIOT_T2_UNPACK_R2D_TAG(packet->header.option_value) : 0;
+  const uint32_t r2d_reader_handle = r2d ? AIOT_T2_UNPACK_R2D_READER(packet->header.option_value) : 0;
+  if ((d2r || r2d) && !t->aiot_t2_epoch_ack) {
+    LOG_W(HW, "AIOT_T2_CHANNEL_REJECT reason=missing_epoch_readback tag_id=%u\n", r2d ? r2d_tag_id : source->aiot_t2_tag_id);
+    return 0;
+  }
   std::vector<c16_t> transformed;
   if (r2d) {
     /* R2D carries the Reader handle in option_value; beam_map stays a
@@ -583,18 +608,21 @@ static int aiot_t2_relay_packet(rfsimulator_state_t *t, const buffer_t *source, 
     /* Pair TX truth and D2R using the Tag's original timestamp. The output
      * timestamp may be advanced for RFsim ordering, but must not redraw the
      * channel identity for the same reflected packet. */
-    const uint64_t provenance = aiot_t2_provenance(t, source, packet->header.timestamp);
+    const uint32_t tbit = AIOT_T2_UNPACK_D2R_TBIT(packet->header.option_flag);
+    const uint64_t provenance = aiot_t2_provenance(t, source, 0, 0, packet->header.timestamp, tbit);
     /* beam_map is an RFsim beam selector. Keep it valid and carry the
      * experimental channel identity in the upper option-value bits. */
     header.beam_map = 1;
     header.option_value = AIOT_T2_PACK_TAG_PROVENANCE(header.option_value, provenance);
   }
-  if (d2r) {
+  if (d2r || r2d) {
     transformed.resize(header.size);
     aiot_t2_apply_channel(t,
                           source,
+                          r2d_tag_id,
+                          r2d_reader_handle,
                           packet->header.timestamp,
-                          AIOT_T2_UNPACK_D2R_TBIT(packet->header.option_flag),
+                          d2r ? AIOT_T2_UNPACK_D2R_TBIT(packet->header.option_flag) : 0,
                           (const c16_t *)packet->payload,
                           transformed.data(),
                           header.size);
@@ -616,7 +644,7 @@ static int aiot_t2_relay_packet(rfsimulator_state_t *t, const buffer_t *source, 
         && destination->aiot_t2_reader_handle != source->aiot_t2_reader_handle)
       continue;
     fullwrite(destination->conn_sock, &header, sizeof(header), t);
-    const void *payload = d2r ? (const void *)transformed.data() : (const void *)packet->payload;
+    const void *payload = (d2r || r2d) ? (const void *)transformed.data() : (const void *)packet->payload;
     fullwrite(destination->conn_sock, (void *)payload, source->payload_sz, t);
     ++destinations;
   }
@@ -804,9 +832,12 @@ static void process_gains(char *str, rfsim_beam_ctrl_t *beam_ctrl)
 static void rfsimulator_readconfig(rfsimulator_state_t *rfsimulator)
 {
   rfsimulator->aiot_t2_k_db = 3.0;
+  rfsimulator->aiot_t2_attenuation_db = 0.0;
   rfsimulator->aiot_t2_noise_power = 0.1;
   rfsimulator->aiot_t2_sample_scale = 1024.0;
   rfsimulator->aiot_t2_seed = 1;
+  rfsimulator->aiot_t2_epoch = 0;
+  rfsimulator->aiot_t2_epoch_ack = false;
   char *saveF = NULL;
   char *modelname = NULL;
   rfsim_beam_ctrl_t *beam_ctrl = rfsimulator->beam_ctrl;
@@ -850,6 +881,17 @@ static void rfsimulator_readconfig(rfsimulator_state_t *rfsimulator)
       fprintf(stderr, "unknown rfsimulator option: %s\n", rfsimu_params[p].strlistptr[i]);
       exit(-1);
     }
+  }
+
+  if (rfsimulator->aiot_t2_enabled) {
+    rfsimulator->aiot_t2_epoch = 1;
+    rfsimulator->aiot_t2_epoch_ack = true;
+    LOG_I(HW,
+          "AIOT_T2_CHANNEL_EPOCH epoch=%lu attenuation_db=%.3f noise_power=%.6f seed=%lu readback=config\n",
+          rfsimulator->aiot_t2_epoch,
+          rfsimulator->aiot_t2_attenuation_db,
+          rfsimulator->aiot_t2_noise_power,
+          rfsimulator->aiot_t2_seed);
   }
 
   int beam_gains_param_index = config_paramidx_fromname(rfsimu_params, sizeofArray(rfsimu_params), RFSIMU_BEAM_GAINS);
@@ -909,6 +951,53 @@ static int rfsimu_set_beamids(char *buff, int debug, telnet_printfunc_t prnt, vo
   beam_ctrl->rx.beams = beam_ids;
   beam_ctrl->tx.beams = beam_ids;
   prnt("Beam ids set\n");
+  return CMDSTATUS_FOUND;
+}
+
+static int rfsimu_aiot_epoch_cmd(char *buff, int debug, telnet_printfunc_t prnt, void *arg)
+{
+  rfsimulator_state_t *t = (rfsimulator_state_t *)arg;
+  if (buff == NULL || strcmp(buff, "show") == 0) {
+    prnt("AIOT_T2_CHANNEL_EPOCH epoch=%lu attenuation_db=%.3f noise_power=%.6f seed=%lu readback=%s queued=%zu\n",
+         t->aiot_t2_epoch,
+         t->aiot_t2_attenuation_db,
+         t->aiot_t2_noise_power,
+         t->aiot_t2_seed,
+         t->aiot_t2_epoch_ack ? "ok" : "missing",
+         t->aiot_t2_d2r_count);
+    return CMDSTATUS_FOUND;
+  }
+  if (debug)
+    prnt("%s() buffer \"%s\"\n", __func__, buff);
+
+  double attenuation_db = 0.0;
+  double noise_power = 0.0;
+  unsigned long seed = 0;
+  if (sscanf(buff, "set %lf %lf %lu", &attenuation_db, &noise_power, &seed) != 3
+      || !std::isfinite(attenuation_db) || !std::isfinite(noise_power)
+      || attenuation_db < -200.0 || attenuation_db > 200.0 || noise_power < 0.0 || seed == 0) {
+    prnt("AIOT_T2_CHANNEL_EPOCH_REJECT reason=invalid_parameters\n");
+    return CMDSTATUS_VARNOTFOUND;
+  }
+  if (t->aiot_t2_d2r_count != 0) {
+    prnt("AIOT_T2_CHANNEL_EPOCH_REJECT reason=packets_not_drained queued=%zu\n", t->aiot_t2_d2r_count);
+    return CMDSTATUS_FOUND;
+  }
+  if (t->aiot_t2_epoch == UINT64_MAX) {
+    prnt("AIOT_T2_CHANNEL_EPOCH_REJECT reason=epoch_exhausted\n");
+    return CMDSTATUS_FOUND;
+  }
+  t->aiot_t2_attenuation_db = attenuation_db;
+  t->aiot_t2_noise_power = noise_power;
+  t->aiot_t2_seed = seed;
+  ++t->aiot_t2_epoch;
+  t->aiot_t2_epoch_ack = true;
+  prnt("AIOT_T2_CHANNEL_EPOCH epoch=%lu attenuation_db=%.3f noise_power=%.6f seed=%lu readback=ok queued=%zu\n",
+       t->aiot_t2_epoch,
+       t->aiot_t2_attenuation_db,
+       t->aiot_t2_noise_power,
+       t->aiot_t2_seed,
+       t->aiot_t2_d2r_count);
   return CMDSTATUS_FOUND;
 }
 
