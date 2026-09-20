@@ -697,8 +697,11 @@ typedef int(*oai_transport_initfunc_t)(openair0_device *device, openair0_config_
 #define OPTION_AIOT_T2_TX_TRUTH 0x80000000     // RFsim-only transmitted payload evidence
 #define OPTION_AIOT_T2_R2D_CBRA 0x01000000      // opt-in CBRA R2D control profile
 #define OPTION_AIOT_T2_CBRA_OBSERVATION 0x02000000 // RFsim-only CBRA observation control packet
+#define OPTION_AIOT_T2_CBRA_CONTROL 0x04000000 // experimental Reader-to-Tag Msg2/Msg3 control
 #define AIOT_T2_MAX_TAG_ID 100
 #define AIOT_T2_MAX_READER_HANDLES 3
+#define AIOT_T2_CBRA_BROADCAST_TAG_ID 0U
+#define AIOT_T2_CBRA_BROADCAST_SERIAL UINT32_MAX
 #define AIOT_T2_MAX_PAYLOAD_BYTES 16
 #define AIOT_T2_MAX_RF_SAMPLES 576              // 16-byte payload, CRC16, Manchester plus SFS
 #define AIOT_T2_CBRA_SIP_CHIPS 8U
@@ -712,7 +715,7 @@ typedef int(*oai_transport_initfunc_t)(openair0_device *device, openair0_config_
 #define AIOT_T2_CBRA_MAX_PDU_BYTES 30U
 #define AIOT_T2_MAX_QUEUED_REPORTS 100
 /* RFsim-only guard after TX truth; it is a measurement timeout, not a TS timer. */
-#define AIOT_T2_OBSERVATION_TIMEOUT_SAMPLES (AIOT_T2_MAX_RF_SAMPLES * 2048U)
+#define AIOT_T2_OBSERVATION_TIMEOUT_SAMPLES (AIOT_T2_MAX_RF_SAMPLES * 65536U)
 #define AIOT_T2_TAG_OPTION_BITS 8U
 #define AIOT_T2_TAG_OPTION_MASK ((1U << AIOT_T2_TAG_OPTION_BITS) - 1U)
 #define AIOT_T2_READER_OPTION_BITS 2U
@@ -806,6 +809,19 @@ static inline size_t aiot_t2_d2r_samples_per_bit(uint32_t tbit)
 #define AIOT_T2_CBRA_GATE_D2R_ATTEMPTED 2
 #define AIOT_T2_CBRA_KIND_PAGING 0
 #define AIOT_T2_CBRA_KIND_ACCESS_TRIGGER 1
+#define AIOT_T2_CBRA_KIND_MSG2 2
+#define AIOT_T2_CBRA_KIND_MSG3 3
+#define AIOT_T2_CBRA_CONTROL_MSG2_GRANT 1
+#define AIOT_T2_CBRA_CONTROL_MSG2_REJECT 2
+#define AIOT_T2_CBRA_CONTROL_MSG3_ACK 3
+#define AIOT_T2_CBRA_CONTROL_MSG3_NACK 4
+#define AIOT_T2_CBRA_REPORT_MSG2_WAITING 1
+#define AIOT_T2_CBRA_REPORT_MSG2_TIMEOUT 2
+#define AIOT_T2_CBRA_REPORT_MSG2_ACCEPTED 3
+#define AIOT_T2_CBRA_REPORT_MSG3_ACK 4
+#define AIOT_T2_CBRA_REPORT_MSG3_NACK 5
+#define AIOT_T2_CBRA_REPORT_MSG3_MISSING 6
+#define AIOT_T2_CBRA_REFLECTION_PAYLOAD_BYTES 4U
 #define AIOT_T2_OBS_COMPLETE 1
 #define AIOT_T2_OBS_CRC_FAILURE 2
 #define AIOT_T2_OBS_UNDETECTED 3
@@ -834,6 +850,74 @@ typedef struct {
   samplesBlockHeader_t header;
   c16_t samples[AIOT_T2_MAX_RF_SAMPLES];
 } aiot_t2_rf_packet_t;
+
+/* Experimental Msg2/Msg3 control record. All multi-byte values are explicit
+ * network-order byte arrays so this header remains safe across the C/C++ RFsim
+ * and UE processes. The record is carried by OPTION_AIOT_T2_CBRA_CONTROL. */
+typedef struct __attribute__((packed)) {
+  uint8_t transaction_id[2];
+  uint8_t access_occasion[2];
+  uint8_t status;
+  uint8_t reserved;
+  uint8_t crc16[2];
+} aiot_t2_cbra_control_t;
+
+typedef struct {
+  uint32_t reader_handle;
+  uint32_t config_version;
+  uint32_t config_round;
+  uint16_t access_occasion;
+} aiot_t2_cbra_collision_key_t;
+
+static inline uint16_t aiot_t2_cbra_control_get_u16(const uint8_t value[2])
+{
+  return (uint16_t)(((uint16_t)value[0] << 8) | value[1]);
+}
+
+static inline void aiot_t2_cbra_control_set_u16(uint8_t value[2], uint16_t input)
+{
+  value[0] = (uint8_t)(input >> 8);
+  value[1] = (uint8_t)input;
+}
+
+static inline uint16_t aiot_t2_cbra_crc16(const uint8_t *data, size_t length)
+{
+  uint16_t crc = 0;
+  for (size_t index = 0; index < length; ++index) {
+    crc ^= (uint16_t)data[index] << 8;
+    for (unsigned int bit = 0; bit < 8; ++bit)
+      crc = (crc & 0x8000U) ? (uint16_t)((crc << 1) ^ 0x1021U) : (uint16_t)(crc << 1);
+  }
+  return crc;
+}
+
+static inline void aiot_t2_cbra_control_finalize(aiot_t2_cbra_control_t *control)
+{
+  if (control != NULL)
+    aiot_t2_cbra_control_set_u16(control->crc16,
+                                  aiot_t2_cbra_crc16((const uint8_t *)control, offsetof(aiot_t2_cbra_control_t, crc16)));
+}
+
+static inline bool aiot_t2_cbra_control_valid(const aiot_t2_cbra_control_t *control)
+{
+  return control != NULL && control->reserved == 0
+         && aiot_t2_cbra_control_get_u16(control->crc16)
+                == aiot_t2_cbra_crc16((const uint8_t *)control, offsetof(aiot_t2_cbra_control_t, crc16));
+}
+
+static inline bool aiot_t2_cbra_collision_key_equal(const aiot_t2_cbra_collision_key_t *left,
+                                                    const aiot_t2_cbra_collision_key_t *right)
+{
+  return left != NULL && right != NULL && left->reader_handle == right->reader_handle
+         && left->config_version == right->config_version && left->config_round == right->config_round
+         && left->access_occasion == right->access_occasion;
+}
+
+#ifdef __cplusplus
+static_assert(sizeof(aiot_t2_cbra_control_t) == 8, "Unexpected CBRA control wire size");
+#else
+_Static_assert(sizeof(aiot_t2_cbra_control_t) == 8, "Unexpected CBRA control wire size");
+#endif
 
 /* The UE sends compact logical chips in the fixed control packet. RFsim
  * expands the same mapping into the full CP+useful-sample waveform before

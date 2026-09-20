@@ -721,6 +721,77 @@ int main(void)
   }
   free(trigger_waveform);
 
+  const aiot_t2_cbra_collision_key_t collision_key = {
+      .reader_handle = 1,
+      .config_version = 9,
+      .config_round = 17,
+      .access_occasion = 3,
+  };
+  const aiot_t2_cbra_collision_key_t same_key = collision_key;
+  const aiot_t2_cbra_collision_key_t other_reader = {
+      .reader_handle = 2,
+      .config_version = 9,
+      .config_round = 17,
+      .access_occasion = 3,
+  };
+  const aiot_t2_cbra_collision_key_t other_round = {
+      .reader_handle = 1,
+      .config_version = 9,
+      .config_round = 18,
+      .access_occasion = 3,
+  };
+  const aiot_t2_cbra_collision_key_t other_ao = {
+      .reader_handle = 1,
+      .config_version = 9,
+      .config_round = 17,
+      .access_occasion = 4,
+  };
+  if (!aiot_t2_cbra_collision_key_equal(&collision_key, &same_key)
+      || aiot_t2_cbra_collision_key_equal(&collision_key, &other_reader)
+      || aiot_t2_cbra_collision_key_equal(&collision_key, &other_round)
+      || aiot_t2_cbra_collision_key_equal(&collision_key, &other_ao)) {
+    fprintf(stderr, "FAIL ScopesCbraCollisionByReaderRoundAndAo\n");
+    return 1;
+  }
+
+  nr_ue_aiot_cbra_paging_fields_t broadcast_fields = {
+      .serial = AIOT_T2_CBRA_BROADCAST_SERIAL,
+      .number_of_access_occasions = 1,
+      .d2r_scheduling_info = 0x06014,
+  };
+  aiot_t2_rf_packet_t broadcast_packet = {0};
+  reason = NULL;
+  if (!nr_ue_aiot_cbra_prepare_paging_r2d(&broadcast_fields,
+                                          AIOT_T2_CBRA_BROADCAST_TAG_ID,
+                                          collision_key.reader_handle,
+                                          123,
+                                          2,
+                                          3,
+                                          &broadcast_packet,
+                                          &reason)
+      || reason != NULL
+      || AIOT_T2_UNPACK_R2D_TAG(broadcast_packet.header.option_value) != AIOT_T2_CBRA_BROADCAST_TAG_ID) {
+    fprintf(stderr, "FAIL AllowsCbraBroadcastPagingTarget\n");
+    return 1;
+  }
+
+  aiot_t2_cbra_control_t control = {0};
+  aiot_t2_cbra_control_set_u16(control.transaction_id, 0x1234);
+  aiot_t2_cbra_control_set_u16(control.access_occasion, collision_key.access_occasion);
+  control.status = AIOT_T2_CBRA_CONTROL_MSG2_GRANT;
+  aiot_t2_cbra_control_finalize(&control);
+  if (!aiot_t2_cbra_control_valid(&control)
+      || aiot_t2_cbra_control_get_u16(control.transaction_id) != 0x1234
+      || aiot_t2_cbra_control_get_u16(control.access_occasion) != collision_key.access_occasion) {
+    fprintf(stderr, "FAIL ValidatesCbraMsg2ControlCorrelation\n");
+    return 1;
+  }
+  control.crc16[1] ^= 0x01U;
+  if (aiot_t2_cbra_control_valid(&control)) {
+    fprintf(stderr, "FAIL RejectsCorruptedCbraMsg3Control\n");
+    return 1;
+  }
+
   puts("PASS R2dResourceAdmissionTable");
   return 0;
 }

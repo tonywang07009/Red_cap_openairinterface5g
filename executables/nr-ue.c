@@ -1007,6 +1007,9 @@ typedef struct {
 } aiot_t2_cbra_attempt_t;
 
 #define AIOT_T2_CBRA_ATTEMPT_QUEUE_SIZE 256U
+#define AIOT_T2_CBRA_READER_TRANSACTION_COUNT 128U
+#define AIOT_T2_CBRA_READER_DATA_GRACE_SLOTS 1U
+#define AIOT_T2_CBRA_READER_TIMEOUT_SLOTS 1024U
 
 static aiot_t2_cbra_attempt_t *aiot_t2_find_cbra_attempt(aiot_t2_cbra_attempt_t *attempts,
                                                          size_t attempt_count,
@@ -1033,6 +1036,276 @@ static aiot_t2_cbra_attempt_t *aiot_t2_find_cbra_attempt(aiot_t2_cbra_attempt_t 
 static uint64_t aiot_t2_htonll(uint64_t value)
 {
   return ((uint64_t)htonl((uint32_t)value) << 32) | htonl((uint32_t)(value >> 32));
+}
+
+typedef struct {
+  bool valid;
+  bool collided;
+  bool msg2_sent;
+  bool data_received;
+  bool data_valid;
+  uint32_t tag_id;
+  uint32_t reader_handle;
+  uint32_t config_version;
+  uint32_t config_round;
+  uint8_t m;
+  uint8_t message_kind;
+  uint16_t transaction_id;
+  uint16_t access_occasion;
+  uint64_t msg1_slot;
+  uint64_t data_slot;
+} aiot_t2_cbra_reader_transaction_t;
+
+static aiot_t2_cbra_reader_transaction_t *aiot_t2_cbra_reader_find(
+    aiot_t2_cbra_reader_transaction_t *transactions,
+    uint32_t tag_id,
+    uint16_t transaction_id,
+    uint16_t access_occasion,
+    const aiot_t2_cbra_collision_key_t *key)
+{
+  for (size_t index = 0; index < AIOT_T2_CBRA_READER_TRANSACTION_COUNT; ++index) {
+    aiot_t2_cbra_reader_transaction_t *transaction = &transactions[index];
+    const aiot_t2_cbra_collision_key_t transaction_key = {
+        .reader_handle = transaction->reader_handle,
+        .config_version = transaction->config_version,
+        .config_round = transaction->config_round,
+        .access_occasion = transaction->access_occasion,
+    };
+    if (transaction->valid && transaction->tag_id == tag_id && transaction->transaction_id == transaction_id
+        && transaction->access_occasion == access_occasion && aiot_t2_cbra_collision_key_equal(&transaction_key, key))
+      return transaction;
+  }
+  return NULL;
+}
+
+static aiot_t2_cbra_reader_transaction_t *aiot_t2_cbra_reader_add(
+    aiot_t2_cbra_reader_transaction_t *transactions,
+    uint32_t tag_id,
+    uint32_t reader_handle,
+    uint32_t config_version,
+    uint32_t config_round,
+    uint8_t m,
+    uint8_t message_kind,
+    uint16_t transaction_id,
+    uint16_t access_occasion,
+    uint64_t absolute_slot,
+    bool *duplicate)
+{
+  const aiot_t2_cbra_collision_key_t key = {
+      .reader_handle = reader_handle,
+      .config_version = config_version,
+      .config_round = config_round,
+      .access_occasion = access_occasion,
+  };
+  aiot_t2_cbra_reader_transaction_t *existing =
+      aiot_t2_cbra_reader_find(transactions, tag_id, transaction_id, access_occasion, &key);
+  if (existing != NULL) {
+    if (duplicate != NULL)
+      *duplicate = true;
+    return existing;
+  }
+
+  bool collided = false;
+  for (size_t index = 0; index < AIOT_T2_CBRA_READER_TRANSACTION_COUNT; ++index) {
+    aiot_t2_cbra_reader_transaction_t *transaction = &transactions[index];
+    const aiot_t2_cbra_collision_key_t transaction_key = {
+        .reader_handle = transaction->reader_handle,
+        .config_version = transaction->config_version,
+        .config_round = transaction->config_round,
+        .access_occasion = transaction->access_occasion,
+    };
+    if (transaction->valid && aiot_t2_cbra_collision_key_equal(&transaction_key, &key)) {
+      transaction->collided = true;
+      collided = true;
+    }
+  }
+
+  for (size_t index = 0; index < AIOT_T2_CBRA_READER_TRANSACTION_COUNT; ++index) {
+    aiot_t2_cbra_reader_transaction_t *transaction = &transactions[index];
+    if (transaction->valid)
+      continue;
+    *transaction = (aiot_t2_cbra_reader_transaction_t){
+        .valid = true,
+        .collided = collided,
+        .tag_id = tag_id,
+        .reader_handle = reader_handle,
+        .config_version = config_version,
+        .config_round = config_round,
+        .m = m,
+        .message_kind = message_kind,
+        .transaction_id = transaction_id,
+        .access_occasion = access_occasion,
+        .msg1_slot = absolute_slot,
+    };
+    if (duplicate != NULL)
+      *duplicate = false;
+    return transaction;
+  }
+  return NULL;
+}
+
+static aiot_t2_cbra_reader_transaction_t *aiot_t2_cbra_reader_find_by_payload(
+    aiot_t2_cbra_reader_transaction_t *transactions,
+    uint32_t tag_id,
+    uint16_t transaction_id,
+    uint16_t access_occasion,
+    const aiot_t2_cbra_collision_key_t *key,
+    uint32_t message_kind,
+    uint32_t m)
+{
+  for (size_t index = 0; index < AIOT_T2_CBRA_READER_TRANSACTION_COUNT; ++index) {
+    aiot_t2_cbra_reader_transaction_t *transaction = &transactions[index];
+    const aiot_t2_cbra_collision_key_t transaction_key = {
+        .reader_handle = transaction->reader_handle,
+        .config_version = transaction->config_version,
+        .config_round = transaction->config_round,
+        .access_occasion = transaction->access_occasion,
+    };
+    if (transaction->valid && transaction->tag_id == tag_id && transaction->transaction_id == transaction_id
+        && transaction->access_occasion == access_occasion && transaction->message_kind == message_kind
+        && transaction->m == m && aiot_t2_cbra_collision_key_equal(&transaction_key, key))
+      return transaction;
+  }
+  return NULL;
+}
+
+static aiot_t2_cbra_reader_transaction_t *aiot_t2_cbra_reader_find_pending_tag(
+    aiot_t2_cbra_reader_transaction_t *transactions,
+    uint32_t tag_id,
+    const aiot_t2_cbra_collision_key_t *key,
+    uint32_t message_kind,
+    uint32_t m)
+{
+  aiot_t2_cbra_reader_transaction_t *match = NULL;
+  for (size_t index = 0; index < AIOT_T2_CBRA_READER_TRANSACTION_COUNT; ++index) {
+    aiot_t2_cbra_reader_transaction_t *transaction = &transactions[index];
+    const aiot_t2_cbra_collision_key_t transaction_key = {
+        .reader_handle = transaction->reader_handle,
+        .config_version = transaction->config_version,
+        .config_round = transaction->config_round,
+        .access_occasion = transaction->access_occasion,
+    };
+    if (!transaction->valid || transaction->tag_id != tag_id || transaction->data_received
+        || transaction->message_kind != message_kind || transaction->m != m
+        || !aiot_t2_cbra_collision_key_equal(&transaction_key, key))
+      continue;
+    if (match != NULL)
+      return NULL;
+    match = transaction;
+  }
+  return match;
+}
+
+static bool aiot_t2_send_cbra_control(PHY_VARS_NR_UE *UE,
+                                      uint32_t tag_id,
+                                      uint32_t reader_handle,
+                                      uint32_t config_version,
+                                      uint32_t config_round,
+                                      uint8_t m,
+                                      uint8_t kind,
+                                      uint16_t transaction_id,
+                                      uint16_t access_occasion,
+                                      uint8_t status,
+                                      openair0_timestamp timestamp)
+{
+  if (UE == NULL || UE->rfdevice.trx_ctlsend_func == NULL || tag_id == 0 || tag_id > AIOT_T2_MAX_TAG_ID
+      || reader_handle == 0 || reader_handle > AIOT_T2_MAX_READER_HANDLES
+      || (kind != AIOT_T2_CBRA_KIND_MSG2 && kind != AIOT_T2_CBRA_KIND_MSG3) || m == 0
+      || access_occasion == 0)
+    return false;
+
+  aiot_t2_rf_packet_t packet = {0};
+  aiot_t2_cbra_control_t control = {0};
+  packet.header.size = sizeof(control) / sizeof(c16_t);
+  packet.header.nbAnt = 1;
+  packet.header.timestamp = timestamp;
+  packet.header.option_value = AIOT_T2_PACK_CBRA_R2D_TARGET_WITH_CONFIG(tag_id,
+                                                                         reader_handle,
+                                                                         m,
+                                                                         kind,
+                                                                         config_version,
+                                                                         config_round);
+  packet.header.option_flag = OPTION_AIOT_T2_CBRA_CONTROL;
+  packet.header.beam_map = 1;
+  aiot_t2_cbra_control_set_u16(control.transaction_id, transaction_id);
+  aiot_t2_cbra_control_set_u16(control.access_occasion, access_occasion);
+  control.status = status;
+  aiot_t2_cbra_control_finalize(&control);
+  memcpy(packet.samples, &control, sizeof(control));
+  const int sent = UE->rfdevice.trx_ctlsend_func(&UE->rfdevice, &packet, sizeof(packet));
+  if (sent == (int)sizeof(packet)) {
+    LOG_I(PHY,
+          "AIOT_T2_CBRA_CONTROL_SENT tag_id=%u reader_handle=%u kind=%u transaction_id=%u ao=%u status=%u\n",
+          tag_id,
+          reader_handle,
+          kind,
+          transaction_id,
+          access_occasion,
+          status);
+    return true;
+  }
+  LOG_W(PHY,
+        "AIOT_T2_CBRA_CONTROL_REJECT reason=rf_send_failed tag_id=%u reader_handle=%u kind=%u status=%u\n",
+        tag_id,
+        reader_handle,
+        kind,
+        status);
+  return false;
+}
+
+static void aiot_t2_cbra_reader_finish(aiot_t2_cbra_reader_transaction_t *transactions,
+                                       PHY_VARS_NR_UE *UE,
+                                       uint64_t absolute_slot,
+                                       openair0_timestamp timestamp)
+{
+  for (size_t index = 0; index < AIOT_T2_CBRA_READER_TRANSACTION_COUNT; ++index) {
+    aiot_t2_cbra_reader_transaction_t *transaction = &transactions[index];
+    if (!transaction->valid || !transaction->msg2_sent)
+      continue;
+    const bool data_grace_elapsed = transaction->data_received
+                                    && absolute_slot >= transaction->data_slot + AIOT_T2_CBRA_READER_DATA_GRACE_SLOTS;
+    const bool response_timeout = !transaction->data_received
+                                  && absolute_slot >= transaction->msg1_slot + AIOT_T2_CBRA_READER_TIMEOUT_SLOTS;
+    if (!data_grace_elapsed && !response_timeout)
+      continue;
+    LOG_W(PHY,
+          "AIOT_T2_CBRA_TRANSACTION_FINISH tag_id=%u transaction_id=%u ao=%u absolute_slot=%lu msg1_slot=%lu "
+          "response_timeout=%u data_received=%u collided=%u data_valid=%u\n",
+          transaction->tag_id,
+          transaction->transaction_id,
+          transaction->access_occasion,
+          absolute_slot,
+          transaction->msg1_slot,
+          response_timeout,
+          transaction->data_received,
+          transaction->collided,
+          transaction->data_valid);
+    const uint8_t status = !response_timeout && !transaction->collided && transaction->data_valid
+                               ? AIOT_T2_CBRA_CONTROL_MSG3_ACK
+                               : AIOT_T2_CBRA_CONTROL_MSG3_NACK;
+    if (!aiot_t2_send_cbra_control(UE,
+                                   transaction->tag_id,
+                                   transaction->reader_handle,
+                                   transaction->config_version,
+                                   transaction->config_round,
+                                   transaction->m,
+                                   AIOT_T2_CBRA_KIND_MSG3,
+                                   transaction->transaction_id,
+                                   transaction->access_occasion,
+                                   status,
+                                   timestamp))
+      continue;
+    LOG_I(PHY,
+          "AIOT_T2_CBRA_MSG3_DECISION tag_id=%u transaction_id=%u ao=%u collided=%u data_received=%u data_valid=%u status=%u\n",
+          transaction->tag_id,
+          transaction->transaction_id,
+          transaction->access_occasion,
+          transaction->collided,
+          transaction->data_received,
+          transaction->data_valid,
+          status);
+    transaction->valid = false;
+  }
 }
 
 static bool aiot_t2_send_cbra_observation(PHY_VARS_NR_UE *UE,
@@ -1177,6 +1450,7 @@ static void aiot_t2_role_process_slot(PHY_VARS_NR_UE *UE,
   static aiot_t2_truth_cache_t truth = {0};
   static aiot_t2_cbra_attempt_t cbra_attempt = {0};
   static aiot_t2_cbra_attempt_t cbra_attempt_queue[AIOT_T2_CBRA_ATTEMPT_QUEUE_SIZE] = {0};
+  static aiot_t2_cbra_reader_transaction_t cbra_reader_transactions[AIOT_T2_CBRA_READER_TRANSACTION_COUNT] = {0};
   static uint64_t cbra_attempt_sequence = 0;
   static bool cbra_setup_complete = false;
   static uint32_t cbra_active_version = 0;
@@ -1290,7 +1564,9 @@ static void aiot_t2_role_process_slot(PHY_VARS_NR_UE *UE,
                                                                ? NR_UE_AIOT_CBRA_PAGING
                                                                : (nr_ue_aiot_cbra_message_kind_t)params->aiot_t2_cbra_kind;
         const nr_ue_aiot_cbra_paging_fields_t fields = {
-            .serial = params->aiot_t2_tag_id,
+            .serial = params->aiot_t2_tag_id == AIOT_T2_CBRA_BROADCAST_TAG_ID
+                          ? AIOT_T2_CBRA_BROADCAST_SERIAL
+                          : params->aiot_t2_tag_id,
             .security_parameter = {0},
             .transaction_id = 0,
             .number_of_access_occasions = cbra_n_code,
@@ -1403,8 +1679,10 @@ static void aiot_t2_role_process_slot(PHY_VARS_NR_UE *UE,
     }
   }
 
-  if (UE->rfdevice.trx_ctlrecv_func == NULL)
+  if (UE->rfdevice.trx_ctlrecv_func == NULL) {
+    aiot_t2_cbra_reader_finish(cbra_reader_transactions, UE, absolute_slot, timestamp);
     return;
+  }
   aiot_t2_rf_packet_t d2r;
   int received = 0;
   while ((received = UE->rfdevice.trx_ctlrecv_func(&UE->rfdevice, &d2r, sizeof(d2r))) > 0) {
@@ -1443,30 +1721,89 @@ static void aiot_t2_role_process_slot(PHY_VARS_NR_UE *UE,
       aiot_t2_cbra_observation_report_t observation = {0};
       memcpy(&observation, d2r.samples, sizeof(observation));
       const uint16_t random_id = ntohs(observation.random_id);
-      if (params->aiot_t2_cbra && cbra_state != NULL && random_id != 0 && observation.d2r_attempted != 0) {
-        if (observation.msg2_status == 2) {
-          LOG_I(PHY,
-                "AIOT_T2_CBRA_MSG2_TIMEOUT tag_id=%u random_id=%u\n",
-                ntohl(observation.tag_id),
-                random_id);
-        } else if (nr_aiot_cbra_state_on_msg1(cbra_state, random_id, observation.access_occasion)
-                   && nr_aiot_cbra_state_on_msg2(cbra_state, random_id)) {
-          LOG_I(PHY,
-                "AIOT_T2_CBRA_MSG1_RX tag_id=%u random_id=%u ao=%u\n",
-                ntohl(observation.tag_id),
+      const uint32_t tag_id_from_report = ntohl(observation.tag_id);
+      const uint32_t reader_handle = ntohl(observation.reader_handle);
+      const bool reader_matches = reader_handle == params->aiot_t2_reader_handle;
+      if (params->aiot_t2_cbra && params->aiot_t2_reader && reader_matches && observation.d2r_attempted == 0
+          && observation.status == AIOT_T2_OBS_COMPLETE && observation.crc_ok != 0 && random_id != 0
+          && observation.access_occasion != 0) {
+        const uint32_t config_version = ntohl(observation.config_version);
+        const uint32_t config_round = ntohl(observation.config_round);
+        bool duplicate = false;
+        aiot_t2_cbra_reader_transaction_t *transaction = aiot_t2_cbra_reader_add(cbra_reader_transactions,
+                                                                                    tag_id_from_report,
+                                                                                    reader_handle,
+                                                                                    config_version,
+                                                                                    config_round,
+                                                                                    observation.m,
+                                                                                    observation.message_kind,
+                                                                                    random_id,
+                                                                                    observation.access_occasion,
+                                                                                    absolute_slot,
+                                                                                    &duplicate);
+        if (transaction == NULL) {
+          LOG_W(PHY,
+                "AIOT_T2_CBRA_MSG1_REJECT tag_id=%u random_id=%u ao=%u reason=transaction_table_full\n",
+                tag_id_from_report,
                 random_id,
                 observation.access_occasion);
+        } else if (duplicate) {
           LOG_I(PHY,
-                "AIOT_T2_CBRA_MSG2_ACCEPT tag_id=%u random_id=%u ao=%u\n",
-                ntohl(observation.tag_id),
+                "AIOT_T2_CBRA_MSG1_DUPLICATE tag_id=%u random_id=%u ao=%u\n",
+                tag_id_from_report,
                 random_id,
                 observation.access_occasion);
         } else {
+          transaction->msg2_sent = aiot_t2_send_cbra_control(UE,
+                                                              tag_id_from_report,
+                                                              reader_handle,
+                                                              config_version,
+                                                              config_round,
+                                                              observation.m,
+                                                              AIOT_T2_CBRA_KIND_MSG2,
+                                                              random_id,
+                                                              observation.access_occasion,
+                                                              AIOT_T2_CBRA_CONTROL_MSG2_GRANT,
+                                                              timestamp);
+          LOG_I(PHY,
+                "AIOT_T2_CBRA_MSG1_RX tag_id=%u random_id=%u ao=%u reader_handle=%u collision=%u\n",
+                tag_id_from_report,
+                random_id,
+                observation.access_occasion,
+                reader_handle,
+                transaction->collided);
+          LOG_I(PHY,
+                "AIOT_T2_CBRA_MSG2_SENT tag_id=%u random_id=%u ao=%u status=%u\n",
+                tag_id_from_report,
+                random_id,
+                observation.access_occasion,
+                AIOT_T2_CBRA_CONTROL_MSG2_GRANT);
           LOG_W(PHY,
-                "AIOT_T2_CBRA_MSG2_REJECT tag_id=%u random_id=%u reason=not_waiting_or_mismatch\n",
-                ntohl(observation.tag_id),
-                random_id);
+                "AIOT_T2_CBRA_TRANSACTION_ADD tag_id=%u transaction_id=%u ao=%u msg1_slot=%lu\n",
+                tag_id_from_report,
+                random_id,
+                observation.access_occasion,
+                absolute_slot);
         }
+      } else if (params->aiot_t2_cbra && params->aiot_t2_reader && observation.d2r_attempted == 0) {
+        LOG_W(PHY,
+              "AIOT_T2_CBRA_MSG1_OBSERVATION_REJECT tag_id=%u reader_handle=%u expected_reader=%u "
+              "reader_match=%u status=%u crc_ok=%u random_id=%u ao=%u\n",
+              tag_id_from_report,
+              reader_handle,
+              params->aiot_t2_reader_handle,
+              reader_matches,
+              observation.status,
+              observation.crc_ok,
+              random_id,
+              observation.access_occasion);
+      } else if (params->aiot_t2_cbra && observation.d2r_attempted != 0 && random_id != 0
+                 && observation.msg2_status == AIOT_T2_CBRA_REPORT_MSG3_MISSING) {
+        LOG_I(PHY,
+              "AIOT_T2_CBRA_MSG3_MISSING tag_id=%u random_id=%u ao=%u\n",
+              tag_id_from_report,
+              random_id,
+              observation.access_occasion);
       }
       aiot_t2_cbra_attempt_t *attempt = aiot_t2_find_cbra_attempt(cbra_attempt_queue,
                                                                    AIOT_T2_CBRA_ATTEMPT_QUEUE_SIZE,
@@ -1477,6 +1814,87 @@ static void aiot_t2_role_process_slot(PHY_VARS_NR_UE *UE,
       (void)aiot_t2_send_cbra_observation(UE, report_socket, &d2r, attempt, timestamp);
       if (attempt != NULL && observation.d2r_attempted != 0)
         attempt->valid = false;
+      continue;
+    }
+    if (params->aiot_t2_cbra && (d2r.header.option_flag & OPTION_AIOT_T2_D2R)) {
+      LOG_W(PHY,
+            "AIOT_T2_CBRA_D2R_RX flag=0x%08x samples=%u tag_id=%u tbit=%u\n",
+            d2r.header.option_flag,
+            d2r.header.size,
+            tag_id,
+            AIOT_T2_UNPACK_D2R_TBIT(d2r.header.option_flag));
+      uint8_t payload[AIOT_T2_MAX_PAYLOAD_BYTES] = {0};
+      size_t payload_len = 0;
+      const nr_ue_aiot_t2_decode_result_t result =
+          nr_ue_aiot_t2_decode_d2r(&d2r, payload, sizeof(payload), &payload_len);
+      aiot_t2_cbra_reader_transaction_t *transaction = NULL;
+      const uint16_t transaction_id = payload_len >= 3
+                                          ? (uint16_t)(((uint16_t)payload[1] << 8) | payload[2])
+                                          : 0;
+      const uint16_t access_occasion = payload_len >= AIOT_T2_CBRA_REFLECTION_PAYLOAD_BYTES ? payload[3] : 0;
+      const uint32_t reader_handle = AIOT_T2_UNPACK_R2D_READER(d2r.header.option_value);
+      const uint32_t config_version = AIOT_T2_UNPACK_CBRA_CONFIG_VERSION(d2r.header.option_value);
+      const uint32_t config_round = AIOT_T2_UNPACK_CBRA_CONFIG_ROUND(d2r.header.option_value);
+      const uint32_t message_kind = AIOT_T2_UNPACK_CBRA_KIND(d2r.header.option_value);
+      const uint32_t m = AIOT_T2_UNPACK_CBRA_M(d2r.header.option_value);
+      const aiot_t2_cbra_collision_key_t key = {
+          .reader_handle = reader_handle,
+          .config_version = config_version,
+          .config_round = config_round,
+          .access_occasion = access_occasion,
+      };
+      LOG_W(PHY,
+            "AIOT_T2_CBRA_D2R_DECODE result=%u payload_len=%zu id=%u transaction_id=%u ao=%u\n",
+            result,
+            payload_len,
+            payload_len > 0 ? payload[0] : 0,
+            transaction_id,
+            access_occasion);
+      if (result == NR_UE_AIOT_T2_DECODE_OK && payload_len == AIOT_T2_CBRA_REFLECTION_PAYLOAD_BYTES
+          && payload[0] == tag_id && transaction_id != 0 && access_occasion != 0)
+        transaction = aiot_t2_cbra_reader_find_by_payload(cbra_reader_transactions,
+                                                           tag_id,
+                                                           transaction_id,
+                                                           access_occasion,
+                                                           &key,
+                                                           message_kind,
+                                                           m);
+      LOG_W(PHY,
+            "AIOT_T2_CBRA_D2R_LOOKUP transaction_found=%u transaction_id=%u ao=%u\n",
+            transaction != NULL,
+            transaction_id,
+            access_occasion);
+      if (transaction == NULL && result != NR_UE_AIOT_T2_DECODE_OK)
+        transaction = aiot_t2_cbra_reader_find_pending_tag(cbra_reader_transactions, tag_id, &key, message_kind, m);
+      if (transaction == NULL) {
+        LOG_W(PHY,
+              "AIOT_T2_CBRA_MSG3_REJECT tag_id=%u transaction_id=%u ao=%u result=%u reason=unknown_transaction\n",
+              tag_id,
+              transaction_id,
+              access_occasion,
+              result);
+        continue;
+      }
+      if (transaction->data_received) {
+        LOG_I(PHY,
+              "AIOT_T2_CBRA_REFLECTION_DUPLICATE tag_id=%u transaction_id=%u ao=%u\n",
+              tag_id,
+              transaction_id,
+              access_occasion);
+        continue;
+      }
+      transaction->data_received = true;
+      transaction->data_valid = result == NR_UE_AIOT_T2_DECODE_OK && payload_len == AIOT_T2_CBRA_REFLECTION_PAYLOAD_BYTES
+                                 && payload[0] == tag_id && transaction->transaction_id == transaction_id
+                                 && transaction->access_occasion == access_occasion;
+      transaction->data_slot = absolute_slot;
+      LOG_I(PHY,
+            "AIOT_T2_CBRA_REFLECTION_RX tag_id=%u transaction_id=%u ao=%u result=%u data_valid=%u\n",
+            tag_id,
+            transaction_id,
+            access_occasion,
+            result,
+            transaction->data_valid);
       continue;
     }
     if (params->aiot_t2_cbra)
@@ -1570,6 +1988,7 @@ static void aiot_t2_role_process_slot(PHY_VARS_NR_UE *UE,
       LOG_E(PHY, "AIOT_T2_UE_REPORT_REJECT reason=udp_send_failed tag_id=%u errno=%d\n", tag_id, errno);
     truth.valid = false;
   }
+  aiot_t2_cbra_reader_finish(cbra_reader_transactions, UE, absolute_slot, timestamp);
 }
 
 void *UE_thread(void *arg)

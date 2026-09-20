@@ -761,7 +761,7 @@ static bool nr_ue_aiot_cbra_prepare_r2d(nr_ue_aiot_cbra_message_kind_t message_k
       *reason = "invalid_r2d_request";
     return false;
   }
-  if (tag_id == 0 || tag_id > AIOT_T2_MAX_TAG_ID) {
+  if (tag_id > AIOT_T2_MAX_TAG_ID) {
     if (reason != NULL)
       *reason = "invalid_tag_id";
     return false;

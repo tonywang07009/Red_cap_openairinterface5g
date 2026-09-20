@@ -777,12 +777,13 @@ static bool aiot_tag_send_cbra_observation(int socket,
                                            uint8_t msg2_status,
                                            uint32_t config_version,
                                            uint32_t config_round,
-                                           const uint8_t decoded_pdu[AIOT_CBRA_PDU_BYTES])
+                                           const uint8_t *decoded_pdu)
 {
   aiot_t2_cbra_observation_report_t report = {0};
   const uint16_t mac_bits = message_kind == AIOT_T2_CBRA_KIND_PAGING ? 224U : 3U;
   const uint16_t phy_bits = message_kind == AIOT_T2_CBRA_KIND_PAGING ? 240U : 9U;
-  const size_t pdu_bytes = message_kind == AIOT_T2_CBRA_KIND_PAGING ? 28U : 2U;
+  const size_t pdu_bytes = d2r_attempted ? AIOT_T2_CBRA_REFLECTION_PAYLOAD_BYTES
+                                         : (message_kind == AIOT_T2_CBRA_KIND_PAGING ? 28U : 2U);
   report.magic = htonl(AIOT_T2_OBSERVATION_MAGIC);
   report.version = AIOT_T2_CBRA_OBSERVATION_VERSION;
   report.status = status;
@@ -806,7 +807,10 @@ static bool aiot_tag_send_cbra_observation(int socket,
   report.crc_ok = crc_ok;
   report.payload_match = 0;
   report.decode_result = decode_result;
-  report.compared_bits = htons(comparable ? mac_bits : 0);
+  report.compared_bits = htons(d2r_attempted ? 0 : (comparable ? mac_bits : 0));
+  report.reserved_status[0] = (uint8_t)pdu_bytes;
+  if (d2r_attempted && decoded_pdu != NULL)
+    report.reserved_header = htons(aiot_t2_cbra_crc16(decoded_pdu, pdu_bytes));
   report.full_airtime_samples = htonl(full_airtime_samples);
   report.full_airtime_ns = aiot_t2_htonll(((uint64_t)full_airtime_samples * 1000000000ULL
                                            + AIOT_CBRA_SAMPLE_RATE_HZ / 2U)
@@ -821,6 +825,16 @@ static bool aiot_tag_send_cbra_observation(int socket,
   if (decoded_pdu != NULL)
     memcpy(report.decoded_pdu, decoded_pdu, pdu_bytes);
 
+  fprintf(stderr,
+          "AIOT_T2_CBRA_OBSERVATION_TX tag_id=%u reader_handle=%u status=%u crc_ok=%u d2r_attempted=%u "
+          "random_id=%u ao=%u\n",
+          tag_id,
+          reader_handle,
+          report.status,
+          report.crc_ok,
+          report.d2r_attempted,
+          ntohs(report.random_id),
+          report.access_occasion);
   const samplesBlockHeader_t header = {
       .size = sizeof(report) / sizeof(c16_t),
       .nbAnt = 1,
@@ -861,6 +875,7 @@ typedef struct {
   bool context_valid;
   uint16_t n;
   uint16_t m;
+  uint8_t r2d_m;
   uint8_t x;
   uint8_t sfs_bitmap;
   uint16_t counter;
@@ -873,7 +888,17 @@ typedef struct {
   uint8_t msg2_remaining;
   bool msg1_sent;
   bool waiting_msg2;
+  bool msg2_received;
+  bool waiting_msg3;
+  bool completed;
   bool failed;
+  uint8_t terminal_status;
+  uint32_t reader_handle;
+  uint32_t message_kind;
+  uint32_t config_version;
+  uint32_t config_round;
+  uint64_t reflection_timestamp;
+  uint8_t reflection_payload[AIOT_T2_CBRA_REFLECTION_PAYLOAD_BYTES];
 } aiot_cbra_access_state_t;
 
 static uint16_t aiot_cbra_next_random(aiot_cbra_access_state_t *state)
@@ -918,8 +943,179 @@ static bool aiot_cbra_start_msg1(aiot_cbra_access_state_t *state)
   state->random_id = aiot_cbra_next_random(state);
   state->msg1_sent = true;
   state->waiting_msg2 = true;
+  state->msg2_received = false;
+  state->waiting_msg3 = false;
+  state->completed = false;
+  state->terminal_status = 0;
   state->msg2_remaining = state->k ? 4 : 1;
   return true;
+}
+
+static bool aiot_cbra_on_control(aiot_cbra_access_state_t *state,
+                                 uint32_t tag_id,
+                                 const samplesBlockHeader_t *header,
+                                 const c16_t *samples)
+{
+  if (state == NULL || header == NULL || samples == NULL || header->nbAnt != 1
+      || header->size != sizeof(aiot_t2_cbra_control_t) / sizeof(c16_t)
+      || AIOT_T2_UNPACK_R2D_TAG(header->option_value) != tag_id)
+    return false;
+
+  aiot_t2_cbra_control_t control = {0};
+  memcpy(&control, samples, sizeof(control));
+  if (!aiot_t2_cbra_control_valid(&control))
+    return false;
+
+  const uint32_t reader_handle = AIOT_T2_UNPACK_R2D_READER(header->option_value);
+  const uint32_t kind = AIOT_T2_UNPACK_CBRA_KIND(header->option_value);
+  const uint32_t m = AIOT_T2_UNPACK_CBRA_M(header->option_value);
+  const uint32_t config_version = AIOT_T2_UNPACK_CBRA_CONFIG_VERSION(header->option_value);
+  const uint32_t config_round = AIOT_T2_UNPACK_CBRA_CONFIG_ROUND(header->option_value);
+  const uint16_t transaction_id = aiot_t2_cbra_control_get_u16(control.transaction_id);
+  const uint16_t access_occasion = aiot_t2_cbra_control_get_u16(control.access_occasion);
+  const bool context_match = state->msg1_sent && reader_handle == state->reader_handle && m == state->r2d_m
+                             && config_version == state->config_version && config_round == state->config_round
+                             && transaction_id == state->random_id
+                             && access_occasion == state->selected_access_occasion;
+  if (!context_match) {
+    fprintf(stderr,
+            "AIOT_T2_CBRA_CONTROL_REJECT tag_id=%u reader_handle=%u kind=%u transaction_id=%u ao=%u reason=stale_or_mismatch\n",
+            tag_id,
+            reader_handle,
+            kind,
+            transaction_id,
+            access_occasion);
+    return false;
+  }
+
+  if (kind == AIOT_T2_CBRA_KIND_MSG2) {
+    if (!state->waiting_msg2
+        || (control.status != AIOT_T2_CBRA_CONTROL_MSG2_GRANT
+            && control.status != AIOT_T2_CBRA_CONTROL_MSG2_REJECT))
+      return false;
+    state->waiting_msg2 = false;
+    state->msg2_received = control.status == AIOT_T2_CBRA_CONTROL_MSG2_GRANT;
+    state->failed = !state->msg2_received;
+    state->terminal_status = state->failed ? AIOT_T2_CBRA_CONTROL_MSG3_NACK : 0;
+    fprintf(stderr,
+            "AIOT_T2_CBRA_MSG2_RX tag_id=%u transaction_id=%u ao=%u status=%u\n",
+            tag_id,
+            transaction_id,
+            access_occasion,
+            control.status);
+    return true;
+  }
+
+  if (kind == AIOT_T2_CBRA_KIND_MSG3) {
+    if (!state->waiting_msg3
+        || (control.status != AIOT_T2_CBRA_CONTROL_MSG3_ACK
+            && control.status != AIOT_T2_CBRA_CONTROL_MSG3_NACK))
+      return false;
+    state->waiting_msg3 = false;
+    state->completed = control.status == AIOT_T2_CBRA_CONTROL_MSG3_ACK;
+    state->failed = !state->completed;
+    state->terminal_status = control.status;
+    fprintf(stderr,
+            "AIOT_T2_CBRA_MSG3_RX tag_id=%u transaction_id=%u ao=%u status=%u\n",
+            tag_id,
+            transaction_id,
+            access_occasion,
+            control.status);
+    return true;
+  }
+  return false;
+}
+
+static bool aiot_cbra_observation_timed_out(uint64_t timestamp, uint64_t start_timestamp)
+{
+  return timestamp > start_timestamp && timestamp - start_timestamp > AIOT_T2_OBSERVATION_TIMEOUT_SAMPLES;
+}
+
+static bool aiot_cbra_control_self_test(void)
+{
+  aiot_cbra_access_state_t state = {
+      .msg1_sent = true,
+      .waiting_msg2 = true,
+      .m = 24,
+      .r2d_m = 2,
+      .random_id = 0x1234,
+      .selected_access_occasion = 3,
+      .reader_handle = 1,
+      .config_version = 5,
+      .config_round = 6,
+  };
+  aiot_t2_cbra_control_t control = {0};
+  c16_t samples[sizeof(control) / sizeof(c16_t)] = {0};
+  samplesBlockHeader_t header = {
+      .size = sizeof(control) / sizeof(c16_t),
+      .nbAnt = 1,
+      .option_value = AIOT_T2_PACK_CBRA_R2D_TARGET_WITH_CONFIG(7, 1, 2, AIOT_T2_CBRA_KIND_MSG2, 5, 6),
+      .option_flag = OPTION_AIOT_T2_CBRA_CONTROL,
+  };
+  aiot_t2_cbra_control_set_u16(control.transaction_id, state.random_id);
+  aiot_t2_cbra_control_set_u16(control.access_occasion, state.selected_access_occasion);
+  control.status = AIOT_T2_CBRA_CONTROL_MSG2_GRANT;
+  aiot_t2_cbra_control_finalize(&control);
+  memcpy(samples, &control, sizeof(control));
+  if (!aiot_cbra_on_control(&state, 7, &header, samples) || !state.msg2_received || state.waiting_msg2)
+    return false;
+
+  state.waiting_msg3 = true;
+  header.option_value = AIOT_T2_PACK_CBRA_R2D_TARGET_WITH_CONFIG(7, 1, 2, AIOT_T2_CBRA_KIND_MSG3, 5, 6);
+  aiot_t2_cbra_control_set_u16(control.transaction_id, state.random_id);
+  control.status = AIOT_T2_CBRA_CONTROL_MSG3_ACK;
+  aiot_t2_cbra_control_finalize(&control);
+  memcpy(samples, &control, sizeof(control));
+  header.option_value = AIOT_T2_PACK_CBRA_R2D_TARGET_WITH_CONFIG(7, 2, 2, AIOT_T2_CBRA_KIND_MSG3, 5, 6);
+  if (aiot_cbra_on_control(&state, 7, &header, samples))
+    return false;
+  header.option_value = AIOT_T2_PACK_CBRA_R2D_TARGET_WITH_CONFIG(7, 1, 2, AIOT_T2_CBRA_KIND_MSG3, 4, 6);
+  if (aiot_cbra_on_control(&state, 7, &header, samples))
+    return false;
+  header.option_value = AIOT_T2_PACK_CBRA_R2D_TARGET_WITH_CONFIG(7, 1, 2, AIOT_T2_CBRA_KIND_MSG3, 5, 6);
+  if (aiot_cbra_on_control(&state, 8, &header, samples))
+    return false;
+  aiot_t2_cbra_control_set_u16(control.transaction_id, (uint16_t)(state.random_id + 1U));
+  aiot_t2_cbra_control_finalize(&control);
+  memcpy(samples, &control, sizeof(control));
+  if (aiot_cbra_on_control(&state, 7, &header, samples))
+    return false;
+  aiot_t2_cbra_control_set_u16(control.transaction_id, state.random_id);
+  aiot_t2_cbra_control_set_u16(control.access_occasion, (uint16_t)(state.selected_access_occasion + 1U));
+  aiot_t2_cbra_control_finalize(&control);
+  memcpy(samples, &control, sizeof(control));
+  if (aiot_cbra_on_control(&state, 7, &header, samples))
+    return false;
+  aiot_t2_cbra_control_set_u16(control.access_occasion, state.selected_access_occasion);
+  aiot_t2_cbra_control_finalize(&control);
+  memcpy(samples, &control, sizeof(control));
+  aiot_t2_cbra_control_set_u16(control.transaction_id, state.random_id);
+  aiot_t2_cbra_control_finalize(&control);
+  memcpy(samples, &control, sizeof(control));
+  if (!aiot_cbra_on_control(&state, 7, &header, samples) || !state.completed || state.failed)
+    return false;
+  if (aiot_cbra_on_control(&state, 7, &header, samples))
+    return false;
+
+  aiot_cbra_access_state_t nack_state = state;
+  nack_state.waiting_msg3 = true;
+  nack_state.completed = false;
+  nack_state.failed = false;
+  nack_state.terminal_status = 0;
+  control.status = AIOT_T2_CBRA_CONTROL_MSG3_NACK;
+  aiot_t2_cbra_control_finalize(&control);
+  memcpy(samples, &control, sizeof(control));
+  if (!aiot_cbra_on_control(&nack_state, 7, &header, samples) || !nack_state.failed
+      || nack_state.completed || nack_state.terminal_status != AIOT_T2_CBRA_CONTROL_MSG3_NACK
+      || aiot_cbra_on_control(&nack_state, 7, &header, samples))
+    return false;
+
+  const uint64_t timeout = AIOT_T2_OBSERVATION_TIMEOUT_SAMPLES;
+  return !aiot_cbra_observation_timed_out(100, 100)
+         && !aiot_cbra_observation_timed_out(100 + timeout - 1U, 100)
+         && !aiot_cbra_observation_timed_out(100 + timeout, 100)
+         && aiot_cbra_observation_timed_out(100 + timeout + 1U, 100)
+         && !aiot_cbra_observation_timed_out(99, 100);
 }
 
 static bool aiot_cbra_select_access_occasion(aiot_cbra_access_state_t *state, uint16_t ordinal)
@@ -961,7 +1157,11 @@ static bool aiot_cbra_on_paging(aiot_cbra_access_state_t *state,
   state->selected_time_resource = 0;
   state->msg1_sent = false;
   state->waiting_msg2 = false;
+  state->msg2_received = false;
+  state->waiting_msg3 = false;
+  state->completed = false;
   state->failed = false;
+  state->terminal_status = 0;
   state->k = k;
   state->msg2_remaining = 0;
   state->context_valid = state->m != 0;
@@ -993,6 +1193,38 @@ static bool aiot_cbra_on_access_trigger(aiot_cbra_access_state_t *state)
            && aiot_cbra_start_msg1(state);
   }
   return false;
+}
+
+static bool aiot_cbra_lifecycle_self_test(void)
+{
+  aiot_cbra_access_state_t state = {
+      .context_valid = true,
+      .m = 8,
+      .x = 2,
+      .counter = 8,
+      .msg1_sent = true,
+      .waiting_msg2 = true,
+      .msg2_remaining = 4,
+  };
+  for (unsigned int attempt = 0; attempt < 3; ++attempt) {
+    if (aiot_cbra_on_access_trigger(&state) || !state.waiting_msg2 || state.failed)
+      return false;
+  }
+  if (aiot_cbra_on_access_trigger(&state) || state.waiting_msg2 || !state.failed || !state.msg1_sent)
+    return false;
+  if (aiot_cbra_on_access_trigger(&state))
+    return false;
+
+  uint8_t paging[AIOT_CBRA_PDU_BYTES] = {0};
+  size_t offset = 3 + 7 + 1 + 8 * 16 + 1 + 6 + 1 + 10 + 2 + 8 + 32;
+  aiot_cbra_put_bits(paging, &offset, 0, 4);
+  offset += 18;
+  aiot_cbra_put_bits(paging, &offset, 0, 1);
+  state.random_state = 1;
+  if (!aiot_cbra_on_paging(&state, paging, AIOT_CBRA_FROZEN_D2R_SCHEDULING_INFO)
+      || !state.context_valid || state.failed || !state.msg1_sent || !state.waiting_msg2)
+    return false;
+  return state.selected_access_occasion != 0;
 }
 
 static bool aiot_samples_to_chips(const c16_t *samples, size_t sample_count, uint32_t tbit, uint8_t *chips);
@@ -1384,10 +1616,11 @@ static int aiot_tag_self_test(void)
                                                                NULL,
                                                                NULL)
                                     == AIOT_RESULT_CRC_FAILURE;
-  const bool all_checks_pass = passed && noisy_pair_decodes_by_energy && cbra_accepts_valid_frame && cbra_all_m_decode
+    const bool all_checks_pass = passed && noisy_pair_decodes_by_energy && cbra_accepts_valid_frame && cbra_all_m_decode
                                && cbra_cap_infers_m
                                && cbra_crc_rejected && cbra_bad_field_rejected && cbra_short_frame_rejected
-                               && trigger_decodes && trigger_crc_rejected;
+                               && trigger_decodes && trigger_crc_rejected && aiot_cbra_control_self_test()
+                               && aiot_cbra_lifecycle_self_test();
   free(cbra_waveform);
   free(cbra_bad_crc_waveform);
   free(cbra_bad_field_waveform);
@@ -1720,8 +1953,45 @@ static int aiot_tag_rfsim_cli(int argc, char **argv)
   aiot_cbra_access_state_t cbra_access = {.random_state = 0x6d2b79f5U ^ tag_id};
   aiot_cbra_receiver_init(&cbra_receiver);
   while (aiot_read_rfsim_packet(socket, &header, &samples, &capacity)) {
-    if (pending_observation.valid && header.timestamp > pending_observation.tx_timestamp
-        && header.timestamp - pending_observation.tx_timestamp > AIOT_T2_OBSERVATION_TIMEOUT_SAMPLES) {
+    if (cbra_access.waiting_msg3
+        && aiot_cbra_observation_timed_out(header.timestamp, cbra_access.reflection_timestamp)) {
+      aiot_tag_send_cbra_observation(socket,
+                                    tag_id,
+                                    cbra_access.reader_handle,
+                                    cbra_access.message_kind,
+                                    cbra_access.m,
+                                    1,
+                                    0,
+                                    cbra_access.reflection_timestamp,
+                                    header.timestamp,
+                                    0,
+                                    AIOT_T2_OBS_UNDETECTED,
+                                    AIOT_T2_CBRA_GATE_D2R_ATTEMPTED,
+                                    1,
+                                    0,
+                                    0,
+                                    AIOT_RESULT_TIMEOUT,
+                                    0.0,
+                                    0.0,
+                                    cbra_access.random_id,
+                                    (uint8_t)cbra_access.selected_access_occasion,
+                                    AIOT_T2_CBRA_REPORT_MSG3_MISSING,
+                                    cbra_access.config_version,
+                                    cbra_access.config_round,
+                                    cbra_access.reflection_payload);
+      fprintf(stderr,
+              "AIOT_T2_CBRA_MSG3_TIMEOUT tag_id=%u random_id=%u ao=%u\n",
+              tag_id,
+              cbra_access.random_id,
+              cbra_access.selected_access_occasion);
+      cbra_access.waiting_msg3 = false;
+      cbra_access.failed = true;
+      cbra_access.terminal_status = AIOT_T2_CBRA_REPORT_MSG3_MISSING;
+      cbra_received = false;
+      r2d_received = false;
+      pending_observation.valid = false;
+    }
+    if (pending_observation.valid && aiot_cbra_observation_timed_out(header.timestamp, pending_observation.tx_timestamp)) {
       aiot_tag_send_cbra_observation(socket,
                                     tag_id,
                                     pending_observation.reader_handle,
@@ -1732,36 +2002,97 @@ static int aiot_tag_rfsim_cli(int argc, char **argv)
                                     pending_observation.tx_timestamp,
                                     header.timestamp,
                                     pending_observation.full_airtime_samples,
-                                    AIOT_T2_OBS_COMPLETE,
-                                    AIOT_T2_CBRA_GATE_ELIGIBLE,
+                                    AIOT_T2_OBS_UNDETECTED,
+                                    AIOT_T2_CBRA_GATE_REFUSED,
                                     0,
-                                    1,
-                                    1,
-                                    AIOT_RESULT_OK,
+                                    0,
+                                    0,
+                                    AIOT_RESULT_TIMEOUT,
                                     0.0,
                                     0.0,
                                     pending_observation.random_id,
                                     pending_observation.access_occasion,
-                                    pending_observation.msg2_status,
+                                    AIOT_T2_CBRA_REPORT_MSG2_TIMEOUT,
                                     pending_observation.config_version,
                                     pending_observation.config_round,
                                     pending_observation.decoded_pdu);
       pending_observation.valid = false;
+      cbra_access.waiting_msg2 = false;
+      cbra_access.msg2_received = false;
+      cbra_access.failed = true;
+      cbra_access.terminal_status = AIOT_T2_CBRA_REPORT_MSG2_TIMEOUT;
       r2d_received = false;
       cbra_received = false;
     }
-    if (header.option_flag & OPTION_AIOT_T2_CW) {
-      if (header.nbAnt != 1 || header.size < chips_len) {
-        fprintf(stderr, "AIOT_T2_CW_REJECT reason=short_block samples=%u required=%zu\n", header.size, chips_len);
+    if (header.option_flag & OPTION_AIOT_T2_CBRA_CONTROL) {
+      if (AIOT_T2_UNPACK_R2D_TAG(header.option_value) != tag_id
+          || header.nbAnt != 1 || header.size != sizeof(aiot_t2_cbra_control_t) / sizeof(c16_t)) {
+        fprintf(stderr, "AIOT_T2_CBRA_CONTROL_REJECT tag_id=%u reason=invalid_header\n", tag_id);
         continue;
       }
-      memcpy(cw, samples, chips_len * sizeof(*cw));
-      cw_samples = chips_len;
-      cw_timestamp = header.timestamp;
-      printf("AIOT_T2_CW_CAPTURE samples=%zu\n", cw_samples);
+      const bool accepted = aiot_cbra_on_control(&cbra_access, tag_id, &header, samples);
+      if (!accepted)
+        continue;
+      if (cbra_access.completed) {
+        ++completed_cycles;
+        printf("AIOT_T2_CBRA_COMPLETE tag_id=%u random_id=%u ao=%u cycle=%u/%u\n",
+               tag_id,
+               cbra_access.random_id,
+               cbra_access.selected_access_occasion,
+               completed_cycles,
+               cycles);
+        if (completed_cycles >= cycles) {
+          free(samples);
+          close(socket);
+          return 0;
+        }
+        cbra_access.completed = false;
+        cbra_access.failed = false;
+        cbra_access.msg1_sent = false;
+        cbra_access.msg2_received = false;
+        cbra_access.counter = cbra_access.m;
+        cbra_received = false;
+        r2d_received = false;
+        pending_observation.valid = false;
+        cw_samples = 0;
+        continue;
+      }
+      if (cbra_access.failed) {
+        fprintf(stderr,
+                "AIOT_T2_CBRA_FAILURE tag_id=%u random_id=%u ao=%u status=%u\n",
+                tag_id,
+                cbra_access.random_id,
+                cbra_access.selected_access_occasion,
+                cbra_access.terminal_status);
+        cbra_received = false;
+        r2d_received = false;
+        pending_observation.valid = false;
+        cw_samples = 0;
+        continue;
+      }
+      /* Msg2 acceptance may arrive after the R2D and CW blocks. Fall through
+       * so the already captured pair is reflected without another trigger. */
+    }
+    if (header.option_flag & OPTION_AIOT_T2_CW) {
+      if (header.nbAnt != 1 || header.size == 0 || header.size > AIOT_T2_MAX_RF_SAMPLES - cw_samples) {
+        fprintf(stderr,
+                "AIOT_T2_CW_REJECT reason=invalid_block samples=%u buffered=%zu\n",
+                header.size,
+                cw_samples);
+        continue;
+      }
+      if (cw_samples == 0)
+        cw_timestamp = header.timestamp;
+      memcpy(cw + cw_samples, samples, header.size * sizeof(*cw));
+      cw_samples += header.size;
+      printf("AIOT_T2_CW_CAPTURE chunk=%u buffered=%zu required=%zu\n", header.size, cw_samples, chips_len);
+      if (cw_samples < chips_len)
+        continue;
     }
 
-    if ((header.option_flag & OPTION_AIOT_T2_R2D) && AIOT_T2_UNPACK_R2D_TAG(header.option_value) == tag_id) {
+    const uint32_t r2d_target_tag = AIOT_T2_UNPACK_R2D_TAG(header.option_value);
+    if ((header.option_flag & OPTION_AIOT_T2_R2D)
+        && (r2d_target_tag == tag_id || r2d_target_tag == AIOT_T2_CBRA_BROADCAST_TAG_ID)) {
       uint8_t r2d_chips[AIOT_T2_MAX_RF_SAMPLES];
       const bool cbra = (header.option_flag & OPTION_AIOT_T2_R2D_CBRA) != 0;
       if (cbra) {
@@ -1790,9 +2121,10 @@ static int aiot_tag_rfsim_cli(int argc, char **argv)
                                                                      &signal_power,
                                                                      &noise_power)
                                          : AIOT_RESULT_PAYLOAD_LENGTH;
-        const bool serial_matches = message_kind == AIOT_T2_CBRA_KIND_ACCESS_TRIGGER || serial == tag_id;
+        const bool serial_matches = message_kind == AIOT_T2_CBRA_KIND_ACCESS_TRIGGER || serial == tag_id
+                                     || serial == AIOT_T2_CBRA_BROADCAST_SERIAL;
         const bool context_eligible = result == AIOT_RESULT_OK
-                                      && (message_kind == AIOT_T2_CBRA_KIND_PAGING ? serial == tag_id : cbra_context_valid);
+                                      && (message_kind == AIOT_T2_CBRA_KIND_PAGING ? serial_matches : cbra_context_valid);
         if (result != AIOT_RESULT_OK || !serial_matches || !context_eligible) {
           const char *gate_reason = result == AIOT_RESULT_CRC_FAILURE
                                         ? "crc_failure"
@@ -1853,6 +2185,11 @@ static int aiot_tag_rfsim_cli(int argc, char **argv)
           continue;
         const uint8_t msg2_status = cbra_access.failed ? 2 : (cbra_access.waiting_msg2 ? 1 : 0);
         if (selected_msg1) {
+          cbra_access.reader_handle = reader_handle;
+          cbra_access.message_kind = message_kind;
+          cbra_access.r2d_m = (uint8_t)m;
+          cbra_access.config_version = config_version;
+          cbra_access.config_round = config_round;
           pending_observation.valid = true;
           pending_observation.reader_handle = reader_handle;
           pending_observation.message_kind = message_kind;
@@ -1939,28 +2276,72 @@ static int aiot_tag_rfsim_cli(int argc, char **argv)
     if (cw_samples == 0 || !r2d_received)
       continue;
 
+    const uint8_t *reflection_chips = chips;
+    size_t reflection_chips_len = chips_len;
+    uint8_t reflection_payload[AIOT_T2_CBRA_REFLECTION_PAYLOAD_BYTES] = {0};
+    uint8_t reflection_encoded_chips[AIOT_MAX_FRAME_BITS * AIOT_D2R_CHIPS_PER_FRAME_BIT] = {0};
+    if (cbra_received) {
+      if (!cbra_access.msg2_received || cbra_access.waiting_msg3 || cbra_access.failed)
+        continue;
+      reflection_payload[0] = (uint8_t)tag_id;
+      reflection_payload[1] = (uint8_t)(cbra_access.random_id >> 8);
+      reflection_payload[2] = (uint8_t)cbra_access.random_id;
+      reflection_payload[3] = (uint8_t)cbra_access.selected_access_occasion;
+      if (aiot_encode_frame(reflection_payload,
+                            sizeof(reflection_payload),
+                            true,
+                            reflection_encoded_chips,
+                            sizeof(reflection_encoded_chips),
+                            &reflection_chips_len)
+          != AIOT_RESULT_OK) {
+        fprintf(stderr,
+                "AIOT_T2_CBRA_REFLECTION_REJECT tag_id=%u random_id=%u reason=encode\n",
+                tag_id,
+                cbra_access.random_id);
+        cbra_access.failed = true;
+        continue;
+      }
+      reflection_chips = reflection_encoded_chips;
+    }
+    if (cw_samples < reflection_chips_len) {
+      fprintf(stderr,
+              "AIOT_T2_CBRA_REFLECTION_REJECT tag_id=%u reason=short_cw samples=%zu required=%zu\n",
+              tag_id,
+              cw_samples,
+              reflection_chips_len);
+      continue;
+    }
+
     const size_t d2r_repeat = aiot_t2_d2r_sample_repeat(r2d_tbit);
-    const size_t d2r_samples = chips_len * d2r_repeat;
+    const size_t d2r_samples = reflection_chips_len * d2r_repeat;
     c16_t *reflected = calloc(d2r_samples, sizeof(*reflected));
     if (reflected == NULL) {
       free(samples);
       return 1;
     }
-    for (size_t i = 0; i < chips_len; ++i) {
+    for (size_t i = 0; i < reflection_chips_len; ++i) {
       for (size_t repeat = 0; repeat < d2r_repeat; ++repeat) {
-        reflected[i * d2r_repeat + repeat].r = cw[i].r * chips[i];
-        reflected[i * d2r_repeat + repeat].i = cw[i].i * chips[i];
+        reflected[i * d2r_repeat + repeat].r = cw[i].r * reflection_chips[i];
+        reflected[i * d2r_repeat + repeat].i = cw[i].i * reflection_chips[i];
       }
     }
     const samplesBlockHeader_t d2r = {
         .size = d2r_samples,
         .nbAnt = 1,
         .timestamp = cw_timestamp > r2d_timestamp ? cw_timestamp : r2d_timestamp,
-        .option_value = tag_id,
+        .option_value = AIOT_T2_PACK_CBRA_R2D_TARGET_WITH_CONFIG(tag_id,
+                                                                cbra_access.reader_handle,
+                                                                cbra_access.r2d_m,
+                                                                cbra_access.message_kind,
+                                                                cbra_access.config_version,
+                                                                cbra_access.config_round),
         .option_flag = OPTION_AIOT_T2_D2R | AIOT_T2_PACK_D2R_TBIT(r2d_tbit),
         .beam_map = 1,
     };
     if (cbra_received) {
+      memcpy(cbra_access.reflection_payload, reflection_payload, sizeof(reflection_payload));
+      cbra_access.reflection_timestamp = d2r.timestamp;
+      cbra_access.waiting_msg3 = true;
       aiot_tag_send_cbra_observation(socket,
                                     tag_id,
                                     pending_observation.reader_handle,
@@ -1975,17 +2356,23 @@ static int aiot_tag_rfsim_cli(int argc, char **argv)
                                     AIOT_T2_CBRA_GATE_D2R_ATTEMPTED,
                                     1,
                                     1,
-                                    1,
+                                    0,
                                     AIOT_RESULT_OK,
                                     0.0,
                                     0.0,
                                     pending_observation.random_id,
                                     pending_observation.access_occasion,
-                                    pending_observation.msg2_status,
+                                    AIOT_T2_CBRA_REPORT_MSG2_ACCEPTED,
                                     pending_observation.config_version,
                                     pending_observation.config_round,
-                                    pending_observation.decoded_pdu);
+                                    reflection_payload);
       pending_observation.valid = false;
+      fprintf(stderr,
+              "AIOT_T2_CBRA_REFLECTION_SENT tag_id=%u random_id=%u ao=%u samples=%zu waiting_msg3=1\n",
+              tag_id,
+              cbra_access.random_id,
+              cbra_access.selected_access_occasion,
+              d2r_samples);
     } else {
       c16_t tx_truth[AIOT_T2_MAX_PAYLOAD_BYTES] = {0};
       for (size_t i = 0; i < inventory_len; ++i)
@@ -2002,14 +2389,22 @@ static int aiot_tag_rfsim_cli(int argc, char **argv)
       printf("AIOT_T2_TX_TRUTH_SENT tag_id=%u payload_bytes=%zu\n", tag_id, inventory_len);
     }
     aiot_write_rfsim_packet(socket, &d2r, reflected);
-    ++completed_cycles;
-    printf("AIOT_T2_BACKSCATTER tag_id=%u tbit=%u cw_samples=%zu d2r_samples=%zu cycle=%u/%u\n",
-           tag_id,
-           r2d_tbit,
-           cw_samples,
-           d2r_samples,
-           completed_cycles,
-           cycles);
+    if (!cbra_received) {
+      ++completed_cycles;
+      printf("AIOT_T2_BACKSCATTER tag_id=%u tbit=%u cw_samples=%zu d2r_samples=%zu cycle=%u/%u\n",
+             tag_id,
+             r2d_tbit,
+             cw_samples,
+             d2r_samples,
+             completed_cycles,
+             cycles);
+    } else {
+      printf("AIOT_T2_CBRA_BACKSCATTER_PENDING tag_id=%u tbit=%u cw_samples=%zu d2r_samples=%zu\n",
+             tag_id,
+             r2d_tbit,
+             cw_samples,
+             d2r_samples);
+    }
     free(reflected);
     if (completed_cycles >= cycles) {
       free(samples);
@@ -2023,6 +2418,32 @@ static int aiot_tag_rfsim_cli(int argc, char **argv)
     r2d_timestamp = 0;
   }
 
+  if (cbra_access.waiting_msg3) {
+    aiot_tag_send_cbra_observation(socket,
+                                  tag_id,
+                                  cbra_access.reader_handle,
+                                  cbra_access.message_kind,
+                                  cbra_access.m,
+                                  1,
+                                  0,
+                                  cbra_access.reflection_timestamp,
+                                  header.timestamp,
+                                  0,
+                                  AIOT_T2_OBS_UNDETECTED,
+                                  AIOT_T2_CBRA_GATE_D2R_ATTEMPTED,
+                                  1,
+                                  0,
+                                  0,
+                                  AIOT_RESULT_TIMEOUT,
+                                  0.0,
+                                  0.0,
+                                  cbra_access.random_id,
+                                  (uint8_t)cbra_access.selected_access_occasion,
+                                  AIOT_T2_CBRA_REPORT_MSG3_MISSING,
+                                  cbra_access.config_version,
+                                  cbra_access.config_round,
+                                  cbra_access.reflection_payload);
+  }
   if (pending_observation.valid) {
     aiot_tag_send_cbra_observation(socket,
                                   tag_id,
@@ -2034,17 +2455,17 @@ static int aiot_tag_rfsim_cli(int argc, char **argv)
                                   pending_observation.tx_timestamp,
                                   header.timestamp,
                                   pending_observation.full_airtime_samples,
-                                  AIOT_T2_OBS_COMPLETE,
-                                  AIOT_T2_CBRA_GATE_ELIGIBLE,
+                                  AIOT_T2_OBS_UNDETECTED,
+                                  AIOT_T2_CBRA_GATE_REFUSED,
                                   0,
-                                  1,
-                                  1,
-                                  AIOT_RESULT_OK,
+                                  0,
+                                  0,
+                                  AIOT_RESULT_TIMEOUT,
                                   0.0,
                                   0.0,
                                   pending_observation.random_id,
                                   pending_observation.access_occasion,
-                                  pending_observation.msg2_status,
+                                  AIOT_T2_CBRA_REPORT_MSG2_TIMEOUT,
                                   pending_observation.config_version,
                                   pending_observation.config_round,
                                   pending_observation.decoded_pdu);

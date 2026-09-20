@@ -500,6 +500,8 @@ static void fullwrite(int fd, void *_buf, ssize_t count, rfsimulator_state_t *t)
 
 static bool aiot_t2_should_relay(aiot_t2_peer_role_t destination, uint32_t option_flag)
 {
+  if (option_flag & OPTION_AIOT_T2_CBRA_CONTROL)
+    return destination == AIOT_T2_PEER_TAG;
   if (option_flag & OPTION_AIOT_T2_R2D)
     return destination == AIOT_T2_PEER_TAG;
   if (option_flag & OPTION_AIOT_T2_CW)
@@ -627,10 +629,14 @@ static int aiot_t2_relay_packet(rfsimulator_state_t *t, const buffer_t *source, 
   const bool d2r = (header.option_flag & OPTION_AIOT_T2_D2R) != 0;
   const bool tx_truth = (header.option_flag & OPTION_AIOT_T2_TX_TRUTH) != 0;
   const bool r2d = (header.option_flag & OPTION_AIOT_T2_R2D) != 0;
+  const bool cbra_control = (header.option_flag & OPTION_AIOT_T2_CBRA_CONTROL) != 0;
   const bool cbra_r2d = r2d && (header.option_flag & OPTION_AIOT_T2_R2D_CBRA) != 0;
+  const bool cbra_d2r = d2r && AIOT_T2_UNPACK_CBRA_M(header.option_value) != 0;
   const bool cbra_observation = (header.option_flag & OPTION_AIOT_T2_CBRA_OBSERVATION) != 0;
   const uint32_t r2d_tag_id = r2d ? AIOT_T2_UNPACK_R2D_TAG(packet->header.option_value) : 0;
   const uint32_t r2d_reader_handle = r2d ? AIOT_T2_UNPACK_R2D_READER(packet->header.option_value) : 0;
+  const uint32_t control_tag_id = cbra_control ? AIOT_T2_UNPACK_R2D_TAG(packet->header.option_value) : 0;
+  const uint32_t control_reader_handle = cbra_control ? AIOT_T2_UNPACK_R2D_READER(packet->header.option_value) : 0;
   if ((d2r || r2d) && !t->aiot_t2_epoch_ack) {
     LOG_W(HW, "AIOT_T2_CHANNEL_REJECT reason=missing_epoch_readback tag_id=%u\n", r2d ? r2d_tag_id : source->aiot_t2_tag_id);
     return 0;
@@ -639,15 +645,19 @@ static int aiot_t2_relay_packet(rfsimulator_state_t *t, const buffer_t *source, 
     LOG_W(HW, "AIOT_T2_CHANNEL_REJECT reason=cbra_profile_not_enabled tag_id=%u\n", r2d_tag_id);
     return 0;
   }
-  if (d2r || r2d || tx_truth || cbra_observation) {
+  if (d2r || r2d || tx_truth || cbra_observation || cbra_control) {
     LOG_I(HW,
           "AIOT_T2_CHANNEL_PACKET_BIND epoch=%lu readback=ok kind=%s tag_id=%u reader_handle=%u "
           "timestamp=%lu data_seed=%lu noise_seed=%lu\n",
           t->aiot_t2_epoch,
-          r2d ? "R2D" : (d2r ? "D2R" : (tx_truth ? "TX_TRUTH" : "CBRA_OBSERVATION")),
-          r2d ? r2d_tag_id : (cbra_observation ? AIOT_T2_UNPACK_R2D_TAG(header.option_value) : source->aiot_t2_tag_id),
-          r2d ? r2d_reader_handle : (cbra_observation ? AIOT_T2_UNPACK_R2D_READER(header.option_value)
-                                                     : source->aiot_t2_reader_handle),
+          r2d ? "R2D" : (d2r ? "D2R" : (tx_truth ? "TX_TRUTH" : (cbra_observation ? "CBRA_OBSERVATION" : "CBRA_CONTROL"))),
+          r2d ? r2d_tag_id
+              : (cbra_control ? control_tag_id
+                              : (cbra_observation ? AIOT_T2_UNPACK_R2D_TAG(header.option_value) : source->aiot_t2_tag_id)),
+          r2d ? r2d_reader_handle
+              : (cbra_control ? control_reader_handle
+                              : (cbra_observation ? AIOT_T2_UNPACK_R2D_READER(header.option_value)
+                                                   : source->aiot_t2_reader_handle)),
           packet->header.timestamp,
           t->aiot_t2_seed,
           t->aiot_t2_noise_seed);
@@ -725,7 +735,7 @@ static int aiot_t2_relay_packet(rfsimulator_state_t *t, const buffer_t *source, 
      * single RFsim selector so handles 2 and 3 cannot be parsed as beams. */
     header.beam_map = 1;
   }
-  if (d2r || tx_truth) {
+  if ((d2r && !cbra_d2r) || tx_truth) {
     /* Pair TX truth and D2R using the Tag's original timestamp. The output
      * timestamp may be advanced for RFsim ordering, but must not redraw the
      * channel identity for the same reflected packet. */
@@ -757,12 +767,16 @@ static int aiot_t2_relay_packet(rfsimulator_state_t *t, const buffer_t *source, 
     if (destination == source || destination->conn_sock < 0
         || !aiot_t2_should_relay(destination->aiot_t2_role, header.option_flag))
       continue;
-    if (r2d && destination->aiot_t2_tag_id != AIOT_T2_UNPACK_R2D_TAG(header.option_value))
+    if ((r2d || cbra_control) && destination->aiot_t2_role == AIOT_T2_PEER_TAG
+        && (r2d ? AIOT_T2_UNPACK_R2D_TAG(header.option_value) : control_tag_id) != AIOT_T2_CBRA_BROADCAST_TAG_ID
+        && destination->aiot_t2_tag_id
+               != (r2d ? AIOT_T2_UNPACK_R2D_TAG(header.option_value) : control_tag_id))
       continue;
-    if ((header.option_flag & OPTION_AIOT_T2_R2D) && destination->aiot_t2_role == AIOT_T2_PEER_TAG)
-      destination->aiot_t2_reader_handle = source->aiot_t2_reader_handle;
-    if ((d2r || tx_truth) && destination->aiot_t2_role == AIOT_T2_PEER_DEFAULT
-        && source->aiot_t2_reader_handle != 0
+    if ((header.option_flag & (OPTION_AIOT_T2_R2D | OPTION_AIOT_T2_CBRA_CONTROL))
+        && destination->aiot_t2_role == AIOT_T2_PEER_TAG)
+      destination->aiot_t2_reader_handle = r2d ? source->aiot_t2_reader_handle : control_reader_handle;
+    if ((d2r || tx_truth || cbra_observation) && destination->aiot_t2_role == AIOT_T2_PEER_DEFAULT
+        && source->aiot_t2_reader_handle != 0 && destination->aiot_t2_reader_handle != 0
         && destination->aiot_t2_reader_handle != source->aiot_t2_reader_handle)
       continue;
     fullwrite(destination->conn_sock, &header, sizeof(header), t);
@@ -840,11 +854,52 @@ static bool aiot_t2_handle_packet(rfsimulator_state_t *t, buffer_t *source, cons
     return true;
   }
 
+  if (flag & OPTION_AIOT_T2_CBRA_CONTROL) {
+    aiot_t2_cbra_control_t control = {0};
+    const uint32_t tag_id = AIOT_T2_UNPACK_R2D_TAG(packet->header.option_value);
+    const uint32_t reader_handle = AIOT_T2_UNPACK_R2D_READER(packet->header.option_value);
+    const uint32_t kind = AIOT_T2_UNPACK_CBRA_KIND(packet->header.option_value);
+    if (source->aiot_t2_role != AIOT_T2_PEER_DEFAULT || tag_id == 0 || tag_id > AIOT_T2_MAX_TAG_ID
+        || reader_handle == 0 || reader_handle > AIOT_T2_MAX_READER_HANDLES
+        || (kind != AIOT_T2_CBRA_KIND_MSG2 && kind != AIOT_T2_CBRA_KIND_MSG3)
+        || AIOT_T2_UNPACK_CBRA_M(packet->header.option_value) == 0 || packet->header.nbAnt != 1
+        || packet->header.size != sizeof(control) / sizeof(c16_t) || source->payload_sz != sizeof(control)) {
+      LOG_W(HW,
+            "AIOT_T2_CBRA_CONTROL_REJECT reason=invalid_header tag_id=%u reader_handle=%u kind=%u samples=%u\n",
+            tag_id,
+            reader_handle,
+            kind,
+            packet->header.size);
+      return true;
+    }
+    memcpy(&control, packet->payload, sizeof(control));
+    if (!aiot_t2_cbra_control_valid(&control)) {
+      LOG_W(HW,
+            "AIOT_T2_CBRA_CONTROL_REJECT reason=invalid_crc tag_id=%u reader_handle=%u kind=%u\n",
+            tag_id,
+            reader_handle,
+            kind);
+      return true;
+    }
+    source->aiot_t2_reader_handle = reader_handle;
+    const int destinations = aiot_t2_relay_packet(t, source, packet);
+    LOG_I(HW,
+          "AIOT_T2_CBRA_CONTROL_RELAY tag_id=%u reader_handle=%u kind=%u status=%u destinations=%d\n",
+          tag_id,
+          reader_handle,
+          kind,
+          control.status,
+          destinations);
+    return true;
+  }
+
   if (flag & OPTION_AIOT_T2_R2D) {
     const uint32_t tag_id = AIOT_T2_UNPACK_R2D_TAG(packet->header.option_value);
     const uint32_t reader_handle = AIOT_T2_UNPACK_R2D_READER(packet->header.option_value);
     const uint32_t tbit = AIOT_T2_UNPACK_R2D_TBIT(packet->header.option_value);
-    if (source->aiot_t2_role != AIOT_T2_PEER_DEFAULT || tag_id == 0
+    const bool broadcast_cbra = (packet->header.option_flag & OPTION_AIOT_T2_R2D_CBRA) != 0
+                                && tag_id == AIOT_T2_CBRA_BROADCAST_TAG_ID;
+    if (source->aiot_t2_role != AIOT_T2_PEER_DEFAULT || (!broadcast_cbra && tag_id == 0)
         || tag_id > AIOT_T2_MAX_TAG_ID || reader_handle == 0
         || reader_handle > AIOT_T2_MAX_READER_HANDLES || tbit >= 8 || packet->header.nbAnt != 1 || packet->header.size == 0
         || packet->header.size > AIOT_T2_MAX_RF_SAMPLES) {
@@ -868,8 +923,9 @@ static bool aiot_t2_handle_packet(rfsimulator_state_t *t, buffer_t *source, cons
   }
 
   if (flag & OPTION_AIOT_T2_D2R) {
-    if (source->aiot_t2_role != AIOT_T2_PEER_TAG || source->aiot_t2_tag_id != packet->header.option_value) {
-      LOG_W(HW, "AIOT_T2_D2R_REJECT reason=unregistered_tag tag_id=%u\n", packet->header.option_value);
+    const uint32_t tag_id = AIOT_T2_UNPACK_R2D_TAG(packet->header.option_value);
+    if (source->aiot_t2_role != AIOT_T2_PEER_TAG || source->aiot_t2_tag_id != tag_id) {
+      LOG_W(HW, "AIOT_T2_D2R_REJECT reason=unregistered_tag tag_id=%u\n", tag_id);
       return true;
     }
     const int destinations = aiot_t2_relay_packet(t, source, packet);
@@ -2086,15 +2142,30 @@ static int rfsimulator_aiot_t2_ctlsend(openair0_device *device, void *msg, ssize
 
   const aiot_t2_rf_packet_t *packet = static_cast<const aiot_t2_rf_packet_t *>(msg);
   const samplesBlockHeader_t *header = &packet->header;
+  const bool cbra_control = (header->option_flag & OPTION_AIOT_T2_CBRA_CONTROL) != 0;
   const uint32_t tag_id = AIOT_T2_UNPACK_R2D_TAG(header->option_value);
   const uint32_t reader_handle = AIOT_T2_UNPACK_R2D_READER(header->option_value);
   const uint32_t tbit = AIOT_T2_UNPACK_R2D_TBIT(header->option_value);
-  if ((header->option_flag & OPTION_AIOT_T2_R2D) == 0 || tag_id == 0
-      || tag_id > AIOT_T2_MAX_TAG_ID || reader_handle == 0
-      || reader_handle > AIOT_T2_MAX_READER_HANDLES || tbit >= 8
-      || header->nbAnt != 1 || header->size == 0 || header->size > AIOT_T2_MAX_RF_SAMPLES)
+  aiot_t2_cbra_control_t control = {0};
+  if (cbra_control && header->size == sizeof(control) / sizeof(c16_t))
+    memcpy(&control, packet->samples, sizeof(control));
+  const uint32_t kind = AIOT_T2_UNPACK_CBRA_KIND(header->option_value);
+  const bool valid_control = cbra_control && tag_id != 0 && tag_id <= AIOT_T2_MAX_TAG_ID && reader_handle != 0
+                             && reader_handle <= AIOT_T2_MAX_READER_HANDLES
+                             && (kind == AIOT_T2_CBRA_KIND_MSG2 || kind == AIOT_T2_CBRA_KIND_MSG3)
+                             && AIOT_T2_UNPACK_CBRA_M(header->option_value) != 0 && header->nbAnt == 1
+                             && header->size == sizeof(control) / sizeof(c16_t)
+                             && aiot_t2_cbra_control_valid(&control);
+  const bool broadcast_cbra_r2d = (header->option_flag & OPTION_AIOT_T2_R2D_CBRA) != 0
+                                  && tag_id == AIOT_T2_CBRA_BROADCAST_TAG_ID;
+  if ((!cbra_control && ((header->option_flag & OPTION_AIOT_T2_R2D) == 0
+                         || (!broadcast_cbra_r2d && tag_id == 0)
+                         || tag_id > AIOT_T2_MAX_TAG_ID || reader_handle == 0
+                         || reader_handle > AIOT_T2_MAX_READER_HANDLES || tbit >= 8 || header->nbAnt != 1
+                         || header->size == 0 || header->size > AIOT_T2_MAX_RF_SAMPLES))
+      || (cbra_control && !valid_control))
     return -1;
-  if (!t->aiot_t2_epoch_ack)
+  if (!cbra_control && !t->aiot_t2_epoch_ack)
     return -1;
 
   int destinations = 0;

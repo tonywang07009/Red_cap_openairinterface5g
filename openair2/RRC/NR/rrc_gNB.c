@@ -910,6 +910,14 @@ static void rrc_gNB_send_aiot_cbra_config(gNB_RRC_INST *rrc, gNB_RRC_UE_t *ue, u
   config.status = NR_AIOT_CBRA_CONFIG_STATUS_NONE;
   config.version = round;
   config.round = round;
+  if (ue->rrc_ue_id == 0 || ue->rrc_ue_id > AIOT_T2_MAX_READER_HANDLES) {
+    LOG_E(NR_RRC,
+          "[AIOT CBRA] refusing UE %d: reader identity is outside experimental range 1..%u\n",
+          ue->rrc_ue_id,
+          AIOT_T2_MAX_READER_HANDLES);
+    return;
+  }
+  config.reader_handle = ue->rrc_ue_id;
   if (ue->aiot_cbra_last_version != 0 && rrc->configuration.aiot_cbra_update_tbit >= 0)
     config.tbit = (uint8_t)rrc->configuration.aiot_cbra_update_tbit;
   /* The generic RRC path has no shared A-IoT slot clock.  Use the

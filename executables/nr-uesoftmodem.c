@@ -193,8 +193,11 @@ static void get_options(configmodule_interface_t *cfg)
               "--aiot-t2-cbra requires --aiot-t2-reader\n");
   if (nrUE_params.aiot_t2_reader || nrUE_params.aiot_t2_observer) {
     struct in_addr report_addr;
-    AssertFatal(nrUE_params.aiot_t2_tag_id >= 1 && nrUE_params.aiot_t2_tag_id <= AIOT_T2_MAX_TAG_ID,
-                "--aiot-t2-tag-id must be in range 1..%u\n", AIOT_T2_MAX_TAG_ID);
+    const bool cbra_broadcast = nrUE_params.aiot_t2_cbra && nrUE_params.aiot_t2_tag_id == AIOT_T2_CBRA_BROADCAST_TAG_ID;
+    AssertFatal((nrUE_params.aiot_t2_tag_id >= 1 && nrUE_params.aiot_t2_tag_id <= AIOT_T2_MAX_TAG_ID)
+                    || (cbra_broadcast && nrUE_params.aiot_t2_reader),
+                "--aiot-t2-tag-id must be in range 1..%u, or 0 for CBRA broadcast Reader\n",
+                AIOT_T2_MAX_TAG_ID);
     AssertFatal(nrUE_params.aiot_t2_d2r_x >= 1 && nrUE_params.aiot_t2_d2r_x <= 2,
                 "--aiot-t2-d2r-x must be 1 or 2\n");
     AssertFatal(nrUE_params.aiot_t2_d2r_tbit < NR_UE_AIOT_D2R_TBIT_COUNT,
