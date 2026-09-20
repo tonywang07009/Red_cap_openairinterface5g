@@ -286,20 +286,37 @@ typedef enum {
 
 bool nr_ue_aiot_t2_prepare_r2d(uint32_t tag_id, openair0_timestamp timestamp, aiot_t2_rf_packet_t *packet);
 
-#define NR_UE_AIOT_CFA_PDU_BITS 216U
-#define NR_UE_AIOT_CFA_PDU_BYTES (NR_UE_AIOT_CFA_PDU_BITS / 8U)
-#define NR_UE_AIOT_CFA_PHY_BITS (NR_UE_AIOT_CFA_PDU_BITS + 16U)
-#define NR_UE_AIOT_CFA_PHY_BYTES (NR_UE_AIOT_CFA_PHY_BITS / 8U)
-#define NR_UE_AIOT_CFA_SECURITY_BYTES 16U
-#define NR_UE_AIOT_CFA_FROZEN_D2R_SCHEDULING_INFO 0x00300a0fU
+#define NR_UE_AIOT_CBRA_PAGING_PDU_BITS 224U
+#define NR_UE_AIOT_CBRA_PAGING_PDU_BYTES (NR_UE_AIOT_CBRA_PAGING_PDU_BITS / 8U)
+#define NR_UE_AIOT_CBRA_PAGING_PHY_BITS (NR_UE_AIOT_CBRA_PAGING_PDU_BITS + 16U)
+#define NR_UE_AIOT_CBRA_PAGING_PHY_BYTES (NR_UE_AIOT_CBRA_PAGING_PHY_BITS / 8U)
+#define NR_UE_AIOT_CBRA_TRIGGER_BITS 3U
+#define NR_UE_AIOT_CBRA_TRIGGER_BYTES 2U
+#define NR_UE_AIOT_CBRA_TRIGGER_PHY_BITS (NR_UE_AIOT_CBRA_TRIGGER_BITS + 6U)
+#define NR_UE_AIOT_CBRA_TRIGGER_PHY_BYTES 2U
+#define NR_UE_AIOT_CBRA_SECURITY_BYTES 16U
+#define NR_UE_AIOT_CBRA_FROZEN_D2R_SCHEDULING_INFO 0x00006014U
+#define NR_UE_AIOT_CBRA_SAMPLE_RATE_HZ 15360000U
+#define NR_UE_AIOT_CBRA_USEFUL_SAMPLES_PER_SYMBOL 1024U
+#define NR_UE_AIOT_CBRA_LONG_CP_SAMPLES 80U
+#define NR_UE_AIOT_CBRA_SHORT_CP_SAMPLES 72U
+
+typedef enum {
+  NR_UE_AIOT_CBRA_PAGING = 0,
+  NR_UE_AIOT_CBRA_ACCESS_TRIGGER = 1,
+} nr_ue_aiot_cbra_message_kind_t;
 
 typedef struct {
   uint32_t serial;
-  uint8_t security_parameter[NR_UE_AIOT_CFA_SECURITY_BYTES];
+  uint8_t security_parameter[NR_UE_AIOT_CBRA_SECURITY_BYTES];
+  uint8_t transaction_id;
+  uint8_t number_of_access_occasions;
+  uint8_t k;
   uint32_t d2r_scheduling_info;
-} nr_ue_aiot_cfa_pdu_fields_t;
+} nr_ue_aiot_cbra_paging_fields_t;
 
 typedef struct {
+  uint8_t x;
   uint8_t bit_duration;
   uint8_t frequency_resource_broadcast;
   uint8_t block_repetition;
@@ -307,10 +324,10 @@ typedef struct {
   uint8_t interval_bits;
   uint8_t sequence_length;
   uint8_t additional_midamble;
-  uint8_t d2r_tbs;
-} nr_ue_aiot_cfa_d2r_scheduling_t;
+} nr_ue_aiot_cbra_d2r_scheduling_t;
 
 typedef struct {
+  nr_ue_aiot_cbra_message_kind_t message_kind;
   uint8_t m;
   uint8_t prb_count;
   int32_t reference_snr_db_x10;
@@ -320,46 +337,74 @@ typedef struct {
   const int32_t *snr_grid_db_x10;
   size_t snr_grid_count;
   uint32_t d2r_scheduling_info;
-} nr_ue_aiot_cfa_campaign_config_t;
+} nr_ue_aiot_cbra_campaign_config_t;
 
 typedef struct {
+  nr_ue_aiot_cbra_message_kind_t message_kind;
   uint8_t m;
   uint8_t prb_count;
+  uint16_t mac_bits;
+  uint16_t phy_bits;
   uint16_t prdch_chips;
   uint16_t frame_symbols;
   uint16_t occupied_chip_positions;
-} nr_ue_aiot_cfa_frame_t;
+  uint16_t r_tas_sip_chips;
+  uint16_t r_tas_cap_chips;
+  uint16_t postamble_chips;
+  uint16_t data_and_overhead_chips;
+  uint16_t padding_chips;
+  uint16_t mapping_reserved_chips;
+  uint32_t emitted_chip_count;
+  uint32_t ofdm_sample_count;
+  uint64_t on_air_duration_ns;
+} nr_ue_aiot_cbra_frame_t;
 
-bool nr_ue_aiot_cfa_validate_serial(uint32_t serial,
-                                    const uint32_t *existing_serials,
-                                    size_t existing_count,
-                                    const char **reason);
-bool nr_ue_aiot_cfa_build_pdu(const nr_ue_aiot_cfa_pdu_fields_t *fields,
-                              uint8_t pdu[NR_UE_AIOT_CFA_PDU_BYTES],
-                              const char **reason);
-bool nr_ue_aiot_cfa_parse_pdu(const uint8_t pdu[NR_UE_AIOT_CFA_PDU_BYTES],
-                              nr_ue_aiot_cfa_pdu_fields_t *fields,
-                              const char **reason);
-bool nr_ue_aiot_cfa_append_crc(const uint8_t pdu[NR_UE_AIOT_CFA_PDU_BYTES],
-                               uint8_t phy_payload[NR_UE_AIOT_CFA_PHY_BYTES]);
-bool nr_ue_aiot_cfa_verify_crc(const uint8_t phy_payload[NR_UE_AIOT_CFA_PHY_BYTES]);
-bool nr_ue_aiot_cfa_pack_d2r_scheduling(const nr_ue_aiot_cfa_d2r_scheduling_t *scheduling,
-                                        uint32_t *packed,
+bool nr_ue_aiot_cbra_validate_serial(uint32_t serial,
+                                     const uint32_t *existing_serials,
+                                     size_t existing_count,
+                                     const char **reason);
+bool nr_ue_aiot_cbra_build_paging_pdu(const nr_ue_aiot_cbra_paging_fields_t *fields,
+                                      uint8_t pdu[NR_UE_AIOT_CBRA_PAGING_PDU_BYTES],
+                                      const char **reason);
+bool nr_ue_aiot_cbra_parse_paging_pdu(const uint8_t pdu[NR_UE_AIOT_CBRA_PAGING_PDU_BYTES],
+                                      nr_ue_aiot_cbra_paging_fields_t *fields,
+                                      const char **reason);
+bool nr_ue_aiot_cbra_append_paging_crc(const uint8_t pdu[NR_UE_AIOT_CBRA_PAGING_PDU_BYTES],
+                                       uint8_t phy_payload[NR_UE_AIOT_CBRA_PAGING_PHY_BYTES]);
+bool nr_ue_aiot_cbra_verify_paging_crc(const uint8_t phy_payload[NR_UE_AIOT_CBRA_PAGING_PHY_BYTES]);
+bool nr_ue_aiot_cbra_build_access_trigger(uint8_t trigger[NR_UE_AIOT_CBRA_TRIGGER_BYTES]);
+bool nr_ue_aiot_cbra_parse_access_trigger(const uint8_t trigger[NR_UE_AIOT_CBRA_TRIGGER_BYTES]);
+bool nr_ue_aiot_cbra_append_access_trigger_crc(const uint8_t trigger[NR_UE_AIOT_CBRA_TRIGGER_BYTES],
+                                               uint8_t phy_payload[NR_UE_AIOT_CBRA_TRIGGER_PHY_BYTES]);
+bool nr_ue_aiot_cbra_verify_access_trigger_crc(const uint8_t phy_payload[NR_UE_AIOT_CBRA_TRIGGER_PHY_BYTES]);
+bool nr_ue_aiot_cbra_pack_d2r_scheduling(const nr_ue_aiot_cbra_d2r_scheduling_t *scheduling,
+                                         uint32_t *packed,
+                                         const char **reason);
+bool nr_ue_aiot_cbra_unpack_d2r_scheduling(uint32_t packed,
+                                           nr_ue_aiot_cbra_d2r_scheduling_t *scheduling,
+                                           const char **reason);
+bool nr_ue_aiot_cbra_validate_campaign_config(const nr_ue_aiot_cbra_campaign_config_t *config,
+                                              const char **reason);
+bool nr_ue_aiot_cbra_derive_frame(nr_ue_aiot_cbra_message_kind_t message_kind,
+                                  uint8_t m,
+                                  uint8_t prb_count,
+                                  nr_ue_aiot_cbra_frame_t *frame,
+                                  const char **reason);
+bool nr_ue_aiot_cbra_prepare_paging_r2d(const nr_ue_aiot_cbra_paging_fields_t *fields,
+                                        uint32_t tag_id,
+                                        uint32_t reader_handle,
+                                        openair0_timestamp timestamp,
+                                        uint8_t m,
+                                        uint8_t prb_count,
+                                        aiot_t2_rf_packet_t *packet,
                                         const char **reason);
-bool nr_ue_aiot_cfa_validate_campaign_config(const nr_ue_aiot_cfa_campaign_config_t *config,
-                                             const char **reason);
-bool nr_ue_aiot_cfa_derive_frame(uint8_t m,
-                                 uint8_t prb_count,
-                                 nr_ue_aiot_cfa_frame_t *frame,
-                                 const char **reason);
-bool nr_ue_aiot_cfa_prepare_r2d(const nr_ue_aiot_cfa_pdu_fields_t *fields,
-                                uint32_t tag_id,
-                                uint32_t reader_handle,
-                                openair0_timestamp timestamp,
-                                uint8_t m,
-                                uint8_t prb_count,
-                                aiot_t2_rf_packet_t *packet,
-                                const char **reason);
+bool nr_ue_aiot_cbra_prepare_access_trigger_r2d(uint32_t tag_id,
+                                               uint32_t reader_handle,
+                                               openair0_timestamp timestamp,
+                                               uint8_t m,
+                                               uint8_t prb_count,
+                                               aiot_t2_rf_packet_t *packet,
+                                               const char **reason);
 
 /* Pure R2D resource admission; no waveform generation or radio side effects. */
 typedef enum {

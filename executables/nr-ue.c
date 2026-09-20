@@ -26,6 +26,7 @@
 #include "executables/nr-uesoftmodem.h"
 #include "PHY/INIT/nr_phy_init.h"
 #include "NR_MAC_UE/mac_proto.h"
+#include "openair2/COMMON/rrc_messages_types.h"
 #include "RRC/NR_UE/rrc_proto.h"
 #include "RRC/NR_UE/L2_interface_ue.h"
 #include "SCHED_NR_UE/defs.h"
@@ -989,9 +990,115 @@ typedef struct {
   uint64_t provenance;
 } aiot_t2_truth_cache_t;
 
+typedef struct {
+  bool valid;
+  uint8_t message_kind;
+  bool setup;
+  uint32_t m;
+  uint16_t mac_bits;
+  uint16_t phy_bits;
+  uint64_t tx_timestamp;
+  uint32_t full_airtime_samples;
+  uint64_t full_airtime_ns;
+  uint64_t sequence;
+  uint8_t tx_pdu[AIOT_T2_CBRA_MAX_PDU_BYTES];
+} aiot_t2_cbra_attempt_t;
+
+#define AIOT_T2_CBRA_ATTEMPT_QUEUE_SIZE 256U
+
+static aiot_t2_cbra_attempt_t *aiot_t2_find_cbra_attempt(aiot_t2_cbra_attempt_t *attempts,
+                                                         size_t attempt_count,
+                                                         uint8_t message_kind,
+                                                         uint8_t m)
+{
+  /* RFsim relays may advance the packet timestamp; correlate in wire order. */
+  aiot_t2_cbra_attempt_t *match = NULL;
+  for (size_t index = 0; index < attempt_count; ++index) {
+    if (!attempts[index].valid || attempts[index].message_kind != message_kind || attempts[index].m != m)
+      continue;
+    if (match == NULL || attempts[index].sequence < match->sequence)
+      match = &attempts[index];
+  }
+  return match;
+}
+
 static uint64_t aiot_t2_htonll(uint64_t value)
 {
   return ((uint64_t)htonl((uint32_t)value) << 32) | htonl((uint32_t)(value >> 32));
+}
+
+static bool aiot_t2_send_cbra_observation(PHY_VARS_NR_UE *UE,
+                                          int *report_socket,
+                                          const aiot_t2_rf_packet_t *packet,
+                                          const aiot_t2_cbra_attempt_t *attempt,
+                                          uint64_t completion_timestamp)
+{
+  if (packet == NULL || packet->header.size != sizeof(aiot_t2_cbra_observation_report_t) / sizeof(c16_t))
+    return false;
+  if (*report_socket < 0)
+    *report_socket = aiot_t2_report_socket(UE);
+  if (*report_socket < 0)
+    return false;
+
+  const nrUE_params_t *params = get_nrUE_params();
+  aiot_t2_cbra_observation_report_t report = {0};
+  memcpy(&report, packet->samples, sizeof(report));
+  const bool have_truth = attempt != NULL && attempt->valid;
+  if (have_truth) {
+    memcpy(report.tx_pdu, attempt->tx_pdu, sizeof(report.tx_pdu));
+    report.tx_timestamp = aiot_t2_htonll(attempt->tx_timestamp);
+    report.full_airtime_samples = htonl(attempt->full_airtime_samples);
+    report.full_airtime_ns = aiot_t2_htonll(attempt->full_airtime_ns);
+  }
+  if (report.completion_timestamp == 0)
+    report.completion_timestamp = aiot_t2_htonll(completion_timestamp);
+  if (report.snr_db_x10 == 0)
+    report.snr_db_x10 = htons((uint16_t)params->aiot_t2_cbra_snr_db_x10);
+
+  const bool crc_ok = report.crc_ok != 0;
+  const uint16_t expected_bits = have_truth ? attempt->mac_bits : ntohs(report.mac_bits);
+  const bool comparable = expected_bits == 224 || expected_bits == 3;
+  if (have_truth && comparable) {
+    uint16_t erroneous_bits = 0;
+    for (uint16_t bit = 0; bit < expected_bits; ++bit) {
+      const uint8_t mask = (uint8_t)(1U << (7U - (bit % 8U)));
+      erroneous_bits += ((report.tx_pdu[bit / 8U] ^ report.decoded_pdu[bit / 8U]) & mask) != 0;
+    }
+    report.compared_bits = htons(expected_bits);
+    report.erroneous_bits = htons(erroneous_bits);
+    report.payload_match = erroneous_bits == 0;
+  } else {
+    report.compared_bits = 0;
+    report.erroneous_bits = 0;
+    report.payload_match = 0;
+    if (!have_truth)
+      report.status = AIOT_T2_OBS_INVALID;
+  }
+  uint16_t flags = ntohs(report.flags) | AIOT_T2_OBS_FLAG_IDEAL_ACQUISITION;
+  if (have_truth && attempt->setup)
+    flags |= AIOT_T2_OBS_FLAG_SETUP;
+  if (crc_ok)
+    flags |= AIOT_T2_OBS_FLAG_CRC_VALID;
+  report.flags = htons(flags);
+  const ssize_t sent = send(*report_socket, &report, sizeof(report), MSG_DONTWAIT);
+  if (sent == (ssize_t)sizeof(report)) {
+    LOG_I(PHY,
+          "AIOT_T2_CBRA_OBSERVATION_SENT tag_id=%u kind=%u m=%u attempt=%u epoch=%lu crc_ok=%u payload_match=%u d2r_attempted=%u\n",
+          ntohl(report.tag_id),
+          report.message_kind,
+          report.m,
+          ntohl(report.attempt_index),
+          aiot_t2_htonll(report.channel_epoch),
+          report.crc_ok,
+          report.payload_match,
+          report.d2r_attempted);
+    return true;
+  }
+  const int send_errno = sent < 0 ? errno : EMSGSIZE;
+  close(*report_socket);
+  *report_socket = -1;
+  errno = send_errno;
+  return false;
 }
 
 static bool aiot_t2_send_observation(PHY_VARS_NR_UE *UE,
@@ -1056,6 +1163,10 @@ static void aiot_t2_role_process_slot(PHY_VARS_NR_UE *UE,
 {
   const nrUE_params_t *params = get_nrUE_params();
   static aiot_t2_truth_cache_t truth = {0};
+  static aiot_t2_cbra_attempt_t cbra_attempt = {0};
+  static aiot_t2_cbra_attempt_t cbra_attempt_queue[AIOT_T2_CBRA_ATTEMPT_QUEUE_SIZE] = {0};
+  static uint64_t cbra_attempt_sequence = 0;
+  static bool cbra_setup_complete = false;
   if (!params->aiot_t2_reader && !params->aiot_t2_observer)
     return;
 
@@ -1066,6 +1177,24 @@ static void aiot_t2_role_process_slot(PHY_VARS_NR_UE *UE,
    * already-admitted reflection. */
   const bool role_awake = window_active && phy_data->ue_connected;
   const uint32_t period_slot = absolute_slot % params->aiot_t2_window_period;
+  NR_UE_MAC_INST_t *mac = get_mac_inst(UE->Mod_id);
+  nr_aiot_cbra_state_t *cbra_state = mac != NULL ? mac->aiot_cbra_state : NULL;
+  if (params->aiot_t2_cbra && cbra_state != NULL && !cbra_state->active_valid && !cbra_state->pending_valid) {
+    nr_aiot_cbra_config_t fallback = {0};
+    nr_aiot_cbra_config_defaults(&fallback);
+    fallback.enabled = true;
+    fallback.activation_slot = 0;
+    fallback.expiry_slot = UINT64_MAX;
+    fallback.r2d_m = (uint8_t)params->aiot_t2_cbra_m;
+    fallback.x = (uint8_t)params->aiot_t2_d2r_x;
+    fallback.tbit = (uint8_t)params->aiot_t2_d2r_tbit;
+    fallback.sfs_bitmap = (uint8_t)params->aiot_t2_d2r_sfs_bitmap;
+    fallback.n_code = 1;
+    fallback.k = 0;
+    (void)nr_aiot_cbra_state_stage(cbra_state, &fallback, NULL);
+  }
+  if (cbra_state != NULL)
+    nr_aiot_cbra_state_activate(cbra_state, absolute_slot);
   if (truth.valid && timestamp > truth.timestamp
       && timestamp - truth.timestamp > AIOT_T2_OBSERVATION_TIMEOUT_SAMPLES) {
     aiot_t2_rf_packet_t timeout_packet = {0};
@@ -1112,7 +1241,83 @@ static void aiot_t2_role_process_slot(PHY_VARS_NR_UE *UE,
           .d2r_scheduling = &d2r_scheduling,
       };
       const char *reason = NULL;
-      const bool prepared = nr_ue_aiot_t2_prepare_r2d_with_resources(&request, &r2d, &reason);
+      bool prepared = false;
+      cbra_attempt.valid = false;
+      if (params->aiot_t2_cbra) {
+        const nr_aiot_cbra_config_t *config = cbra_state != NULL && cbra_state->active_valid
+                                                  ? &cbra_state->active
+                                                  : NULL;
+        const uint8_t cbra_m = config != NULL ? config->r2d_m : (uint8_t)params->aiot_t2_cbra_m;
+        const uint8_t cbra_n_code = config != NULL ? config->n_code : 1;
+        const uint8_t cbra_k = config != NULL ? config->k : 0;
+        const nr_ue_aiot_cbra_d2r_scheduling_t cbra_schedule = {
+            .x = config != NULL ? config->x : (uint8_t)params->aiot_t2_d2r_x,
+            .bit_duration = config != NULL ? config->tbit : (uint8_t)params->aiot_t2_d2r_tbit,
+            .frequency_resource_broadcast = config != NULL ? config->sfs_bitmap : (uint8_t)params->aiot_t2_d2r_sfs_bitmap,
+            .block_repetition = 0,
+            .channel_coding = 0,
+            .interval_bits = 0,
+            .sequence_length = 0,
+            .additional_midamble = 0,
+        };
+        uint32_t cbra_scheduling_info = 0;
+        prepared = nr_ue_aiot_cbra_pack_d2r_scheduling(&cbra_schedule, &cbra_scheduling_info, &reason);
+        const bool setup = params->aiot_t2_cbra_kind == NR_UE_AIOT_CBRA_ACCESS_TRIGGER && !cbra_setup_complete;
+        const nr_ue_aiot_cbra_message_kind_t message_kind = setup
+                                                               ? NR_UE_AIOT_CBRA_PAGING
+                                                               : (nr_ue_aiot_cbra_message_kind_t)params->aiot_t2_cbra_kind;
+        const nr_ue_aiot_cbra_paging_fields_t fields = {
+            .serial = params->aiot_t2_tag_id,
+            .security_parameter = {0},
+            .transaction_id = 0,
+            .number_of_access_occasions = cbra_n_code,
+            .k = cbra_k,
+            .d2r_scheduling_info = cbra_scheduling_info,
+        };
+        nr_ue_aiot_cbra_frame_t frame;
+        uint8_t trigger[NR_UE_AIOT_CBRA_TRIGGER_BYTES] = {0};
+        if (message_kind == NR_UE_AIOT_CBRA_PAGING) {
+          prepared = prepared && nr_ue_aiot_cbra_prepare_paging_r2d(&fields,
+                                                        params->aiot_t2_tag_id,
+                                                        params->aiot_t2_reader_handle,
+                                                        timestamp,
+                                                        cbra_m,
+                                                        (uint8_t)params->aiot_t2_r2d_prb_count,
+                                                        &r2d,
+                                                        &reason)
+                     && nr_ue_aiot_cbra_build_paging_pdu(&fields, cbra_attempt.tx_pdu, &reason);
+        } else {
+          prepared = prepared && nr_ue_aiot_cbra_prepare_access_trigger_r2d(params->aiot_t2_tag_id,
+                                                                params->aiot_t2_reader_handle,
+                                                                timestamp,
+                                                                cbra_m,
+                                                                (uint8_t)params->aiot_t2_r2d_prb_count,
+                                                                &r2d,
+                                                                &reason)
+                     && nr_ue_aiot_cbra_build_access_trigger(trigger);
+          if (prepared)
+            memcpy(cbra_attempt.tx_pdu, trigger, sizeof(trigger));
+        }
+        prepared = prepared
+                   && nr_ue_aiot_cbra_derive_frame(message_kind,
+                                                   cbra_m,
+                                                   (uint8_t)params->aiot_t2_r2d_prb_count,
+                                                   &frame,
+                                                   &reason);
+        if (prepared) {
+          cbra_attempt.valid = true;
+          cbra_attempt.message_kind = (uint8_t)message_kind;
+          cbra_attempt.setup = setup;
+          cbra_attempt.m = cbra_m;
+          cbra_attempt.mac_bits = frame.mac_bits;
+          cbra_attempt.phy_bits = frame.phy_bits;
+          cbra_attempt.tx_timestamp = timestamp;
+          cbra_attempt.full_airtime_samples = frame.ofdm_sample_count;
+          cbra_attempt.full_airtime_ns = frame.on_air_duration_ns;
+        }
+      } else {
+        prepared = nr_ue_aiot_t2_prepare_r2d_with_resources(&request, &r2d, &reason);
+      }
       if (!prepared) {
         LOG_I(PHY,
               "AIOT_T2_R2D_REJECT reason=%s tag_id=%u prbs=%u chips_per_symbol=%u d2r_x=%u d2r_tbit=%u d2r_sfs=0x%02x absolute_slot=%lu\n",
@@ -1125,13 +1330,34 @@ static void aiot_t2_role_process_slot(PHY_VARS_NR_UE *UE,
               d2r_scheduling.sfs_bitmap,
               absolute_slot);
       }
-      if (prepared) {
+      if (prepared && !params->aiot_t2_cbra) {
         r2d.header.option_value = AIOT_T2_PACK_R2D_TARGET(params->aiot_t2_tag_id,
                                                           params->aiot_t2_reader_handle,
                                                           (uint32_t)params->aiot_t2_d2r_tbit);
-        r2d.header.beam_map = 1;
       }
+      if (prepared)
+        r2d.header.beam_map = 1;
+      if (prepared && params->aiot_t2_cbra && cbra_attempt.setup)
+        r2d.header.option_value |= AIOT_T2_CBRA_SETUP_MASK;
       const int sent = prepared ? UE->rfdevice.trx_ctlsend_func(&UE->rfdevice, &r2d, sizeof(r2d)) : -1;
+      if (sent == (int)sizeof(r2d))
+        if (params->aiot_t2_cbra && cbra_attempt.setup)
+          cbra_setup_complete = true;
+      if (sent == (int)sizeof(r2d) && params->aiot_t2_cbra && cbra_attempt.valid) {
+        bool queued = false;
+        for (size_t index = 0; index < AIOT_T2_CBRA_ATTEMPT_QUEUE_SIZE; ++index) {
+          if (!cbra_attempt_queue[index].valid) {
+            cbra_attempt_queue[index] = cbra_attempt;
+            cbra_attempt_queue[index].sequence = cbra_attempt_sequence++;
+            queued = true;
+            break;
+          }
+        }
+        if (!queued) {
+          cbra_attempt.valid = false;
+          LOG_E(PHY, "AIOT_T2_CBRA_ATTEMPT_REJECT reason=queue_full tag_id=%u\n", params->aiot_t2_tag_id);
+        }
+      }
       if (sent == (int)sizeof(r2d))
         LOG_I(PHY,
               "AIOT_T2_R2D_SENT tag_id=%u samples=%u absolute_slot=%lu\n",
@@ -1179,6 +1405,46 @@ static void aiot_t2_role_process_slot(PHY_VARS_NR_UE *UE,
             truth.provenance);
       continue;
     }
+    if (d2r.header.option_flag & OPTION_AIOT_T2_CBRA_OBSERVATION) {
+      aiot_t2_cbra_observation_report_t observation = {0};
+      memcpy(&observation, d2r.samples, sizeof(observation));
+      const uint16_t random_id = ntohs(observation.random_id);
+      if (params->aiot_t2_cbra && cbra_state != NULL && random_id != 0 && observation.d2r_attempted != 0) {
+        if (observation.msg2_status == 2) {
+          LOG_I(PHY,
+                "AIOT_T2_CBRA_MSG2_TIMEOUT tag_id=%u random_id=%u\n",
+                ntohl(observation.tag_id),
+                random_id);
+        } else if (nr_aiot_cbra_state_on_msg1(cbra_state, random_id, observation.access_occasion)
+                   && nr_aiot_cbra_state_on_msg2(cbra_state, random_id)) {
+          LOG_I(PHY,
+                "AIOT_T2_CBRA_MSG1_RX tag_id=%u random_id=%u ao=%u\n",
+                ntohl(observation.tag_id),
+                random_id,
+                observation.access_occasion);
+          LOG_I(PHY,
+                "AIOT_T2_CBRA_MSG2_ACCEPT tag_id=%u random_id=%u ao=%u\n",
+                ntohl(observation.tag_id),
+                random_id,
+                observation.access_occasion);
+        } else {
+          LOG_W(PHY,
+                "AIOT_T2_CBRA_MSG2_REJECT tag_id=%u random_id=%u reason=not_waiting_or_mismatch\n",
+                ntohl(observation.tag_id),
+                random_id);
+        }
+      }
+      aiot_t2_cbra_attempt_t *attempt = aiot_t2_find_cbra_attempt(cbra_attempt_queue,
+                                                                   AIOT_T2_CBRA_ATTEMPT_QUEUE_SIZE,
+                                                                   observation.message_kind,
+                                                                   observation.m);
+      (void)aiot_t2_send_cbra_observation(UE, report_socket, &d2r, attempt, timestamp);
+      if (attempt != NULL && observation.d2r_attempted != 0)
+        attempt->valid = false;
+      continue;
+    }
+    if (params->aiot_t2_cbra)
+      continue;
     if ((d2r.header.option_flag & OPTION_AIOT_T2_D2R) == 0)
       continue;
     if (!role_awake) {

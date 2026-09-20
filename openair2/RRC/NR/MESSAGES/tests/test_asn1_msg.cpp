@@ -185,6 +185,7 @@ void free_RRCReconfiguration_params(nr_rrc_reconfig_param_t params)
   ASN_STRUCT_FREE(asn_DEF_NR_SecurityConfig, params.security_config);
   for (int i = 0; i < params.num_nas_msg; i++)
     FREE_AND_ZERO_BYTE_ARRAY(params.dedicated_NAS_msg_list[i]);
+  FREE_AND_ZERO_BYTE_ARRAY(params.late_non_critical_extension);
 }
 
 TEST(nr_asn1, rrc_reconfiguration)
@@ -245,6 +246,138 @@ TEST(nr_asn1, rrc_reconfiguration)
 
   free_byte_array(msg);
   free_RRCReconfiguration_params(params);
+}
+
+TEST(aiot_cbra, config_wire_and_crc)
+{
+  nr_aiot_cbra_config_t source = {};
+  nr_aiot_cbra_config_defaults(&source);
+  source.enabled = true;
+  source.activation_slot = 100;
+  source.expiry_slot = 200;
+  uint8_t wire[NR_AIOT_CBRA_CONFIG_WIRE_BYTES] = {};
+  ASSERT_EQ(nr_aiot_cbra_config_encode(&source, wire), NR_AIOT_CBRA_CONFIG_WIRE_BYTES);
+
+  nr_aiot_cbra_config_t decoded = {};
+  ASSERT_TRUE(nr_aiot_cbra_config_decode(wire, sizeof(wire), &decoded, NULL));
+  EXPECT_EQ(decoded.version, source.version);
+  EXPECT_EQ(decoded.sfs_bitmap, source.sfs_bitmap);
+  EXPECT_EQ(decoded.cw_frequency_hz, NR_AIOT_CBRA_CONFIG_CW_FREQUENCY_HZ);
+
+  wire[58] ^= 1;
+  decoded.version = 77;
+  EXPECT_FALSE(nr_aiot_cbra_config_decode(wire, sizeof(wire), &decoded, NULL));
+  EXPECT_EQ(decoded.version, 77U);
+}
+
+TEST(aiot_cbra, paging_trigger_msg1_msg2_state)
+{
+  nr_aiot_cbra_config_t config = {};
+  nr_aiot_cbra_config_defaults(&config);
+  config.enabled = true;
+  config.n_code = 5; /* n = 2^5 = 32; m = 8 gives the controlled i=17 case. */
+  config.activation_slot = 10;
+  config.expiry_slot = 20;
+  nr_aiot_cbra_state_t state = {};
+  nr_aiot_cbra_state_init(&state);
+  ASSERT_TRUE(nr_aiot_cbra_state_stage(&state, &config, NULL));
+  EXPECT_FALSE(nr_aiot_cbra_state_activate(&state, 9));
+  ASSERT_TRUE(nr_aiot_cbra_state_activate(&state, 10));
+  ASSERT_TRUE(nr_aiot_cbra_state_on_paging(&state, 17));
+  EXPECT_EQ(state.access_m, 8);
+  EXPECT_FALSE(state.msg1_sent);
+  ASSERT_TRUE(nr_aiot_cbra_state_on_access_trigger(&state));
+  ASSERT_TRUE(nr_aiot_cbra_state_on_access_trigger(&state));
+  EXPECT_EQ(state.selected_access_occasion, 2);
+  ASSERT_TRUE(state.msg1_sent);
+  EXPECT_FALSE(nr_aiot_cbra_state_on_msg2(&state, (uint16_t)(state.random_id ^ 1U)));
+  ASSERT_TRUE(nr_aiot_cbra_state_on_msg2(&state, state.random_id));
+  EXPECT_TRUE(state.succeeded);
+  EXPECT_TRUE(nr_aiot_cbra_exchange_fits(&config, config.on_duration_slots));
+  EXPECT_FALSE(nr_aiot_cbra_exchange_fits(&config, config.on_duration_slots + 1));
+}
+
+TEST(aiot_cbra, ao_boundaries_lifecycle_and_msg2_timeout)
+{
+  nr_aiot_cbra_config_t config = {};
+  nr_aiot_cbra_config_defaults(&config);
+  config.enabled = true;
+  config.n_code = 5; /* n = 2^5 = 32. */
+  config.activation_slot = 10;
+  config.expiry_slot = 20;
+
+  nr_aiot_cbra_state_t state = {};
+  nr_aiot_cbra_state_init(&state);
+  ASSERT_TRUE(nr_aiot_cbra_state_stage(&state, &config, NULL));
+  EXPECT_FALSE(nr_aiot_cbra_state_activate(&state, 9));
+  ASSERT_TRUE(nr_aiot_cbra_state_activate(&state, 10));
+
+  ASSERT_TRUE(nr_aiot_cbra_state_on_paging(&state, 0));
+  EXPECT_EQ(state.selected_access_occasion, 1);
+  ASSERT_TRUE(nr_aiot_cbra_state_on_paging(&state, 7));
+  EXPECT_EQ(state.selected_access_occasion, 8);
+  ASSERT_TRUE(nr_aiot_cbra_state_on_paging(&state, 8));
+  EXPECT_FALSE(state.msg1_sent);
+  ASSERT_TRUE(nr_aiot_cbra_state_on_access_trigger(&state));
+  EXPECT_EQ(state.selected_access_occasion, 1);
+  ASSERT_TRUE(state.msg1_sent);
+
+  ASSERT_TRUE(nr_aiot_cbra_state_on_paging(&state, 19));
+  ASSERT_TRUE(nr_aiot_cbra_state_on_access_trigger(&state));
+  ASSERT_TRUE(nr_aiot_cbra_state_on_access_trigger(&state));
+  EXPECT_EQ(state.selected_access_occasion, 4);
+  EXPECT_TRUE(state.msg1_sent);
+
+  const uint16_t old_counter = state.access_counter;
+  EXPECT_FALSE(nr_aiot_cbra_state_on_paging(&state, 32));
+  EXPECT_EQ(state.access_counter, old_counter);
+
+  nr_aiot_cbra_config_t short_config = config;
+  short_config.n_code = 1; /* n = 2 < m = 8. */
+  short_config.version = 2;
+  short_config.round = 2;
+  short_config.activation_slot = 20;
+  short_config.expiry_slot = 30;
+  ASSERT_TRUE(nr_aiot_cbra_state_stage(&state, &short_config, NULL));
+  ASSERT_TRUE(nr_aiot_cbra_state_activate(&state, 20));
+  ASSERT_TRUE(nr_aiot_cbra_state_on_paging(&state, 1));
+  EXPECT_EQ(state.selected_access_occasion, 2);
+  EXPECT_TRUE(state.msg1_sent);
+
+  nr_aiot_cbra_config_t version3 = short_config;
+  version3.version = 3;
+  version3.round = 3;
+  version3.activation_slot = 40;
+  version3.expiry_slot = 50;
+  nr_aiot_cbra_config_t version4 = version3;
+  version4.version = 4;
+  version4.round = 4;
+  ASSERT_TRUE(nr_aiot_cbra_state_stage(&state, &version3, NULL));
+  ASSERT_TRUE(nr_aiot_cbra_state_stage(&state, &version4, NULL));
+  EXPECT_EQ(state.pending.version, 4U);
+  EXPECT_TRUE(nr_aiot_cbra_state_activate(&state, 29));
+  EXPECT_EQ(state.active.version, 2U);
+  EXPECT_TRUE(nr_aiot_cbra_state_activate(&state, 40));
+  EXPECT_EQ(state.active.version, 4U);
+  EXPECT_FALSE(nr_aiot_cbra_state_activate(&state, 49 + 1));
+
+  nr_aiot_cbra_config_t timeout_config = version4;
+  timeout_config.version = 5;
+  timeout_config.round = 5;
+  timeout_config.k = 1;
+  timeout_config.activation_slot = 60;
+  timeout_config.expiry_slot = 70;
+  ASSERT_TRUE(nr_aiot_cbra_state_stage(&state, &timeout_config, NULL));
+  ASSERT_TRUE(nr_aiot_cbra_state_activate(&state, 60));
+  ASSERT_TRUE(nr_aiot_cbra_state_on_paging(&state, 0));
+  ASSERT_TRUE(state.msg1_sent);
+  for (int trigger = 0; trigger < 3; ++trigger)
+    EXPECT_FALSE(nr_aiot_cbra_state_on_access_trigger(&state));
+  EXPECT_TRUE(state.waiting_msg2);
+  EXPECT_FALSE(nr_aiot_cbra_state_on_msg2(&state, (uint16_t)(state.random_id ^ 1U)));
+  EXPECT_FALSE(nr_aiot_cbra_state_on_access_trigger(&state));
+  EXPECT_TRUE(state.failed);
+  EXPECT_FALSE(state.waiting_msg2);
 }
 
 int main(int argc, char **argv)

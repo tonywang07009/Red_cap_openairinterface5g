@@ -2230,6 +2230,7 @@ gNB_RRC_INST *RCconfig_NRRRC()
     // search if in active list
     
     gNB_RrcConfigurationReq nrrrc_config = {0};
+    nr_aiot_cbra_config_defaults(&nrrrc_config.aiot_cbra_config);
     for (k=0; k <num_gnbs ; k++) {
       if (strcmp(GNBSParams[GNB_ACTIVE_GNBS_IDX].strlistptr[k], *(GNBParamList.paramarray[i][GNB_GNB_NAME_IDX].strptr) )== 0) {
 
@@ -2255,6 +2256,10 @@ gNB_RRC_INST *RCconfig_NRRRC()
         LOG_I(GNB_APP, "SDAP layer is %s\n", nrrrc_config.enable_sdap ? "enabled" : "disabled");
         nrrrc_config.drbs = *GNBParamList.paramarray[i][GNB_DRBS].iptr;
         nrrrc_config.um_on_default_drb = *(GNBParamList.paramarray[i][GNB_UMONDEFAULTDRB_IDX].uptr);
+        nrrrc_config.aiot_cbra_config.enabled = *GNBParamList.paramarray[i][GNB_AIOT_CBRA_ENABLE_IDX].iptr != 0;
+        LOG_I(GNB_APP,
+              "A-IoT CBRA Paging/Access Trigger profile is %s\n",
+              nrrrc_config.aiot_cbra_config.enabled ? "enabled" : "disabled");
         LOG_I(GNB_APP, "Data Radio Bearer count %d\n", nrrrc_config.drbs);
 
       }//

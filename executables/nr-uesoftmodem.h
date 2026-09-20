@@ -40,6 +40,10 @@ extern uint16_t ue_id_g;
 #define  CONFIG_HLP_AIOT_T2_D2R_X          "D2R time-resource count X (1..2) for the experimental Reader gate\n"
 #define  CONFIG_HLP_AIOT_T2_D2R_TBIT       "D2R Tbit row index (0=2tau, 1=tau, ..., 7=tau/96)\n"
 #define  CONFIG_HLP_AIOT_T2_D2R_SFS        "D2R broadcast SFS bitmap; leftmost bit is factor 1\n"
+#define  CONFIG_HLP_AIOT_T2_CBRA           "Enable the opt-in CBRA R2D M/SNR profile\n"
+#define  CONFIG_HLP_AIOT_T2_CBRA_KIND      "CBRA message kind (0=Paging, 1=Access Trigger)\n"
+#define  CONFIG_HLP_AIOT_T2_CBRA_M         "CBRA PRDCH chip-density M (2, 6, 12, or 24)\n"
+#define  CONFIG_HLP_AIOT_T2_CBRA_SNR       "CBRA calibrated reference SNR in dB times 10\n"
 
 /***************************************************************************************************************************************/
 /* command line options definitions, CMDLINE_XXXX_DESC macros are used to initialize paramdef_t arrays which are then used as argument
@@ -106,6 +110,10 @@ extern uint16_t ue_id_g;
   {"aiot-t2-d2r-x",                 CONFIG_HLP_AIOT_T2_D2R_X, 0,                .uptr=&nrUE_params.aiot_t2_d2r_x,             .defuintval=1, TYPE_UINT32,   0}, \
   {"aiot-t2-d2r-tbit",              CONFIG_HLP_AIOT_T2_D2R_TBIT, 0,             .uptr=&nrUE_params.aiot_t2_d2r_tbit,          .defuintval=1, TYPE_UINT32,   0}, \
   {"aiot-t2-d2r-sfs",               CONFIG_HLP_AIOT_T2_D2R_SFS, 0,              .uptr=&nrUE_params.aiot_t2_d2r_sfs_bitmap,   .defuintval=0x80, TYPE_UINT32, 0}, \
+  {"aiot-t2-cbra",                  CONFIG_HLP_AIOT_T2_CBRA, PARAMFLAG_BOOL,    .iptr=&nrUE_params.aiot_t2_cbra,            .defintval=0, TYPE_INT, 0}, \
+  {"aiot-t2-cbra-kind",             CONFIG_HLP_AIOT_T2_CBRA_KIND, 0,            .uptr=&nrUE_params.aiot_t2_cbra_kind,       .defuintval=0, TYPE_UINT32, 0}, \
+  {"aiot-t2-cbra-m",                CONFIG_HLP_AIOT_T2_CBRA_M, 0,               .uptr=&nrUE_params.aiot_t2_cbra_m,          .defuintval=2, TYPE_UINT32, 0}, \
+  {"aiot-t2-cbra-snr-db-x10",       CONFIG_HLP_AIOT_T2_CBRA_SNR, 0,             .iptr=&nrUE_params.aiot_t2_cbra_snr_db_x10, .defintval=0, TYPE_INT32, 0}, \
   {"aiot-t2-window-period",        CONFIG_HLP_AIOT_T2_PERIOD, 0,                .uptr=&nrUE_params.aiot_t2_window_period,   .defuintval=0,     TYPE_UINT32,   0}, \
   {"aiot-t2-window-offset",        CONFIG_HLP_AIOT_T2_OFFSET, 0,                .uptr=&nrUE_params.aiot_t2_window_offset,   .defuintval=0,     TYPE_UINT32,   0}, \
   {"aiot-t2-window-duration",      CONFIG_HLP_AIOT_T2_DURATION, 0,              .uptr=&nrUE_params.aiot_t2_window_duration, .defuintval=1,     TYPE_UINT32,   0}, \
@@ -162,6 +170,10 @@ typedef struct {
   uint32_t aiot_t2_d2r_x;
   uint32_t aiot_t2_d2r_tbit;
   uint32_t aiot_t2_d2r_sfs_bitmap;
+  int aiot_t2_cbra;
+  uint32_t aiot_t2_cbra_kind;
+  uint32_t aiot_t2_cbra_m;
+  int32_t aiot_t2_cbra_snr_db_x10;
   uint32_t aiot_t2_window_period;
   uint32_t aiot_t2_window_offset;
   uint32_t aiot_t2_window_duration;

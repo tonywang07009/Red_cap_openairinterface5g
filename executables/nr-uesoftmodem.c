@@ -189,6 +189,8 @@ static void get_options(configmodule_interface_t *cfg)
               nrUE_params.extra_pdu_id);
   AssertFatal(!(nrUE_params.aiot_t2_reader && nrUE_params.aiot_t2_observer),
               "--aiot-t2-reader and --aiot-t2-observer are mutually exclusive\n");
+  AssertFatal(!nrUE_params.aiot_t2_cbra || nrUE_params.aiot_t2_reader,
+              "--aiot-t2-cbra requires --aiot-t2-reader\n");
   if (nrUE_params.aiot_t2_reader || nrUE_params.aiot_t2_observer) {
     struct in_addr report_addr;
     AssertFatal(nrUE_params.aiot_t2_tag_id >= 1 && nrUE_params.aiot_t2_tag_id <= AIOT_T2_MAX_TAG_ID,
@@ -199,6 +201,15 @@ static void get_options(configmodule_interface_t *cfg)
                 "--aiot-t2-d2r-tbit must be in range 0..7\n");
     AssertFatal(nrUE_params.aiot_t2_d2r_sfs_bitmap <= UINT8_MAX,
                 "--aiot-t2-d2r-sfs must fit in an 8-bit bitmap\n");
+    if (nrUE_params.aiot_t2_cbra) {
+      AssertFatal(nrUE_params.aiot_t2_r2d_prb_count == 3,
+                  "--aiot-t2-cbra requires exactly three R2D PRBs\n");
+      AssertFatal(nrUE_params.aiot_t2_cbra_kind <= NR_UE_AIOT_CBRA_ACCESS_TRIGGER,
+                  "--aiot-t2-cbra-kind must be 0 (Paging) or 1 (Access Trigger)\n");
+      AssertFatal(nrUE_params.aiot_t2_cbra_m == 2 || nrUE_params.aiot_t2_cbra_m == 6
+                      || nrUE_params.aiot_t2_cbra_m == 12 || nrUE_params.aiot_t2_cbra_m == 24,
+                  "--aiot-t2-cbra-m must be 2, 6, 12, or 24\n");
+    }
     AssertFatal(nrUE_params.aiot_t2_window_period > 0,
                 "--aiot-t2-window-period must be greater than zero\n");
     AssertFatal(nrUE_params.aiot_t2_window_duration > 0

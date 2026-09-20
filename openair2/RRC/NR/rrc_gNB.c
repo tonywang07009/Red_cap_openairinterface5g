@@ -741,6 +741,7 @@ void free_RRCReconfiguration_params(nr_rrc_reconfig_param_t params)
   free(params.drb_rel);
   for (int i = 0; i < params.num_nas_msg; i++)
     FREE_AND_ZERO_BYTE_ARRAY(params.dedicated_NAS_msg_list[i]);
+  FREE_AND_ZERO_BYTE_ARRAY(params.late_non_critical_extension);
 }
 
 NR_MeasConfig_t *nr_rrc_get_measconfig(const gNB_RRC_INST *rrc, uint64_t nr_cellid)
@@ -896,6 +897,51 @@ static void rrc_gNB_generate_dedicatedRRCReconfiguration(gNB_RRC_INST *rrc, gNB_
   const uint32_t msg_id = NR_DL_DCCH_MessageType__c1_PR_rrcReconfiguration;
   nr_rrc_transfer_protected_rrc_message(rrc, ue_p, DL_SCH_LCID_DCCH, msg_id, msg.buf, msg.len);
   free_RRCReconfiguration_params(params);
+  free_byte_array(msg);
+}
+
+static void rrc_gNB_send_aiot_cbra_config(gNB_RRC_INST *rrc, gNB_RRC_UE_t *ue, uint32_t round)
+{
+  if (!rrc->configuration.aiot_cbra_config.enabled || !ue->Srb[1].Active || ue->ongoing_reconfiguration
+      || ue->aiot_cbra_waiting_ack)
+    return;
+
+  nr_aiot_cbra_config_t config = rrc->configuration.aiot_cbra_config;
+  config.status = NR_AIOT_CBRA_CONFIG_STATUS_NONE;
+  config.version = round;
+  config.round = round;
+  /* The generic RRC path has no shared A-IoT slot clock.  Use the
+   * experimental immediate-valid window until the Uu boundary clock is
+   * defined; the pure lifecycle seam still exercises exact boundaries. */
+  config.activation_slot = 0;
+  config.expiry_slot = UINT64_MAX;
+  if (!nr_aiot_cbra_config_validate(&config, NULL)) {
+    LOG_E(NR_RRC, "[AIOT CBRA] refusing invalid gNB profile for UE %d\n", ue->rrc_ue_id);
+    return;
+  }
+
+  uint8_t wire[NR_AIOT_CBRA_CONFIG_WIRE_BYTES];
+  const size_t wire_len = nr_aiot_cbra_config_encode(&config, wire);
+  nr_rrc_reconfig_param_t params = {.transaction_id = rrc_gNB_get_next_transaction_identifier(rrc->module_id),
+                                    .late_non_critical_extension = {.buf = wire, .len = wire_len}};
+  byte_array_t msg = do_RRCReconfiguration(&params);
+  if (msg.len == 0) {
+    LOG_E(NR_RRC, "[AIOT CBRA] failed to encode config version %u for UE %d\n", round, ue->rrc_ue_id);
+    return;
+  }
+
+  ue->xids[params.transaction_id] = RRC_DEDICATED_RECONF;
+  ue->ongoing_reconfiguration = true;
+  ue->aiot_cbra_waiting_ack = true;
+  ue->aiot_cbra_last_version = config.version;
+  ue->aiot_cbra_last_ack_status = NR_AIOT_CBRA_CONFIG_STATUS_NONE;
+  LOG_UE_DL_EVENT(ue, "[AIOT CBRA] send Paging/Access Trigger config version %u\n", config.version);
+  nr_rrc_transfer_protected_rrc_message(rrc,
+                                        ue,
+                                        DL_SCH_LCID_DCCH,
+                                        NR_DL_DCCH_MessageType__c1_PR_rrcReconfiguration,
+                                        msg.buf,
+                                        msg.len);
   free_byte_array(msg);
 }
 
@@ -1974,6 +2020,20 @@ static void handle_rrcReconfigurationComplete(gNB_RRC_INST *rrc, gNB_RRC_UE_t *U
 {
   uint8_t xid = reconfig_complete->rrc_TransactionIdentifier;
   UE->ue_reconfiguration_counter++;
+  if (UE->aiot_cbra_waiting_ack
+      && reconfig_complete->criticalExtensions.present == NR_RRCReconfigurationComplete__criticalExtensions_PR_rrcReconfigurationComplete
+      && reconfig_complete->criticalExtensions.choice.rrcReconfigurationComplete->lateNonCriticalExtension != NULL) {
+    const OCTET_STRING_t *wire = reconfig_complete->criticalExtensions.choice.rrcReconfigurationComplete->lateNonCriticalExtension;
+    nr_aiot_cbra_config_t ack = {0};
+    const char *reason = NULL;
+    if (nr_aiot_cbra_config_decode(wire->buf, wire->size, &ack, &reason) && ack.version == UE->aiot_cbra_last_version) {
+      UE->aiot_cbra_last_ack_status = ack.status;
+      UE->aiot_cbra_waiting_ack = false;
+      LOG_UE_EVENT(UE, "[AIOT CBRA] RRC ACK version %u status %u\n", ack.version, ack.status);
+    } else {
+      LOG_UE_EVENT(UE, "[AIOT CBRA] RRC ACK rejected: %s\n", reason ? reason : "version mismatch");
+    }
+  }
   UE->ongoing_reconfiguration = false;
 
   switch (UE->xids[xid]) {
@@ -3128,9 +3188,15 @@ void *rrc_gnb_task(void *args_p) {
   int                                result;
 
   long stats_timer_id = 1;
+  long aiot_cbra_timer_id = 2;
+  bool aiot_cbra_timer_started = false;
   if (!IS_SOFTMODEM_NOSTATS) {
     /* timer to write stats to file */
     timer_setup(1, 0, TASK_RRC_GNB, 0, TIMER_PERIODIC, NULL, &stats_timer_id);
+  }
+  if (RC.nrrrc[0] != NULL && RC.nrrrc[0]->configuration.aiot_cbra_config.enabled) {
+    timer_setup(0, 500000, TASK_RRC_GNB, 0, TIMER_PERIODIC, NULL, &aiot_cbra_timer_id);
+    aiot_cbra_timer_started = true;
   }
 
   itti_mark_task_ready(TASK_RRC_GNB);
@@ -3150,6 +3216,8 @@ void *rrc_gnb_task(void *args_p) {
       case TERMINATE_MESSAGE:
         LOG_W(NR_RRC, " *** Exiting NR_RRC thread\n");
         timer_remove(stats_timer_id);
+        if (aiot_cbra_timer_started)
+          timer_remove(aiot_cbra_timer_id);
         itti_exit_task();
         break;
 
@@ -3161,6 +3229,14 @@ void *rrc_gnb_task(void *args_p) {
         if (TIMER_HAS_EXPIRED(msg_p).timer_id == stats_timer_id) {
           if (!write_rrc_stats(RC.nrrrc[0]))
             timer_remove(stats_timer_id);
+        } else if (aiot_cbra_timer_started && TIMER_HAS_EXPIRED(msg_p).timer_id == aiot_cbra_timer_id) {
+          gNB_RRC_INST *rrc = RC.nrrrc[instance];
+          if (rrc != NULL && rrc->configuration.aiot_cbra_config.enabled) {
+            const uint32_t round = ++rrc->aiot_cbra_round;
+            rrc_gNB_ue_context_t *ue_context = NULL;
+            RB_FOREACH(ue_context, rrc_nr_ue_tree_s, &rrc->rrc_ue_head)
+              rrc_gNB_send_aiot_cbra_config(rrc, &ue_context->ue_context, round);
+          }
         } else {
           itti_send_msg_to_task(TASK_RRC_GNB, 0, TIMER_HAS_EXPIRED(msg_p).arg); /* see rrc_gNB_process_NGAP_PDUSESSION_SETUP_REQ() */
         }

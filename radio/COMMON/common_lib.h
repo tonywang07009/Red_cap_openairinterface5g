@@ -32,6 +32,8 @@
 
 #ifndef COMMON_LIB_H
 #define COMMON_LIB_H
+#include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <sys/types.h>
@@ -693,11 +695,21 @@ typedef int(*oai_transport_initfunc_t)(openair0_device *device, openair0_config_
 #define OPTION_AIOT_T2_CW 0x20000000           // independent CW-node samples
 #define OPTION_AIOT_T2_D2R 0x40000000          // Tag-reflected D2R samples
 #define OPTION_AIOT_T2_TX_TRUTH 0x80000000     // RFsim-only transmitted payload evidence
-#define OPTION_AIOT_T2_R2D_CFA 0x01000000      // opt-in CFA 216-bit R2D profile
+#define OPTION_AIOT_T2_R2D_CBRA 0x01000000      // opt-in CBRA R2D control profile
+#define OPTION_AIOT_T2_CBRA_OBSERVATION 0x02000000 // RFsim-only CBRA observation control packet
 #define AIOT_T2_MAX_TAG_ID 100
 #define AIOT_T2_MAX_READER_HANDLES 3
 #define AIOT_T2_MAX_PAYLOAD_BYTES 16
 #define AIOT_T2_MAX_RF_SAMPLES 576              // 16-byte payload, CRC16, Manchester plus SFS
+#define AIOT_T2_CBRA_SIP_CHIPS 8U
+#define AIOT_T2_CBRA_CAP_CHIPS 4U
+#define AIOT_T2_CBRA_POSTAMBLE_CHIPS 4U
+#define AIOT_T2_CBRA_USEFUL_SAMPLES_PER_SYMBOL 1024U
+#define AIOT_T2_CBRA_LONG_CP_SAMPLES 80U
+#define AIOT_T2_CBRA_SHORT_CP_SAMPLES 72U
+#define AIOT_T2_CBRA_SAMPLE_RATE_HZ 15360000U
+#define AIOT_T2_CBRA_MAX_OFDM_SAMPLES 272096U
+#define AIOT_T2_CBRA_MAX_PDU_BYTES 30U
 #define AIOT_T2_MAX_QUEUED_REPORTS 100
 /* RFsim-only guard after TX truth; it is a measurement timeout, not a TS timer. */
 #define AIOT_T2_OBSERVATION_TIMEOUT_SAMPLES (AIOT_T2_MAX_RF_SAMPLES * 2048U)
@@ -718,15 +730,26 @@ typedef int(*oai_transport_initfunc_t)(openair0_device *device, openair0_config_
   (((uint32_t)(option_value) >> AIOT_T2_READER_OPTION_SHIFT) & AIOT_T2_READER_OPTION_MASK)
 #define AIOT_T2_UNPACK_R2D_TBIT(option_value) \
   (((uint32_t)(option_value) >> AIOT_T2_R2D_TBIT_SHIFT) & AIOT_T2_R2D_TBIT_MASK)
-#define AIOT_T2_CFA_M_SHIFT 13U
-#define AIOT_T2_CFA_M_BITS 5U
-#define AIOT_T2_CFA_M_MASK ((1U << AIOT_T2_CFA_M_BITS) - 1U)
-#define AIOT_T2_PACK_CFA_R2D_TARGET(tag_id, reader_handle, m) \
+#define AIOT_T2_CBRA_M_SHIFT 13U
+#define AIOT_T2_CBRA_M_BITS 5U
+#define AIOT_T2_CBRA_M_MASK ((1U << AIOT_T2_CBRA_M_BITS) - 1U)
+#define AIOT_T2_CBRA_KIND_SHIFT 18U
+#define AIOT_T2_CBRA_KIND_BITS 2U
+#define AIOT_T2_CBRA_KIND_MASK ((1U << AIOT_T2_CBRA_KIND_BITS) - 1U)
+/* Experimental CBRA setup metadata occupies one unused option-value bit. */
+#define AIOT_T2_CBRA_SETUP_SHIFT 10U
+#define AIOT_T2_CBRA_SETUP_MASK (1U << AIOT_T2_CBRA_SETUP_SHIFT)
+#define AIOT_T2_PACK_CBRA_R2D_TARGET(tag_id, reader_handle, m, kind) \
   ((((uint32_t)(reader_handle) & AIOT_T2_READER_OPTION_MASK) << AIOT_T2_READER_OPTION_SHIFT) \
-   | (((uint32_t)(m) & AIOT_T2_CFA_M_MASK) << AIOT_T2_CFA_M_SHIFT) \
+   | (((uint32_t)(m) & AIOT_T2_CBRA_M_MASK) << AIOT_T2_CBRA_M_SHIFT) \
+   | (((uint32_t)(kind) & AIOT_T2_CBRA_KIND_MASK) << AIOT_T2_CBRA_KIND_SHIFT) \
    | ((uint32_t)(tag_id) & AIOT_T2_TAG_OPTION_MASK))
-#define AIOT_T2_UNPACK_CFA_M(option_value) \
-  (((uint32_t)(option_value) >> AIOT_T2_CFA_M_SHIFT) & AIOT_T2_CFA_M_MASK)
+#define AIOT_T2_UNPACK_CBRA_M(option_value) \
+  (((uint32_t)(option_value) >> AIOT_T2_CBRA_M_SHIFT) & AIOT_T2_CBRA_M_MASK)
+#define AIOT_T2_UNPACK_CBRA_KIND(option_value) \
+  (((uint32_t)(option_value) >> AIOT_T2_CBRA_KIND_SHIFT) & AIOT_T2_CBRA_KIND_MASK)
+#define AIOT_T2_UNPACK_CBRA_SETUP(option_value) \
+  (((uint32_t)(option_value) & AIOT_T2_CBRA_SETUP_MASK) != 0U)
 /* Experimental metadata bits in option_flag; the low flag bits retain packet type. */
 #define AIOT_T2_D2R_TBIT_SHIFT 16U
 #define AIOT_T2_D2R_TBIT_MASK (AIOT_T2_R2D_TBIT_MASK << AIOT_T2_D2R_TBIT_SHIFT)
@@ -745,11 +768,15 @@ typedef int(*oai_transport_initfunc_t)(openair0_device *device, openair0_config_
 #define AIOT_T2_REPORT_FLAG_CRC_VALID 0x0001
 #define AIOT_T2_OBSERVATION_MAGIC 0x41494f42U // "AIOB"
 #define AIOT_T2_OBSERVATION_VERSION 1
-#define AIOT_T2_CFA_OBSERVATION_VERSION 2
-#define AIOT_T2_CFA_PDU_PROFILE_VERSION 1
-#define AIOT_T2_CFA_GATE_REFUSED 0
-#define AIOT_T2_CFA_GATE_ELIGIBLE 1
-#define AIOT_T2_CFA_GATE_D2R_ATTEMPTED 2
+#define AIOT_T2_CBRA_OBSERVATION_VERSION 4
+#define AIOT_T2_CBRA_PDU_PROFILE_VERSION 2
+#define AIOT_T2_CBRA_POWER_Q_SHIFT 16
+#define AIOT_T2_CBRA_POWER_Q_SCALE (1ULL << AIOT_T2_CBRA_POWER_Q_SHIFT)
+#define AIOT_T2_CBRA_GATE_REFUSED 0
+#define AIOT_T2_CBRA_GATE_ELIGIBLE 1
+#define AIOT_T2_CBRA_GATE_D2R_ATTEMPTED 2
+#define AIOT_T2_CBRA_KIND_PAGING 0
+#define AIOT_T2_CBRA_KIND_ACCESS_TRIGGER 1
 #define AIOT_T2_OBS_COMPLETE 1
 #define AIOT_T2_OBS_CRC_FAILURE 2
 #define AIOT_T2_OBS_UNDETECTED 3
@@ -757,6 +784,7 @@ typedef int(*oai_transport_initfunc_t)(openair0_device *device, openair0_config_
 #define AIOT_T2_OBS_INVALID 5
 #define AIOT_T2_OBS_FLAG_CRC_VALID 0x0001
 #define AIOT_T2_OBS_FLAG_IDEAL_ACQUISITION 0x0002
+#define AIOT_T2_OBS_FLAG_SETUP 0x0004
 
 
 typedef struct {
@@ -777,6 +805,70 @@ typedef struct {
   samplesBlockHeader_t header;
   c16_t samples[AIOT_T2_MAX_RF_SAMPLES];
 } aiot_t2_rf_packet_t;
+
+/* The UE sends compact logical chips in the fixed control packet. RFsim
+ * expands the same mapping into the full CP+useful-sample waveform before
+ * channel application; the Tag receiver consumes that waveform. */
+static inline bool aiot_t2_cbra_frame_dimensions(uint32_t phy_bits,
+                                                 uint32_t m,
+                                                 size_t *frame_chips,
+                                                 size_t *frame_symbols,
+                                                 size_t *ofdm_samples)
+{
+  if (frame_chips == NULL || frame_symbols == NULL || ofdm_samples == NULL
+      || (phy_bits == 0U || phy_bits > 240U)
+      || (m != 2U && m != 6U && m != 12U && m != 24U))
+    return false;
+  const size_t usable_chips_per_symbol = m == 24U ? 22U : m;
+  const size_t data_and_overhead_chips = AIOT_T2_CBRA_CAP_CHIPS
+                                         + phy_bits * 2U
+                                         + AIOT_T2_CBRA_POSTAMBLE_CHIPS;
+  const size_t symbols_after_sip =
+      (data_and_overhead_chips + usable_chips_per_symbol - 1U) / usable_chips_per_symbol;
+  *frame_chips = AIOT_T2_CBRA_SIP_CHIPS + symbols_after_sip * m;
+  *frame_symbols = 2U + symbols_after_sip;
+  const size_t long_cp_count = (*frame_symbols + 6U) / 7U;
+  const size_t short_cp_count = *frame_symbols - long_cp_count;
+  *ofdm_samples = *frame_symbols * AIOT_T2_CBRA_USEFUL_SAMPLES_PER_SYMBOL
+                  + long_cp_count * AIOT_T2_CBRA_LONG_CP_SAMPLES
+                  + short_cp_count * AIOT_T2_CBRA_SHORT_CP_SAMPLES;
+  return *frame_chips <= AIOT_T2_MAX_RF_SAMPLES && *ofdm_samples <= AIOT_T2_CBRA_MAX_OFDM_SAMPLES;
+}
+
+static inline bool aiot_t2_cbra_expand_compact_frame(const c16_t *compact,
+                                                      size_t compact_count,
+                                                      uint32_t phy_bits,
+                                                      uint32_t m,
+                                                      c16_t *waveform,
+                                                      size_t waveform_capacity,
+                                                      size_t *waveform_count)
+{
+  size_t frame_chips = 0;
+  size_t frame_symbols = 0;
+  size_t ofdm_samples = 0;
+  if (compact == NULL || waveform == NULL || waveform_count == NULL
+      || !aiot_t2_cbra_frame_dimensions(phy_bits, m, &frame_chips, &frame_symbols, &ofdm_samples)
+      || compact_count != frame_chips || waveform_capacity < ofdm_samples)
+    return false;
+
+  size_t output_index = 0;
+  for (size_t symbol = 0; symbol < frame_symbols; ++symbol) {
+    const size_t cp_samples = symbol % 7U == 0 ? AIOT_T2_CBRA_LONG_CP_SAMPLES : AIOT_T2_CBRA_SHORT_CP_SAMPLES;
+    const size_t useful_start = output_index + cp_samples;
+    for (size_t useful_index = 0; useful_index < AIOT_T2_CBRA_USEFUL_SAMPLES_PER_SYMBOL; ++useful_index) {
+      const size_t position = symbol < 2U ? useful_index / 256U
+                                          : useful_index * m / AIOT_T2_CBRA_USEFUL_SAMPLES_PER_SYMBOL;
+      const size_t chip_index = symbol < 2U ? symbol * 4U + position
+                                            : AIOT_T2_CBRA_SIP_CHIPS + (symbol - 2U) * m + position;
+      waveform[useful_start + useful_index] = compact[chip_index];
+    }
+    for (size_t cp_index = 0; cp_index < cp_samples; ++cp_index)
+      waveform[output_index + cp_index] = waveform[useful_start + AIOT_T2_CBRA_USEFUL_SAMPLES_PER_SYMBOL - cp_samples + cp_index];
+    output_index = useful_start + AIOT_T2_CBRA_USEFUL_SAMPLES_PER_SYMBOL;
+  }
+  *waveform_count = output_index;
+  return output_index == ofdm_samples;
+}
 
 /* Experimental UE user-plane report. Multi-byte fields are network byte order. */
 typedef struct __attribute__((packed)) {
@@ -810,8 +902,8 @@ typedef struct __attribute__((packed)) {
   uint64_t channel_provenance;
 } aiot_t2_observation_report_t;
 
-/* CFA M/SNR evidence. Version 2 keeps the legacy 80-byte report intact and
- * carries the 27-byte MAC PDU, epoch/readback identity, and gate outcome. */
+/* CBRA Paging/Access Trigger M/SNR evidence. The valid bit lengths and
+ * message kind are explicit so Trigger storage padding is never measured. */
 typedef struct __attribute__((packed)) {
   uint32_t magic;
   uint8_t version;
@@ -819,23 +911,45 @@ typedef struct __attribute__((packed)) {
   uint16_t flags;
   uint32_t reader_handle;
   uint32_t tag_id;
-  uint64_t tx_timestamp;
-  uint64_t completion_timestamp;
-  uint64_t channel_epoch;
-  uint64_t channel_provenance;
-  int16_t snr_db_x10;
+  uint32_t attempt_index;
+  uint64_t packet_id;
+  uint8_t message_kind;
   uint8_t m;
   uint8_t prb_count;
   uint8_t pdu_profile_version;
   uint8_t gate_status;
+  uint8_t context_eligible;
+  uint16_t mac_bits;
+  uint16_t phy_bits;
+  int16_t snr_db_x10;
+  uint16_t reserved_header;
+  uint64_t tx_timestamp;
+  uint64_t completion_timestamp;
+  uint64_t channel_epoch;
+  uint64_t channel_provenance;
+  uint64_t data_seed;
+  uint64_t noise_seed;
+  uint8_t epoch_readback;
+  uint8_t d2r_attempted;
+  uint8_t crc_ok;
+  uint8_t payload_match;
+  uint8_t decode_result;
+  uint8_t reserved_status[1];
   uint16_t compared_bits;
   uint16_t erroneous_bits;
   uint32_t full_airtime_samples;
-  uint8_t d2r_attempted;
-  uint8_t tx_pdu[27];
-  uint8_t decoded_pdu[27];
-  uint8_t reserved[11];
-} aiot_t2_cfa_observation_report_t;
+  uint64_t full_airtime_ns;
+  uint8_t tx_pdu[AIOT_T2_CBRA_MAX_PDU_BYTES];
+  uint8_t decoded_pdu[AIOT_T2_CBRA_MAX_PDU_BYTES];
+  /* Mean PRDCH Manchester-pair power after preselection and before square-law,
+   * encoded as unsigned Q16.16. The remaining bytes stay reserved. */
+  uint64_t signal_power_q16;
+  uint64_t noise_power_q16;
+  uint16_t random_id;
+  uint8_t access_occasion;
+  uint8_t msg2_status;
+  uint8_t reserved[8];
+} aiot_t2_cbra_observation_report_t;
 
 #ifdef __cplusplus
 static_assert(sizeof(aiot_t2_inventory_report_t) == 40, "Unexpected A-IoT report wire size");
@@ -850,9 +964,9 @@ _Static_assert(sizeof(aiot_t2_observation_report_t) == 80, "Unexpected A-IoT obs
 #endif
 
 #ifdef __cplusplus
-static_assert(sizeof(aiot_t2_cfa_observation_report_t) == 128, "Unexpected CFA observation wire size");
+static_assert(sizeof(aiot_t2_cbra_observation_report_t) == 200, "Unexpected CBRA observation wire size");
 #else
-_Static_assert(sizeof(aiot_t2_cfa_observation_report_t) == 128, "Unexpected CFA observation wire size");
+_Static_assert(sizeof(aiot_t2_cbra_observation_report_t) == 200, "Unexpected CBRA observation wire size");
 #endif
 
 #ifdef __cplusplus

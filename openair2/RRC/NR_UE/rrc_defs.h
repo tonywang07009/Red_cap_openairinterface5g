@@ -65,6 +65,8 @@
 #include "common/utils/nr/nr_common.h"
 #include "notified_fifo.h"
 
+struct nr_aiot_cbra_config_s;
+
 #define NB_CNX_UE 2//MAX_MANAGED_RG_PER_MOBILE
 #define MAX_MEAS_OBJ 64
 #define MAX_MEAS_CONFIG 64
@@ -277,6 +279,9 @@ typedef struct NR_UE_RRC_INST_s {
   NR_NTN_Config_r17_t *target_ntncfg;
   bool process_target_ntncfg;
   notifiedFIFO_t *mac_input_nf;
+  bool aiot_cbra_ack_pending;
+  uint8_t aiot_cbra_ack_status;
+  struct nr_aiot_cbra_config_s *aiot_cbra_ack_config;
 } NR_UE_RRC_INST_t;
 
 #endif

@@ -28,6 +28,10 @@
 
 #ifndef RRC_MESSAGES_TYPES_H_
 #define RRC_MESSAGES_TYPES_H_
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <string.h>
 #include "common/utils/mem/oai_memory.h"
 #include "openair1/PHY/defs_common.h"
 #include "as_message.h"
@@ -50,6 +54,399 @@
 #include "NR_BCCH-BCH-Message.h"
 #include "NR_ReestablishmentCause.h"
 #include "NR_UE-NR-Capability.h"
+
+/* Experimental A-IoT CBRA RRC/MAC contract. Keep this in the existing
+ * cross-layer message header until the experiment has a stable ASN.1 owner. */
+#define NR_AIOT_CBRA_CONFIG_MAGIC 0x43425241U
+#define NR_AIOT_CBRA_CONFIG_WIRE_VERSION 1U
+#define NR_AIOT_CBRA_CONFIG_WIRE_BYTES 60U
+#define NR_AIOT_CBRA_CONFIG_STATUS_NONE 0U
+#define NR_AIOT_CBRA_CONFIG_STATUS_ACCEPTED 1U
+#define NR_AIOT_CBRA_CONFIG_STATUS_REJECTED 2U
+#define NR_AIOT_CBRA_CONFIG_FLAG_ENABLED 0x01U
+#define NR_AIOT_CBRA_CONFIG_FLAG_ACK 0x02U
+#define NR_AIOT_CBRA_CONFIG_FLAG_REJECT 0x04U
+#define NR_AIOT_CBRA_CONFIG_MIN_N 1U
+#define NR_AIOT_CBRA_CONFIG_MAX_N (1U << 15)
+#define NR_AIOT_CBRA_CONFIG_MAX_PRBS 275U
+#define NR_AIOT_CBRA_CONFIG_CW_FREQUENCY_HZ 3630360000ULL
+
+typedef struct nr_aiot_cbra_config_s {
+  bool enabled;
+  uint8_t status;
+  uint32_t version;
+  uint32_t round;
+  uint64_t activation_slot;
+  uint64_t expiry_slot;
+  uint32_t reader_handle;
+  uint16_t prb_start;
+  uint16_t prb_count;
+  uint8_t r2d_m;
+  uint8_t x;
+  uint8_t tbit;
+  uint8_t sfs_bitmap;
+  uint8_t n_code;
+  uint8_t k;
+  uint16_t on_duration_slots;
+  uint16_t msg2_window_slots;
+  uint64_t cw_frequency_hz;
+} nr_aiot_cbra_config_t;
+
+typedef struct nr_aiot_cbra_state_s {
+  bool active_valid;
+  bool pending_valid;
+  nr_aiot_cbra_config_t active;
+  nr_aiot_cbra_config_t pending;
+  uint16_t access_counter;
+  uint16_t selected_access_occasion;
+  uint16_t access_m;
+  uint16_t random_id;
+  uint32_t random_state;
+  uint8_t msg2_remaining;
+  bool msg1_sent;
+  bool waiting_msg2;
+  bool succeeded;
+  bool failed;
+} nr_aiot_cbra_state_t;
+
+static inline uint16_t nr_aiot_cbra_config_crc16(const uint8_t *data, size_t len)
+{
+  uint16_t crc = 0;
+  for (size_t i = 0; i < len; ++i) {
+    crc ^= (uint16_t)data[i] << 8;
+    for (unsigned int bit = 0; bit < 8; ++bit)
+      crc = (crc & 0x8000U) ? (uint16_t)((crc << 1) ^ 0x1021U) : (uint16_t)(crc << 1);
+  }
+  return crc;
+}
+
+static inline void nr_aiot_cbra_put_u16(uint8_t *dst, uint16_t value)
+{
+  dst[0] = (uint8_t)(value >> 8);
+  dst[1] = (uint8_t)value;
+}
+
+static inline void nr_aiot_cbra_put_u32(uint8_t *dst, uint32_t value)
+{
+  dst[0] = (uint8_t)(value >> 24);
+  dst[1] = (uint8_t)(value >> 16);
+  dst[2] = (uint8_t)(value >> 8);
+  dst[3] = (uint8_t)value;
+}
+
+static inline void nr_aiot_cbra_put_u64(uint8_t *dst, uint64_t value)
+{
+  for (unsigned int i = 0; i < 8; ++i)
+    dst[i] = (uint8_t)(value >> (56U - 8U * i));
+}
+
+static inline uint16_t nr_aiot_cbra_get_u16(const uint8_t *src)
+{
+  return (uint16_t)(((uint16_t)src[0] << 8) | src[1]);
+}
+
+static inline uint32_t nr_aiot_cbra_get_u32(const uint8_t *src)
+{
+  return ((uint32_t)src[0] << 24) | ((uint32_t)src[1] << 16) | ((uint32_t)src[2] << 8) | src[3];
+}
+
+static inline uint64_t nr_aiot_cbra_get_u64(const uint8_t *src)
+{
+  uint64_t value = 0;
+  for (unsigned int i = 0; i < 8; ++i)
+    value = (value << 8) | src[i];
+  return value;
+}
+
+static inline void nr_aiot_cbra_config_defaults(nr_aiot_cbra_config_t *config)
+{
+  memset(config, 0, sizeof(*config));
+  config->version = 1;
+  config->round = 1;
+  config->expiry_slot = UINT64_MAX;
+  config->reader_handle = 1;
+  config->prb_count = 3;
+  config->n_code = 1; /* 2^1 access occasions. */
+  config->r2d_m = 2;
+  config->x = 2;
+  config->tbit = 2; /* tau/2; permits factors 1,2,4,8 for the n=20,m=8 case. */
+  config->sfs_bitmap = 0xf0;
+  config->on_duration_slots = 20;
+  config->msg2_window_slots = 4;
+  config->cw_frequency_hz = NR_AIOT_CBRA_CONFIG_CW_FREQUENCY_HZ;
+}
+
+static inline bool nr_aiot_cbra_config_validate(const nr_aiot_cbra_config_t *config, const char **reason)
+{
+  static const uint8_t allowed_sfs[8] = {0xff, 0xfe, 0xfc, 0xf8, 0xf0, 0xe0, 0xc0, 0x80};
+  if (reason != NULL)
+    *reason = NULL;
+  if (config == NULL) {
+    if (reason != NULL) *reason = "null_config";
+    return false;
+  }
+  if (config->status > NR_AIOT_CBRA_CONFIG_STATUS_REJECTED) {
+    if (reason != NULL) *reason = "invalid_status";
+    return false;
+  }
+  if (!config->enabled)
+    return true;
+  if (config->version == 0 || config->round == 0 || config->expiry_slot <= config->activation_slot) {
+    if (reason != NULL) *reason = "invalid_lifecycle";
+    return false;
+  }
+  if (config->reader_handle == 0 || config->prb_count == 0 || config->prb_count > NR_AIOT_CBRA_CONFIG_MAX_PRBS
+      || (uint32_t)config->prb_start + config->prb_count > NR_AIOT_CBRA_CONFIG_MAX_PRBS) {
+    if (reason != NULL) *reason = "invalid_resources";
+    return false;
+  }
+  if (config->r2d_m != 2 && config->r2d_m != 6 && config->r2d_m != 12 && config->r2d_m != 24) {
+    if (reason != NULL) *reason = "invalid_r2d_density";
+    return false;
+  }
+  if (config->x == 0 || config->x > 2 || config->tbit >= 8 || config->sfs_bitmap == 0
+      || (config->sfs_bitmap & (uint8_t)~allowed_sfs[config->tbit]) != 0) {
+    if (reason != NULL) *reason = "invalid_d2r_scheduling";
+    return false;
+  }
+  if (config->n_code > 15 || config->k > 1 || config->on_duration_slots == 0 || config->msg2_window_slots == 0
+      || config->cw_frequency_hz != NR_AIOT_CBRA_CONFIG_CW_FREQUENCY_HZ) {
+    if (reason != NULL) *reason = "invalid_access_parameters";
+    return false;
+  }
+  return true;
+}
+
+static inline size_t nr_aiot_cbra_config_encode(const nr_aiot_cbra_config_t *config,
+                                                uint8_t wire[NR_AIOT_CBRA_CONFIG_WIRE_BYTES])
+{
+  if (!nr_aiot_cbra_config_validate(config, NULL) || wire == NULL)
+    return 0;
+  memset(wire, 0, NR_AIOT_CBRA_CONFIG_WIRE_BYTES);
+  nr_aiot_cbra_put_u32(wire + 0, NR_AIOT_CBRA_CONFIG_MAGIC);
+  wire[4] = NR_AIOT_CBRA_CONFIG_WIRE_VERSION;
+  wire[5] = NR_AIOT_CBRA_CONFIG_WIRE_BYTES;
+  wire[6] = (config->enabled ? NR_AIOT_CBRA_CONFIG_FLAG_ENABLED : 0)
+            | (config->status == NR_AIOT_CBRA_CONFIG_STATUS_ACCEPTED ? NR_AIOT_CBRA_CONFIG_FLAG_ACK : 0)
+            | (config->status == NR_AIOT_CBRA_CONFIG_STATUS_REJECTED ? NR_AIOT_CBRA_CONFIG_FLAG_REJECT : 0);
+  nr_aiot_cbra_put_u32(wire + 8, config->version);
+  nr_aiot_cbra_put_u32(wire + 12, config->round);
+  nr_aiot_cbra_put_u64(wire + 16, config->activation_slot);
+  nr_aiot_cbra_put_u64(wire + 24, config->expiry_slot);
+  nr_aiot_cbra_put_u32(wire + 32, config->reader_handle);
+  nr_aiot_cbra_put_u16(wire + 36, config->prb_start);
+  nr_aiot_cbra_put_u16(wire + 38, config->prb_count);
+  wire[40] = config->r2d_m;
+  wire[41] = config->x;
+  wire[42] = config->tbit;
+  wire[43] = config->sfs_bitmap;
+  wire[44] = config->n_code;
+  wire[45] = config->k;
+  nr_aiot_cbra_put_u16(wire + 46, config->on_duration_slots);
+  nr_aiot_cbra_put_u16(wire + 48, config->msg2_window_slots);
+  nr_aiot_cbra_put_u64(wire + 50, config->cw_frequency_hz);
+  nr_aiot_cbra_put_u16(wire + 58, nr_aiot_cbra_config_crc16(wire, 58));
+  return NR_AIOT_CBRA_CONFIG_WIRE_BYTES;
+}
+
+static inline bool nr_aiot_cbra_config_decode(const uint8_t *wire,
+                                              size_t length,
+                                              nr_aiot_cbra_config_t *config,
+                                              const char **reason)
+{
+  nr_aiot_cbra_config_t decoded;
+  if (reason != NULL)
+    *reason = NULL;
+  if (wire == NULL || config == NULL || length != NR_AIOT_CBRA_CONFIG_WIRE_BYTES) {
+    if (reason != NULL) *reason = "invalid_wire_length";
+    return false;
+  }
+  if (nr_aiot_cbra_get_u32(wire) != NR_AIOT_CBRA_CONFIG_MAGIC || wire[4] != NR_AIOT_CBRA_CONFIG_WIRE_VERSION
+      || wire[5] != NR_AIOT_CBRA_CONFIG_WIRE_BYTES || nr_aiot_cbra_get_u16(wire + 58) != nr_aiot_cbra_config_crc16(wire, 58)) {
+    if (reason != NULL) *reason = "invalid_wire_crc";
+    return false;
+  }
+  nr_aiot_cbra_config_defaults(&decoded);
+  decoded.enabled = (wire[6] & NR_AIOT_CBRA_CONFIG_FLAG_ENABLED) != 0;
+  decoded.status = (wire[6] & NR_AIOT_CBRA_CONFIG_FLAG_REJECT) ? NR_AIOT_CBRA_CONFIG_STATUS_REJECTED
+                : (wire[6] & NR_AIOT_CBRA_CONFIG_FLAG_ACK) ? NR_AIOT_CBRA_CONFIG_STATUS_ACCEPTED
+                : NR_AIOT_CBRA_CONFIG_STATUS_NONE;
+  decoded.version = nr_aiot_cbra_get_u32(wire + 8);
+  decoded.round = nr_aiot_cbra_get_u32(wire + 12);
+  decoded.activation_slot = nr_aiot_cbra_get_u64(wire + 16);
+  decoded.expiry_slot = nr_aiot_cbra_get_u64(wire + 24);
+  decoded.reader_handle = nr_aiot_cbra_get_u32(wire + 32);
+  decoded.prb_start = nr_aiot_cbra_get_u16(wire + 36);
+  decoded.prb_count = nr_aiot_cbra_get_u16(wire + 38);
+  decoded.r2d_m = wire[40];
+  decoded.x = wire[41];
+  decoded.tbit = wire[42];
+  decoded.sfs_bitmap = wire[43];
+  decoded.n_code = wire[44];
+  decoded.k = wire[45];
+  decoded.on_duration_slots = nr_aiot_cbra_get_u16(wire + 46);
+  decoded.msg2_window_slots = nr_aiot_cbra_get_u16(wire + 48);
+  decoded.cw_frequency_hz = nr_aiot_cbra_get_u64(wire + 50);
+  if (!nr_aiot_cbra_config_validate(&decoded, reason))
+    return false;
+  *config = decoded;
+  return true;
+}
+
+static inline unsigned int nr_aiot_cbra_access_m(const nr_aiot_cbra_config_t *config)
+{
+  unsigned int n_sfs = 0;
+  for (uint8_t bitmap = config->sfs_bitmap; bitmap != 0; bitmap >>= 1)
+    n_sfs += bitmap & 1U;
+  return n_sfs * config->x;
+}
+
+static inline void nr_aiot_cbra_state_init(nr_aiot_cbra_state_t *state)
+{
+  memset(state, 0, sizeof(*state));
+  state->random_state = 0x6d2b79f5U;
+}
+
+static inline void nr_aiot_cbra_state_clear_exchange(nr_aiot_cbra_state_t *state)
+{
+  state->access_counter = 0;
+  state->selected_access_occasion = 0;
+  state->access_m = 0;
+  state->random_id = 0;
+  state->msg2_remaining = 0;
+  state->msg1_sent = false;
+  state->waiting_msg2 = false;
+  state->succeeded = false;
+  state->failed = false;
+}
+
+static inline bool nr_aiot_cbra_state_stage(nr_aiot_cbra_state_t *state,
+                                            const nr_aiot_cbra_config_t *config,
+                                            const char **reason)
+{
+  if (reason != NULL) *reason = NULL;
+  if (state == NULL || !nr_aiot_cbra_config_validate(config, reason) || config->status != NR_AIOT_CBRA_CONFIG_STATUS_NONE) {
+    if (reason != NULL && *reason == NULL) *reason = "invalid_stage_config";
+    return false;
+  }
+  if ((state->active_valid && config->version < state->active.version)
+      || (state->pending_valid && config->version < state->pending.version)) {
+    if (reason != NULL) *reason = "stale_config";
+    return false;
+  }
+  if ((state->pending_valid && config->version == state->pending.version)
+      || (state->active_valid && config->version == state->active.version))
+    return true;
+  state->pending = *config;
+  state->pending_valid = true;
+  return true;
+}
+
+static inline bool nr_aiot_cbra_state_activate(nr_aiot_cbra_state_t *state, uint64_t slot)
+{
+  if (state == NULL)
+    return false;
+  if (state->active_valid && slot >= state->active.expiry_slot) {
+    state->active_valid = false;
+    nr_aiot_cbra_state_clear_exchange(state);
+  }
+  if (state->pending_valid && slot >= state->pending.activation_slot && slot < state->pending.expiry_slot) {
+    state->active = state->pending;
+    state->active_valid = true;
+    state->pending_valid = false;
+    nr_aiot_cbra_state_clear_exchange(state);
+  }
+  if (state->pending_valid && slot >= state->pending.expiry_slot)
+    state->pending_valid = false;
+  return state->active_valid && slot < state->active.expiry_slot;
+}
+
+static inline bool nr_aiot_cbra_state_start_msg1(nr_aiot_cbra_state_t *state)
+{
+  if (state == NULL || !state->active_valid || state->selected_access_occasion == 0 || state->msg1_sent)
+    return false;
+  state->random_state ^= state->random_state << 13;
+  state->random_state ^= state->random_state >> 17;
+  state->random_state ^= state->random_state << 5;
+  state->random_id = (uint16_t)(state->random_state >> 8);
+  if (state->random_id == 0)
+    state->random_id = 1;
+  state->msg1_sent = true;
+  state->waiting_msg2 = true;
+  state->msg2_remaining = state->active.k ? 4 : 1;
+  return true;
+}
+
+static inline bool nr_aiot_cbra_state_on_paging(nr_aiot_cbra_state_t *state, uint16_t random_i)
+{
+  if (state == NULL || !state->active_valid)
+    return false;
+  const unsigned int n = 1U << state->active.n_code;
+  const uint16_t access_m = (uint16_t)nr_aiot_cbra_access_m(&state->active);
+  if (random_i >= n || access_m == 0)
+    return false;
+  nr_aiot_cbra_state_clear_exchange(state);
+  state->access_m = access_m;
+  state->access_counter = random_i;
+  if (state->access_counter < state->access_m) {
+    state->selected_access_occasion = (uint16_t)(state->access_counter + 1U);
+    return nr_aiot_cbra_state_start_msg1(state);
+  }
+  return true;
+}
+
+static inline bool nr_aiot_cbra_state_on_access_trigger(nr_aiot_cbra_state_t *state)
+{
+  if (state == NULL || !state->active_valid)
+    return false;
+  if (state->waiting_msg2) {
+    if (state->msg2_remaining > 0)
+      --state->msg2_remaining;
+    if (state->msg2_remaining == 0) {
+      state->waiting_msg2 = false;
+      state->failed = true;
+    }
+    return false;
+  }
+  if (state->msg1_sent || state->access_counter < state->access_m)
+    return false;
+  state->access_counter = (uint16_t)(state->access_counter - state->access_m);
+  if (state->access_counter < state->access_m) {
+    state->selected_access_occasion = (uint16_t)(state->access_counter + 1U);
+    return nr_aiot_cbra_state_start_msg1(state);
+  }
+  return true;
+}
+
+static inline bool nr_aiot_cbra_state_on_msg2(nr_aiot_cbra_state_t *state, uint16_t random_id)
+{
+  if (state == NULL || !state->waiting_msg2 || random_id != state->random_id)
+    return false;
+  state->waiting_msg2 = false;
+  state->succeeded = true;
+  state->msg2_remaining = 0;
+  return true;
+}
+
+static inline bool nr_aiot_cbra_state_on_msg1(nr_aiot_cbra_state_t *state,
+                                              uint16_t random_id,
+                                              uint16_t access_occasion)
+{
+  if (state == NULL || !state->active_valid || random_id == 0 || access_occasion == 0
+      || state->waiting_msg2 || state->failed)
+    return false;
+  state->random_id = random_id;
+  state->selected_access_occasion = access_occasion;
+  state->msg1_sent = true;
+  state->waiting_msg2 = true;
+  state->msg2_remaining = state->active.k ? 4 : 1;
+  return true;
+}
+
+static inline bool nr_aiot_cbra_exchange_fits(const nr_aiot_cbra_config_t *config, uint32_t required_slots)
+{
+  return config != NULL && required_slots <= config->on_duration_slots;
+}
 
 //-------------------------------------------------------------------------------------------//
 // Messages for RRC logging
@@ -423,6 +820,7 @@ typedef struct NRRrcConfigurationReq_s {
   bool um_on_default_drb;
   bool                    enable_sdap;
   int                     drbs;
+  nr_aiot_cbra_config_t   aiot_cbra_config;
 } gNB_RrcConfigurationReq;
 
 typedef struct NRDuDlReq_s {
@@ -496,6 +894,9 @@ typedef struct {
 typedef struct {
   int get_sib;
 } nr_mac_rrc_sched_sib_t;
+typedef struct {
+  nr_aiot_cbra_config_t config;
+} nr_mac_rrc_config_aiot_cbra_t;
 
 
 enum payload_type {
@@ -507,7 +908,8 @@ enum payload_type {
   NR_MAC_RRC_SCHED_SIB,
   NR_MAC_RRC_RESUME_RB,
   NR_MAC_RRC_TRIGGER_RA,
-  NR_MAC_RRC_ENTER_INACTIVE
+  NR_MAC_RRC_ENTER_INACTIVE,
+  NR_MAC_RRC_CONFIG_AIOT_CBRA
 };
 
 typedef struct {
@@ -520,6 +922,7 @@ typedef struct {
     nr_mac_rrc_sched_sib_t sched_sib;
     nr_mac_rrc_config_other_sib_t config_other_sib;
     nr_mac_rrc_resume_rb_t resume_rb;
+    nr_mac_rrc_config_aiot_cbra_t config_aiot_cbra;
   } payload;
 } nr_mac_rrc_message_t;
 

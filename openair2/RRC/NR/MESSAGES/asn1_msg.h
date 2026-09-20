@@ -76,6 +76,7 @@ typedef struct {
   bool masterKeyUpdate;
   int nextHopChainingCount;
   byte_array_t ue_cap;
+  byte_array_t late_non_critical_extension;
 } nr_rrc_reconfig_param_t;
 
 /*
@@ -145,6 +146,11 @@ int do_nrMeasurementReport_SA(long trigger_to_measid,
 int do_NR_RRCReconfigurationComplete_for_nsa(uint8_t *buffer, size_t buffer_size, NR_RRC_TransactionIdentifier_t Transaction_id);
 
 int do_NR_RRCReconfigurationComplete(uint8_t *buffer, size_t buffer_size, const uint8_t Transaction_id);
+int do_NR_RRCReconfigurationComplete_with_cbra(uint8_t *buffer,
+                                               size_t buffer_size,
+                                               const uint8_t Transaction_id,
+                                               const nr_aiot_cbra_config_t *config,
+                                               uint8_t status);
 
 int do_NR_RRCResume(uint8_t *buffer, size_t buffer_size, const uint8_t Transaction_id);
 

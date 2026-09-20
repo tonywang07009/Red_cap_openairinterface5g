@@ -220,7 +220,7 @@ static uint32_t aiot_t2_crc(const uint8_t *payload, size_t payload_len)
                                             : crc16((uint8_t *)payload, payload_len * 8) >> 16;
 }
 
-static void nr_ue_aiot_cfa_put_bits(uint8_t *bytes, size_t *offset, uint64_t value, unsigned int width)
+static void nr_ue_aiot_cbra_put_bits(uint8_t *bytes, size_t *offset, uint64_t value, unsigned int width)
 {
   for (unsigned int bit = 0; bit < width; ++bit) {
     const size_t position = *offset + bit;
@@ -231,7 +231,7 @@ static void nr_ue_aiot_cfa_put_bits(uint8_t *bytes, size_t *offset, uint64_t val
   *offset += width;
 }
 
-static uint64_t nr_ue_aiot_cfa_get_bits(const uint8_t *bytes, size_t *offset, unsigned int width)
+static uint64_t nr_ue_aiot_cbra_get_bits(const uint8_t *bytes, size_t *offset, unsigned int width)
 {
   uint64_t value = 0;
   for (unsigned int bit = 0; bit < width; ++bit) {
@@ -242,10 +242,10 @@ static uint64_t nr_ue_aiot_cfa_get_bits(const uint8_t *bytes, size_t *offset, un
   return value;
 }
 
-bool nr_ue_aiot_cfa_validate_serial(uint32_t serial,
-                                    const uint32_t *existing_serials,
-                                    size_t existing_count,
-                                    const char **reason)
+bool nr_ue_aiot_cbra_validate_serial(uint32_t serial,
+                                     const uint32_t *existing_serials,
+                                     size_t existing_count,
+                                     const char **reason)
 {
   if (reason != NULL)
     *reason = NULL;
@@ -269,9 +269,9 @@ bool nr_ue_aiot_cfa_validate_serial(uint32_t serial,
   return true;
 }
 
-bool nr_ue_aiot_cfa_build_pdu(const nr_ue_aiot_cfa_pdu_fields_t *fields,
-                              uint8_t pdu[NR_UE_AIOT_CFA_PDU_BYTES],
-                              const char **reason)
+bool nr_ue_aiot_cbra_build_paging_pdu(const nr_ue_aiot_cbra_paging_fields_t *fields,
+                                      uint8_t pdu[NR_UE_AIOT_CBRA_PAGING_PDU_BYTES],
+                                      const char **reason)
 {
   if (reason != NULL)
     *reason = NULL;
@@ -280,33 +280,43 @@ bool nr_ue_aiot_cfa_build_pdu(const nr_ue_aiot_cfa_pdu_fields_t *fields,
       *reason = "invalid_pdu_argument";
     return false;
   }
-  if (!nr_ue_aiot_cfa_validate_serial(fields->serial, NULL, 0, reason))
+  if (!nr_ue_aiot_cbra_validate_serial(fields->serial, NULL, 0, reason))
     return false;
-  if (fields->d2r_scheduling_info != NR_UE_AIOT_CFA_FROZEN_D2R_SCHEDULING_INFO) {
+  if (fields->transaction_id > 63 || fields->number_of_access_occasions > 15 || fields->k > 1) {
     if (reason != NULL)
-      *reason = "invalid_scheduling_info";
+      *reason = "invalid_paging_field";
+    return false;
+  }
+  nr_ue_aiot_cbra_d2r_scheduling_t scheduling = {0};
+  if (!nr_ue_aiot_cbra_unpack_d2r_scheduling(fields->d2r_scheduling_info, &scheduling, reason)) {
+    if (reason != NULL) *reason = "invalid_scheduling_info";
     return false;
   }
 
-  memset(pdu, 0, NR_UE_AIOT_CFA_PDU_BYTES);
+  memset(pdu, 0, NR_UE_AIOT_CBRA_PAGING_PDU_BYTES);
   size_t offset = 0;
-  nr_ue_aiot_cfa_put_bits(pdu, &offset, 1, 3); /* A-IoT Paging */
-  nr_ue_aiot_cfa_put_bits(pdu, &offset, 26, 7); /* 27-byte TBS codepoint */
-  nr_ue_aiot_cfa_put_bits(pdu, &offset, 1, 1); /* SPPI */
-  for (size_t index = 0; index < NR_UE_AIOT_CFA_SECURITY_BYTES; ++index)
-    nr_ue_aiot_cfa_put_bits(pdu, &offset, fields->security_parameter[index], 8);
-  nr_ue_aiot_cfa_put_bits(pdu, &offset, 0, 1); /* CFA */
-  nr_ue_aiot_cfa_put_bits(pdu, &offset, 42, 10);
-  nr_ue_aiot_cfa_put_bits(pdu, &offset, 1, 2); /* Permanent Identifier */
-  nr_ue_aiot_cfa_put_bits(pdu, &offset, 0x08, 8); /* unstructured 32-bit ID */
-  nr_ue_aiot_cfa_put_bits(pdu, &offset, fields->serial, 32);
-  nr_ue_aiot_cfa_put_bits(pdu, &offset, fields->d2r_scheduling_info & 0x00ffffffU, 24);
-  return offset == NR_UE_AIOT_CFA_PDU_BITS;
+  nr_ue_aiot_cbra_put_bits(pdu, &offset, 1, 3); /* CBRA Paging */
+  nr_ue_aiot_cbra_put_bits(pdu, &offset, 27, 7); /* 28-byte TBS codepoint */
+  nr_ue_aiot_cbra_put_bits(pdu, &offset, 1, 1); /* SPPI */
+  for (size_t index = 0; index < NR_UE_AIOT_CBRA_SECURITY_BYTES; ++index)
+    nr_ue_aiot_cbra_put_bits(pdu, &offset, fields->security_parameter[index], 8);
+  nr_ue_aiot_cbra_put_bits(pdu, &offset, 1, 1); /* CBRA */
+  nr_ue_aiot_cbra_put_bits(pdu, &offset, fields->transaction_id, 6);
+  nr_ue_aiot_cbra_put_bits(pdu, &offset, 1, 1); /* PIPI */
+  nr_ue_aiot_cbra_put_bits(pdu, &offset, 42, 10);
+  nr_ue_aiot_cbra_put_bits(pdu, &offset, 1, 2); /* Permanent Identifier */
+  nr_ue_aiot_cbra_put_bits(pdu, &offset, 0x08, 8); /* unstructured 32-bit ID */
+  nr_ue_aiot_cbra_put_bits(pdu, &offset, fields->serial, 32);
+  nr_ue_aiot_cbra_put_bits(pdu, &offset, fields->number_of_access_occasions, 4);
+  nr_ue_aiot_cbra_put_bits(pdu, &offset, fields->d2r_scheduling_info, 18);
+  nr_ue_aiot_cbra_put_bits(pdu, &offset, fields->k, 1);
+  nr_ue_aiot_cbra_put_bits(pdu, &offset, 0, 2); /* fill */
+  return offset == NR_UE_AIOT_CBRA_PAGING_PDU_BITS;
 }
 
-bool nr_ue_aiot_cfa_parse_pdu(const uint8_t pdu[NR_UE_AIOT_CFA_PDU_BYTES],
-                              nr_ue_aiot_cfa_pdu_fields_t *fields,
-                              const char **reason)
+bool nr_ue_aiot_cbra_parse_paging_pdu(const uint8_t pdu[NR_UE_AIOT_CBRA_PAGING_PDU_BYTES],
+                                      nr_ue_aiot_cbra_paging_fields_t *fields,
+                                      const char **reason)
 {
   if (reason != NULL)
     *reason = NULL;
@@ -316,76 +326,139 @@ bool nr_ue_aiot_cfa_parse_pdu(const uint8_t pdu[NR_UE_AIOT_CFA_PDU_BYTES],
     return false;
   }
 
-  nr_ue_aiot_cfa_pdu_fields_t parsed = {0};
+  nr_ue_aiot_cbra_paging_fields_t parsed = {0};
   size_t offset = 0;
-  if (nr_ue_aiot_cfa_get_bits(pdu, &offset, 3) != 1) {
+  if (nr_ue_aiot_cbra_get_bits(pdu, &offset, 3) != 1) {
     if (reason != NULL)
       *reason = "invalid_message_type";
     return false;
   }
-  if (nr_ue_aiot_cfa_get_bits(pdu, &offset, 7) != 26) {
+  if (nr_ue_aiot_cbra_get_bits(pdu, &offset, 7) != 27) {
     if (reason != NULL)
       *reason = "invalid_tbs";
     return false;
   }
-  if (nr_ue_aiot_cfa_get_bits(pdu, &offset, 1) != 1) {
+  if (nr_ue_aiot_cbra_get_bits(pdu, &offset, 1) != 1) {
     if (reason != NULL)
       *reason = "security_parameter_absent";
     return false;
   }
-  for (size_t index = 0; index < NR_UE_AIOT_CFA_SECURITY_BYTES; ++index)
-    parsed.security_parameter[index] = (uint8_t)nr_ue_aiot_cfa_get_bits(pdu, &offset, 8);
-  if (nr_ue_aiot_cfa_get_bits(pdu, &offset, 1) != 0) {
+  for (size_t index = 0; index < NR_UE_AIOT_CBRA_SECURITY_BYTES; ++index)
+    parsed.security_parameter[index] = (uint8_t)nr_ue_aiot_cbra_get_bits(pdu, &offset, 8);
+  if (nr_ue_aiot_cbra_get_bits(pdu, &offset, 1) != 1) {
     if (reason != NULL)
       *reason = "invalid_access_type";
     return false;
   }
-  if (nr_ue_aiot_cfa_get_bits(pdu, &offset, 10) != 42) {
+  parsed.transaction_id = (uint8_t)nr_ue_aiot_cbra_get_bits(pdu, &offset, 6);
+  if (nr_ue_aiot_cbra_get_bits(pdu, &offset, 1) != 1) {
+    if (reason != NULL)
+      *reason = "paging_id_present_missing";
+    return false;
+  }
+  if (nr_ue_aiot_cbra_get_bits(pdu, &offset, 10) != 42) {
     if (reason != NULL)
       *reason = "invalid_paging_id_length";
     return false;
   }
-  if (nr_ue_aiot_cfa_get_bits(pdu, &offset, 2) != 1
-      || nr_ue_aiot_cfa_get_bits(pdu, &offset, 8) != 0x08) {
+  if (nr_ue_aiot_cbra_get_bits(pdu, &offset, 2) != 1
+      || nr_ue_aiot_cbra_get_bits(pdu, &offset, 8) != 0x08) {
     if (reason != NULL)
       *reason = "invalid_paging_id_type";
     return false;
   }
-  parsed.serial = (uint32_t)nr_ue_aiot_cfa_get_bits(pdu, &offset, 32);
-  if (!nr_ue_aiot_cfa_validate_serial(parsed.serial, NULL, 0, reason))
+  parsed.serial = (uint32_t)nr_ue_aiot_cbra_get_bits(pdu, &offset, 32);
+  if (!nr_ue_aiot_cbra_validate_serial(parsed.serial, NULL, 0, reason))
     return false;
-  parsed.d2r_scheduling_info = (uint32_t)nr_ue_aiot_cfa_get_bits(pdu, &offset, 24);
-  if (offset != NR_UE_AIOT_CFA_PDU_BITS)
+  parsed.number_of_access_occasions = (uint8_t)nr_ue_aiot_cbra_get_bits(pdu, &offset, 4);
+  parsed.d2r_scheduling_info = (uint32_t)nr_ue_aiot_cbra_get_bits(pdu, &offset, 18);
+  nr_ue_aiot_cbra_d2r_scheduling_t scheduling = {0};
+  if (!nr_ue_aiot_cbra_unpack_d2r_scheduling(parsed.d2r_scheduling_info, &scheduling, reason)) {
+    if (reason != NULL) *reason = "invalid_scheduling_info";
+    return false;
+  }
+  parsed.k = (uint8_t)nr_ue_aiot_cbra_get_bits(pdu, &offset, 1);
+  if (parsed.k > 1) {
+    if (reason != NULL)
+      *reason = "invalid_k";
+    return false;
+  }
+  (void)nr_ue_aiot_cbra_get_bits(pdu, &offset, 2);
+  if (offset != NR_UE_AIOT_CBRA_PAGING_PDU_BITS)
     return false;
   *fields = parsed;
   return true;
 }
 
-bool nr_ue_aiot_cfa_append_crc(const uint8_t pdu[NR_UE_AIOT_CFA_PDU_BYTES],
-                               uint8_t phy_payload[NR_UE_AIOT_CFA_PHY_BYTES])
+bool nr_ue_aiot_cbra_append_paging_crc(const uint8_t pdu[NR_UE_AIOT_CBRA_PAGING_PDU_BYTES],
+                                       uint8_t phy_payload[NR_UE_AIOT_CBRA_PAGING_PHY_BYTES])
 {
   if (pdu == NULL || phy_payload == NULL)
     return false;
-  memcpy(phy_payload, pdu, NR_UE_AIOT_CFA_PDU_BYTES);
-  const uint16_t crc = (uint16_t)(crc16((uint8_t *)pdu, NR_UE_AIOT_CFA_PDU_BITS) >> 16);
-  phy_payload[NR_UE_AIOT_CFA_PDU_BYTES] = (uint8_t)(crc >> 8);
-  phy_payload[NR_UE_AIOT_CFA_PDU_BYTES + 1U] = (uint8_t)crc;
+  memset(phy_payload, 0, NR_UE_AIOT_CBRA_PAGING_PHY_BYTES);
+  memcpy(phy_payload, pdu, NR_UE_AIOT_CBRA_PAGING_PDU_BYTES);
+  const uint16_t crc = (uint16_t)(crc16((uint8_t *)pdu, NR_UE_AIOT_CBRA_PAGING_PDU_BITS) >> 16);
+  size_t offset = NR_UE_AIOT_CBRA_PAGING_PDU_BITS;
+  nr_ue_aiot_cbra_put_bits(phy_payload, &offset, crc, 16);
   return true;
 }
 
-bool nr_ue_aiot_cfa_verify_crc(const uint8_t phy_payload[NR_UE_AIOT_CFA_PHY_BYTES])
+bool nr_ue_aiot_cbra_verify_paging_crc(const uint8_t phy_payload[NR_UE_AIOT_CBRA_PAGING_PHY_BYTES])
 {
   if (phy_payload == NULL)
     return false;
-  const uint16_t expected = (uint16_t)(crc16((uint8_t *)phy_payload, NR_UE_AIOT_CFA_PDU_BITS) >> 16);
-  const uint16_t received = ((uint16_t)phy_payload[NR_UE_AIOT_CFA_PDU_BYTES] << 8U)
-                            | phy_payload[NR_UE_AIOT_CFA_PDU_BYTES + 1U];
+  const uint16_t expected = (uint16_t)(crc16((uint8_t *)phy_payload, NR_UE_AIOT_CBRA_PAGING_PDU_BITS) >> 16);
+  size_t offset = NR_UE_AIOT_CBRA_PAGING_PDU_BITS;
+  const uint16_t received = (uint16_t)nr_ue_aiot_cbra_get_bits(phy_payload, &offset, 16);
   return expected == received;
 }
 
-bool nr_ue_aiot_cfa_pack_d2r_scheduling(const nr_ue_aiot_cfa_d2r_scheduling_t *scheduling,
-                                        uint32_t *packed,
-                                        const char **reason)
+bool nr_ue_aiot_cbra_build_access_trigger(uint8_t trigger[NR_UE_AIOT_CBRA_TRIGGER_BYTES])
+{
+  if (trigger == NULL)
+    return false;
+  memset(trigger, 0, NR_UE_AIOT_CBRA_TRIGGER_BYTES);
+  size_t offset = 0;
+  nr_ue_aiot_cbra_put_bits(trigger, &offset, 2, NR_UE_AIOT_CBRA_TRIGGER_BITS);
+  return true;
+}
+
+bool nr_ue_aiot_cbra_parse_access_trigger(const uint8_t trigger[NR_UE_AIOT_CBRA_TRIGGER_BYTES])
+{
+  if (trigger == NULL)
+    return false;
+  size_t offset = 0;
+  return nr_ue_aiot_cbra_get_bits(trigger, &offset, NR_UE_AIOT_CBRA_TRIGGER_BITS) == 2;
+}
+
+bool nr_ue_aiot_cbra_append_access_trigger_crc(const uint8_t trigger[NR_UE_AIOT_CBRA_TRIGGER_BYTES],
+                                               uint8_t phy_payload[NR_UE_AIOT_CBRA_TRIGGER_PHY_BYTES])
+{
+  if (trigger == NULL || phy_payload == NULL || !nr_ue_aiot_cbra_parse_access_trigger(trigger))
+    return false;
+  memset(phy_payload, 0, NR_UE_AIOT_CBRA_TRIGGER_PHY_BYTES);
+  size_t offset = 0;
+  nr_ue_aiot_cbra_put_bits(phy_payload, &offset, 2, NR_UE_AIOT_CBRA_TRIGGER_BITS);
+  const uint8_t crc = (uint8_t)(crc6((uint8_t *)trigger, NR_UE_AIOT_CBRA_TRIGGER_BITS) >> 26);
+  nr_ue_aiot_cbra_put_bits(phy_payload, &offset, crc, 6);
+  return true;
+}
+
+bool nr_ue_aiot_cbra_verify_access_trigger_crc(const uint8_t phy_payload[NR_UE_AIOT_CBRA_TRIGGER_PHY_BYTES])
+{
+  if (phy_payload == NULL)
+    return false;
+  size_t offset = 0;
+  if (nr_ue_aiot_cbra_get_bits(phy_payload, &offset, NR_UE_AIOT_CBRA_TRIGGER_BITS) != 2)
+    return false;
+  const uint8_t expected = (uint8_t)(crc6((uint8_t *)phy_payload, NR_UE_AIOT_CBRA_TRIGGER_BITS) >> 26);
+  const uint8_t received = (uint8_t)nr_ue_aiot_cbra_get_bits(phy_payload, &offset, 6);
+  return expected == received;
+}
+
+bool nr_ue_aiot_cbra_pack_d2r_scheduling(const nr_ue_aiot_cbra_d2r_scheduling_t *scheduling,
+                                         uint32_t *packed,
+                                         const char **reason)
 {
   if (reason != NULL)
     *reason = NULL;
@@ -394,13 +467,13 @@ bool nr_ue_aiot_cfa_pack_d2r_scheduling(const nr_ue_aiot_cfa_d2r_scheduling_t *s
       *reason = "invalid_scheduling_argument";
     return false;
   }
-  if (scheduling->bit_duration >= NR_UE_AIOT_D2R_TBIT_COUNT) {
+  if (scheduling->x < 1 || scheduling->x > 2 || scheduling->bit_duration >= NR_UE_AIOT_D2R_TBIT_COUNT) {
     if (reason != NULL)
       *reason = "invalid_d2r_tbit";
     return false;
   }
   const nr_ue_aiot_d2r_scheduling_t legacy_schedule = {
-      .x = 1,
+      .x = scheduling->x,
       .tbit = (nr_ue_aiot_d2r_tbit_t)scheduling->bit_duration,
       .sfs_bitmap = scheduling->frequency_resource_broadcast,
   };
@@ -409,8 +482,7 @@ bool nr_ue_aiot_cfa_pack_d2r_scheduling(const nr_ue_aiot_cfa_d2r_scheduling_t *s
     return false;
   if (scheduling->block_repetition > 1 || scheduling->channel_coding > 1
       || scheduling->interval_bits > 3 || scheduling->sequence_length > 1
-      || scheduling->additional_midamble > 1 || scheduling->d2r_tbs == 0
-      || scheduling->d2r_tbs > 125) {
+      || scheduling->additional_midamble > 1) {
     if (reason != NULL)
       *reason = "invalid_scheduling_field";
     return false;
@@ -418,26 +490,66 @@ bool nr_ue_aiot_cfa_pack_d2r_scheduling(const nr_ue_aiot_cfa_d2r_scheduling_t *s
 
   uint8_t bytes[3] = {0};
   size_t offset = 0;
-  nr_ue_aiot_cfa_put_bits(bytes, &offset, scheduling->bit_duration, 3);
-  nr_ue_aiot_cfa_put_bits(bytes, &offset, scheduling->frequency_resource_broadcast, 8);
-  nr_ue_aiot_cfa_put_bits(bytes, &offset, scheduling->block_repetition, 1);
-  nr_ue_aiot_cfa_put_bits(bytes, &offset, scheduling->channel_coding, 1);
-  nr_ue_aiot_cfa_put_bits(bytes, &offset, scheduling->interval_bits, 2);
-  nr_ue_aiot_cfa_put_bits(bytes, &offset, scheduling->sequence_length, 1);
-  nr_ue_aiot_cfa_put_bits(bytes, &offset, scheduling->additional_midamble, 1);
-  nr_ue_aiot_cfa_put_bits(bytes, &offset, scheduling->d2r_tbs - 1U, 7);
-  *packed = ((uint32_t)bytes[0] << 16) | ((uint32_t)bytes[1] << 8) | bytes[2];
+  nr_ue_aiot_cbra_put_bits(bytes, &offset, scheduling->x - 1U, 1);
+  nr_ue_aiot_cbra_put_bits(bytes, &offset, scheduling->bit_duration, 3);
+  nr_ue_aiot_cbra_put_bits(bytes, &offset, scheduling->frequency_resource_broadcast, 8);
+  nr_ue_aiot_cbra_put_bits(bytes, &offset, scheduling->block_repetition, 1);
+  nr_ue_aiot_cbra_put_bits(bytes, &offset, scheduling->channel_coding, 1);
+  nr_ue_aiot_cbra_put_bits(bytes, &offset, scheduling->interval_bits, 2);
+  nr_ue_aiot_cbra_put_bits(bytes, &offset, scheduling->sequence_length, 1);
+  nr_ue_aiot_cbra_put_bits(bytes, &offset, scheduling->additional_midamble, 1);
+  *packed = (((uint32_t)bytes[0] << 16) | ((uint32_t)bytes[1] << 8) | bytes[2]) >> 6;
   return true;
 }
 
-bool nr_ue_aiot_cfa_validate_campaign_config(const nr_ue_aiot_cfa_campaign_config_t *config,
-                                             const char **reason)
+bool nr_ue_aiot_cbra_unpack_d2r_scheduling(uint32_t packed,
+                                           nr_ue_aiot_cbra_d2r_scheduling_t *scheduling,
+                                           const char **reason)
+{
+  if (reason != NULL)
+    *reason = NULL;
+  if (scheduling == NULL || (packed & ~0x3ffffU) != 0) {
+    if (reason != NULL)
+      *reason = "invalid_scheduling_info";
+    return false;
+  }
+  nr_ue_aiot_cbra_d2r_scheduling_t decoded = {
+      .x = (uint8_t)(((packed >> 17) & 1U) + 1U),
+      .bit_duration = (uint8_t)((packed >> 14) & 7U),
+      .frequency_resource_broadcast = (uint8_t)((packed >> 6) & 0xffU),
+      .block_repetition = (uint8_t)((packed >> 5) & 1U),
+      .channel_coding = (uint8_t)((packed >> 4) & 1U),
+      .interval_bits = (uint8_t)((packed >> 2) & 3U),
+      .sequence_length = (uint8_t)((packed >> 1) & 1U),
+      .additional_midamble = (uint8_t)(packed & 1U),
+  };
+  const nr_ue_aiot_d2r_scheduling_t legacy_schedule = {
+      .x = decoded.x,
+      .tbit = (nr_ue_aiot_d2r_tbit_t)decoded.bit_duration,
+      .sfs_bitmap = decoded.frequency_resource_broadcast,
+  };
+  if (nr_ue_aiot_validate_d2r_scheduling(&legacy_schedule, NULL, NULL, reason) != NR_UE_AIOT_D2R_SCHED_OK
+      || decoded.block_repetition > 1 || decoded.channel_coding > 1 || decoded.interval_bits > 3
+      || decoded.sequence_length > 1 || decoded.additional_midamble > 1)
+    return false;
+  *scheduling = decoded;
+  return true;
+}
+
+bool nr_ue_aiot_cbra_validate_campaign_config(const nr_ue_aiot_cbra_campaign_config_t *config,
+                                              const char **reason)
 {
   if (reason != NULL)
     *reason = NULL;
   if (config == NULL) {
     if (reason != NULL)
       *reason = "invalid_campaign_argument";
+    return false;
+  }
+  if (config->message_kind != NR_UE_AIOT_CBRA_PAGING
+      && config->message_kind != NR_UE_AIOT_CBRA_ACCESS_TRIGGER) {
+    if (reason != NULL)
+      *reason = "invalid_message_kind";
     return false;
   }
   if (config->m != 2 && config->m != 6 && config->m != 12 && config->m != 24) {
@@ -472,22 +584,24 @@ bool nr_ue_aiot_cfa_validate_campaign_config(const nr_ue_aiot_cfa_campaign_confi
       return false;
     }
   }
-  if (config->d2r_scheduling_info != NR_UE_AIOT_CFA_FROZEN_D2R_SCHEDULING_INFO) {
-    if (reason != NULL)
-      *reason = "invalid_scheduling_info";
+  nr_ue_aiot_cbra_d2r_scheduling_t scheduling = {0};
+  if (!nr_ue_aiot_cbra_unpack_d2r_scheduling(config->d2r_scheduling_info, &scheduling, reason)) {
+    if (reason != NULL) *reason = "invalid_scheduling_info";
     return false;
   }
   return true;
 }
 
-bool nr_ue_aiot_cfa_derive_frame(uint8_t m,
-                                 uint8_t prb_count,
-                                 nr_ue_aiot_cfa_frame_t *frame,
-                                 const char **reason)
+bool nr_ue_aiot_cbra_derive_frame(nr_ue_aiot_cbra_message_kind_t message_kind,
+                                  uint8_t m,
+                                  uint8_t prb_count,
+                                  nr_ue_aiot_cbra_frame_t *frame,
+                                  const char **reason)
 {
   if (reason != NULL)
     *reason = NULL;
-  if (frame == NULL) {
+  if (frame == NULL
+      || (message_kind != NR_UE_AIOT_CBRA_PAGING && message_kind != NR_UE_AIOT_CBRA_ACCESS_TRIGGER)) {
     if (reason != NULL)
       *reason = "invalid_frame_argument";
     return false;
@@ -500,32 +614,136 @@ bool nr_ue_aiot_cfa_derive_frame(uint8_t m,
   if (nr_ue_aiot_validate_r2d_resources(prb_count, m, reason) != NR_UE_AIOT_R2D_RESOURCE_OK)
     return false;
 
-  const uint16_t data_and_overhead_chips = 472; /* CAP + 464 PRDCH chips + postamble. */
+  const uint16_t mac_bits = message_kind == NR_UE_AIOT_CBRA_PAGING ? NR_UE_AIOT_CBRA_PAGING_PDU_BITS
+                                                                     : NR_UE_AIOT_CBRA_TRIGGER_BITS;
+  const uint16_t phy_bits = message_kind == NR_UE_AIOT_CBRA_PAGING ? NR_UE_AIOT_CBRA_PAGING_PHY_BITS
+                                                                     : NR_UE_AIOT_CBRA_TRIGGER_PHY_BITS;
+  const uint16_t data_and_overhead_chips = AIOT_T2_CBRA_CAP_CHIPS
+                                           + phy_bits * AIOT_T2_MANCHESTER_CHIPS_PER_BIT
+                                           + AIOT_T2_CBRA_POSTAMBLE_CHIPS;
   const uint16_t usable_chips_per_symbol = m == 24 ? 22 : m;
   const uint16_t symbols_after_sip = (data_and_overhead_chips + usable_chips_per_symbol - 1U)
                                      / usable_chips_per_symbol;
-  *frame = (nr_ue_aiot_cfa_frame_t){
+  const uint16_t frame_symbols = (uint16_t)(2U + symbols_after_sip);
+  const uint32_t mapping_positions = (uint32_t)symbols_after_sip * m;
+  const uint32_t mapping_reserved_chips = m == 24 ? (uint32_t)symbols_after_sip * 2U : 0U;
+  const uint32_t padding_chips = mapping_positions - mapping_reserved_chips - data_and_overhead_chips;
+  const uint32_t emitted_chip_count = AIOT_T2_CBRA_SIP_CHIPS + mapping_positions;
+  const uint32_t long_cp_count = (frame_symbols + 6U) / 7U;
+  const uint32_t short_cp_count = frame_symbols - long_cp_count;
+  const uint32_t ofdm_sample_count = frame_symbols * NR_UE_AIOT_CBRA_USEFUL_SAMPLES_PER_SYMBOL
+                                     + long_cp_count * NR_UE_AIOT_CBRA_LONG_CP_SAMPLES
+                                     + short_cp_count * NR_UE_AIOT_CBRA_SHORT_CP_SAMPLES;
+  *frame = (nr_ue_aiot_cbra_frame_t){
+      .message_kind = message_kind,
       .m = m,
       .prb_count = prb_count,
-      .prdch_chips = 464,
-      .frame_symbols = (uint16_t)(2U + symbols_after_sip),
-      .occupied_chip_positions = (uint16_t)(8U + symbols_after_sip * m),
+      .mac_bits = mac_bits,
+      .phy_bits = phy_bits,
+      .prdch_chips = phy_bits * AIOT_T2_MANCHESTER_CHIPS_PER_BIT,
+      .frame_symbols = frame_symbols,
+      .occupied_chip_positions = (uint16_t)emitted_chip_count,
+      .r_tas_sip_chips = AIOT_T2_CBRA_SIP_CHIPS,
+      .r_tas_cap_chips = AIOT_T2_CBRA_CAP_CHIPS,
+      .postamble_chips = AIOT_T2_CBRA_POSTAMBLE_CHIPS,
+      .data_and_overhead_chips = data_and_overhead_chips,
+      .padding_chips = (uint16_t)padding_chips,
+      .mapping_reserved_chips = (uint16_t)mapping_reserved_chips,
+      .emitted_chip_count = emitted_chip_count,
+      .ofdm_sample_count = ofdm_sample_count,
+      .on_air_duration_ns = ((uint64_t)ofdm_sample_count * 1000000000ULL
+                             + NR_UE_AIOT_CBRA_SAMPLE_RATE_HZ / 2U)
+                            / NR_UE_AIOT_CBRA_SAMPLE_RATE_HZ,
   };
   return true;
 }
 
-bool nr_ue_aiot_cfa_prepare_r2d(const nr_ue_aiot_cfa_pdu_fields_t *fields,
-                                uint32_t tag_id,
-                                uint32_t reader_handle,
-                                openair0_timestamp timestamp,
-                                uint8_t m,
-                                uint8_t prb_count,
-                                aiot_t2_rf_packet_t *packet,
-                                const char **reason)
+static uint8_t nr_ue_aiot_cbra_framing_bit(const uint8_t *phy_payload,
+                                           uint16_t phy_bits,
+                                           size_t sequence_index)
+{
+  if (sequence_index < AIOT_T2_CBRA_CAP_CHIPS)
+    return (0xAU >> (AIOT_T2_CBRA_CAP_CHIPS - 1U - sequence_index)) & 1U;
+
+  sequence_index -= AIOT_T2_CBRA_CAP_CHIPS;
+  if (sequence_index < phy_bits * AIOT_T2_MANCHESTER_CHIPS_PER_BIT) {
+    const size_t bit_index = sequence_index / AIOT_T2_MANCHESTER_CHIPS_PER_BIT;
+    const uint8_t bit = (phy_payload[bit_index / 8U] >> (7U - (bit_index % 8U))) & 1U;
+    return sequence_index % AIOT_T2_MANCHESTER_CHIPS_PER_BIT == 0 ? (uint8_t)!bit : bit;
+  }
+
+  sequence_index -= phy_bits * AIOT_T2_MANCHESTER_CHIPS_PER_BIT;
+  return (0xFU >> (AIOT_T2_CBRA_POSTAMBLE_CHIPS - 1U - sequence_index)) & 1U;
+}
+
+static bool nr_ue_aiot_cbra_encode_frame(const uint8_t *phy_payload,
+                                         const nr_ue_aiot_cbra_frame_t *frame,
+                                         c16_t *samples,
+                                         size_t sample_capacity,
+                                         const char **reason)
 {
   if (reason != NULL)
     *reason = NULL;
-  if (fields == NULL || packet == NULL) {
+  if (phy_payload == NULL || frame == NULL || samples == NULL) {
+    if (reason != NULL)
+      *reason = "invalid_frame_encoder_argument";
+    return false;
+  }
+  if (frame->emitted_chip_count > sample_capacity) {
+    if (reason != NULL)
+      *reason = "frame_exceeds_sample_capacity";
+    return false;
+  }
+
+  size_t output_index = 0;
+  for (size_t index = 0; index < AIOT_T2_CBRA_SIP_CHIPS; ++index) {
+    samples[output_index].r = (0xC8U >> (AIOT_T2_CBRA_SIP_CHIPS - 1U - index)) & 1U;
+    samples[output_index].i = 0;
+    ++output_index;
+  }
+
+  size_t sequence_index = 0;
+  for (uint16_t symbol = 0; symbol < frame->frame_symbols - 2U; ++symbol) {
+    for (uint8_t position = 0; position < frame->m; ++position) {
+      const bool reserved = frame->m == 24 && position >= frame->m - 2U;
+      uint8_t chip;
+      if (reserved) {
+        chip = 1;
+      } else if (sequence_index < frame->data_and_overhead_chips) {
+        chip = nr_ue_aiot_cbra_framing_bit(phy_payload, frame->phy_bits, sequence_index++);
+      } else {
+        const size_t padding_index = sequence_index - frame->data_and_overhead_chips;
+        chip = frame->m == 24 && frame->padding_chips >= 2 && padding_index >= frame->padding_chips - 2U ? 1U : 0U;
+        ++sequence_index;
+      }
+      samples[output_index].r = chip;
+      samples[output_index].i = 0;
+      ++output_index;
+    }
+  }
+
+  if (output_index != frame->emitted_chip_count
+      || sequence_index != frame->data_and_overhead_chips + frame->padding_chips) {
+    if (reason != NULL)
+      *reason = "frame_geometry_mismatch";
+    return false;
+  }
+  return true;
+}
+
+static bool nr_ue_aiot_cbra_prepare_r2d(nr_ue_aiot_cbra_message_kind_t message_kind,
+                                        const uint8_t *phy_payload,
+                                        uint32_t tag_id,
+                                        uint32_t reader_handle,
+                                        openair0_timestamp timestamp,
+                                        uint8_t m,
+                                        uint8_t prb_count,
+                                        aiot_t2_rf_packet_t *packet,
+                                        const char **reason)
+{
+  if (reason != NULL)
+    *reason = NULL;
+  if (phy_payload == NULL || packet == NULL) {
     if (reason != NULL)
       *reason = "invalid_r2d_request";
     return false;
@@ -540,38 +758,73 @@ bool nr_ue_aiot_cfa_prepare_r2d(const nr_ue_aiot_cfa_pdu_fields_t *fields,
       *reason = "invalid_reader_handle";
     return false;
   }
-  nr_ue_aiot_cfa_frame_t frame;
-  if (!nr_ue_aiot_cfa_derive_frame(m, prb_count, &frame, reason))
-    return false;
-  if (fields->d2r_scheduling_info != NR_UE_AIOT_CFA_FROZEN_D2R_SCHEDULING_INFO) {
-    if (reason != NULL)
-      *reason = "invalid_scheduling_info";
-    return false;
-  }
-
-  uint8_t pdu[NR_UE_AIOT_CFA_PDU_BYTES] = {0};
-  uint8_t phy_payload[NR_UE_AIOT_CFA_PHY_BYTES] = {0};
-  if (!nr_ue_aiot_cfa_build_pdu(fields, pdu, reason)
-      || !nr_ue_aiot_cfa_append_crc(pdu, phy_payload))
+  nr_ue_aiot_cbra_frame_t frame;
+  if (!nr_ue_aiot_cbra_derive_frame(message_kind, m, prb_count, &frame, reason))
     return false;
 
-  *packet = (aiot_t2_rf_packet_t){
+  aiot_t2_rf_packet_t prepared = {
       .header = {
-          .size = NR_UE_AIOT_CFA_PHY_BITS * AIOT_T2_MANCHESTER_CHIPS_PER_BIT,
+          .size = frame.emitted_chip_count,
           .nbAnt = 1,
           .timestamp = timestamp,
-          .option_value = AIOT_T2_PACK_CFA_R2D_TARGET(tag_id, reader_handle, m),
-          .option_flag = OPTION_AIOT_T2_R2D | OPTION_AIOT_T2_R2D_CFA,
+          .option_value = AIOT_T2_PACK_CBRA_R2D_TARGET(tag_id, reader_handle, m, message_kind),
+          .option_flag = OPTION_AIOT_T2_R2D | OPTION_AIOT_T2_R2D_CBRA,
           .beam_map = 1,
       },
   };
-  for (size_t bit_index = 0; bit_index < NR_UE_AIOT_CFA_PHY_BITS; ++bit_index) {
-    const uint8_t bit = (phy_payload[bit_index / 8U] >> (7U - (bit_index % 8U))) & 1U;
-    packet->samples[2U * bit_index].r = bit ? 0 : 1;
-    packet->samples[2U * bit_index + 1U].r = bit ? 1 : 0;
-  }
-  (void)frame;
+  if (!nr_ue_aiot_cbra_encode_frame(phy_payload, &frame, prepared.samples, AIOT_T2_MAX_RF_SAMPLES, reason))
+    return false;
+  *packet = prepared;
   return true;
+}
+
+bool nr_ue_aiot_cbra_prepare_paging_r2d(const nr_ue_aiot_cbra_paging_fields_t *fields,
+                                        uint32_t tag_id,
+                                        uint32_t reader_handle,
+                                        openair0_timestamp timestamp,
+                                        uint8_t m,
+                                        uint8_t prb_count,
+                                        aiot_t2_rf_packet_t *packet,
+                                        const char **reason)
+{
+  uint8_t pdu[NR_UE_AIOT_CBRA_PAGING_PDU_BYTES] = {0};
+  uint8_t phy_payload[NR_UE_AIOT_CBRA_PAGING_PHY_BYTES] = {0};
+  if (!nr_ue_aiot_cbra_build_paging_pdu(fields, pdu, reason)
+      || !nr_ue_aiot_cbra_append_paging_crc(pdu, phy_payload))
+    return false;
+  return nr_ue_aiot_cbra_prepare_r2d(NR_UE_AIOT_CBRA_PAGING,
+                                     phy_payload,
+                                     tag_id,
+                                     reader_handle,
+                                     timestamp,
+                                     m,
+                                     prb_count,
+                                     packet,
+                                     reason);
+}
+
+bool nr_ue_aiot_cbra_prepare_access_trigger_r2d(uint32_t tag_id,
+                                               uint32_t reader_handle,
+                                               openair0_timestamp timestamp,
+                                               uint8_t m,
+                                               uint8_t prb_count,
+                                               aiot_t2_rf_packet_t *packet,
+                                               const char **reason)
+{
+  uint8_t trigger[NR_UE_AIOT_CBRA_TRIGGER_BYTES] = {0};
+  uint8_t phy_payload[NR_UE_AIOT_CBRA_TRIGGER_PHY_BYTES] = {0};
+  if (!nr_ue_aiot_cbra_build_access_trigger(trigger)
+      || !nr_ue_aiot_cbra_append_access_trigger_crc(trigger, phy_payload))
+    return false;
+  return nr_ue_aiot_cbra_prepare_r2d(NR_UE_AIOT_CBRA_ACCESS_TRIGGER,
+                                     phy_payload,
+                                     tag_id,
+                                     reader_handle,
+                                     timestamp,
+                                     m,
+                                     prb_count,
+                                     packet,
+                                     reason);
 }
 
 static void aiot_t2_encode_pair(uint8_t bit, c16_t *pair)

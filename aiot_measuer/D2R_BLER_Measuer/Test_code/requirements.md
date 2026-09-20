@@ -2,14 +2,15 @@
 
 ## Formula concept
 
-## CFA M/SNR campaign profile
+## CBRA M/SNR campaign profile
 
-- The opt-in CFA profile compares only `M = 2, 6, 12, 24`, 15 kHz SCS, and three R2D PRBs.
-- Each formal `(M, SNR)` point has exactly 10,000 attempted R2D packets. Missing or duplicate attempt indices are rejected.
+- The opt-in CBRA profile compares Paging and Access Trigger separately at `M = 2, 6, 12, 24`, 15 kHz SCS, and three R2D PRBs.
+- Paging uses 224 MAC bits plus CRC16 = 240 PHY bits. Access Trigger uses 3 MAC bits plus CRC6 = 9 PHY bits.
+- Each formal `(message_kind, M, SNR)` point has exactly 10,000 measured R2D packets. Setup Paging is excluded from a standalone Access Trigger point; missing or duplicate measured attempt indices are rejected.
 - Each row carries one acknowledged `channel_epoch` and `channel_readback=true`; otherwise the point is invalid evidence and its BER/BLER/goodput are `null`.
-- Payload BER compares the 216 MAC bits. Payload BLER counts blocks that are not both CRC-valid and payload-matching; its 95% interval is Wilson.
-- Goodput is `216 * correctly_delivered_blocks / full_R2D_airtime_seconds`; failed R2D attempts remain in the denominator and cannot trigger early stopping.
-- Run it with `bash run_ui.sh campaign --profile cfa --input campaign.jsonl --output campaign.json`.
+- Control-bit BER compares only the message's MAC bits. BLER counts blocks that are not both CRC-valid and payload-matching; its 95% interval is Wilson.
+- Goodput is `message_mac_bits * correctly_delivered_blocks / full_R2D_airtime_seconds`; failed R2D attempts remain in the denominator and cannot trigger early stopping.
+- Run it with `bash run_ui.sh campaign --profile cbra --input campaign.jsonl --output campaign.json`.
 
 - A Tag payload bit uses one Manchester/OOK pair at `SFS = 1`: `0 -> 10` and `1 -> 01`.
 - The ideal-isolation received baseband model is `y_k = rho_k h_GT h_TR s_k + n_k`.
@@ -44,7 +45,7 @@
 
 ## RFsim observation wire contract
 
-- `AIOT_T2_OBSERVATION_MAGIC = 0x41494f42`, version `1`, fixed size `80` bytes, network byte order for multi-byte fields.
+- `AIOT_T2_OBSERVATION_MAGIC = 0x41494f42`, CBRA version `4`, fixed size `200` bytes, network byte order for multi-byte fields.
 - `complete` and `crc_failure` carry TX truth and decoded payload; CRC failures remain comparable BER samples.
 - `undetected` and `unaligned` increment the corresponding packet-loss counter. `invalid` preserves an invalid-evidence reason and leaves packet loss `null`.
 - The two Rician legs use independent deterministic keys `(seed, duration, repeat, physical-link, tag, cycle)`, `K = 3 dB`, unit mean power. Duration variants are independent RFsim runs. The relay applies total complex noise power `0.1` to D2R samples only.

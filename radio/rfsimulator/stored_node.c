@@ -25,6 +25,9 @@
 #include <common/utils/simple_executable.h>
 #include "PHY/CODING/coding_defs.h"
 #include "radio/COMMON/common_lib.h"
+#include <arpa/inet.h>
+#include <math.h>
+#include <stdlib.h>
 
 #define AIOT_MAX_PAYLOAD_BYTES 16
 #define AIOT_MAX_FRAME_BITS (AIOT_MAX_PAYLOAD_BYTES * 8 + 16)
@@ -33,12 +36,38 @@
 #define AIOT_D2R_CHIPS_PER_FRAME_BIT (AIOT_MANCHESTER_CHIPS_PER_BIT * AIOT_SFS_FACTOR)
 #define AIOT_RESPONSE_TIMEOUT_MS 100
 #define AIOT_INVENTORY_COMMAND 0x01
-#define AIOT_CFA_PDU_BYTES 27
-#define AIOT_CFA_PHY_BYTES 29
-#define AIOT_CFA_FRAME_BITS (AIOT_CFA_PHY_BYTES * 8)
-#define AIOT_CFA_CHIPS_PER_FRAME (AIOT_CFA_FRAME_BITS * AIOT_MANCHESTER_CHIPS_PER_BIT)
-#define AIOT_CFA_FROZEN_D2R_SCHEDULING_INFO 0x00300a0fU
+#define AIOT_CBRA_PDU_BYTES 28
+#define AIOT_CBRA_PHY_BYTES 30
+#define AIOT_CBRA_FRAME_BITS (AIOT_CBRA_PHY_BYTES * 8)
+#define AIOT_CBRA_CHIPS_PER_FRAME (AIOT_CBRA_FRAME_BITS * AIOT_MANCHESTER_CHIPS_PER_BIT)
+#define AIOT_CBRA_SIP_CHIPS AIOT_T2_CBRA_SIP_CHIPS
+#define AIOT_CBRA_CAP_CHIPS AIOT_T2_CBRA_CAP_CHIPS
+#define AIOT_CBRA_POSTAMBLE_CHIPS AIOT_T2_CBRA_POSTAMBLE_CHIPS
+#define AIOT_CBRA_SAMPLE_RATE_HZ AIOT_T2_CBRA_SAMPLE_RATE_HZ
+#define AIOT_CBRA_USEFUL_SAMPLES_PER_SYMBOL AIOT_T2_CBRA_USEFUL_SAMPLES_PER_SYMBOL
+#define AIOT_CBRA_DECIMATION 4U
+#define AIOT_CBRA_PRE_B0 0.05238376449658677
+#define AIOT_CBRA_PRE_B1 0.05238376449658677
+#define AIOT_CBRA_PRE_A1 0.8952324710068265
+#define AIOT_CBRA_PRE2_B0 0.002887387866824493
+#define AIOT_CBRA_PRE2_B1 0.005774775733648986
+#define AIOT_CBRA_PRE2_B2 0.002887387866824493
+#define AIOT_CBRA_PRE2_A1 -1.8839854240315808
+#define AIOT_CBRA_PRE2_A2 0.8955349754988786
+#define AIOT_CBRA_SMOOTH_B0 0.09982727525033994
+#define AIOT_CBRA_SMOOTH_B1 0.09982727525033994
+#define AIOT_CBRA_SMOOTH_A1 0.8003454494993202
+#define AIOT_CBRA_SMOOTH2_B0 0.010949419306238512
+#define AIOT_CBRA_SMOOTH2_B1 0.021898838612477024
+#define AIOT_CBRA_SMOOTH2_B2 0.010949419306238512
+#define AIOT_CBRA_SMOOTH2_A1 -1.7587338736641966
+#define AIOT_CBRA_SMOOTH2_A2 0.8025315508891506
+#define AIOT_CBRA_FROZEN_D2R_SCHEDULING_INFO 0x00006014U
+#define AIOT_CBRA_TRIGGER_BITS 3U
+#define AIOT_CBRA_TRIGGER_PHY_BITS 9U
+#define AIOT_CBRA_TRIGGER_BYTES 2U
 #define AIOT_RFSIM_MAX_SAMPLES (1U << 20)
+#define AIOT_T2_MAX_TAG_CYCLES 10001U
 
 typedef enum {
   AIOT_RESULT_OK,
@@ -63,6 +92,224 @@ typedef struct {
   bool reader_awake;
   uint32_t elapsed_ms;
 } aiot_tag_state_t;
+
+typedef struct {
+  double b0;
+  double b1;
+  double b2;
+  double a1;
+  double a2;
+  double x1;
+  double x2;
+  double y1;
+  double y2;
+} aiot_cbra_iir_section_t;
+
+typedef struct {
+  aiot_cbra_iir_section_t real[2];
+  aiot_cbra_iir_section_t imag[2];
+} aiot_cbra_complex_filter_t;
+
+typedef struct {
+  aiot_cbra_complex_filter_t preselection;
+  aiot_cbra_iir_section_t smoothing[2];
+  uint64_t input_sample_index;
+  uint64_t output_sample_index;
+  double calibrated_delay_samples;
+} aiot_cbra_receiver_t;
+
+static bool aiot_cbra_frame_geometry(uint32_t phy_bits,
+                                     uint32_t m,
+                                     size_t *frame_chips,
+                                     size_t *padding_chips,
+                                     size_t *reserved_chips);
+
+static void aiot_cbra_init_section(aiot_cbra_iir_section_t *section,
+                                  double b0,
+                                  double b1,
+                                  double b2,
+                                  double a1,
+                                  double a2)
+{
+  *section = (aiot_cbra_iir_section_t){.b0 = b0, .b1 = b1, .b2 = b2, .a1 = a1, .a2 = a2};
+}
+
+static double aiot_cbra_process_section(aiot_cbra_iir_section_t *section, double input)
+{
+  const double output = section->b0 * input + section->b1 * section->x1 + section->b2 * section->x2
+                        - section->a1 * section->y1 - section->a2 * section->y2;
+  section->x2 = section->x1;
+  section->x1 = input;
+  section->y2 = section->y1;
+  section->y1 = output;
+  return output;
+}
+
+static double aiot_cbra_process_real_filter(aiot_cbra_iir_section_t sections[2], double input)
+{
+  input = aiot_cbra_process_section(&sections[0], input);
+  return aiot_cbra_process_section(&sections[1], input);
+}
+
+static double aiot_cbra_process_complex_filter(aiot_cbra_complex_filter_t *filter, double *real, double *imag)
+{
+  *real = aiot_cbra_process_real_filter(filter->real, *real);
+  *imag = aiot_cbra_process_real_filter(filter->imag, *imag);
+  return *real * *real + *imag * *imag;
+}
+
+static size_t aiot_cbra_symbol_start_samples(size_t symbol)
+{
+  const size_t long_cp_count = (symbol + 6U) / 7U;
+  const size_t short_cp_count = symbol - long_cp_count;
+  return symbol * AIOT_CBRA_USEFUL_SAMPLES_PER_SYMBOL + long_cp_count * 80U + short_cp_count * 72U;
+}
+
+static void aiot_cbra_receiver_init(aiot_cbra_receiver_t *receiver)
+{
+  memset(receiver, 0, sizeof(*receiver));
+  aiot_cbra_init_section(&receiver->preselection.real[0],
+                        AIOT_CBRA_PRE_B0,
+                        AIOT_CBRA_PRE_B1,
+                        0.0,
+                        AIOT_CBRA_PRE_A1,
+                        0.0);
+  aiot_cbra_init_section(&receiver->preselection.real[1],
+                        AIOT_CBRA_PRE2_B0,
+                        AIOT_CBRA_PRE2_B1,
+                        AIOT_CBRA_PRE2_B2,
+                        AIOT_CBRA_PRE2_A1,
+                        AIOT_CBRA_PRE2_A2);
+  receiver->preselection.imag[0] = receiver->preselection.real[0];
+  receiver->preselection.imag[1] = receiver->preselection.real[1];
+  aiot_cbra_init_section(&receiver->smoothing[0],
+                        AIOT_CBRA_SMOOTH_B0,
+                        AIOT_CBRA_SMOOTH_B1,
+                        0.0,
+                        AIOT_CBRA_SMOOTH_A1,
+                        0.0);
+  aiot_cbra_init_section(&receiver->smoothing[1],
+                        AIOT_CBRA_SMOOTH2_B0,
+                        AIOT_CBRA_SMOOTH2_B1,
+                        AIOT_CBRA_SMOOTH2_B2,
+                        AIOT_CBRA_SMOOTH2_A1,
+                        AIOT_CBRA_SMOOTH2_A2);
+}
+
+static bool aiot_cbra_receiver_energies(const c16_t *samples,
+                                       size_t sample_count,
+                                       uint32_t phy_bits,
+                                       uint32_t m,
+                                       aiot_cbra_receiver_t *receiver,
+                                       double *chip_energies,
+                                       size_t chip_capacity,
+                                       double *signal_power,
+                                       double *noise_power)
+{
+  if (signal_power != NULL)
+    *signal_power = 0.0;
+  if (noise_power != NULL)
+    *noise_power = 0.0;
+  size_t frame_chips = 0;
+  size_t padding_chips = 0;
+  size_t reserved_chips = 0;
+  if (samples == NULL || receiver == NULL || chip_energies == NULL
+      || !aiot_cbra_frame_geometry(phy_bits, m, &frame_chips, &padding_chips, &reserved_chips)
+      || chip_capacity < frame_chips)
+    return false;
+
+  const size_t symbols_after_sip = (frame_chips - AIOT_CBRA_SIP_CHIPS) / m;
+  const size_t frame_symbols = 2U + symbols_after_sip;
+  const size_t high_rate_samples = aiot_cbra_symbol_start_samples(frame_symbols);
+  if (sample_count != high_rate_samples)
+    return false;
+  const size_t output_capacity = (sample_count + AIOT_CBRA_DECIMATION - 1U) / AIOT_CBRA_DECIMATION;
+  double *decimated = calloc(output_capacity, sizeof(*decimated));
+  double *preselection_decimated = calloc(output_capacity, sizeof(*preselection_decimated));
+  if (decimated == NULL || preselection_decimated == NULL) {
+    free(decimated);
+    free(preselection_decimated);
+    return false;
+  }
+
+  size_t output_count = 0;
+  size_t symbol = 0;
+  size_t symbol_start = 0;
+  size_t symbol_end = 80U + AIOT_CBRA_USEFUL_SAMPLES_PER_SYMBOL;
+  for (size_t input_index = 0; input_index < sample_count; ++input_index) {
+    while (symbol + 1U < frame_symbols && input_index >= symbol_end) {
+      ++symbol;
+      symbol_start = aiot_cbra_symbol_start_samples(symbol);
+      symbol_end = symbol_start + (symbol % 7U == 0 ? 80U : 72U) + AIOT_CBRA_USEFUL_SAMPLES_PER_SYMBOL;
+    }
+    double real = samples[input_index].r;
+    double imag = samples[input_index].i;
+    const double preselection_power = aiot_cbra_process_complex_filter(&receiver->preselection, &real, &imag);
+    const double power = aiot_cbra_process_real_filter(receiver->smoothing, preselection_power);
+    if (receiver->input_sample_index % AIOT_CBRA_DECIMATION == AIOT_CBRA_DECIMATION - 1U) {
+      decimated[output_count++] = power;
+      preselection_decimated[output_count - 1U] = preselection_power;
+    }
+    ++receiver->input_sample_index;
+  }
+  receiver->output_sample_index += output_count;
+
+  size_t sequence_index = 0;
+  size_t power_pair_count = 0;
+  double signal_power_sum = 0.0;
+  double noise_power_sum = 0.0;
+  double first_preselection_power = 0.0;
+  for (size_t chip_index = 0; chip_index < frame_chips; ++chip_index) {
+    const size_t chip_symbol = chip_index < AIOT_CBRA_SIP_CHIPS ? chip_index / 4U
+                                                                : 2U + (chip_index - AIOT_CBRA_SIP_CHIPS) / m;
+    const size_t chip_position = chip_index < AIOT_CBRA_SIP_CHIPS ? chip_index % 4U
+                                                                  : (chip_index - AIOT_CBRA_SIP_CHIPS) % m;
+    const double chip_span = chip_index < AIOT_CBRA_SIP_CHIPS ? 256.0 : 1024.0 / m;
+    const double useful_start = (double)aiot_cbra_symbol_start_samples(chip_symbol)
+                                + (chip_symbol % 7U == 0 ? 80.0 : 72.0) + chip_position * chip_span;
+    const double start = useful_start / AIOT_CBRA_DECIMATION + receiver->calibrated_delay_samples;
+    const double end = (useful_start + chip_span) / AIOT_CBRA_DECIMATION + receiver->calibrated_delay_samples;
+    const size_t first = start > 0.0 ? (size_t)floor(start) : 0;
+    const size_t last = (size_t)ceil(end);
+    double energy = 0.0;
+    double preselection_energy = 0.0;
+    for (size_t index = first; index < last && index < output_count; ++index) {
+      const double overlap_start = start > (double)index ? start : (double)index;
+      const double overlap_end = end < (double)(index + 1U) ? end : (double)(index + 1U);
+      if (overlap_end > overlap_start) {
+        energy += decimated[index] * (overlap_end - overlap_start);
+        preselection_energy += preselection_decimated[index] * (overlap_end - overlap_start);
+      }
+    }
+    const double chip_duration = chip_span / AIOT_CBRA_DECIMATION;
+    chip_energies[chip_index] = energy / chip_duration;
+    preselection_energy /= chip_duration;
+    if (chip_index >= AIOT_CBRA_SIP_CHIPS && !(m == 24 && chip_position >= m - 2U)) {
+      if (sequence_index >= AIOT_CBRA_CAP_CHIPS
+          && sequence_index < AIOT_CBRA_CAP_CHIPS + phy_bits * AIOT_MANCHESTER_CHIPS_PER_BIT) {
+        if ((sequence_index - AIOT_CBRA_CAP_CHIPS) % AIOT_MANCHESTER_CHIPS_PER_BIT == 0) {
+          first_preselection_power = preselection_energy;
+        } else {
+          const double noise = first_preselection_power < preselection_energy ? first_preselection_power : preselection_energy;
+          noise_power_sum += noise;
+          const double signal = first_preselection_power > preselection_energy ? first_preselection_power : preselection_energy;
+          signal_power_sum += signal - noise;
+          ++power_pair_count;
+        }
+      }
+      ++sequence_index;
+    }
+  }
+  if (power_pair_count != 0) {
+    if (signal_power != NULL)
+      *signal_power = signal_power_sum / power_pair_count;
+    if (noise_power != NULL)
+      *noise_power = noise_power_sum / power_pair_count;
+  }
+  free(preselection_decimated);
+  free(decimated);
+  return true;
+}
 
 static size_t aiot_crc_length_bits(size_t payload_len)
 {
@@ -94,7 +341,7 @@ static bool aiot_decode_pair(const uint8_t *pair, uint8_t *bit)
   return false;
 }
 
-static void aiot_cfa_put_bits(uint8_t *bytes, size_t *offset, uint64_t value, unsigned int width)
+static void aiot_cbra_put_bits(uint8_t *bytes, size_t *offset, uint64_t value, unsigned int width)
 {
   for (unsigned int bit = 0; bit < width; ++bit) {
     const size_t position = *offset + bit;
@@ -104,7 +351,7 @@ static void aiot_cfa_put_bits(uint8_t *bytes, size_t *offset, uint64_t value, un
   *offset += width;
 }
 
-static uint64_t aiot_cfa_get_bits(const uint8_t *bytes, size_t *offset, unsigned int width)
+static uint64_t aiot_cbra_get_bits(const uint8_t *bytes, size_t *offset, unsigned int width)
 {
   uint64_t value = 0;
   for (unsigned int bit = 0; bit < width; ++bit) {
@@ -115,51 +362,211 @@ static uint64_t aiot_cfa_get_bits(const uint8_t *bytes, size_t *offset, unsigned
   return value;
 }
 
-static aiot_result_t aiot_decode_cfa_r2d_frame(const uint8_t *chips,
-                                               size_t chips_len,
-                                               uint8_t pdu[AIOT_CFA_PDU_BYTES],
-                                               uint32_t *serial,
-                                               uint32_t *d2r_scheduling_info)
+static bool aiot_cbra_frame_geometry(uint32_t phy_bits,
+                                     uint32_t m,
+                                     size_t *frame_chips,
+                                     size_t *padding_chips,
+                                     size_t *reserved_chips)
 {
-  if (chips == NULL || pdu == NULL || serial == NULL || chips_len != AIOT_CFA_CHIPS_PER_FRAME)
+  if (phy_bits == 0 || phy_bits > 240 || (m != 2 && m != 6 && m != 12 && m != 24))
+    return false;
+  const size_t usable_chips_per_symbol = m == 24 ? 22U : m;
+  const size_t data_and_overhead_chips = AIOT_CBRA_CAP_CHIPS + phy_bits * AIOT_MANCHESTER_CHIPS_PER_BIT
+                                         + AIOT_CBRA_POSTAMBLE_CHIPS;
+  const size_t symbols_after_sip =
+      (data_and_overhead_chips + usable_chips_per_symbol - 1U) / usable_chips_per_symbol;
+  const size_t mapping_positions = symbols_after_sip * m;
+  *reserved_chips = m == 24 ? symbols_after_sip * 2U : 0U;
+  *padding_chips = mapping_positions - *reserved_chips - data_and_overhead_chips;
+  *frame_chips = AIOT_CBRA_SIP_CHIPS + mapping_positions;
+  return *frame_chips <= AIOT_T2_MAX_RF_SAMPLES;
+}
+
+static uint8_t aiot_cbra_framing_bit(const uint8_t *phy, uint32_t phy_bits, size_t sequence_index)
+{
+  if (sequence_index < AIOT_CBRA_CAP_CHIPS)
+    return (0xAU >> (AIOT_CBRA_CAP_CHIPS - 1U - sequence_index)) & 1U;
+
+  sequence_index -= AIOT_CBRA_CAP_CHIPS;
+  if (sequence_index < phy_bits * AIOT_MANCHESTER_CHIPS_PER_BIT) {
+    const size_t bit_index = sequence_index / AIOT_MANCHESTER_CHIPS_PER_BIT;
+    const uint8_t bit = (phy[bit_index / 8U] >> (7U - bit_index % 8U)) & 1U;
+    return sequence_index % AIOT_MANCHESTER_CHIPS_PER_BIT == 0 ? (uint8_t)!bit : bit;
+  }
+
+  sequence_index -= phy_bits * AIOT_MANCHESTER_CHIPS_PER_BIT;
+  return (0xFU >> (AIOT_CBRA_POSTAMBLE_CHIPS - 1U - sequence_index)) & 1U;
+}
+
+static bool aiot_cbra_test_encode_frame(const uint8_t *phy,
+                                       uint32_t phy_bits,
+                                       uint32_t m,
+                                       c16_t *samples,
+                                       size_t sample_capacity,
+                                       size_t *sample_count)
+{
+  size_t frame_chips = 0;
+  size_t padding_chips = 0;
+  size_t reserved_chips = 0;
+  if (phy == NULL || samples == NULL || sample_count == NULL
+      || !aiot_cbra_frame_geometry(phy_bits, m, &frame_chips, &padding_chips, &reserved_chips)
+      || sample_capacity < frame_chips)
+    return false;
+  const size_t data_and_overhead_chips = AIOT_CBRA_CAP_CHIPS + phy_bits * AIOT_MANCHESTER_CHIPS_PER_BIT
+                                         + AIOT_CBRA_POSTAMBLE_CHIPS;
+
+  memset(samples, 0, frame_chips * sizeof(*samples));
+  size_t output_index = 0;
+  for (size_t index = 0; index < AIOT_CBRA_SIP_CHIPS; ++index)
+    samples[output_index++].r = (0xC8U >> (AIOT_CBRA_SIP_CHIPS - 1U - index)) & 1U ? 2 : 0;
+
+  size_t sequence_index = 0;
+  const size_t symbols_after_sip = (frame_chips - AIOT_CBRA_SIP_CHIPS) / m;
+  for (size_t symbol = 0; symbol < symbols_after_sip; ++symbol) {
+    for (uint32_t position = 0; position < m; ++position) {
+      const bool reserved = m == 24 && position >= m - 2U;
+      uint8_t chip = 0;
+      if (reserved) {
+        chip = 1;
+      } else if (sequence_index < data_and_overhead_chips) {
+        chip = aiot_cbra_framing_bit(phy, phy_bits, sequence_index++);
+      } else {
+        const size_t padding_index = sequence_index - data_and_overhead_chips;
+        chip = m == 24 && padding_chips >= 2U && padding_index >= padding_chips - 2U ? 1U : 0U;
+        ++sequence_index;
+      }
+      samples[output_index++].r = chip ? 2 : 0;
+    }
+  }
+  *sample_count = output_index;
+  return output_index == frame_chips
+         && sequence_index == data_and_overhead_chips + padding_chips
+         && reserved_chips == (m == 24 ? symbols_after_sip * 2U : 0U);
+}
+
+static aiot_result_t aiot_decode_cbra_r2d_frame(const c16_t *samples,
+                                               size_t sample_count,
+                                               uint32_t message_kind,
+                                               uint32_t m,
+                                               aiot_cbra_receiver_t *receiver,
+                                               uint8_t pdu[AIOT_CBRA_PDU_BYTES],
+                                               uint32_t *serial,
+                                               uint32_t *d2r_scheduling_info,
+                                               double *signal_power,
+                                               double *noise_power)
+{
+  const uint32_t mac_bits = message_kind == AIOT_T2_CBRA_KIND_PAGING ? 224U : 3U;
+  const uint32_t phy_bits = message_kind == AIOT_T2_CBRA_KIND_PAGING ? 240U : 9U;
+  const uint32_t pdu_bytes = message_kind == AIOT_T2_CBRA_KIND_PAGING ? 28U : 2U;
+  if (message_kind > AIOT_T2_CBRA_KIND_ACCESS_TRIGGER || pdu == NULL || serial == NULL
+      || d2r_scheduling_info == NULL)
+    return AIOT_RESULT_PAYLOAD_LENGTH;
+  *serial = 0;
+  *d2r_scheduling_info = 0;
+  if (signal_power != NULL)
+    *signal_power = 0.0;
+  if (noise_power != NULL)
+    *noise_power = 0.0;
+  size_t frame_chips = 0;
+  size_t padding_chips = 0;
+  size_t reserved_chips = 0;
+  const size_t data_and_overhead_chips = AIOT_CBRA_CAP_CHIPS + phy_bits * AIOT_MANCHESTER_CHIPS_PER_BIT
+                                         + AIOT_CBRA_POSTAMBLE_CHIPS;
+  if (samples == NULL || !aiot_cbra_frame_geometry(phy_bits, m, &frame_chips, &padding_chips, &reserved_chips)
+      || sample_count != aiot_cbra_symbol_start_samples(2U + (frame_chips - AIOT_CBRA_SIP_CHIPS) / m))
     return AIOT_RESULT_PAYLOAD_LENGTH;
 
-  memset(pdu, 0, AIOT_CFA_PDU_BYTES);
+  aiot_cbra_receiver_t local_receiver;
+  if (receiver == NULL) {
+    aiot_cbra_receiver_init(&local_receiver);
+    receiver = &local_receiver;
+  }
+  double chip_energies[AIOT_T2_MAX_RF_SAMPLES] = {0};
+  if (!aiot_cbra_receiver_energies(
+          samples,
+          sample_count,
+          phy_bits,
+          m,
+          receiver,
+          chip_energies,
+          sizeofArray(chip_energies),
+          signal_power,
+          noise_power))
+    return AIOT_RESULT_PAYLOAD_LENGTH;
+
+  double prdch_energy[480] = {0};
+  size_t sequence_index = 0;
+  size_t sample_index = AIOT_CBRA_SIP_CHIPS;
+  const size_t symbols_after_sip = (frame_chips - AIOT_CBRA_SIP_CHIPS) / m;
+  for (size_t symbol = 0; symbol < symbols_after_sip; ++symbol) {
+    for (uint32_t position = 0; position < m; ++position, ++sample_index) {
+      if (m == 24 && position >= m - 2U)
+        continue;
+      if (sequence_index >= AIOT_CBRA_CAP_CHIPS
+          && sequence_index < AIOT_CBRA_CAP_CHIPS + phy_bits * AIOT_MANCHESTER_CHIPS_PER_BIT)
+        prdch_energy[sequence_index - AIOT_CBRA_CAP_CHIPS] = chip_energies[sample_index];
+      ++sequence_index;
+    }
+  }
+  if (sample_index != frame_chips || sequence_index != data_and_overhead_chips + padding_chips)
+    return AIOT_RESULT_PAYLOAD_LENGTH;
+
+  memset(pdu, 0, pdu_bytes);
   uint32_t received_crc = 0;
-  for (size_t bit_index = 0; bit_index < AIOT_CFA_FRAME_BITS; ++bit_index) {
-    uint8_t bit = 0;
-    if (!aiot_decode_pair(chips + bit_index * AIOT_MANCHESTER_CHIPS_PER_BIT, &bit))
+  for (size_t bit_index = 0; bit_index < phy_bits; ++bit_index) {
+    const double first_energy = prdch_energy[bit_index * AIOT_MANCHESTER_CHIPS_PER_BIT];
+    const double second_energy = prdch_energy[bit_index * AIOT_MANCHESTER_CHIPS_PER_BIT + 1U];
+    if (first_energy == second_energy)
       return AIOT_RESULT_INVALID_LINE_CODE;
-    if (bit_index < AIOT_CFA_PDU_BYTES * 8U) {
+    const uint8_t bit = second_energy > first_energy;
+    if (bit_index < mac_bits) {
       if (bit)
         pdu[bit_index / 8U] |= (uint8_t)(1U << (7U - bit_index % 8U));
     } else {
       received_crc = (received_crc << 1U) | bit;
     }
   }
-  if (received_crc != aiot_crc(pdu, AIOT_CFA_PDU_BYTES))
+  const uint32_t expected_crc = message_kind == AIOT_T2_CBRA_KIND_PAGING
+                                    ? aiot_crc(pdu, pdu_bytes)
+                                    : (crc6(pdu, 3U) >> 26);
+  if (received_crc != expected_crc)
     return AIOT_RESULT_CRC_FAILURE;
 
   size_t offset = 0;
-  if (aiot_cfa_get_bits(pdu, &offset, 3) != 1
-      || aiot_cfa_get_bits(pdu, &offset, 7) != 26
-      || aiot_cfa_get_bits(pdu, &offset, 1) != 1) {
+  if (message_kind == AIOT_T2_CBRA_KIND_ACCESS_TRIGGER)
+    return aiot_cbra_get_bits(pdu, &offset, 3) == 2 && offset == 3 ? AIOT_RESULT_OK : AIOT_RESULT_INVALID_LINE_CODE;
+  if (aiot_cbra_get_bits(pdu, &offset, 3) != 1
+      || aiot_cbra_get_bits(pdu, &offset, 7) != 27
+      || aiot_cbra_get_bits(pdu, &offset, 1) != 1)
     return AIOT_RESULT_INVALID_LINE_CODE;
-  }
-  offset += 8U * 16U; /* security parameter */
-  if (aiot_cfa_get_bits(pdu, &offset, 1) != 0
-      || aiot_cfa_get_bits(pdu, &offset, 10) != 42
-      || aiot_cfa_get_bits(pdu, &offset, 2) != 1
-      || aiot_cfa_get_bits(pdu, &offset, 8) != 0x08) {
+  offset += 8U * 16U;
+  if (aiot_cbra_get_bits(pdu, &offset, 1) != 1
+      || aiot_cbra_get_bits(pdu, &offset, 6) > 63
+      || aiot_cbra_get_bits(pdu, &offset, 1) != 1
+      || aiot_cbra_get_bits(pdu, &offset, 10) != 42
+      || aiot_cbra_get_bits(pdu, &offset, 2) != 1
+      || aiot_cbra_get_bits(pdu, &offset, 8) != 0x08)
     return AIOT_RESULT_INVALID_LINE_CODE;
-  }
-  *serial = (uint32_t)aiot_cfa_get_bits(pdu, &offset, 32);
+  *serial = (uint32_t)aiot_cbra_get_bits(pdu, &offset, 32);
   if (*serial == 0)
     return AIOT_RESULT_INVALID_LINE_CODE;
-  *d2r_scheduling_info = (uint32_t)aiot_cfa_get_bits(pdu, &offset, 24);
-  if (*d2r_scheduling_info != AIOT_CFA_FROZEN_D2R_SCHEDULING_INFO)
+  (void)aiot_cbra_get_bits(pdu, &offset, 4);
+  *d2r_scheduling_info = (uint32_t)aiot_cbra_get_bits(pdu, &offset, 18);
+  const uint8_t schedule_tbit = (uint8_t)((*d2r_scheduling_info >> 14) & 7U);
+  const uint8_t schedule_bitmap = (uint8_t)((*d2r_scheduling_info >> 6) & 0xffU);
+  const uint8_t schedule_x = (uint8_t)(((*d2r_scheduling_info >> 17) & 1U) + 1U);
+  static const uint8_t allowed_sfs[8] = {0xff, 0xfe, 0xfc, 0xf8, 0xf0, 0xe0, 0xc0, 0x80};
+  uint8_t schedule_sfs = schedule_bitmap;
+  uint8_t schedule_n_sfs = 0;
+  while (schedule_sfs != 0) {
+    schedule_n_sfs += schedule_sfs & 1U;
+    schedule_sfs >>= 1;
+  }
+  if (schedule_tbit >= 8 || schedule_bitmap == 0 || (schedule_bitmap & (uint8_t)~allowed_sfs[schedule_tbit]) != 0
+      || schedule_x == 0 || schedule_n_sfs == 0 || aiot_cbra_get_bits(pdu, &offset, 1) > 1)
     return AIOT_RESULT_INVALID_LINE_CODE;
-  return offset == AIOT_CFA_PDU_BYTES * 8U ? AIOT_RESULT_OK : AIOT_RESULT_INVALID_LINE_CODE;
+  (void)aiot_cbra_get_bits(pdu, &offset, 2);
+  return offset == mac_bits ? AIOT_RESULT_OK : AIOT_RESULT_INVALID_LINE_CODE;
 }
 
 static aiot_result_t aiot_encode_frame(const uint8_t *payload,
@@ -300,6 +707,224 @@ static bool aiot_parse_hex(const char *text, uint8_t *payload, size_t *payload_l
   return true;
 }
 
+static uint64_t aiot_t2_htonll(uint64_t value)
+{
+  return ((uint64_t)htonl((uint32_t)value) << 32) | htonl((uint32_t)(value >> 32));
+}
+
+static uint64_t aiot_cbra_power_q16(double power)
+{
+  if (!isfinite(power) || power <= 0.0)
+    return 0;
+  const double scaled = power * AIOT_T2_CBRA_POWER_Q_SCALE;
+  if (scaled >= (double)UINT64_MAX)
+    return aiot_t2_htonll(UINT64_MAX);
+  return aiot_t2_htonll((uint64_t)(scaled + 0.5));
+}
+
+static void aiot_write_rfsim_packet(int fd, const samplesBlockHeader_t *header, const c16_t *samples);
+
+static bool aiot_tag_send_cbra_observation(int socket,
+                                           uint32_t tag_id,
+                                           uint32_t reader_handle,
+                                           uint32_t message_kind,
+                                           uint32_t m,
+                                           uint8_t context_eligible,
+                                           uint8_t setup,
+                                           uint64_t tx_timestamp,
+                                           uint64_t completion_timestamp,
+                                           uint32_t full_airtime_samples,
+                                           uint8_t status,
+                                           uint8_t gate_status,
+                                           uint8_t d2r_attempted,
+                                           uint8_t crc_ok,
+                                           uint8_t comparable,
+                                           uint8_t decode_result,
+                                           double signal_power,
+                                           double noise_power,
+                                           uint16_t random_id,
+                                           uint8_t access_occasion,
+                                           uint8_t msg2_status,
+                                           const uint8_t decoded_pdu[AIOT_CBRA_PDU_BYTES])
+{
+  aiot_t2_cbra_observation_report_t report = {0};
+  const uint16_t mac_bits = message_kind == AIOT_T2_CBRA_KIND_PAGING ? 224U : 3U;
+  const uint16_t phy_bits = message_kind == AIOT_T2_CBRA_KIND_PAGING ? 240U : 9U;
+  const size_t pdu_bytes = message_kind == AIOT_T2_CBRA_KIND_PAGING ? 28U : 2U;
+  report.magic = htonl(AIOT_T2_OBSERVATION_MAGIC);
+  report.version = AIOT_T2_CBRA_OBSERVATION_VERSION;
+  report.status = status;
+  report.flags = htons(AIOT_T2_OBS_FLAG_IDEAL_ACQUISITION
+                       | (crc_ok ? AIOT_T2_OBS_FLAG_CRC_VALID : 0)
+                       | (setup ? AIOT_T2_OBS_FLAG_SETUP : 0));
+  report.reader_handle = htonl(reader_handle);
+  report.tag_id = htonl(tag_id);
+  report.message_kind = message_kind;
+  report.m = (uint8_t)m;
+  report.prb_count = 3;
+  report.pdu_profile_version = AIOT_T2_CBRA_PDU_PROFILE_VERSION;
+  report.gate_status = gate_status;
+  report.context_eligible = context_eligible;
+  report.mac_bits = htons(mac_bits);
+  report.phy_bits = htons(phy_bits);
+  report.tx_timestamp = aiot_t2_htonll(tx_timestamp);
+  report.completion_timestamp = aiot_t2_htonll(completion_timestamp);
+  report.epoch_readback = 0;
+  report.d2r_attempted = d2r_attempted;
+  report.crc_ok = crc_ok;
+  report.payload_match = 0;
+  report.decode_result = decode_result;
+  report.compared_bits = htons(comparable ? mac_bits : 0);
+  report.full_airtime_samples = htonl(full_airtime_samples);
+  report.full_airtime_ns = aiot_t2_htonll(((uint64_t)full_airtime_samples * 1000000000ULL
+                                           + AIOT_CBRA_SAMPLE_RATE_HZ / 2U)
+                                          / AIOT_CBRA_SAMPLE_RATE_HZ);
+  report.signal_power_q16 = aiot_cbra_power_q16(signal_power);
+  report.noise_power_q16 = aiot_cbra_power_q16(noise_power);
+  report.random_id = htons(random_id);
+  report.access_occasion = access_occasion;
+  report.msg2_status = msg2_status;
+  if (decoded_pdu != NULL)
+    memcpy(report.decoded_pdu, decoded_pdu, pdu_bytes);
+
+  const samplesBlockHeader_t header = {
+      .size = sizeof(report) / sizeof(c16_t),
+      .nbAnt = 1,
+      .timestamp = tx_timestamp,
+      .option_value = AIOT_T2_PACK_CBRA_R2D_TARGET(tag_id, reader_handle, m, message_kind),
+      .option_flag = OPTION_AIOT_T2_CBRA_OBSERVATION,
+      .beam_map = 1,
+  };
+  c16_t wire_samples[sizeof(report) / sizeof(c16_t)];
+  memcpy(wire_samples, &report, sizeof(report));
+  aiot_write_rfsim_packet(socket, &header, wire_samples);
+  return true;
+}
+
+typedef struct {
+  bool valid;
+  uint32_t reader_handle;
+  uint32_t message_kind;
+  uint8_t context_eligible;
+  uint8_t setup;
+  uint32_t m;
+  uint64_t tx_timestamp;
+  uint32_t full_airtime_samples;
+  uint16_t random_id;
+  uint8_t access_occasion;
+  uint8_t msg2_status;
+  uint8_t decoded_pdu[AIOT_CBRA_PDU_BYTES];
+} aiot_cbra_pending_observation_t;
+
+typedef struct {
+  bool context_valid;
+  uint16_t n;
+  uint16_t m;
+  uint16_t counter;
+  uint16_t selected_access_occasion;
+  uint16_t random_id;
+  uint32_t random_state;
+  uint8_t k;
+  uint8_t msg2_remaining;
+  bool msg1_sent;
+  bool waiting_msg2;
+  bool failed;
+} aiot_cbra_access_state_t;
+
+static uint16_t aiot_cbra_next_random(aiot_cbra_access_state_t *state)
+{
+  state->random_state ^= state->random_state << 13;
+  state->random_state ^= state->random_state >> 17;
+  state->random_state ^= state->random_state << 5;
+  uint16_t random_id = (uint16_t)(state->random_state >> 8);
+  return random_id == 0 ? 1 : random_id;
+}
+
+static uint16_t aiot_cbra_access_m(uint32_t scheduling_info)
+{
+  static const uint8_t allowed_sfs[8] = {0xff, 0xfe, 0xfc, 0xf8, 0xf0, 0xe0, 0xc0, 0x80};
+  const uint8_t x = (uint8_t)(((scheduling_info >> 17) & 1U) + 1U);
+  const uint8_t tbit = (uint8_t)((scheduling_info >> 14) & 7U);
+  const uint8_t bitmap = (uint8_t)((scheduling_info >> 6) & 0xffU);
+  if (bitmap == 0 || tbit >= 8 || (bitmap & (uint8_t)~allowed_sfs[tbit]) != 0)
+    return 0;
+  uint16_t n_sfs = 0;
+  for (uint8_t bits = bitmap; bits != 0; bits >>= 1)
+    n_sfs += bits & 1U;
+  return (uint16_t)(n_sfs * x);
+}
+
+static bool aiot_cbra_decode_paging_access(const uint8_t pdu[AIOT_CBRA_PDU_BYTES], uint8_t *n_code, uint8_t *k)
+{
+  if (pdu == NULL || n_code == NULL || k == NULL)
+    return false;
+  size_t offset = 0;
+  offset += 3 + 7 + 1 + 8 * 16 + 1 + 6 + 1 + 10 + 2 + 8 + 32;
+  *n_code = (uint8_t)aiot_cbra_get_bits(pdu, &offset, 4);
+  offset += 18;
+  *k = (uint8_t)aiot_cbra_get_bits(pdu, &offset, 1);
+  return *n_code <= 15 && *k <= 1;
+}
+
+static bool aiot_cbra_start_msg1(aiot_cbra_access_state_t *state)
+{
+  if (state == NULL || state->selected_access_occasion == 0 || state->msg1_sent)
+    return false;
+  state->random_id = aiot_cbra_next_random(state);
+  state->msg1_sent = true;
+  state->waiting_msg2 = true;
+  state->msg2_remaining = state->k ? 4 : 1;
+  return true;
+}
+
+static bool aiot_cbra_on_paging(aiot_cbra_access_state_t *state,
+                                const uint8_t pdu[AIOT_CBRA_PDU_BYTES],
+                                uint32_t scheduling_info)
+{
+  uint8_t n_code = 0;
+  uint8_t k = 0;
+  if (!aiot_cbra_decode_paging_access(pdu, &n_code, &k))
+    return false;
+  state->n = 20U + n_code;
+  state->m = aiot_cbra_access_m(scheduling_info);
+  state->counter = (uint16_t)(state->random_state % state->n);
+  state->selected_access_occasion = 0;
+  state->msg1_sent = false;
+  state->waiting_msg2 = false;
+  state->failed = false;
+  state->k = k;
+  state->msg2_remaining = 0;
+  state->context_valid = state->m != 0;
+  if (state->context_valid && state->counter < state->m) {
+    state->selected_access_occasion = (uint16_t)(state->counter + 1U);
+    return aiot_cbra_start_msg1(state);
+  }
+  return state->context_valid;
+}
+
+static bool aiot_cbra_on_access_trigger(aiot_cbra_access_state_t *state)
+{
+  if (state == NULL || !state->context_valid)
+    return false;
+  if (state->waiting_msg2) {
+    if (state->msg2_remaining > 0)
+      --state->msg2_remaining;
+    if (state->msg2_remaining == 0) {
+      state->waiting_msg2 = false;
+      state->failed = true;
+    }
+    return false;
+  }
+  if (state->msg1_sent || state->counter < state->m)
+    return false;
+  state->counter = (uint16_t)(state->counter - state->m);
+  if (state->counter < state->m) {
+    state->selected_access_occasion = (uint16_t)(state->counter + 1U);
+    return aiot_cbra_start_msg1(state);
+  }
+  return false;
+}
+
 static bool aiot_samples_to_chips(const c16_t *samples, size_t sample_count, uint8_t *chips);
 
 static aiot_fault_t aiot_parse_fault(const char *text, bool *valid)
@@ -409,19 +1034,35 @@ static int aiot_tag_self_test(void)
   c16_t reflected[2] = {0};
   const c16_t noisy_pair[2] = {{.r = 1}, {.r = 3}};
   uint8_t noisy_pair_chips[2] = {0};
-  uint8_t cfa_pdu[AIOT_CFA_PDU_BYTES] = {0};
-  uint8_t cfa_phy[AIOT_CFA_PHY_BYTES] = {0};
-  uint8_t cfa_chips[AIOT_CFA_CHIPS_PER_FRAME] = {0};
-  uint8_t cfa_decoded[AIOT_CFA_PDU_BYTES] = {0};
-  uint8_t cfa_bad_crc_chips[AIOT_CFA_CHIPS_PER_FRAME] = {0};
-  uint8_t cfa_bad_field_pdu[AIOT_CFA_PDU_BYTES] = {0};
-  uint8_t cfa_bad_field_phy[AIOT_CFA_PHY_BYTES] = {0};
-  uint8_t cfa_bad_field_chips[AIOT_CFA_CHIPS_PER_FRAME] = {0};
-  c16_t cfa_samples[AIOT_CFA_CHIPS_PER_FRAME] = {0};
-  uint8_t cfa_sample_chips[AIOT_CFA_CHIPS_PER_FRAME] = {0};
-  uint8_t cfa_reject_pdu[AIOT_CFA_PDU_BYTES] = {0};
-  uint32_t cfa_reject_serial = 0;
-  uint32_t cfa_reject_schedule = 0;
+  uint8_t cbra_pdu[AIOT_CBRA_PDU_BYTES] = {0};
+  uint8_t cbra_phy[AIOT_CBRA_PHY_BYTES] = {0};
+  uint8_t cbra_decoded[AIOT_CBRA_PDU_BYTES] = {0};
+  uint8_t cbra_bad_field_pdu[AIOT_CBRA_PDU_BYTES] = {0};
+  uint8_t cbra_bad_field_phy[AIOT_CBRA_PHY_BYTES] = {0};
+  uint8_t trigger[AIOT_CBRA_TRIGGER_BYTES] = {0};
+  uint8_t trigger_phy[AIOT_CBRA_TRIGGER_BYTES] = {0};
+  c16_t cbra_samples[AIOT_T2_MAX_RF_SAMPLES] = {0};
+  c16_t cbra_bad_crc_samples[AIOT_T2_MAX_RF_SAMPLES] = {0};
+  c16_t cbra_bad_field_samples[AIOT_T2_MAX_RF_SAMPLES] = {0};
+  c16_t trigger_samples[AIOT_T2_MAX_RF_SAMPLES] = {0};
+  c16_t trigger_bad_crc_samples[AIOT_T2_MAX_RF_SAMPLES] = {0};
+  c16_t cbra_short_samples[2] = {0};
+  c16_t *cbra_waveform = NULL;
+  c16_t *cbra_bad_crc_waveform = NULL;
+  c16_t *cbra_bad_field_waveform = NULL;
+  c16_t *trigger_waveform = NULL;
+  c16_t *trigger_bad_crc_waveform = NULL;
+  size_t cbra_sample_count = 0;
+  size_t cbra_bad_field_sample_count = 0;
+  size_t cbra_waveform_count = 0;
+  size_t cbra_bad_crc_waveform_count = 0;
+  size_t cbra_bad_field_waveform_count = 0;
+  size_t trigger_sample_count = 0;
+  size_t trigger_waveform_count = 0;
+  size_t trigger_bad_crc_waveform_count = 0;
+  uint8_t cbra_reject_pdu[AIOT_CBRA_PDU_BYTES] = {0};
+  uint32_t cbra_reject_serial = 0;
+  uint32_t cbra_reject_schedule = 0;
   for (size_t i = 0; i < sizeofArray(ook_chips); ++i) {
     reflected[i].r = cw_samples[i].r * ook_chips[i];
     reflected[i].i = cw_samples[i].i * ook_chips[i];
@@ -448,59 +1089,232 @@ static int aiot_tag_self_test(void)
                       && reflected[1].r == 0 && reflected[1].i == 0;
   const bool noisy_pair_decodes_by_energy = aiot_samples_to_chips(noisy_pair, sizeofArray(noisy_pair), noisy_pair_chips)
                                              && noisy_pair_chips[0] == 0 && noisy_pair_chips[1] == 1;
-  size_t cfa_offset = 0;
-  aiot_cfa_put_bits(cfa_pdu, &cfa_offset, 1, 3);
-  aiot_cfa_put_bits(cfa_pdu, &cfa_offset, 26, 7);
-  aiot_cfa_put_bits(cfa_pdu, &cfa_offset, 1, 1);
+  size_t cbra_offset = 0;
+  aiot_cbra_put_bits(cbra_pdu, &cbra_offset, 1, 3);
+  aiot_cbra_put_bits(cbra_pdu, &cbra_offset, 27, 7);
+  aiot_cbra_put_bits(cbra_pdu, &cbra_offset, 1, 1);
   for (size_t i = 0; i < 16; ++i)
-    aiot_cfa_put_bits(cfa_pdu, &cfa_offset, i, 8);
-  aiot_cfa_put_bits(cfa_pdu, &cfa_offset, 0, 1);
-  aiot_cfa_put_bits(cfa_pdu, &cfa_offset, 42, 10);
-  aiot_cfa_put_bits(cfa_pdu, &cfa_offset, 1, 2);
-  aiot_cfa_put_bits(cfa_pdu, &cfa_offset, 0x08, 8);
-  aiot_cfa_put_bits(cfa_pdu, &cfa_offset, 100, 32);
-  aiot_cfa_put_bits(cfa_pdu, &cfa_offset, AIOT_CFA_FROZEN_D2R_SCHEDULING_INFO, 24);
-  memcpy(cfa_phy, cfa_pdu, sizeof(cfa_pdu));
-  const uint16_t cfa_crc = (uint16_t)aiot_crc(cfa_pdu, sizeof(cfa_pdu));
-  cfa_phy[AIOT_CFA_PDU_BYTES] = (uint8_t)(cfa_crc >> 8);
-  cfa_phy[AIOT_CFA_PDU_BYTES + 1U] = (uint8_t)cfa_crc;
-  for (size_t bit_index = 0; bit_index < AIOT_CFA_FRAME_BITS; ++bit_index) {
-    const uint8_t bit = (cfa_phy[bit_index / 8U] >> (7U - bit_index % 8U)) & 1U;
-    aiot_encode_pair(bit, cfa_chips + bit_index * AIOT_MANCHESTER_CHIPS_PER_BIT);
-    cfa_samples[bit_index * AIOT_MANCHESTER_CHIPS_PER_BIT].r = cfa_chips[bit_index * 2U] ? 2 : 1;
-    cfa_samples[bit_index * AIOT_MANCHESTER_CHIPS_PER_BIT + 1U].r = cfa_chips[bit_index * 2U + 1U] ? 2 : 1;
+    aiot_cbra_put_bits(cbra_pdu, &cbra_offset, i, 8);
+  aiot_cbra_put_bits(cbra_pdu, &cbra_offset, 1, 1);
+  aiot_cbra_put_bits(cbra_pdu, &cbra_offset, 0, 6);
+  aiot_cbra_put_bits(cbra_pdu, &cbra_offset, 1, 1);
+  aiot_cbra_put_bits(cbra_pdu, &cbra_offset, 42, 10);
+  aiot_cbra_put_bits(cbra_pdu, &cbra_offset, 1, 2);
+  aiot_cbra_put_bits(cbra_pdu, &cbra_offset, 0x08, 8);
+  aiot_cbra_put_bits(cbra_pdu, &cbra_offset, 100, 32);
+  aiot_cbra_put_bits(cbra_pdu, &cbra_offset, 1, 4);
+  aiot_cbra_put_bits(cbra_pdu, &cbra_offset, AIOT_CBRA_FROZEN_D2R_SCHEDULING_INFO, 18);
+  aiot_cbra_put_bits(cbra_pdu, &cbra_offset, 0, 1);
+  aiot_cbra_put_bits(cbra_pdu, &cbra_offset, 0, 2);
+  memcpy(cbra_phy, cbra_pdu, sizeof(cbra_pdu));
+  const uint16_t cbra_crc = (uint16_t)aiot_crc(cbra_pdu, sizeof(cbra_pdu));
+  cbra_phy[AIOT_CBRA_PDU_BYTES] = (uint8_t)(cbra_crc >> 8);
+  cbra_phy[AIOT_CBRA_PDU_BYTES + 1U] = (uint8_t)cbra_crc;
+  const bool cbra_encoded = aiot_cbra_test_encode_frame(
+      cbra_phy, AIOT_CBRA_PHY_BYTES * 8U, 2, cbra_samples, sizeofArray(cbra_samples), &cbra_sample_count);
+  cbra_waveform = calloc(AIOT_T2_CBRA_MAX_OFDM_SAMPLES, sizeof(*cbra_waveform));
+  memcpy(cbra_bad_crc_samples, cbra_samples, cbra_sample_count * sizeof(*cbra_samples));
+  const c16_t cbra_first_chip = cbra_bad_crc_samples[AIOT_CBRA_SIP_CHIPS + AIOT_CBRA_CAP_CHIPS];
+  cbra_bad_crc_samples[AIOT_CBRA_SIP_CHIPS + AIOT_CBRA_CAP_CHIPS] =
+      cbra_bad_crc_samples[AIOT_CBRA_SIP_CHIPS + AIOT_CBRA_CAP_CHIPS + 1U];
+  cbra_bad_crc_samples[AIOT_CBRA_SIP_CHIPS + AIOT_CBRA_CAP_CHIPS + 1U] = cbra_first_chip;
+  memcpy(cbra_bad_field_pdu, cbra_pdu, sizeof(cbra_pdu));
+  cbra_bad_field_pdu[0] ^= 0x80U;
+  memcpy(cbra_bad_field_phy, cbra_bad_field_pdu, sizeof(cbra_bad_field_pdu));
+  const uint16_t bad_field_crc = (uint16_t)aiot_crc(cbra_bad_field_pdu, sizeof(cbra_bad_field_pdu));
+  cbra_bad_field_phy[AIOT_CBRA_PDU_BYTES] = (uint8_t)(bad_field_crc >> 8);
+  cbra_bad_field_phy[AIOT_CBRA_PDU_BYTES + 1U] = (uint8_t)bad_field_crc;
+  const bool cbra_bad_field_encoded = aiot_cbra_test_encode_frame(
+      cbra_bad_field_phy,
+      AIOT_CBRA_PHY_BYTES * 8U,
+      2,
+      cbra_bad_field_samples,
+      sizeofArray(cbra_bad_field_samples),
+      &cbra_bad_field_sample_count);
+  cbra_bad_crc_waveform = calloc(AIOT_T2_CBRA_MAX_OFDM_SAMPLES, sizeof(*cbra_bad_crc_waveform));
+  cbra_bad_field_waveform = calloc(AIOT_T2_CBRA_MAX_OFDM_SAMPLES, sizeof(*cbra_bad_field_waveform));
+  const bool cbra_waveforms_encoded =
+      cbra_encoded
+      && aiot_t2_cbra_expand_compact_frame(cbra_samples,
+                                           cbra_sample_count,
+                                           AIOT_CBRA_PHY_BYTES * 8U,
+                                           2,
+                                           cbra_waveform,
+                                           AIOT_T2_CBRA_MAX_OFDM_SAMPLES,
+                                           &cbra_waveform_count)
+      && aiot_t2_cbra_expand_compact_frame(cbra_bad_crc_samples,
+                                           cbra_sample_count,
+                                           AIOT_CBRA_PHY_BYTES * 8U,
+                                           2,
+                                           cbra_bad_crc_waveform,
+                                           AIOT_T2_CBRA_MAX_OFDM_SAMPLES,
+                                           &cbra_bad_crc_waveform_count)
+      && aiot_t2_cbra_expand_compact_frame(cbra_bad_field_samples,
+                                           cbra_bad_field_sample_count,
+                                           AIOT_CBRA_PHY_BYTES * 8U,
+                                           2,
+                                           cbra_bad_field_waveform,
+                                           AIOT_T2_CBRA_MAX_OFDM_SAMPLES,
+                                           &cbra_bad_field_waveform_count);
+  const aiot_result_t cbra_accept_result = aiot_decode_cbra_r2d_frame(
+      cbra_waveform,
+      cbra_waveform_count,
+      AIOT_T2_CBRA_KIND_PAGING,
+      2,
+      NULL,
+      cbra_decoded,
+      &cbra_reject_serial,
+      &cbra_reject_schedule,
+      NULL,
+      NULL);
+  const bool cbra_accepts_valid_frame = cbra_waveforms_encoded && cbra_accept_result == AIOT_RESULT_OK
+                                       && cbra_reject_serial == 100
+                                       && cbra_reject_schedule == AIOT_CBRA_FROZEN_D2R_SCHEDULING_INFO
+                                       && memcmp(cbra_decoded, cbra_pdu, sizeof(cbra_pdu)) == 0;
+  bool cbra_all_m_decode = true;
+  const uint32_t cbra_m_values[] = {2, 6, 12, 24};
+  for (size_t index = 0; index < sizeofArray(cbra_m_values); ++index) {
+    c16_t frame_samples[AIOT_T2_MAX_RF_SAMPLES] = {0};
+    c16_t *frame_waveform = calloc(AIOT_T2_CBRA_MAX_OFDM_SAMPLES, sizeof(*frame_waveform));
+    size_t frame_sample_count = 0;
+    size_t frame_waveform_count = 0;
+    uint8_t decoded[AIOT_CBRA_PDU_BYTES] = {0};
+    uint32_t serial = 0;
+    uint32_t schedule = 0;
+    const bool frame_decodes = aiot_cbra_test_encode_frame(cbra_phy,
+                                                          AIOT_CBRA_PHY_BYTES * 8U,
+                                                          cbra_m_values[index],
+                                                          frame_samples,
+                                                          sizeofArray(frame_samples),
+                                                          &frame_sample_count)
+                               && aiot_t2_cbra_expand_compact_frame(frame_samples,
+                                                                    frame_sample_count,
+                                                                    AIOT_CBRA_PHY_BYTES * 8U,
+                                                                    cbra_m_values[index],
+                                                                    frame_waveform,
+                                                                    AIOT_T2_CBRA_MAX_OFDM_SAMPLES,
+                                                                    &frame_waveform_count)
+                               && aiot_decode_cbra_r2d_frame(frame_waveform,
+                                                            frame_waveform_count,
+                                                            AIOT_T2_CBRA_KIND_PAGING,
+                                                            cbra_m_values[index],
+                                                            NULL,
+                                                            decoded,
+                                                            &serial,
+                                                            &schedule,
+                                                            NULL,
+                                                            NULL) == AIOT_RESULT_OK
+                               && serial == 100
+                               && schedule == AIOT_CBRA_FROZEN_D2R_SCHEDULING_INFO
+                               && memcmp(decoded, cbra_pdu, sizeof(cbra_pdu)) == 0;
+    cbra_all_m_decode = cbra_all_m_decode && frame_decodes;
+    free(frame_waveform);
   }
-  memcpy(cfa_bad_crc_chips, cfa_chips, sizeof(cfa_chips));
-  cfa_bad_crc_chips[AIOT_CFA_CHIPS_PER_FRAME - 2U] ^= 1U;
-  cfa_bad_crc_chips[AIOT_CFA_CHIPS_PER_FRAME - 1U] ^= 1U;
-  memcpy(cfa_bad_field_pdu, cfa_pdu, sizeof(cfa_pdu));
-  cfa_bad_field_pdu[0] ^= 0x80U;
-  memcpy(cfa_bad_field_phy, cfa_bad_field_pdu, sizeof(cfa_bad_field_pdu));
-  const uint16_t bad_field_crc = (uint16_t)aiot_crc(cfa_bad_field_pdu, sizeof(cfa_bad_field_pdu));
-  cfa_bad_field_phy[AIOT_CFA_PDU_BYTES] = (uint8_t)(bad_field_crc >> 8);
-  cfa_bad_field_phy[AIOT_CFA_PDU_BYTES + 1U] = (uint8_t)bad_field_crc;
-  for (size_t bit_index = 0; bit_index < AIOT_CFA_FRAME_BITS; ++bit_index) {
-    const uint8_t bit = (cfa_bad_field_phy[bit_index / 8U] >> (7U - bit_index % 8U)) & 1U;
-    aiot_encode_pair(bit, cfa_bad_field_chips + bit_index * AIOT_MANCHESTER_CHIPS_PER_BIT);
-  }
-  const aiot_result_t cfa_accept_result = aiot_decode_cfa_r2d_frame(
-      cfa_chips, sizeof(cfa_chips), cfa_decoded, &cfa_reject_serial, &cfa_reject_schedule);
-  const bool cfa_accepts_valid_frame = cfa_accept_result == AIOT_RESULT_OK && cfa_reject_serial == 100
-                                       && cfa_reject_schedule == AIOT_CFA_FROZEN_D2R_SCHEDULING_INFO
-                                       && memcmp(cfa_decoded, cfa_pdu, sizeof(cfa_pdu)) == 0;
-  const bool cfa_samples_decode = aiot_samples_to_chips(cfa_samples, sizeofArray(cfa_samples), cfa_sample_chips)
-                                  && memcmp(cfa_sample_chips, cfa_chips, sizeof(cfa_chips)) == 0;
-  const bool cfa_crc_rejected = aiot_decode_cfa_r2d_frame(
-                                    cfa_bad_crc_chips, sizeof(cfa_bad_crc_chips), cfa_decoded, &cfa_reject_serial, &cfa_reject_schedule)
+  const bool cbra_crc_rejected = aiot_decode_cbra_r2d_frame(
+                                    cbra_bad_crc_waveform,
+                                    cbra_bad_crc_waveform_count,
+                                    AIOT_T2_CBRA_KIND_PAGING,
+                                    2,
+                                    NULL,
+                                    cbra_decoded,
+                                    &cbra_reject_serial,
+                                    &cbra_reject_schedule,
+                                    NULL,
+                                    NULL)
                                  == AIOT_RESULT_CRC_FAILURE;
-  const bool cfa_bad_field_rejected = aiot_decode_cfa_r2d_frame(
-                                          cfa_bad_field_chips, sizeof(cfa_bad_field_chips), cfa_decoded, &cfa_reject_serial, &cfa_reject_schedule)
-                                      == AIOT_RESULT_INVALID_LINE_CODE;
-  const bool cfa_short_frame_rejected = aiot_decode_cfa_r2d_frame(
-                                            direction_chips, 2, cfa_reject_pdu, &cfa_reject_serial, &cfa_reject_schedule)
+  const bool cbra_bad_field_rejected = aiot_decode_cbra_r2d_frame(
+                                          cbra_bad_field_waveform,
+                                          cbra_bad_field_waveform_count,
+                                          AIOT_T2_CBRA_KIND_PAGING,
+                                          2,
+                                          NULL,
+                                          cbra_decoded,
+                                          &cbra_reject_serial,
+                                          &cbra_reject_schedule,
+                                          NULL,
+                                          NULL)
+                                      == AIOT_RESULT_INVALID_LINE_CODE && cbra_bad_field_encoded;
+  const bool cbra_short_frame_rejected = aiot_decode_cbra_r2d_frame(
+                                            cbra_short_samples,
+                                            sizeofArray(cbra_short_samples),
+                                            AIOT_T2_CBRA_KIND_PAGING,
+                                            2,
+                                            NULL,
+                                            cbra_reject_pdu,
+                                            &cbra_reject_serial,
+                                            &cbra_reject_schedule,
+                                            NULL,
+                                            NULL)
                                          == AIOT_RESULT_PAYLOAD_LENGTH;
-  const bool all_checks_pass = passed && noisy_pair_decodes_by_energy && cfa_accepts_valid_frame && cfa_samples_decode
-                               && cfa_crc_rejected && cfa_bad_field_rejected && cfa_short_frame_rejected;
+  size_t trigger_offset = 0;
+  aiot_cbra_put_bits(trigger, &trigger_offset, 2, AIOT_CBRA_TRIGGER_BITS);
+  size_t trigger_phy_offset = 0;
+  aiot_cbra_put_bits(trigger_phy, &trigger_phy_offset, 2, AIOT_CBRA_TRIGGER_BITS);
+  aiot_cbra_put_bits(trigger_phy, &trigger_phy_offset, crc6(trigger, AIOT_CBRA_TRIGGER_BITS) >> 26, 6);
+  const bool trigger_encoded = aiot_cbra_test_encode_frame(trigger_phy,
+                                                          AIOT_CBRA_TRIGGER_PHY_BITS,
+                                                          24,
+                                                          trigger_samples,
+                                                          sizeofArray(trigger_samples),
+                                                          &trigger_sample_count);
+  trigger_waveform = calloc(AIOT_T2_CBRA_MAX_OFDM_SAMPLES, sizeof(*trigger_waveform));
+  trigger_bad_crc_waveform = calloc(AIOT_T2_CBRA_MAX_OFDM_SAMPLES, sizeof(*trigger_bad_crc_waveform));
+  memcpy(trigger_bad_crc_samples, trigger_samples, trigger_sample_count * sizeof(*trigger_samples));
+  const size_t trigger_crc_chip = AIOT_CBRA_SIP_CHIPS + AIOT_CBRA_CAP_CHIPS + 3U * 2U;
+  const c16_t trigger_first_crc_chip = trigger_bad_crc_samples[trigger_crc_chip];
+  trigger_bad_crc_samples[trigger_crc_chip] = trigger_bad_crc_samples[trigger_crc_chip + 1U];
+  trigger_bad_crc_samples[trigger_crc_chip + 1U] = trigger_first_crc_chip;
+  uint8_t trigger_decoded[AIOT_CBRA_PDU_BYTES] = {0};
+  uint32_t trigger_serial = 0;
+  uint32_t trigger_schedule = 0;
+  const bool trigger_waveforms_encoded =
+      trigger_encoded
+      && aiot_t2_cbra_expand_compact_frame(trigger_samples,
+                                           trigger_sample_count,
+                                           AIOT_CBRA_TRIGGER_PHY_BITS,
+                                           24,
+                                           trigger_waveform,
+                                           AIOT_T2_CBRA_MAX_OFDM_SAMPLES,
+                                           &trigger_waveform_count)
+      && aiot_t2_cbra_expand_compact_frame(trigger_bad_crc_samples,
+                                           trigger_sample_count,
+                                           AIOT_CBRA_TRIGGER_PHY_BITS,
+                                           24,
+                                           trigger_bad_crc_waveform,
+                                           AIOT_T2_CBRA_MAX_OFDM_SAMPLES,
+                                           &trigger_bad_crc_waveform_count);
+  const aiot_result_t trigger_result = aiot_decode_cbra_r2d_frame(trigger_waveform,
+                                                                  trigger_waveform_count,
+                                                                  AIOT_T2_CBRA_KIND_ACCESS_TRIGGER,
+                                                                  24,
+                                                                  NULL,
+                                                                  trigger_decoded,
+                                                                  &trigger_serial,
+                                                                  &trigger_schedule,
+                                                                  NULL,
+                                                                  NULL);
+  const bool trigger_decodes = trigger_waveforms_encoded && trigger_result == AIOT_RESULT_OK
+                               && trigger_serial == 0 && trigger_schedule == 0
+                               && memcmp(trigger_decoded, trigger, sizeof(trigger)) == 0;
+  const bool trigger_crc_rejected = aiot_decode_cbra_r2d_frame(trigger_bad_crc_waveform,
+                                                               trigger_bad_crc_waveform_count,
+                                                               AIOT_T2_CBRA_KIND_ACCESS_TRIGGER,
+                                                               24,
+                                                               NULL,
+                                                               trigger_decoded,
+                                                               &trigger_serial,
+                                                               &trigger_schedule,
+                                                               NULL,
+                                                               NULL)
+                                    == AIOT_RESULT_CRC_FAILURE;
+  const bool all_checks_pass = passed && noisy_pair_decodes_by_energy && cbra_accepts_valid_frame && cbra_all_m_decode
+                               && cbra_crc_rejected && cbra_bad_field_rejected && cbra_short_frame_rejected
+                               && trigger_decodes && trigger_crc_rejected;
+  free(cbra_waveform);
+  free(cbra_bad_crc_waveform);
+  free(cbra_bad_field_waveform);
+  free(trigger_waveform);
+  free(trigger_bad_crc_waveform);
   printf("AIOT_T2_SELF_TEST %s\n", all_checks_pass ? "PASS" : "FAIL");
   return all_checks_pass ? 0 : 1;
 }
@@ -711,7 +1525,7 @@ static int aiot_cw_rfsim_cli(int argc, char **argv)
   if (!aiot_parse_u32(argv[3], 1, UINT16_MAX, &port)
       || !aiot_parse_u32(argv[4], 1, AIOT_RFSIM_MAX_SAMPLES, &sample_count)
       || !aiot_parse_u32(argv[5], 1, INT16_MAX, &amplitude)
-      || (argc == 7 && !aiot_parse_u32(argv[6], 1, 10000, &cycles))) {
+      || (argc == 7 && !aiot_parse_u32(argv[6], 1, AIOT_T2_MAX_TAG_CYCLES, &cycles))) {
     fprintf(stderr, "AIOT_T2_ARGUMENT_REJECT\n");
     return 2;
   }
@@ -771,7 +1585,7 @@ static int aiot_tag_rfsim_cli(int argc, char **argv)
   size_t inventory_len = 0;
   if (!aiot_parse_u32(argv[3], 1, UINT16_MAX, &port) || !aiot_parse_u32(argv[4], 1, AIOT_T2_MAX_TAG_ID, &tag_id)
       || !aiot_parse_hex(argv[5], inventory, &inventory_len)
-      || (argc == 7 && !aiot_parse_u32(argv[6], 1, 10000, &cycles))) {
+      || (argc == 7 && !aiot_parse_u32(argv[6], 1, AIOT_T2_MAX_TAG_CYCLES, &cycles))) {
     fprintf(stderr, "AIOT_T2_ARGUMENT_REJECT\n");
     return 2;
   }
@@ -809,9 +1623,43 @@ static int aiot_tag_rfsim_cli(int argc, char **argv)
   uint64_t cw_timestamp = 0;
   uint32_t r2d_tbit = 0;
   bool r2d_received = false;
+  bool cbra_received = false;
+  bool cbra_context_valid = false;
   uint64_t r2d_timestamp = 0;
   uint32_t completed_cycles = 0;
+  aiot_cbra_pending_observation_t pending_observation = {0};
+  aiot_cbra_receiver_t cbra_receiver;
+  aiot_cbra_access_state_t cbra_access = {.random_state = 0x6d2b79f5U ^ tag_id};
+  aiot_cbra_receiver_init(&cbra_receiver);
   while (aiot_read_rfsim_packet(socket, &header, &samples, &capacity)) {
+    if (pending_observation.valid && header.timestamp > pending_observation.tx_timestamp
+        && header.timestamp - pending_observation.tx_timestamp > AIOT_T2_OBSERVATION_TIMEOUT_SAMPLES) {
+      aiot_tag_send_cbra_observation(socket,
+                                    tag_id,
+                                    pending_observation.reader_handle,
+                                    pending_observation.message_kind,
+                                    pending_observation.m,
+                                    pending_observation.context_eligible,
+                                    pending_observation.setup,
+                                    pending_observation.tx_timestamp,
+                                    header.timestamp,
+                                    pending_observation.full_airtime_samples,
+                                    AIOT_T2_OBS_COMPLETE,
+                                    AIOT_T2_CBRA_GATE_ELIGIBLE,
+                                    0,
+                                    1,
+                                    1,
+                                    AIOT_RESULT_OK,
+                                    0.0,
+                                    0.0,
+                                    pending_observation.random_id,
+                                    pending_observation.access_occasion,
+                                    pending_observation.msg2_status,
+                                    pending_observation.decoded_pdu);
+      pending_observation.valid = false;
+      r2d_received = false;
+      cbra_received = false;
+    }
     if (header.option_flag & OPTION_AIOT_T2_CW) {
       if (header.nbAnt != 1 || header.size < chips_len) {
         fprintf(stderr, "AIOT_T2_CW_REJECT reason=short_block samples=%u required=%zu\n", header.size, chips_len);
@@ -825,31 +1673,146 @@ static int aiot_tag_rfsim_cli(int argc, char **argv)
 
     if ((header.option_flag & OPTION_AIOT_T2_R2D) && AIOT_T2_UNPACK_R2D_TAG(header.option_value) == tag_id) {
       uint8_t r2d_chips[AIOT_T2_MAX_RF_SAMPLES];
-      const bool cfa = (header.option_flag & OPTION_AIOT_T2_R2D_CFA) != 0;
-      if (header.nbAnt != 1 || !aiot_samples_to_chips(samples, header.size, r2d_chips)) {
-        fprintf(stderr, "AIOT_T2_R2D_REJECT reason=decode tag_id=%u\n", tag_id);
-        continue;
-      }
-      if (cfa) {
-        const uint32_t m = AIOT_T2_UNPACK_CFA_M(header.option_value);
-        uint8_t cfa_pdu[AIOT_CFA_PDU_BYTES] = {0};
+      const bool cbra = (header.option_flag & OPTION_AIOT_T2_R2D_CBRA) != 0;
+      if (cbra) {
+        const uint32_t message_kind = AIOT_T2_UNPACK_CBRA_KIND(header.option_value);
+        const uint32_t m = AIOT_T2_UNPACK_CBRA_M(header.option_value);
+        const uint32_t reader_handle = AIOT_T2_UNPACK_R2D_READER(header.option_value);
+        const uint8_t setup = AIOT_T2_UNPACK_CBRA_SETUP(header.option_value);
+        uint8_t cbra_pdu[AIOT_CBRA_PDU_BYTES] = {0};
         uint32_t serial = 0;
         uint32_t d2r_scheduling_info = 0;
-        const aiot_result_t result = aiot_decode_cfa_r2d_frame(
-            r2d_chips, header.size, cfa_pdu, &serial, &d2r_scheduling_info);
-        if ((m != 2 && m != 6 && m != 12 && m != 24) || result != AIOT_RESULT_OK || serial != tag_id) {
+        double signal_power = 0.0;
+        double noise_power = 0.0;
+        const aiot_result_t result = header.nbAnt == 1
+                                         ? aiot_decode_cbra_r2d_frame(samples,
+                                                                     header.size,
+                                                                     message_kind,
+                                                                     m,
+                                                                     &cbra_receiver,
+                                                                     cbra_pdu,
+                                                                     &serial,
+                                                                     &d2r_scheduling_info,
+                                                                     &signal_power,
+                                                                     &noise_power)
+                                         : AIOT_RESULT_PAYLOAD_LENGTH;
+        const bool serial_matches = message_kind == AIOT_T2_CBRA_KIND_ACCESS_TRIGGER || serial == tag_id;
+        const bool context_eligible = result == AIOT_RESULT_OK
+                                      && (message_kind == AIOT_T2_CBRA_KIND_PAGING ? serial == tag_id : cbra_context_valid);
+        if (result != AIOT_RESULT_OK || !serial_matches || !context_eligible) {
+          const char *gate_reason = result == AIOT_RESULT_CRC_FAILURE
+                                        ? "crc_failure"
+                                        : (result == AIOT_RESULT_PAYLOAD_LENGTH
+                                               ? "frame_length"
+                                               : (!serial_matches ? "id_mismatch"
+                                                                   : (!context_eligible ? "missing_paging_context" : "malformed_pdu")));
           fprintf(stderr,
                   "AIOT_T2_R2D_REJECT reason=%s tag_id=%u serial=%u m=%u result=%d\n",
-                  serial != tag_id && result == AIOT_RESULT_OK ? "id_mismatch" : "cfa_decode",
+                  gate_reason,
                   tag_id,
                   serial,
                   m,
                   result);
+          const uint8_t status = result == AIOT_RESULT_CRC_FAILURE
+                                     ? AIOT_T2_OBS_CRC_FAILURE
+                                     : (result == AIOT_RESULT_INVALID_LINE_CODE ? AIOT_T2_OBS_UNALIGNED
+                                                                                  : AIOT_T2_OBS_INVALID);
+          aiot_tag_send_cbra_observation(socket,
+                                        tag_id,
+                                        reader_handle,
+                                        AIOT_T2_UNPACK_CBRA_KIND(header.option_value),
+                                        m,
+                                        0,
+                                        setup,
+                                        header.timestamp,
+                                        header.timestamp + header.size,
+                                        header.size,
+                                        status,
+                                        AIOT_T2_CBRA_GATE_REFUSED,
+                                        0,
+                                        result == AIOT_RESULT_CRC_FAILURE ? 0 : 1,
+                                        result == AIOT_RESULT_CRC_FAILURE || result == AIOT_RESULT_OK,
+                                        result,
+                                        signal_power,
+                                        noise_power,
+                                        0,
+                                        0,
+                                        0,
+                                        result == AIOT_RESULT_CRC_FAILURE || result == AIOT_RESULT_OK ? cbra_pdu : NULL);
+          fprintf(stderr,
+                  "AIOT_T2_CBRA_GATE_REFUSED reason=%s tag_id=%u crc_ok=%u d2r_attempted=0\n",
+                  gate_reason,
+                  tag_id,
+                  result == AIOT_RESULT_CRC_FAILURE ? 0U : 1U);
           continue;
         }
-        r2d_tbit = (d2r_scheduling_info >> 21U) & 0x7U;
-        printf("AIOT_T2_R2D_CFA_ACCEPT tag_id=%u serial=%u m=%u\n", tag_id, serial, m);
+        bool selected_msg1 = false;
+        if (message_kind == AIOT_T2_CBRA_KIND_PAGING) {
+          selected_msg1 = aiot_cbra_on_paging(&cbra_access, cbra_pdu, d2r_scheduling_info);
+          cbra_context_valid = cbra_access.context_valid;
+        } else {
+          selected_msg1 = aiot_cbra_on_access_trigger(&cbra_access);
+        }
+        if (message_kind == AIOT_T2_CBRA_KIND_ACCESS_TRIGGER && !cbra_context_valid)
+          continue;
+        const uint8_t msg2_status = cbra_access.failed ? 2 : (cbra_access.waiting_msg2 ? 1 : 0);
+        if (selected_msg1) {
+          pending_observation.valid = true;
+          pending_observation.reader_handle = reader_handle;
+          pending_observation.message_kind = message_kind;
+          pending_observation.context_eligible = 1;
+          pending_observation.setup = setup;
+          pending_observation.m = m;
+          pending_observation.tx_timestamp = header.timestamp;
+          pending_observation.full_airtime_samples = header.size;
+          pending_observation.random_id = cbra_access.random_id;
+          pending_observation.access_occasion = (uint8_t)cbra_access.selected_access_occasion;
+          pending_observation.msg2_status = msg2_status;
+          memcpy(pending_observation.decoded_pdu, cbra_pdu, sizeof(pending_observation.decoded_pdu));
+          cbra_received = true;
+          fprintf(stderr,
+                  "AIOT_T2_CBRA_MSG1_SELECTED tag_id=%u ao=%u random_id=%u n=%u m=%u k=%u\n",
+                  tag_id,
+                  cbra_access.selected_access_occasion,
+                  cbra_access.random_id,
+                  cbra_access.n,
+                  cbra_access.m,
+                  cbra_access.k);
+        }
+        aiot_tag_send_cbra_observation(socket,
+                                       tag_id,
+                                       reader_handle,
+                                       message_kind,
+                                       m,
+                                       1,
+                                       setup,
+                                       header.timestamp,
+                                       header.timestamp + header.size,
+                                       header.size,
+                                       AIOT_T2_OBS_COMPLETE,
+                                       cbra_access.failed ? AIOT_T2_CBRA_GATE_REFUSED : AIOT_T2_CBRA_GATE_ELIGIBLE,
+                                       0,
+                                       1,
+                                       1,
+                                       AIOT_RESULT_OK,
+                                       signal_power,
+                                       noise_power,
+                                       selected_msg1 ? cbra_access.random_id : 0,
+                                       selected_msg1 ? (uint8_t)cbra_access.selected_access_occasion : 0,
+                                       msg2_status,
+                                       cbra_pdu);
+        fprintf(stderr,
+                "AIOT_T2_CBRA_GATE_ELIGIBLE tag_id=%u kind=%u serial=%u crc_ok=1 payload_match=unknown d2r_attempted=0\n",
+                tag_id,
+                message_kind,
+                serial);
+        printf("AIOT_T2_R2D_CBRA_ACCEPT tag_id=%u kind=%u serial=%u m=%u\n", tag_id, message_kind, serial, m);
+        continue;
       } else {
+        if (header.nbAnt != 1 || !aiot_samples_to_chips(samples, header.size, r2d_chips)) {
+          fprintf(stderr, "AIOT_T2_R2D_REJECT reason=decode tag_id=%u\n", tag_id);
+          continue;
+        }
         uint8_t command = 0;
         if (aiot_decode_frame(r2d_chips, header.size, sizeof(command), false, false, true, &command) != AIOT_RESULT_OK
             || command != AIOT_INVENTORY_COMMAND) {
@@ -883,19 +1846,45 @@ static int aiot_tag_rfsim_cli(int argc, char **argv)
         .option_flag = OPTION_AIOT_T2_D2R | AIOT_T2_PACK_D2R_TBIT(r2d_tbit),
         .beam_map = 1,
     };
-    c16_t tx_truth[AIOT_T2_MAX_PAYLOAD_BYTES] = {0};
-    for (size_t i = 0; i < inventory_len; ++i)
-      tx_truth[i].r = inventory[i];
-    const samplesBlockHeader_t truth = {
-        .size = inventory_len,
-        .nbAnt = 1,
-        .timestamp = d2r.timestamp,
-        .option_value = tag_id,
-        .option_flag = OPTION_AIOT_T2_TX_TRUTH | AIOT_T2_PACK_D2R_TBIT(r2d_tbit),
-        .beam_map = 1,
-    };
-    aiot_write_rfsim_packet(socket, &truth, tx_truth);
-    printf("AIOT_T2_TX_TRUTH_SENT tag_id=%u payload_bytes=%zu\n", tag_id, inventory_len);
+    if (cbra_received) {
+      aiot_tag_send_cbra_observation(socket,
+                                    tag_id,
+                                    pending_observation.reader_handle,
+                                    pending_observation.message_kind,
+                                    pending_observation.m,
+                                    pending_observation.context_eligible,
+                                    pending_observation.setup,
+                                    pending_observation.tx_timestamp,
+                                    d2r.timestamp,
+                                    pending_observation.full_airtime_samples,
+                                    AIOT_T2_OBS_COMPLETE,
+                                    AIOT_T2_CBRA_GATE_D2R_ATTEMPTED,
+                                    1,
+                                    1,
+                                    1,
+                                    AIOT_RESULT_OK,
+                                    0.0,
+                                    0.0,
+                                    pending_observation.random_id,
+                                    pending_observation.access_occasion,
+                                    pending_observation.msg2_status,
+                                    pending_observation.decoded_pdu);
+      pending_observation.valid = false;
+    } else {
+      c16_t tx_truth[AIOT_T2_MAX_PAYLOAD_BYTES] = {0};
+      for (size_t i = 0; i < inventory_len; ++i)
+        tx_truth[i].r = inventory[i];
+      const samplesBlockHeader_t truth = {
+          .size = inventory_len,
+          .nbAnt = 1,
+          .timestamp = d2r.timestamp,
+          .option_value = tag_id,
+          .option_flag = OPTION_AIOT_T2_TX_TRUTH | AIOT_T2_PACK_D2R_TBIT(r2d_tbit),
+          .beam_map = 1,
+      };
+      aiot_write_rfsim_packet(socket, &truth, tx_truth);
+      printf("AIOT_T2_TX_TRUTH_SENT tag_id=%u payload_bytes=%zu\n", tag_id, inventory_len);
+    }
     aiot_write_rfsim_packet(socket, &d2r, reflected);
     ++completed_cycles;
     printf("AIOT_T2_BACKSCATTER tag_id=%u cw_samples=%zu d2r_samples=%zu cycle=%u/%u\n",
@@ -913,9 +1902,34 @@ static int aiot_tag_rfsim_cli(int argc, char **argv)
     cw_samples = 0;
     cw_timestamp = 0;
     r2d_received = false;
+    cbra_received = false;
     r2d_timestamp = 0;
   }
 
+  if (pending_observation.valid) {
+    aiot_tag_send_cbra_observation(socket,
+                                  tag_id,
+                                  pending_observation.reader_handle,
+                                  pending_observation.message_kind,
+                                  pending_observation.m,
+                                  pending_observation.context_eligible,
+                                  pending_observation.setup,
+                                  pending_observation.tx_timestamp,
+                                  header.timestamp,
+                                  pending_observation.full_airtime_samples,
+                                  AIOT_T2_OBS_COMPLETE,
+                                  AIOT_T2_CBRA_GATE_ELIGIBLE,
+                                  0,
+                                  1,
+                                  1,
+                                  AIOT_RESULT_OK,
+                                  0.0,
+                                  0.0,
+                                  pending_observation.random_id,
+                                  pending_observation.access_occasion,
+                                  pending_observation.msg2_status,
+                                  pending_observation.decoded_pdu);
+  }
   free(samples);
   fprintf(stderr, "AIOT_T2_CW_REJECT reason=connection_closed\n");
   return 1;

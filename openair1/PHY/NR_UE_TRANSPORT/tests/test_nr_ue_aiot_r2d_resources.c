@@ -2,6 +2,7 @@
  * See the repository NOTICE and http://www.openairinterface.org/?page_id=698.
  */
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include "PHY/NR_UE_TRANSPORT/nr_transport_proto_ue.h"
 
@@ -346,80 +347,101 @@ int main(void)
     return 1;
   }
 
-  const uint8_t security[NR_UE_AIOT_CFA_SECURITY_BYTES] = {
+  const uint8_t security[NR_UE_AIOT_CBRA_SECURITY_BYTES] = {
       0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
       0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
   };
-  nr_ue_aiot_cfa_pdu_fields_t cfa_fields = {
+  nr_ue_aiot_cbra_paging_fields_t paging_fields = {
       .serial = 100,
       .security_parameter = {0},
-      .d2r_scheduling_info = NR_UE_AIOT_CFA_FROZEN_D2R_SCHEDULING_INFO,
+      .transaction_id = 0,
+      .number_of_access_occasions = 1,
+      .k = 0,
+      .d2r_scheduling_info = NR_UE_AIOT_CBRA_FROZEN_D2R_SCHEDULING_INFO,
   };
-  memcpy(cfa_fields.security_parameter, security, sizeof(security));
-  uint8_t cfa_pdu[NR_UE_AIOT_CFA_PDU_BYTES] = {0};
+  memcpy(paging_fields.security_parameter, security, sizeof(security));
+  uint8_t paging_pdu[NR_UE_AIOT_CBRA_PAGING_PDU_BYTES] = {0};
   reason = NULL;
-  if (!nr_ue_aiot_cfa_build_pdu(&cfa_fields, cfa_pdu, &reason) || reason != NULL) {
-    fprintf(stderr, "FAIL Builds216BitCfaPdu\n");
+  if (!nr_ue_aiot_cbra_build_paging_pdu(&paging_fields, paging_pdu, &reason) || reason != NULL) {
+    fprintf(stderr, "FAIL Builds224BitCbraPagingPdu\n");
     return 1;
   }
-  nr_ue_aiot_cfa_pdu_fields_t parsed_fields = {0};
+  nr_ue_aiot_cbra_paging_fields_t parsed_fields = {0};
   reason = NULL;
-  if (!nr_ue_aiot_cfa_parse_pdu(cfa_pdu, &parsed_fields, &reason)
-      || reason != NULL || parsed_fields.serial != cfa_fields.serial
-      || parsed_fields.d2r_scheduling_info != cfa_fields.d2r_scheduling_info
+  if (!nr_ue_aiot_cbra_parse_paging_pdu(paging_pdu, &parsed_fields, &reason)
+      || reason != NULL || parsed_fields.serial != paging_fields.serial
+      || parsed_fields.transaction_id != paging_fields.transaction_id
+      || parsed_fields.number_of_access_occasions != paging_fields.number_of_access_occasions
+      || parsed_fields.k != paging_fields.k
+      || parsed_fields.d2r_scheduling_info != paging_fields.d2r_scheduling_info
       || memcmp(parsed_fields.security_parameter, security, sizeof(security)) != 0) {
-    fprintf(stderr, "FAIL RoundTripsCfaPduFields\n");
+    fprintf(stderr, "FAIL RoundTripsCbraPagingFields\n");
     return 1;
   }
-  uint8_t cfa_phy[NR_UE_AIOT_CFA_PHY_BYTES] = {0};
-  if (!nr_ue_aiot_cfa_append_crc(cfa_pdu, cfa_phy)
-      || memcmp(cfa_phy, cfa_pdu, NR_UE_AIOT_CFA_PDU_BYTES) != 0) {
-    fprintf(stderr, "FAIL AppendsCfaCrc16\n");
+  uint8_t paging_phy[NR_UE_AIOT_CBRA_PAGING_PHY_BYTES] = {0};
+  if (!nr_ue_aiot_cbra_append_paging_crc(paging_pdu, paging_phy)
+      || memcmp(paging_phy, paging_pdu, NR_UE_AIOT_CBRA_PAGING_PDU_BYTES) != 0) {
+    fprintf(stderr, "FAIL AppendsCbraPagingCrc16\n");
     return 1;
   }
-  if (!nr_ue_aiot_cfa_verify_crc(cfa_phy)) {
-    fprintf(stderr, "FAIL VerifiesCfaCrc16\n");
+  if (!nr_ue_aiot_cbra_verify_paging_crc(paging_phy)) {
+    fprintf(stderr, "FAIL VerifiesCbraPagingCrc16\n");
     return 1;
   }
-  cfa_phy[NR_UE_AIOT_CFA_PHY_BYTES - 1U] ^= 0x01U;
-  if (nr_ue_aiot_cfa_verify_crc(cfa_phy)) {
-    fprintf(stderr, "FAIL RejectsCorruptedCfaCrc\n");
+  paging_phy[NR_UE_AIOT_CBRA_PAGING_PHY_BYTES - 1U] ^= 0x01U;
+  if (nr_ue_aiot_cbra_verify_paging_crc(paging_phy)) {
+    fprintf(stderr, "FAIL RejectsCorruptedCbraPagingCrc\n");
     return 1;
   }
-  if (!nr_ue_aiot_cfa_append_crc(cfa_pdu, cfa_phy)) {
-    fprintf(stderr, "FAIL RebuildsCfaCrc16\n");
+  if (!nr_ue_aiot_cbra_append_paging_crc(paging_pdu, paging_phy)) {
+    fprintf(stderr, "FAIL RebuildsCbraPagingCrc16\n");
     return 1;
   }
-  nr_ue_aiot_cfa_pdu_fields_t tag_101_fields = cfa_fields;
+  nr_ue_aiot_cbra_paging_fields_t tag_101_fields = paging_fields;
   tag_101_fields.serial = 101;
-  uint8_t tag_101_pdu[NR_UE_AIOT_CFA_PDU_BYTES] = {0};
-  if (!nr_ue_aiot_cfa_build_pdu(&tag_101_fields, tag_101_pdu, &reason)
-      || memcmp(cfa_pdu, tag_101_pdu, sizeof(cfa_pdu)) == 0) {
+  uint8_t tag_101_pdu[NR_UE_AIOT_CBRA_PAGING_PDU_BYTES] = {0};
+  if (!nr_ue_aiot_cbra_build_paging_pdu(&tag_101_fields, tag_101_pdu, &reason)
+      || memcmp(paging_pdu, tag_101_pdu, sizeof(paging_pdu)) == 0) {
     fprintf(stderr, "FAIL DistinguishesTag100And101Pdu\n");
     return 1;
   }
   const uint32_t serials[] = {100, 101};
   reason = NULL;
-  if (nr_ue_aiot_cfa_validate_serial(101, serials, 2, &reason)
+  if (nr_ue_aiot_cbra_validate_serial(101, serials, 2, &reason)
       || reason == NULL || strcmp(reason, "duplicate_serial") != 0) {
-    fprintf(stderr, "FAIL RejectsDuplicateCfaSerial\n");
+    fprintf(stderr, "FAIL RejectsDuplicateCbraSerial\n");
     return 1;
   }
   reason = NULL;
-  if (nr_ue_aiot_cfa_validate_serial(0, NULL, 0, &reason)
+  if (nr_ue_aiot_cbra_validate_serial(0, NULL, 0, &reason)
       || reason == NULL || strcmp(reason, "invalid_serial") != 0) {
-    fprintf(stderr, "FAIL RejectsZeroCfaSerial\n");
+    fprintf(stderr, "FAIL RejectsZeroCbraSerial\n");
     return 1;
   }
-  cfa_pdu[0] ^= 0x80;
+  paging_pdu[0] ^= 0x80;
   reason = NULL;
-  if (nr_ue_aiot_cfa_parse_pdu(cfa_pdu, &parsed_fields, &reason)
+  if (nr_ue_aiot_cbra_parse_paging_pdu(paging_pdu, &parsed_fields, &reason)
       || reason == NULL || strcmp(reason, "invalid_message_type") != 0) {
-    fprintf(stderr, "FAIL RejectsMalformedCfaPdu\n");
+    fprintf(stderr, "FAIL RejectsMalformedCbraPagingPdu\n");
     return 1;
   }
 
-  const nr_ue_aiot_cfa_d2r_scheduling_t cfa_schedule = {
+  uint8_t invalid_paging_pdu[NR_UE_AIOT_CBRA_PAGING_PDU_BYTES];
+  const uint8_t invalid_paging_before = 0xA5;
+  memset(invalid_paging_pdu, invalid_paging_before, sizeof(invalid_paging_pdu));
+  nr_ue_aiot_cbra_paging_fields_t invalid_paging_fields = paging_fields;
+  invalid_paging_fields.d2r_scheduling_info = 0x123456;
+  reason = NULL;
+  if (nr_ue_aiot_cbra_build_paging_pdu(&invalid_paging_fields, invalid_paging_pdu, &reason)
+      || reason == NULL || strcmp(reason, "invalid_scheduling_info") != 0
+      || invalid_paging_pdu[0] != invalid_paging_before
+      || invalid_paging_pdu[NR_UE_AIOT_CBRA_PAGING_PDU_BYTES - 1U] != invalid_paging_before) {
+    fprintf(stderr, "FAIL RefusesNonFrozenCbraPagingBeforeSerialization\n");
+    return 1;
+  }
+
+  const nr_ue_aiot_cbra_d2r_scheduling_t cbra_schedule = {
+      .x = 1,
       .bit_duration = NR_UE_AIOT_D2R_TBIT_TAU,
       .frequency_resource_broadcast = 0x80,
       .block_repetition = 0,
@@ -427,17 +449,18 @@ int main(void)
       .interval_bits = 1,
       .sequence_length = 0,
       .additional_midamble = 0,
-      .d2r_tbs = 16,
   };
   uint32_t packed_schedule = 0;
   reason = NULL;
-  if (!nr_ue_aiot_cfa_pack_d2r_scheduling(&cfa_schedule, &packed_schedule, &reason)
-      || reason != NULL || packed_schedule != 0x300a0f) {
-    fprintf(stderr, "FAIL PacksFrozenCfaD2rScheduling expected=0x300a0f actual=0x%06x\n", packed_schedule);
+  if (!nr_ue_aiot_cbra_pack_d2r_scheduling(&cbra_schedule, &packed_schedule, &reason)
+      || reason != NULL || packed_schedule != NR_UE_AIOT_CBRA_FROZEN_D2R_SCHEDULING_INFO) {
+    fprintf(stderr, "FAIL PacksFrozenCbraD2rScheduling expected=0x%06x actual=0x%06x\n",
+            NR_UE_AIOT_CBRA_FROZEN_D2R_SCHEDULING_INFO, packed_schedule);
     return 1;
   }
   const int32_t snr_grid[] = {-10, 0, 10};
-  const nr_ue_aiot_cfa_campaign_config_t campaign = {
+  const nr_ue_aiot_cbra_campaign_config_t campaign = {
+      .message_kind = NR_UE_AIOT_CBRA_PAGING,
       .m = 6,
       .prb_count = 3,
       .reference_snr_db_x10 = 100,
@@ -446,94 +469,177 @@ int main(void)
       .noise_seed = 11,
       .snr_grid_db_x10 = snr_grid,
       .snr_grid_count = sizeof(snr_grid) / sizeof(snr_grid[0]),
-      .d2r_scheduling_info = 0x300a0f,
+      .d2r_scheduling_info = NR_UE_AIOT_CBRA_FROZEN_D2R_SCHEDULING_INFO,
   };
   reason = NULL;
-  if (!nr_ue_aiot_cfa_validate_campaign_config(&campaign, &reason) || reason != NULL) {
-    fprintf(stderr, "FAIL AcceptsCompleteCfaCampaignConfig\n");
+  if (!nr_ue_aiot_cbra_validate_campaign_config(&campaign, &reason) || reason != NULL) {
+    fprintf(stderr, "FAIL AcceptsCompleteCbraPagingCampaignConfig\n");
     return 1;
   }
-  nr_ue_aiot_cfa_campaign_config_t invalid_campaign = campaign;
+  nr_ue_aiot_cbra_campaign_config_t invalid_campaign = campaign;
   invalid_campaign.m = 3;
   reason = NULL;
-  if (nr_ue_aiot_cfa_validate_campaign_config(&invalid_campaign, &reason)
+  if (nr_ue_aiot_cbra_validate_campaign_config(&invalid_campaign, &reason)
       || reason == NULL || strcmp(reason, "invalid_m") != 0) {
-    fprintf(stderr, "FAIL RejectsUnsupportedCfaM\n");
+    fprintf(stderr, "FAIL RejectsUnsupportedCbraM\n");
     return 1;
   }
   invalid_campaign = campaign;
   invalid_campaign.prb_count = 2;
   reason = NULL;
-  if (nr_ue_aiot_cfa_validate_campaign_config(&invalid_campaign, &reason)
+  if (nr_ue_aiot_cbra_validate_campaign_config(&invalid_campaign, &reason)
       || reason == NULL || strcmp(reason, "invalid_prb_count") != 0) {
-    fprintf(stderr, "FAIL RejectsNonThreePrbCfaProfile\n");
+    fprintf(stderr, "FAIL RejectsNonThreePrbCbraProfile\n");
     return 1;
   }
   invalid_campaign = campaign;
   invalid_campaign.data_seed = invalid_campaign.noise_seed;
   reason = NULL;
-  if (nr_ue_aiot_cfa_validate_campaign_config(&invalid_campaign, &reason)
+  if (nr_ue_aiot_cbra_validate_campaign_config(&invalid_campaign, &reason)
       || reason == NULL || strcmp(reason, "duplicate_seed") != 0) {
-    fprintf(stderr, "FAIL RejectsDuplicateCfaSeeds\n");
+    fprintf(stderr, "FAIL RejectsDuplicateCbraSeeds\n");
     return 1;
   }
   invalid_campaign = campaign;
   invalid_campaign.d2r_scheduling_info = 0x123456;
   reason = NULL;
-  if (nr_ue_aiot_cfa_validate_campaign_config(&invalid_campaign, &reason)
+  if (nr_ue_aiot_cbra_validate_campaign_config(&invalid_campaign, &reason)
       || reason == NULL || strcmp(reason, "invalid_scheduling_info") != 0) {
-    fprintf(stderr, "FAIL RejectsNonFrozenCfaSchedulingInfo\n");
+    fprintf(stderr, "FAIL RejectsNonFrozenCbraSchedulingInfo\n");
     return 1;
   }
-  nr_ue_aiot_cfa_pdu_fields_t invalid_cfa_fields = cfa_fields;
-  invalid_cfa_fields.d2r_scheduling_info = 0x123456;
-  aiot_t2_rf_packet_t invalid_cfa_packet;
-  memset(&invalid_cfa_packet, 0xA5, sizeof(invalid_cfa_packet));
-  const aiot_t2_rf_packet_t invalid_cfa_before = invalid_cfa_packet;
+  invalid_campaign = campaign;
+  invalid_campaign.message_kind = (nr_ue_aiot_cbra_message_kind_t)2;
   reason = NULL;
-  if (nr_ue_aiot_cfa_prepare_r2d(&invalid_cfa_fields, 100, 1, 100, 6, 3, &invalid_cfa_packet, &reason)
-      || reason == NULL || strcmp(reason, "invalid_scheduling_info") != 0
-      || memcmp(&invalid_cfa_packet, &invalid_cfa_before, sizeof(invalid_cfa_packet)) != 0) {
-    fprintf(stderr, "FAIL RefusesNonFrozenCfaSchedulingInfoBeforeTx\n");
+  if (nr_ue_aiot_cbra_validate_campaign_config(&invalid_campaign, &reason)
+      || reason == NULL || strcmp(reason, "invalid_message_kind") != 0) {
+    fprintf(stderr, "FAIL RejectsUnknownCbraMessageKind\n");
     return 1;
   }
-  uint8_t invalid_cfa_pdu[NR_UE_AIOT_CFA_PDU_BYTES];
-  uint8_t invalid_cfa_pdu_before[NR_UE_AIOT_CFA_PDU_BYTES];
-  memset(invalid_cfa_pdu, 0xA5, sizeof(invalid_cfa_pdu));
-  memset(invalid_cfa_pdu_before, 0xA5, sizeof(invalid_cfa_pdu_before));
-  reason = NULL;
-  if (nr_ue_aiot_cfa_build_pdu(&invalid_cfa_fields, invalid_cfa_pdu, &reason)
-      || reason == NULL || strcmp(reason, "invalid_scheduling_info") != 0
-      || memcmp(invalid_cfa_pdu, invalid_cfa_pdu_before, sizeof(invalid_cfa_pdu)) != 0) {
-    fprintf(stderr, "FAIL RefusesNonFrozenCfaPduBeforeSerialization\n");
+  const uint8_t cbra_m_values[] = {2, 6, 12, 24};
+  const uint16_t expected_symbols[] = {246, 84, 43, 25};
+  const uint16_t expected_occupied_chips[] = {496, 500, 500, 560};
+  const uint16_t expected_padding_chips[] = {0, 4, 4, 18};
+  const uint16_t expected_reserved_chips[] = {0, 0, 0, 46};
+  const uint32_t expected_ofdm_samples[] = {269904, 92160, 47184, 27432};
+  const uint64_t expected_airtime_ns[] = {17571875, 6000000, 3071875, 1785938};
+  for (size_t index = 0; index < sizeof(cbra_m_values) / sizeof(cbra_m_values[0]); ++index) {
+    nr_ue_aiot_cbra_frame_t frame = {0};
+    reason = NULL;
+    if (!nr_ue_aiot_cbra_derive_frame(NR_UE_AIOT_CBRA_PAGING, cbra_m_values[index], 3, &frame, &reason)
+        || reason != NULL || frame.mac_bits != NR_UE_AIOT_CBRA_PAGING_PDU_BITS
+        || frame.phy_bits != NR_UE_AIOT_CBRA_PAGING_PHY_BITS
+        || frame.prdch_chips != 480 || frame.data_and_overhead_chips != 488
+        || frame.frame_symbols != expected_symbols[index]
+        || frame.occupied_chip_positions != expected_occupied_chips[index]
+        || frame.r_tas_sip_chips != 8 || frame.r_tas_cap_chips != 4 || frame.postamble_chips != 4
+        || frame.padding_chips != expected_padding_chips[index]
+        || frame.mapping_reserved_chips != expected_reserved_chips[index]
+        || frame.emitted_chip_count != expected_occupied_chips[index]
+        || frame.ofdm_sample_count != expected_ofdm_samples[index]
+        || frame.on_air_duration_ns != expected_airtime_ns[index]) {
+      fprintf(stderr, "FAIL DerivesCbraPagingFrame m=%u symbols=%u occupied=%u\n",
+              cbra_m_values[index], frame.frame_symbols, frame.occupied_chip_positions);
+      return 1;
+    }
+    aiot_t2_rf_packet_t cbra_packet = {0};
+    reason = NULL;
+    if (!nr_ue_aiot_cbra_prepare_paging_r2d(&paging_fields, 100, 1, 100, cbra_m_values[index], 3,
+                                            &cbra_packet, &reason)
+        || reason != NULL || cbra_packet.header.size != expected_occupied_chips[index]
+        || (cbra_packet.header.option_flag & (OPTION_AIOT_T2_R2D | OPTION_AIOT_T2_R2D_CBRA))
+               != (OPTION_AIOT_T2_R2D | OPTION_AIOT_T2_R2D_CBRA)
+        || AIOT_T2_UNPACK_CBRA_M(cbra_packet.header.option_value) != cbra_m_values[index]
+        || AIOT_T2_UNPACK_CBRA_KIND(cbra_packet.header.option_value) != AIOT_T2_CBRA_KIND_PAGING
+        || AIOT_T2_UNPACK_R2D_READER(cbra_packet.header.option_value) != 1
+        || AIOT_T2_UNPACK_R2D_TAG(cbra_packet.header.option_value) != 100
+        || cbra_packet.samples[0].r != 1 || cbra_packet.samples[1].r != 1
+        || cbra_packet.samples[2].r != 0 || cbra_packet.samples[3].r != 0
+        || cbra_packet.samples[4].r != 1 || cbra_packet.samples[5].r != 0
+        || cbra_packet.samples[6].r != 0 || cbra_packet.samples[7].r != 0
+        || cbra_packet.samples[8].r != 1 || cbra_packet.samples[9].r != 0
+        || cbra_packet.samples[10].r != 1 || cbra_packet.samples[11].r != 0) {
+      fprintf(stderr, "FAIL PreparesCbraPagingR2dFrame m=%u samples=%u\n",
+              cbra_m_values[index], cbra_packet.header.size);
+      return 1;
+    }
+    size_t frame_chips = 0;
+    size_t frame_symbols = 0;
+    size_t ofdm_samples = 0;
+    c16_t *waveform = calloc(AIOT_T2_CBRA_MAX_OFDM_SAMPLES, sizeof(*waveform));
+    size_t waveform_count = 0;
+    if (!aiot_t2_cbra_frame_dimensions(NR_UE_AIOT_CBRA_PAGING_PHY_BITS,
+                                       cbra_m_values[index], &frame_chips, &frame_symbols, &ofdm_samples)
+        || frame_chips != expected_occupied_chips[index] || frame_symbols != expected_symbols[index]
+        || ofdm_samples != expected_ofdm_samples[index]
+        || waveform == NULL
+        || !aiot_t2_cbra_expand_compact_frame(cbra_packet.samples,
+                                               cbra_packet.header.size,
+                                               NR_UE_AIOT_CBRA_PAGING_PHY_BITS,
+                                               cbra_m_values[index],
+                                               waveform,
+                                               AIOT_T2_CBRA_MAX_OFDM_SAMPLES,
+                                               &waveform_count)
+        || waveform_count != expected_ofdm_samples[index]) {
+      free(waveform);
+      fprintf(stderr, "FAIL ExpandsFullCbraPagingWaveform m=%u samples=%zu\n",
+              cbra_m_values[index], waveform_count);
+      return 1;
+    }
+    free(waveform);
+  }
+
+  uint8_t access_trigger[NR_UE_AIOT_CBRA_TRIGGER_BYTES] = {0xA5, 0xA5};
+  uint8_t access_trigger_phy[NR_UE_AIOT_CBRA_TRIGGER_PHY_BYTES] = {0};
+  if (!nr_ue_aiot_cbra_build_access_trigger(access_trigger)
+      || !nr_ue_aiot_cbra_parse_access_trigger(access_trigger)
+      || access_trigger[0] != 0x40 || access_trigger[1] != 0
+      || !nr_ue_aiot_cbra_append_access_trigger_crc(access_trigger, access_trigger_phy)
+      || !nr_ue_aiot_cbra_verify_access_trigger_crc(access_trigger_phy)) {
+    fprintf(stderr, "FAIL BuildsAndVerifiesCbraAccessTrigger\n");
+    return 1;
+  }
+  access_trigger_phy[1] ^= 0x80U;
+  if (nr_ue_aiot_cbra_verify_access_trigger_crc(access_trigger_phy)) {
+    fprintf(stderr, "FAIL RejectsCorruptedCbraAccessTriggerCrc\n");
+    return 1;
+  }
+  access_trigger[1] = 0xFF;
+  if (!nr_ue_aiot_cbra_parse_access_trigger(access_trigger)) {
+    fprintf(stderr, "FAIL IgnoresCbraAccessTriggerStoragePadding\n");
     return 1;
   }
 
-  const uint8_t cfa_m_values[] = {2, 6, 12, 24};
-  const uint16_t expected_symbols[] = {238, 81, 42, 24};
-  const uint16_t expected_occupied_chips[] = {480, 482, 488, 536};
-  for (size_t index = 0; index < sizeof(cfa_m_values) / sizeof(cfa_m_values[0]); ++index) {
-    nr_ue_aiot_cfa_frame_t frame = {0};
-    reason = NULL;
-    if (!nr_ue_aiot_cfa_derive_frame(cfa_m_values[index], 3, &frame, &reason)
-        || reason != NULL || frame.prdch_chips != 464 || frame.frame_symbols != expected_symbols[index]
-        || frame.occupied_chip_positions != expected_occupied_chips[index]) {
-      fprintf(stderr, "FAIL DerivesCfaFrame m=%u symbols=%u occupied=%u\n",
-              cfa_m_values[index], frame.frame_symbols, frame.occupied_chip_positions);
-      return 1;
-    }
-    aiot_t2_rf_packet_t cfa_packet = {0};
-    reason = NULL;
-    if (!nr_ue_aiot_cfa_prepare_r2d(&cfa_fields, 100, 1, 100, cfa_m_values[index], 3, &cfa_packet, &reason)
-        || reason != NULL || cfa_packet.header.size != 464
-        || (cfa_packet.header.option_flag & (OPTION_AIOT_T2_R2D | OPTION_AIOT_T2_R2D_CFA))
-               != (OPTION_AIOT_T2_R2D | OPTION_AIOT_T2_R2D_CFA)
-        || AIOT_T2_UNPACK_CFA_M(cfa_packet.header.option_value) != cfa_m_values[index]
-        || AIOT_T2_UNPACK_R2D_READER(cfa_packet.header.option_value) != 1) {
-      fprintf(stderr, "FAIL PreparesCfaR2dFrame m=%u samples=%u\n", cfa_m_values[index], cfa_packet.header.size);
-      return 1;
-    }
+  nr_ue_aiot_cbra_frame_t trigger_frame = {0};
+  reason = NULL;
+  if (!nr_ue_aiot_cbra_derive_frame(NR_UE_AIOT_CBRA_ACCESS_TRIGGER, 24, 3, &trigger_frame, &reason)
+      || reason != NULL || trigger_frame.mac_bits != NR_UE_AIOT_CBRA_TRIGGER_BITS
+      || trigger_frame.phy_bits != NR_UE_AIOT_CBRA_TRIGGER_PHY_BITS || trigger_frame.data_and_overhead_chips != 26
+      || trigger_frame.emitted_chip_count != 56 || trigger_frame.ofdm_sample_count != 4392) {
+    fprintf(stderr, "FAIL DerivesCbraAccessTriggerFrame\n");
+    return 1;
   }
+  aiot_t2_rf_packet_t trigger_packet = {0};
+  c16_t *trigger_waveform = calloc(trigger_frame.ofdm_sample_count, sizeof(*trigger_waveform));
+  size_t trigger_waveform_count = 0;
+  reason = NULL;
+  if (!nr_ue_aiot_cbra_prepare_access_trigger_r2d(100, 1, 100, 24, 3, &trigger_packet, &reason)
+      || reason != NULL || trigger_packet.header.size != trigger_frame.emitted_chip_count
+      || AIOT_T2_UNPACK_CBRA_KIND(trigger_packet.header.option_value) != AIOT_T2_CBRA_KIND_ACCESS_TRIGGER
+      || trigger_waveform == NULL
+      || !aiot_t2_cbra_expand_compact_frame(trigger_packet.samples,
+                                             trigger_packet.header.size,
+                                             NR_UE_AIOT_CBRA_TRIGGER_PHY_BITS,
+                                             24,
+                                             trigger_waveform,
+                                             trigger_frame.ofdm_sample_count,
+                                             &trigger_waveform_count)
+      || trigger_waveform_count != trigger_frame.ofdm_sample_count) {
+    free(trigger_waveform);
+    fprintf(stderr, "FAIL PreparesCbraAccessTriggerR2dFrame\n");
+    return 1;
+  }
+  free(trigger_waveform);
 
   puts("PASS R2dResourceAdmissionTable");
   return 0;

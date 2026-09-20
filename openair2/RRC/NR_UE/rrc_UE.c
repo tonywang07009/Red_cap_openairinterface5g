@@ -48,6 +48,7 @@
 #include "uper_decoder.h"
 
 #include "rrc_defs.h"
+#include "openair2/COMMON/rrc_messages_types.h"
 #include "rrc_proto.h"
 #include "L2_interface_ue.h"
 #include "LAYER2/NR_MAC_UE/mac_proto.h"
@@ -1518,7 +1519,35 @@ static void nr_rrc_ue_process_rrcReconfiguration(NR_UE_RRC_INST_t *rrc, int gNB_
         nr_rrc_ue_process_measConfig(rrcNB, ie->measConfig, &rrc->timers_and_constants);
       }
       if (ie->lateNonCriticalExtension) {
-        LOG_E(NR_RRC, "RRCReconfiguration includes lateNonCriticalExtension. Not handled.\n");
+        const uint8_t *wire = ie->lateNonCriticalExtension->buf;
+        const size_t wire_len = ie->lateNonCriticalExtension->size;
+        if (wire_len >= sizeof(uint32_t) && nr_aiot_cbra_get_u32(wire) == NR_AIOT_CBRA_CONFIG_MAGIC) {
+          nr_aiot_cbra_config_t config = {0};
+          const char *reason = NULL;
+          rrc->aiot_cbra_ack_pending = true;
+          rrc->aiot_cbra_ack_status = NR_AIOT_CBRA_CONFIG_STATUS_REJECTED;
+          if (nr_aiot_cbra_config_decode(wire, wire_len, &config, &reason)
+              && config.status == NR_AIOT_CBRA_CONFIG_STATUS_NONE) {
+            nr_mac_rrc_message_t rrc_msg = {0};
+            rrc_msg.payload_type = NR_MAC_RRC_CONFIG_AIOT_CBRA;
+            rrc_msg.payload.config_aiot_cbra.config = config;
+            nr_rrc_send_msg_to_mac(rrc, &rrc_msg);
+            *rrc->aiot_cbra_ack_config = config;
+            rrc->aiot_cbra_ack_status = NR_AIOT_CBRA_CONFIG_STATUS_ACCEPTED;
+            LOG_I(NR_RRC,
+                  "[AIOT CBRA][UE %ld] staged RRC config version %u round %u activation %lu expiry %lu\n",
+                  rrc->ue_id,
+                  config.version,
+                  config.round,
+                  config.activation_slot,
+                  config.expiry_slot);
+          } else {
+            nr_aiot_cbra_config_defaults(rrc->aiot_cbra_ack_config);
+            LOG_E(NR_RRC, "[AIOT CBRA][UE %ld] rejected RRC config: %s\n", rrc->ue_id, reason ? reason : "invalid");
+          }
+        } else {
+          LOG_D(NR_RRC, "RRCReconfiguration includes an unsupported lateNonCriticalExtension\n");
+        }
       }
     } break;
     case NR_RRCReconfiguration__criticalExtensions_PR_NOTHING:
@@ -1606,6 +1635,7 @@ NR_UE_RRC_INST_t* nr_rrc_init_ue(char* uecap_file, int instance_id, int num_ant_
   AssertFatal(NR_UE_rrc_inst[instance_id] == NULL, "RRC instance %d already initialized\n", instance_id);
   NR_UE_rrc_inst[instance_id] = calloc_or_fail(1, sizeof(NR_UE_RRC_INST_t));
   NR_UE_RRC_INST_t *rrc = NR_UE_rrc_inst[instance_id];
+  rrc->aiot_cbra_ack_config = calloc_or_fail(1, sizeof(*rrc->aiot_cbra_ack_config));
   rrc->ue_id = instance_id;
   // fill UE-NR-Capability @ UE-CapabilityRAT-Container here.
   rrc->selected_plmn_identity = 1;
@@ -2403,8 +2433,11 @@ static void nr_rrc_ue_process_securityModeCommand(NR_UE_RRC_INST_t *ue_rrc,
 
 static void nr_rrc_ue_generate_RRCReconfigurationComplete(NR_UE_RRC_INST_t *rrc, const int srb_id, const uint8_t Transaction_id)
 {
-  uint8_t buffer[32];
-  int size = do_NR_RRCReconfigurationComplete(buffer, sizeof(buffer), Transaction_id);
+  uint8_t buffer[128];
+  const nr_aiot_cbra_config_t *config = rrc->aiot_cbra_ack_pending ? rrc->aiot_cbra_ack_config : NULL;
+  const uint8_t status = rrc->aiot_cbra_ack_pending ? rrc->aiot_cbra_ack_status : NR_AIOT_CBRA_CONFIG_STATUS_NONE;
+  int size = do_NR_RRCReconfigurationComplete_with_cbra(buffer, sizeof(buffer), Transaction_id, config, status);
+  rrc->aiot_cbra_ack_pending = false;
   LOG_I(NR_RRC, " Logical Channel UL-DCCH (SRB1), Generating RRCReconfigurationComplete (bytes %d)\n", size);
   AssertFatal(srb_id == 1 || srb_id == 3, "Invalid SRB ID %d\n", srb_id);
   LOG_D(RLC,

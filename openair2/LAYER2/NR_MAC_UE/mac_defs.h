@@ -683,6 +683,7 @@ typedef struct NR_UE_MAC_INST_s {
   pthread_mutex_t if_mutex;
   ue_mac_stats_t stats;
   notifiedFIFO_t input_nf;
+  struct nr_aiot_cbra_state_s *aiot_cbra_state;
 } NR_UE_MAC_INST_t;
 
 static inline nr_redcap_rrc_state_t nr_redcap_rrc_state_from_mac_state(const NR_UE_L2_STATE_t state)

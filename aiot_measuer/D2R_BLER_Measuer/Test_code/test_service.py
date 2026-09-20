@@ -12,24 +12,31 @@ sys.path.insert(0, str(MAIN_CODE))
 from fourmula import (
     AIOT_T2_OBSERVATION_MAGIC,
     AIOT_T2_OBSERVATION_VERSION,
-    CFA_OBSERVATION_STRUCT,
+    CBRA_OBSERVATION_STRUCT,
     OBSERVATION_STRUCT,
     D2RMeasurementService,
     D2RReservationScheduler,
     CAMPAIGN_DURATION_MULTIPLIERS,
-    aggregate_cfa_campaign_rows,
+    CbraSquareLawReceiver,
+    aggregate_cbra_campaign_rows,
     aggregate_campaign_rows,
     PairedRicianChannelBank,
     decode_observation_datagram,
-    decode_cfa_observation_datagram,
+    decode_cbra_observation_datagram,
     estimate_rician_energy_ber,
     generate_visibility_map,
     sample_ticks_to_ns,
     validate_visibility_map,
-    cfa_frame_components,
+    cbra_frame_components,
+    cbra_expand_compact_chips,
+    cbra_power_calibration_report,
+    cbra_prdch_mean_power,
+    cbra_prdch_physical_indices,
+    cbra_snr_calibration,
+    cbra_observation_to_campaign_row,
 )
 from storage import JsonExperimentStorage
-from cfa_epoch import TalanetEpochController
+from cbra_epoch import CbraAttemptEpochBinder, TalanetEpochController, deterministic_channel_provenance
 
 
 class CompletedPacketObservationTests(unittest.TestCase):
@@ -314,48 +321,90 @@ class CompletedPacketObservationTests(unittest.TestCase):
             aggregate_campaign_rows([row])
 
 
-class CfaCampaignTests(unittest.TestCase):
+class CbraCampaignTests(unittest.TestCase):
     @staticmethod
     def _rows(count=10_000):
         for attempt_index in range(count):
             failed = attempt_index >= count - 10
             yield {
+                "message_kind": 0,
                 "m": 6,
                 "snr_db_x10": 0,
+                "target_snr_db_x10": 0,
+                "signal_power_q16": 65_536,
+                "noise_power_q16": 65_536,
+                "calibrated_snr_db_x10": 0,
                 "attempt_index": attempt_index,
                 "channel_epoch": 1,
                 "epoch_ack": True,
                 "channel_readback": True,
-                "compared_bits": 216,
+                "mac_bits": 224,
+                "phy_bits": 240,
+                "compared_bits": 224,
                 "erroneous_bits": 1 if failed else 0,
                 "crc_ok": not failed,
                 "payload_match": not failed,
-                "d2r_attempted": not failed,
+                "d2r_attempted": False,
+                "context_eligible": True,
+                "setup": False,
                 "r2d_on_air_duration_ns": 1_000,
             }
 
-    def test_cfa_aggregation_is_fixed_budget_and_keeps_failed_airtime(self):
-        record = aggregate_cfa_campaign_rows(list(self._rows()))
+    def test_cbra_aggregation_is_fixed_budget_and_keeps_failed_airtime(self):
+        record = aggregate_cbra_campaign_rows(list(self._rows()))
 
         self.assertEqual(record["campaign"]["packet_budget"], 10_000)
         point = record["points"][0]
         self.assertEqual(point["attempted_packets"], 10_000)
         self.assertEqual(point["crc_failures"], 10)
-        self.assertEqual(point["compared_bits"], 2_160_000)
+        self.assertEqual(point["compared_bits"], 2_240_000)
         self.assertEqual(point["erroneous_bits"], 10)
         self.assertEqual(point["payload_bler"], 10 / 10_000)
-        self.assertEqual(point["goodput_bps"], 216 * 9_990 / 0.01)
+        self.assertEqual(point["goodput_bps"], 224 * 9_990 / 0.01)
         self.assertAlmostEqual(point["payload_bler_ci95"]["upper"], 0.00184, places=4)
 
-    def test_cfa_aggregation_rejects_missing_attempt_and_invalid_epoch_evidence(self):
+    def test_cbra_point_keeps_measured_snr_and_validates_pilot_center_tolerance(self):
+        rows = list(self._rows())
+        for row in rows:
+            row["snr_db_x10"] = 174
+            row["calibrated_snr_db_x10"] = 175
+        point = aggregate_cbra_campaign_rows(rows)["points"][0]
+        self.assertEqual(point["snr_db_x10"], 174)
+        self.assertEqual(point["calibrated_snr_db_x10_mean"], 175)
+        self.assertTrue(point["valid"])
+
+        for row in rows:
+            row["calibrated_snr_db_x10"] = 200
+        point = aggregate_cbra_campaign_rows(rows)["points"][0]
+        self.assertFalse(point["valid"])
+        self.assertIn("calibration_outside_point_tolerance", point["invalid_reasons"])
+
+    def test_cbra_aggregation_keeps_paging_and_trigger_denominators_separate(self):
+        trigger_rows = [
+            {
+                **row,
+                "message_kind": 1,
+                "mac_bits": 3,
+                "phy_bits": 9,
+                "compared_bits": 3,
+                "setup": False,
+            }
+            for row in self._rows()
+        ]
+        trigger_rows.append({**trigger_rows[0], "attempt_index": 10_000, "setup": True})
+        record = aggregate_cbra_campaign_rows(list(self._rows()) + trigger_rows)
+        self.assertEqual({point["message_kind"] for point in record["points"]}, {0, 1})
+        self.assertEqual({point["attempted_packets"] for point in record["points"]}, {10_000})
+
+    def test_cbra_aggregation_rejects_missing_attempt_and_invalid_epoch_evidence(self):
         rows = list(self._rows())
         rows.pop()
         with self.assertRaises(ValueError):
-            aggregate_cfa_campaign_rows(rows)
+            aggregate_cbra_campaign_rows(rows)
 
         rows = list(self._rows())
         rows[0]["epoch_ack"] = False
-        record = aggregate_cfa_campaign_rows(rows)
+        record = aggregate_cbra_campaign_rows(rows)
         point = record["points"][0]
         self.assertFalse(point["valid"])
         self.assertIsNone(point["payload_ber"])
@@ -365,24 +414,117 @@ class CfaCampaignTests(unittest.TestCase):
         rows = list(self._rows())
         rows[0]["d2r_attempted"] = True
         rows[0]["crc_ok"] = False
-        gate_record = aggregate_cfa_campaign_rows(rows)
-        self.assertIn("d2r_gate_violation", gate_record["points"][0]["invalid_reasons"])
+        gate_record = aggregate_cbra_campaign_rows(rows)
+        self.assertIn("unexpected_d2r_attempt", gate_record["points"][0]["invalid_reasons"])
 
         different_grid = list(self._rows())
         different_grid.extend({**row, "m": 2, "snr_db_x10": 10} for row in self._rows())
         with self.assertRaisesRegex(ValueError, "common SNR grid"):
-            aggregate_cfa_campaign_rows(different_grid)
+            aggregate_cbra_campaign_rows(different_grid)
 
-    def test_cfa_frame_components_cover_the_four_supported_m_values(self):
-        expected_symbols = {2: 238, 6: 81, 12: 42, 24: 24}
+    def test_cbra_frame_components_cover_the_four_supported_m_values(self):
+        expected_symbols = {2: 246, 6: 84, 12: 43, 24: 25}
+        expected_padding = {2: 0, 6: 4, 12: 4, 24: 18}
+        expected_reserved = {2: 0, 6: 0, 12: 0, 24: 46}
+        expected_samples = {2: 269904, 6: 92160, 12: 47184, 24: 27432}
+        expected_airtime_ns = {2: 17571875, 6: 6000000, 12: 3071875, 24: 1785938}
         for m, symbols in expected_symbols.items():
-            frame = cfa_frame_components(m=m, prb_count=3)
+            frame = cbra_frame_components(m=m, prb_count=3)
             self.assertEqual(frame["frame_symbols"], symbols)
-            self.assertEqual(frame["prdch_chips"], 464)
-            self.assertEqual(frame["phy_bits"], 232)
+            self.assertEqual(frame["prdch_chips"], 480)
+            self.assertEqual(frame["mac_bits"], 224)
+            self.assertEqual(frame["phy_bits"], 240)
+            self.assertEqual(frame["padding_chips"], expected_padding[m])
+            self.assertEqual(frame["mapping_reserved_chips"], expected_reserved[m])
+            self.assertEqual(frame["ofdm_sample_count"], expected_samples[m])
+            self.assertEqual(frame["full_r2d_airtime_ns"], expected_airtime_ns[m])
 
         with self.assertRaises(ValueError):
-            cfa_frame_components(m=3, prb_count=3)
+            cbra_frame_components(m=3, prb_count=3)
+
+    def test_cbra_square_law_receiver_decodes_all_m_values_without_tx_truth(self):
+        expected_bits = tuple(index & 1 for index in range(240))
+        for m in (2, 6, 12, 24):
+            frame = cbra_frame_components(m=m)
+            line_code = [chip for bit in expected_bits for chip in ((1, 0) if bit == 0 else (0, 1))]
+            sequence = [1, 0, 1, 0] + line_code + [1, 1, 1, 1]
+            chips = [0j] * frame["emitted_chip_count"]
+            chips[:8] = [complex(bit) for bit in (1, 1, 0, 0, 1, 0, 0, 0)]
+            physical_index = 8
+            sequence_index = 0
+            for _ in range(frame["symbols_after_sip"]):
+                for position in range(m):
+                    if m == 24 and position >= m - 2:
+                        chips[physical_index] = 1 + 0j
+                    else:
+                        chips[physical_index] = complex(
+                            sequence[sequence_index]
+                            if sequence_index < len(sequence)
+                            else (1 if m == 24 and sequence_index - len(sequence) >= frame["padding_chips"] - 2 else 0)
+                        )
+                        sequence_index += 1
+                    physical_index += 1
+
+            receiver = CbraSquareLawReceiver()
+            energies = receiver.integrate_chip_energies(
+                cbra_expand_compact_chips(chips, m=m),
+                m=m,
+                chip_count=len(chips),
+            )
+            decoded_bits = receiver.decide_manchester_bits(
+                tuple(energies[index] for index in cbra_prdch_physical_indices(m=m))
+            )
+            self.assertEqual(decoded_bits, expected_bits)
+
+    def test_cbra_square_law_reversal_changes_the_decision(self):
+        m = 24
+        frame = cbra_frame_components(m=m)
+        chips = [0j] * frame["emitted_chip_count"]
+        chips[:8] = [complex(bit) for bit in (1, 1, 0, 0, 1, 0, 0, 0)]
+        sequence = [1, 0, 1, 0] + [1, 0] * 240 + [1, 1, 1, 1]
+        physical_index = 8
+        sequence_index = 0
+        for _ in range(frame["symbols_after_sip"]):
+            for position in range(m):
+                if m == 24 and position >= m - 2:
+                    chips[physical_index] = 1 + 0j
+                else:
+                    chips[physical_index] = complex(
+                        sequence[sequence_index]
+                        if sequence_index < len(sequence)
+                        else (1 if sequence_index - len(sequence) >= frame["padding_chips"] - 2 else 0)
+                    )
+                    sequence_index += 1
+                physical_index += 1
+        first, second = cbra_prdch_physical_indices(m=m)[:2]
+        chips[first], chips[second] = chips[second], chips[first]
+        receiver = CbraSquareLawReceiver()
+        energies = receiver.integrate_chip_energies(
+            cbra_expand_compact_chips(chips, m=m),
+            m=m,
+            chip_count=len(chips),
+        )
+        decoded_bits = receiver.decide_manchester_bits(
+            tuple(energies[index] for index in cbra_prdch_physical_indices(m=m))
+        )
+        self.assertEqual(decoded_bits[0], 1)
+
+    def test_cbra_power_gate_measures_prdch_only_and_rejects_out_of_tolerance(self):
+        waveforms = {}
+        for m in (2, 6, 12, 24):
+            frame = cbra_frame_components(m=m)
+            samples = [0j] * frame["emitted_chip_count"]
+            for offset, index in enumerate(cbra_prdch_physical_indices(m=m)):
+                samples[index] = 1 + 0j if offset % 2 == 0 else 0j
+            waveforms[m] = samples
+        self.assertEqual(cbra_prdch_mean_power(waveforms[2], m=2), 0.5)
+        passed = cbra_power_calibration_report(waveforms, target_power=0.5, tolerance=0.01)
+        self.assertTrue(passed["passed"])
+
+        waveforms[24] = [1 + 0j] * len(waveforms[24])
+        failed = cbra_power_calibration_report(waveforms, target_power=0.5, tolerance=0.01)
+        self.assertFalse(failed["passed"])
+        self.assertFalse(failed["points"]["24"]["within_tolerance"])
 
     def test_talanet_epoch_controller_requires_drain_and_monotonic_readback(self):
         requests = []
@@ -400,46 +542,177 @@ class CfaCampaignTests(unittest.TestCase):
             controller.set_epoch(attenuation_db=10, noise_power=0.1, seed=9, drained=True)
         self.assertEqual(requests, ["rfsimu aiot_epoch set 10 0.1 9", "rfsimu aiot_epoch set 10 0.1 9"])
 
+        separate_seed_controller = TalanetEpochController(
+            request=lambda command: (
+                requests.append(command),
+                "AIOT_T2_CHANNEL_EPOCH epoch=3 attenuation_db=10.000 noise_power=0.100000 seed=9 "
+                "data_seed=9 noise_seed=11 readback=ok queued=0",
+            )[1]
+        )
+        state = separate_seed_controller.set_epoch(
+            attenuation_db=10, noise_power=0.1, data_seed=9, noise_seed=11, drained=True
+        )
+        self.assertEqual(state["data_seed"], 9)
+        self.assertEqual(state["noise_seed"], 11)
+        self.assertEqual(requests[-1], "rfsimu aiot_epoch set 10 0.1 9 11")
+
         queued_controller = TalanetEpochController(
             request=lambda _command: "AIOT_T2_CHANNEL_EPOCH epoch=3 attenuation_db=10.000 noise_power=0.100000 seed=9 readback=ok queued=1"
         )
         with self.assertRaises(RuntimeError):
             queued_controller.set_epoch(attenuation_db=10, noise_power=0.1, seed=9, drained=True)
 
-    def test_cfa_observation_v2_preserves_pdu_epoch_and_gate_fields(self):
-        datagram = CFA_OBSERVATION_STRUCT.pack(
+    def test_cbra_attempt_epoch_binding_is_unique_and_fail_closed(self):
+        binder = CbraAttemptEpochBinder()
+        state = {
+            "epoch": 4,
+            "attenuation_db": 10.0,
+            "noise_power": 0.1,
+            "seed": 9,
+            "data_seed": 9,
+            "noise_seed": 11,
+            "readback": "ok",
+            "queued": 0,
+        }
+        self.assertEqual(binder.bind(attempt_index=0, epoch_state=state)["channel_epoch"], 4)
+        with self.assertRaises(ValueError):
+            binder.bind(attempt_index=0, epoch_state=state)
+        with self.assertRaises(RuntimeError):
+            binder.bind(attempt_index=1, epoch_state={**state, "queued": 1})
+
+    def test_cbra_channel_provenance_is_replayable_and_epoch_sensitive(self):
+        arguments = {
+            "seed": 9,
+            "tag_id": 100,
+            "reader_handle": 1,
+            "epoch": 4,
+            "timestamp": 1234,
+            "tbit": 1,
+        }
+        first = deterministic_channel_provenance(**arguments)
+        self.assertEqual(first, deterministic_channel_provenance(**arguments))
+        self.assertEqual(first, 0x148F1FEA3751507E)
+        self.assertNotEqual(first, deterministic_channel_provenance(**{**arguments, "epoch": 5}))
+
+    def test_cbra_snr_calibration_uses_separate_powers_without_adaptation(self):
+        calibration = cbra_snr_calibration(signal_power=1.0, noise_power=0.1)
+        self.assertEqual(calibration["snr_db_x10"], 100)
+        self.assertFalse(calibration["per_packet_adaptation"])
+        self.assertIsNone(cbra_snr_calibration(signal_power=1.0, noise_power=0.0)["snr_db_x10"])
+        self.assertIsNone(cbra_snr_calibration(signal_power=0.0, noise_power=0.0)["snr_db_x10"])
+
+    def test_cbra_observation_v4_preserves_kind_lengths_epoch_and_gate_fields(self):
+        datagram = CBRA_OBSERVATION_STRUCT.pack(
             AIOT_T2_OBSERVATION_MAGIC,
-            2,
+            4,
             1,
-            1,
+            4,
             1,
             100,
-            10,
-            20,
-            3,
-            0x1234,
-            50,
+            7,
+            0xABC,
+            0,
             6,
             3,
-            1,
             2,
-            216,
             2,
-            480,
             1,
-            bytes(range(27)),
-            bytes(reversed(range(27))),
-            bytes(11),
+            224,
+            240,
+            50,
+            0,
+            10,
+            20,
+            4,
+            0x1234,
+            9,
+            11,
+            1,
+            0,
+            1,
+            1,
+            0,
+            b"\0",
+            224,
+            2,
+            269_904,
+            17_571_875,
+            bytes(range(30)),
+            bytes(reversed(range(30))),
+            65_536,
+            6_554,
+            bytes(12),
         )
-        report = decode_cfa_observation_datagram(datagram)
-        self.assertEqual(report["channel_epoch"], 3)
+        report = decode_cbra_observation_datagram(datagram)
+        self.assertEqual(report["version"], 4)
+        self.assertEqual(report["message_kind"], 0)
+        self.assertEqual(report["mac_bits"], 224)
+        self.assertEqual(report["phy_bits"], 240)
+        self.assertEqual(report["channel_epoch"], 4)
         self.assertEqual(report["channel_provenance"], 0x1234)
         self.assertEqual(report["m"], 6)
         self.assertEqual(report["gate_status"], 2)
-        self.assertEqual(report["tx_pdu"], bytes(range(27)))
+        self.assertTrue(report["setup"])
+        self.assertEqual(report["calibrated_snr_db_x10"], 100)
+        self.assertEqual(report["tx_pdu"], bytes(range(28)))
 
         with self.assertRaises(ValueError):
-            decode_cfa_observation_datagram(datagram[:-1])
+            decode_cbra_observation_datagram(datagram[:-1])
+
+    def test_cbra_access_trigger_report_uses_three_mac_bits(self):
+        datagram = CBRA_OBSERVATION_STRUCT.pack(
+            AIOT_T2_OBSERVATION_MAGIC,
+            4,
+            1,
+            0,
+            1,
+            100,
+            7,
+            0xABC,
+            1,
+            24,
+            3,
+            2,
+            1,
+            0,
+            3,
+            9,
+            50,
+            0,
+            10,
+            20,
+            4,
+            0x1234,
+            9,
+            11,
+            1,
+            0,
+            1,
+            1,
+            0,
+            b"\0",
+            3,
+            0,
+            56,
+            285_938,
+            bytes([0x40, 0]) + bytes(28),
+            bytes([0x40, 0]) + bytes(28),
+            65_536,
+            6_554,
+            bytes(12),
+        )
+        report = decode_cbra_observation_datagram(datagram)
+        self.assertEqual(report["message_kind"], 1)
+        self.assertEqual(report["mac_bits"], 3)
+        self.assertEqual(report["phy_bits"], 9)
+        self.assertEqual(report["tx_pdu"], bytes([0x40, 0]))
+        row = cbra_observation_to_campaign_row(report, snr_db_x10=50)
+        self.assertEqual(row["message_kind"], 1)
+        self.assertEqual(row["mac_bits"], 3)
+        self.assertEqual(row["r2d_on_air_duration_ns"], 285_938)
+
+        with self.assertRaises(ValueError):
+            cbra_observation_to_campaign_row({"version": 3}, snr_db_x10=50)
 
 
 if __name__ == "__main__":

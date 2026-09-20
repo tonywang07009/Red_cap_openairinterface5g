@@ -236,6 +236,9 @@ typedef struct gNB_RRC_UE_s {
   uint32_t                           ue_reestablishment_counter;
   uint32_t                           ue_reconfiguration_counter;
   bool ongoing_reconfiguration;
+  bool aiot_cbra_waiting_ack;
+  uint32_t aiot_cbra_last_version;
+  uint8_t aiot_cbra_last_ack_status;
   bool an_release; // flag if core requested UE release
 
   /* NGUEContextSetup might come with PDU sessions, but setup needs to be
@@ -368,6 +371,7 @@ typedef struct gNB_RRC_INST_s {
 
   // RRC configuration
   gNB_RrcConfigurationReq configuration;
+  uint32_t aiot_cbra_round;
   seq_arr_t *SIBs;
 
   // gNB N3 GTPU instance

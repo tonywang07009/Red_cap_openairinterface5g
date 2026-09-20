@@ -311,6 +311,21 @@ void process_msg_rcc_to_mac(nr_mac_rrc_message_t *msg, int instance_id)
             cg ? cg->periodicity : -1L,
             grant ? grant->timeDomainOffset : -1L);
     } break;
+    case NR_MAC_RRC_CONFIG_AIOT_CBRA: {
+      NR_UE_MAC_INST_t *mac = get_mac_inst(instance_id);
+      const char *reason = NULL;
+      const nr_aiot_cbra_config_t *config = &msg->payload.config_aiot_cbra.config;
+      if (nr_aiot_cbra_state_stage(mac->aiot_cbra_state, config, &reason)) {
+        LOG_I(NR_MAC,
+              "[AIOT CBRA][UE %d] MAC staged version %u activation %lu expiry %lu\n",
+              instance_id,
+              config->version,
+              config->activation_slot,
+              config->expiry_slot);
+      } else {
+        LOG_E(NR_MAC, "[AIOT CBRA][UE %d] rejected config: %s\n", instance_id, reason ? reason : "invalid");
+      }
+    } break;
     default:
       LOG_E(NR_MAC, "Unexpected msg from RRC: %d\n", msg->payload_type);
   }

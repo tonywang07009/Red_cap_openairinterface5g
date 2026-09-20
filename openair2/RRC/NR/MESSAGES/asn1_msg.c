@@ -633,6 +633,13 @@ static NR_RRCReconfiguration_IEs_t *build_RRCReconfiguration_IEs(const nr_rrc_re
     }
   }
 
+  if (params->late_non_critical_extension.len > 0) {
+    ie->lateNonCriticalExtension = calloc_or_fail(1, sizeof(*ie->lateNonCriticalExtension));
+    OCTET_STRING_fromBuf(ie->lateNonCriticalExtension,
+                         (const char *)params->late_non_critical_extension.buf,
+                         params->late_non_critical_extension.len);
+  }
+
   return ie;
 }
 
@@ -808,6 +815,15 @@ int do_NR_RRCReconfigurationComplete_for_nsa(
 
 //------------------------------------------------------------------------------
 int do_NR_RRCReconfigurationComplete(uint8_t *buffer, size_t buffer_size, const uint8_t Transaction_id)
+{
+  return do_NR_RRCReconfigurationComplete_with_cbra(buffer, buffer_size, Transaction_id, NULL, 0);
+}
+
+int do_NR_RRCReconfigurationComplete_with_cbra(uint8_t *buffer,
+                                               size_t buffer_size,
+                                               const uint8_t Transaction_id,
+                                               const nr_aiot_cbra_config_t *config,
+                                               uint8_t status)
 //------------------------------------------------------------------------------
 {
   NR_UL_DCCH_Message_t ul_dcch_msg = {0};
@@ -820,6 +836,18 @@ int do_NR_RRCReconfigurationComplete(uint8_t *buffer, size_t buffer_size, const 
   asn1cCalloc(reconfComplete->criticalExtensions.choice.rrcReconfigurationComplete, extension);
   extension->nonCriticalExtension = NULL;
   extension->lateNonCriticalExtension = NULL;
+  if (config != NULL) {
+    nr_aiot_cbra_config_t ack = *config;
+    ack.status = status;
+    uint8_t wire[NR_AIOT_CBRA_CONFIG_WIRE_BYTES];
+    const size_t wire_len = nr_aiot_cbra_config_encode(&ack, wire);
+    if (wire_len == 0) {
+      ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_NR_UL_DCCH_Message, &ul_dcch_msg);
+      return -1;
+    }
+    extension->lateNonCriticalExtension = calloc_or_fail(1, sizeof(*extension->lateNonCriticalExtension));
+    OCTET_STRING_fromBuf(extension->lateNonCriticalExtension, (const char *)wire, wire_len);
+  }
   if ( LOG_DEBUGFLAG(DEBUG_ASN1) ) {
     xer_fprint(stdout, &asn_DEF_NR_UL_DCCH_Message, (void *)&ul_dcch_msg);
   }

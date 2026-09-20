@@ -37,6 +37,7 @@
 #include "executables/nr-uesoftmodem.h"
 #include "nr_rlc/nr_rlc_oai_api.h"
 #include "RRC/NR_UE/rrc_proto.h"
+#include "openair2/COMMON/rrc_messages_types.h"
 #include <pthread.h>
 static NR_UE_MAC_INST_t *nr_ue_mac_inst[MAX_NUM_NR_UE_INST] = {0};
 
@@ -137,6 +138,7 @@ NR_UE_MAC_INST_t *nr_l2_init_ue(int instance_id)
   nr_ue_mac_inst[instance_id] = calloc_or_fail(1, sizeof(NR_UE_MAC_INST_t));
 
   NR_UE_MAC_INST_t *mac = nr_ue_mac_inst[instance_id];
+  mac->aiot_cbra_state = calloc_or_fail(1, sizeof(*mac->aiot_cbra_state));
   mac->ue_id = instance_id;
   nr_ue_init_mac(mac);
   int ret = pthread_mutex_init(&mac->if_mutex, NULL);
@@ -169,6 +171,8 @@ NR_UE_MAC_INST_t *get_mac_inst(module_id_t module_id)
 void reset_mac_inst(NR_UE_MAC_INST_t *nr_mac)
 {
   // MAC reset according to 38.321 Section 5.12
+  if (nr_mac->aiot_cbra_state != NULL)
+    nr_aiot_cbra_state_init(nr_mac->aiot_cbra_state);
 
   // initialize Bj for each logical channel to zero
   // TODO reset also other status variables of LC, is this ok?

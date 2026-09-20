@@ -9,8 +9,10 @@ import sys
 
 from fourmula import (
     D2RMeasurementService,
-    aggregate_cfa_campaign_rows,
+    aggregate_cbra_campaign_rows,
     aggregate_campaign_rows,
+    cbra_observation_to_campaign_row,
+    decode_cbra_observation_datagram,
     estimate_rician_energy_ber,
     generate_visibility_map,
     reader_visible_tags,
@@ -79,6 +81,8 @@ def _init_record(args: argparse.Namespace) -> dict:
 
 
 def _ingest_udp(args: argparse.Namespace) -> dict:
+    if args.profile == "cbra":
+        return _ingest_cbra_udp(args)
     record = JsonExperimentStorage(args.input).load()
     sample_rate_hz = record.get("config", {}).get("sample_rate_hz", args.sample_rate_hz)
     if sample_rate_hz is None or sample_rate_hz <= 0:
@@ -114,6 +118,27 @@ def _ingest_udp(args: argparse.Namespace) -> dict:
     return record
 
 
+def _ingest_cbra_udp(args: argparse.Namespace) -> dict:
+    """Capture v4 CBRA reports and aggregate only complete fixed-budget points."""
+    rows: list[dict] = []
+    measured = 0
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as listener:
+        listener.bind((args.bind, args.port))
+        listener.settimeout(args.timeout)
+        while args.packets == 0 or measured < args.packets:
+            try:
+                data, _peer = listener.recvfrom(4096)
+            except socket.timeout:
+                break
+            report = decode_cbra_observation_datagram(data)
+            rows.append(cbra_observation_to_campaign_row(report, snr_db_x10=report["snr_db_x10"]))
+            measured += not report["setup"]
+    aggregate = aggregate_cbra_campaign_rows(rows)
+    aggregate["raw_attempts"] = rows
+    JsonExperimentStorage(args.output).save(aggregate)
+    return aggregate
+
+
 def _write_reference(args: argparse.Namespace) -> None:
     points = [
         estimate_rician_energy_ber(
@@ -138,7 +163,7 @@ def _campaign(args: argparse.Namespace) -> None:
         rows = value.get("rows", value) if isinstance(value, dict) else value
     if not isinstance(rows, list):
         raise ValueError("campaign input must be a JSON array, {rows: [...]}, or JSONL")
-    aggregate = aggregate_cfa_campaign_rows(rows) if args.profile == "cfa" else aggregate_campaign_rows(rows)
+    aggregate = aggregate_cbra_campaign_rows(rows) if args.profile == "cbra" else aggregate_campaign_rows(rows)
     JsonExperimentStorage(args.output).save(aggregate)
 
 
@@ -150,16 +175,24 @@ def _plot(record: dict, output: Path, profile: str = "legacy") -> None:
         raise RuntimeError("matplotlib is required for plot") from error
 
     figure, axis = plt.subplots()
-    if profile == "cfa":
+    if profile == "cbra":
         points = record.get("points", [])
         if not points or any(point.get("payload_ber") is None for point in points):
-            raise ValueError("CFA points must contain non-null payload_ber values")
-        for m in sorted({point["m"] for point in points}):
-            selected = sorted((point for point in points if point["m"] == m), key=lambda point: point["snr_db_x10"])
-            axis.plot([point["snr_db_x10"] / 10 for point in selected], [point["payload_ber"] for point in selected], marker="o", label=f"M={m}")
+            raise ValueError("CBRA points must contain non-null control-bit BER values")
+        for message_kind, m in sorted({(point["message_kind"], point["m"]) for point in points}):
+            selected = sorted(
+                (point for point in points if point["message_kind"] == message_kind and point["m"] == m),
+                key=lambda point: point["snr_db_x10"],
+            )
+            axis.plot(
+                [point["snr_db_x10"] / 10 for point in selected],
+                [point["payload_ber"] for point in selected],
+                marker="o",
+                label=f"kind={message_kind}, M={m}",
+            )
         axis.set_xlabel("SNR (dB), Tag ideal-acquisition reference plane")
-        axis.set_ylabel("216-bit payload BER")
-        axis.set_title("CFA R2D; PRDCH-only power normalization; full-airtime goodput separate")
+        axis.set_ylabel("CBRA MAC/control-bit BER")
+        axis.set_title("CBRA R2D; PRDCH-only power normalization; full-airtime goodput separate")
         axis.legend()
     else:
         points = record.get("duration_results", [])
@@ -188,7 +221,7 @@ def main(argv: list[str] | None = None) -> int:
     plot = commands.add_parser("plot", help="plot saved duration BER values")
     plot.add_argument("--input", type=Path, required=True)
     plot.add_argument("--output", type=Path, required=True)
-    plot.add_argument("--profile", choices=("legacy", "cfa"), default="legacy")
+    plot.add_argument("--profile", choices=("legacy", "cbra"), default="legacy")
     ingest = commands.add_parser("ingest-udp", help="ingest fixed RFsim observation datagrams")
     ingest.add_argument("--input", type=Path, required=True)
     ingest.add_argument("--output", type=Path, required=True)
@@ -197,6 +230,7 @@ def main(argv: list[str] | None = None) -> int:
     ingest.add_argument("--packets", type=int, default=0, help="0 waits until timeout")
     ingest.add_argument("--timeout", type=float, default=1.0)
     ingest.add_argument("--sample-rate-hz", type=float)
+    ingest.add_argument("--profile", choices=("legacy", "cbra"), default="legacy")
     reference = commands.add_parser("reference", help="write the numerical model-matched BER reference")
     reference.add_argument("--output", type=Path, required=True)
     reference.add_argument("--bits", type=int, default=20_000)
@@ -205,7 +239,7 @@ def main(argv: list[str] | None = None) -> int:
     campaign = commands.add_parser("campaign", help="aggregate a fixed-budget RFsim campaign manifest")
     campaign.add_argument("--input", type=Path, required=True, help="JSON array/object or JSONL manifest")
     campaign.add_argument("--output", type=Path, required=True)
-    campaign.add_argument("--profile", choices=("legacy", "cfa"), default="legacy")
+    campaign.add_argument("--profile", choices=("legacy", "cbra"), default="legacy")
     args = parser.parse_args(argv)
 
     if args.command == "init":
