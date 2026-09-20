@@ -270,6 +270,34 @@ TEST(aiot_cbra, config_wire_and_crc)
   EXPECT_EQ(decoded.version, 77U);
 }
 
+TEST(aiot_cbra, rrc_extension_encodes_and_acknowledges)
+{
+  nr_aiot_cbra_config_t config = {};
+  nr_aiot_cbra_config_defaults(&config);
+  config.enabled = true;
+  config.activation_slot = 0;
+  config.expiry_slot = UINT64_MAX;
+  uint8_t wire[NR_AIOT_CBRA_CONFIG_WIRE_BYTES] = {};
+  ASSERT_EQ(nr_aiot_cbra_config_encode(&config, wire), NR_AIOT_CBRA_CONFIG_WIRE_BYTES);
+
+  nr_rrc_reconfig_param_t params = {};
+  params.transaction_id = 2;
+  params.late_non_critical_extension.buf = wire;
+  params.late_non_critical_extension.len = sizeof(wire);
+  byte_array_t reconfiguration = do_RRCReconfiguration(&params);
+  ASSERT_GT(reconfiguration.len, 0);
+  ASSERT_NE(reconfiguration.buf, nullptr);
+  free_byte_array(reconfiguration);
+
+  uint8_t complete[128] = {};
+  EXPECT_GT(do_NR_RRCReconfigurationComplete_with_cbra(complete,
+                                                       sizeof(complete),
+                                                       2,
+                                                       &config,
+                                                       NR_AIOT_CBRA_CONFIG_STATUS_ACCEPTED),
+            0);
+}
+
 TEST(aiot_cbra, paging_trigger_msg1_msg2_state)
 {
   nr_aiot_cbra_config_t config = {};
@@ -295,6 +323,14 @@ TEST(aiot_cbra, paging_trigger_msg1_msg2_state)
   EXPECT_TRUE(state.succeeded);
   EXPECT_TRUE(nr_aiot_cbra_exchange_fits(&config, config.on_duration_slots));
   EXPECT_FALSE(nr_aiot_cbra_exchange_fits(&config, config.on_duration_slots + 1));
+  const uint32_t required_slots = nr_aiot_cbra_complete_exchange_slots(&config, 2);
+  EXPECT_EQ(required_slots, 8U);
+  nr_aiot_cbra_config_t exact_window = config;
+  exact_window.on_duration_slots = (uint16_t)required_slots;
+  EXPECT_TRUE(nr_aiot_cbra_exchange_fits(&exact_window, required_slots));
+  nr_aiot_cbra_config_t short_window = exact_window;
+  short_window.on_duration_slots = (uint16_t)(required_slots - 1U);
+  EXPECT_FALSE(nr_aiot_cbra_exchange_fits(&short_window, required_slots));
 }
 
 TEST(aiot_cbra, ao_boundaries_lifecycle_and_msg2_timeout)
@@ -314,18 +350,26 @@ TEST(aiot_cbra, ao_boundaries_lifecycle_and_msg2_timeout)
 
   ASSERT_TRUE(nr_aiot_cbra_state_on_paging(&state, 0));
   EXPECT_EQ(state.selected_access_occasion, 1);
+  EXPECT_EQ(state.selected_frequency_factor, 1);
+  EXPECT_EQ(state.selected_time_resource, 1);
   ASSERT_TRUE(nr_aiot_cbra_state_on_paging(&state, 7));
   EXPECT_EQ(state.selected_access_occasion, 8);
+  EXPECT_EQ(state.selected_frequency_factor, 8);
+  EXPECT_EQ(state.selected_time_resource, 2);
   ASSERT_TRUE(nr_aiot_cbra_state_on_paging(&state, 8));
   EXPECT_FALSE(state.msg1_sent);
   ASSERT_TRUE(nr_aiot_cbra_state_on_access_trigger(&state));
   EXPECT_EQ(state.selected_access_occasion, 1);
+  EXPECT_EQ(state.selected_frequency_factor, 1);
+  EXPECT_EQ(state.selected_time_resource, 1);
   ASSERT_TRUE(state.msg1_sent);
 
   ASSERT_TRUE(nr_aiot_cbra_state_on_paging(&state, 19));
   ASSERT_TRUE(nr_aiot_cbra_state_on_access_trigger(&state));
   ASSERT_TRUE(nr_aiot_cbra_state_on_access_trigger(&state));
   EXPECT_EQ(state.selected_access_occasion, 4);
+  EXPECT_EQ(state.selected_frequency_factor, 2);
+  EXPECT_EQ(state.selected_time_resource, 2);
   EXPECT_TRUE(state.msg1_sent);
 
   const uint16_t old_counter = state.access_counter;
@@ -355,6 +399,11 @@ TEST(aiot_cbra, ao_boundaries_lifecycle_and_msg2_timeout)
   ASSERT_TRUE(nr_aiot_cbra_state_stage(&state, &version3, NULL));
   ASSERT_TRUE(nr_aiot_cbra_state_stage(&state, &version4, NULL));
   EXPECT_EQ(state.pending.version, 4U);
+  EXPECT_TRUE(nr_aiot_cbra_state_stage(&state, &version4, NULL));
+  nr_aiot_cbra_config_t stale = version4;
+  stale.version = 1;
+  stale.round = 1;
+  EXPECT_FALSE(nr_aiot_cbra_state_stage(&state, &stale, NULL));
   EXPECT_TRUE(nr_aiot_cbra_state_activate(&state, 29));
   EXPECT_EQ(state.active.version, 2U);
   EXPECT_TRUE(nr_aiot_cbra_state_activate(&state, 40));
@@ -377,6 +426,57 @@ TEST(aiot_cbra, ao_boundaries_lifecycle_and_msg2_timeout)
   EXPECT_FALSE(nr_aiot_cbra_state_on_msg2(&state, (uint16_t)(state.random_id ^ 1U)));
   EXPECT_FALSE(nr_aiot_cbra_state_on_access_trigger(&state));
   EXPECT_TRUE(state.failed);
+  EXPECT_FALSE(state.waiting_msg2);
+}
+
+TEST(aiot_cbra, non_divisible_final_group)
+{
+  nr_aiot_cbra_config_t config = {};
+  nr_aiot_cbra_config_defaults(&config);
+  config.enabled = true;
+  config.n_code = 5; /* n = 32. */
+  config.x = 2;
+  config.tbit = 2;
+  config.sfs_bitmap = 0xe0; /* N_SFS=3, m=6; final group has two AOs. */
+  config.activation_slot = 1;
+  config.expiry_slot = 100;
+
+  nr_aiot_cbra_state_t state = {};
+  nr_aiot_cbra_state_init(&state);
+  ASSERT_TRUE(nr_aiot_cbra_state_stage(&state, &config, NULL));
+  ASSERT_TRUE(nr_aiot_cbra_state_activate(&state, 1));
+  ASSERT_TRUE(nr_aiot_cbra_state_on_paging(&state, 31));
+  for (int trigger = 0; trigger < 4; ++trigger)
+    ASSERT_TRUE(nr_aiot_cbra_state_on_access_trigger(&state));
+  ASSERT_TRUE(nr_aiot_cbra_state_on_access_trigger(&state));
+  EXPECT_EQ(state.selected_access_occasion, 2);
+  EXPECT_EQ(state.selected_frequency_factor, 1);
+  EXPECT_EQ(state.selected_time_resource, 2);
+}
+
+TEST(aiot_cbra, disable_clears_active_exchange)
+{
+  nr_aiot_cbra_config_t config = {};
+  nr_aiot_cbra_config_defaults(&config);
+  config.enabled = true;
+  config.activation_slot = 1;
+  config.expiry_slot = 10;
+
+  nr_aiot_cbra_state_t state = {};
+  nr_aiot_cbra_state_init(&state);
+  ASSERT_TRUE(nr_aiot_cbra_state_stage(&state, &config, NULL));
+  ASSERT_TRUE(nr_aiot_cbra_state_activate(&state, 1));
+  ASSERT_TRUE(nr_aiot_cbra_state_on_paging(&state, 0));
+  ASSERT_TRUE(state.active_valid);
+  ASSERT_TRUE(state.waiting_msg2);
+
+  nr_aiot_cbra_config_t disable = {};
+  nr_aiot_cbra_config_defaults(&disable);
+  disable.enabled = false;
+  ASSERT_TRUE(nr_aiot_cbra_state_stage(&state, &disable, NULL));
+  EXPECT_FALSE(state.active_valid);
+  EXPECT_FALSE(state.pending_valid);
+  EXPECT_FALSE(state.msg1_sent);
   EXPECT_FALSE(state.waiting_msg2);
 }
 

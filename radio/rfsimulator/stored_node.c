@@ -382,6 +382,36 @@ static bool aiot_cbra_frame_geometry(uint32_t phy_bits,
   return *frame_chips <= AIOT_T2_MAX_RF_SAMPLES;
 }
 
+/* R-TAS CAP is acquired from the received symbol/chip timing.  The four
+ * allowed M values have distinct frame lengths for each CBRA message kind;
+ * do not trust the RFsim option metadata as the Tag's density input. */
+static bool aiot_cbra_infer_m_from_cap(size_t sample_count, uint32_t phy_bits, uint32_t *m)
+{
+  static const uint32_t candidates[] = {2, 6, 12, 24};
+  uint32_t match = 0;
+  for (size_t index = 0; index < sizeof(candidates) / sizeof(candidates[0]); ++index) {
+    size_t frame_chips = 0;
+    size_t padding_chips = 0;
+    size_t reserved_chips = 0;
+    if (!aiot_cbra_frame_geometry(phy_bits,
+                                  candidates[index],
+                                  &frame_chips,
+                                  &padding_chips,
+                                  &reserved_chips))
+      continue;
+    const size_t expected_samples = aiot_cbra_symbol_start_samples(
+        2U + (frame_chips - AIOT_CBRA_SIP_CHIPS) / candidates[index]);
+    if (expected_samples == sample_count) {
+      if (match != 0)
+        return false;
+      match = candidates[index];
+    }
+  }
+  if (m != NULL)
+    *m = match;
+  return match != 0;
+}
+
 static uint8_t aiot_cbra_framing_bit(const uint8_t *phy, uint32_t phy_bits, size_t sequence_index)
 {
   if (sequence_index < AIOT_CBRA_CAP_CHIPS)
@@ -745,6 +775,8 @@ static bool aiot_tag_send_cbra_observation(int socket,
                                            uint16_t random_id,
                                            uint8_t access_occasion,
                                            uint8_t msg2_status,
+                                           uint32_t config_version,
+                                           uint32_t config_round,
                                            const uint8_t decoded_pdu[AIOT_CBRA_PDU_BYTES])
 {
   aiot_t2_cbra_observation_report_t report = {0};
@@ -784,6 +816,8 @@ static bool aiot_tag_send_cbra_observation(int socket,
   report.random_id = htons(random_id);
   report.access_occasion = access_occasion;
   report.msg2_status = msg2_status;
+  report.config_version = htonl(config_version);
+  report.config_round = htonl(config_round);
   if (decoded_pdu != NULL)
     memcpy(report.decoded_pdu, decoded_pdu, pdu_bytes);
 
@@ -791,7 +825,12 @@ static bool aiot_tag_send_cbra_observation(int socket,
       .size = sizeof(report) / sizeof(c16_t),
       .nbAnt = 1,
       .timestamp = tx_timestamp,
-      .option_value = AIOT_T2_PACK_CBRA_R2D_TARGET(tag_id, reader_handle, m, message_kind),
+      .option_value = AIOT_T2_PACK_CBRA_R2D_TARGET_WITH_CONFIG(tag_id,
+                                                                reader_handle,
+                                                                m,
+                                                                message_kind,
+                                                                config_version,
+                                                                config_round),
       .option_flag = OPTION_AIOT_T2_CBRA_OBSERVATION,
       .beam_map = 1,
   };
@@ -813,6 +852,8 @@ typedef struct {
   uint16_t random_id;
   uint8_t access_occasion;
   uint8_t msg2_status;
+  uint32_t config_version;
+  uint32_t config_round;
   uint8_t decoded_pdu[AIOT_CBRA_PDU_BYTES];
 } aiot_cbra_pending_observation_t;
 
@@ -820,8 +861,12 @@ typedef struct {
   bool context_valid;
   uint16_t n;
   uint16_t m;
+  uint8_t x;
+  uint8_t sfs_bitmap;
   uint16_t counter;
   uint16_t selected_access_occasion;
+  uint8_t selected_frequency_factor;
+  uint8_t selected_time_resource;
   uint16_t random_id;
   uint32_t random_state;
   uint8_t k;
@@ -877,6 +922,27 @@ static bool aiot_cbra_start_msg1(aiot_cbra_access_state_t *state)
   return true;
 }
 
+static bool aiot_cbra_select_access_occasion(aiot_cbra_access_state_t *state, uint16_t ordinal)
+{
+  if (state == NULL || state->m == 0 || state->x == 0 || ordinal == 0 || ordinal > state->m)
+    return false;
+  const unsigned int frequency_ordinal = (ordinal - 1U) / state->x;
+  const unsigned int time_ordinal = (ordinal - 1U) % state->x;
+  unsigned int enabled_frequency = 0;
+  for (unsigned int bit = 0; bit < 8; ++bit) {
+    if ((state->sfs_bitmap & (uint8_t)(0x80U >> bit)) == 0)
+      continue;
+    if (enabled_frequency == frequency_ordinal) {
+      state->selected_access_occasion = ordinal;
+      state->selected_frequency_factor = (uint8_t)(1U << bit);
+      state->selected_time_resource = (uint8_t)(time_ordinal + 1U);
+      return true;
+    }
+    ++enabled_frequency;
+  }
+  return false;
+}
+
 static bool aiot_cbra_on_paging(aiot_cbra_access_state_t *state,
                                 const uint8_t pdu[AIOT_CBRA_PDU_BYTES],
                                 uint32_t scheduling_info)
@@ -885,10 +951,14 @@ static bool aiot_cbra_on_paging(aiot_cbra_access_state_t *state,
   uint8_t k = 0;
   if (!aiot_cbra_decode_paging_access(pdu, &n_code, &k))
     return false;
-  state->n = 20U + n_code;
+  state->n = 1U << n_code;
+  state->x = (uint8_t)(((scheduling_info >> 17) & 1U) + 1U);
+  state->sfs_bitmap = (uint8_t)((scheduling_info >> 6) & 0xffU);
   state->m = aiot_cbra_access_m(scheduling_info);
   state->counter = (uint16_t)(state->random_state % state->n);
   state->selected_access_occasion = 0;
+  state->selected_frequency_factor = 0;
+  state->selected_time_resource = 0;
   state->msg1_sent = false;
   state->waiting_msg2 = false;
   state->failed = false;
@@ -896,8 +966,8 @@ static bool aiot_cbra_on_paging(aiot_cbra_access_state_t *state,
   state->msg2_remaining = 0;
   state->context_valid = state->m != 0;
   if (state->context_valid && state->counter < state->m) {
-    state->selected_access_occasion = (uint16_t)(state->counter + 1U);
-    return aiot_cbra_start_msg1(state);
+    return aiot_cbra_select_access_occasion(state, (uint16_t)(state->counter + 1U))
+           && aiot_cbra_start_msg1(state);
   }
   return state->context_valid;
 }
@@ -919,13 +989,13 @@ static bool aiot_cbra_on_access_trigger(aiot_cbra_access_state_t *state)
     return false;
   state->counter = (uint16_t)(state->counter - state->m);
   if (state->counter < state->m) {
-    state->selected_access_occasion = (uint16_t)(state->counter + 1U);
-    return aiot_cbra_start_msg1(state);
+    return aiot_cbra_select_access_occasion(state, (uint16_t)(state->counter + 1U))
+           && aiot_cbra_start_msg1(state);
   }
   return false;
 }
 
-static bool aiot_samples_to_chips(const c16_t *samples, size_t sample_count, uint8_t *chips);
+static bool aiot_samples_to_chips(const c16_t *samples, size_t sample_count, uint32_t tbit, uint8_t *chips);
 
 static aiot_fault_t aiot_parse_fault(const char *text, bool *valid)
 {
@@ -1087,7 +1157,7 @@ static int aiot_tag_self_test(void)
                       && aiot_expect(AIOT_RESULT_TIMEOUT, &ready, one_byte, sizeof(one_byte), AIOT_FAULT_TIMEOUT)
                       && reflected[0].r == cw_samples[0].r && reflected[0].i == cw_samples[0].i
                       && reflected[1].r == 0 && reflected[1].i == 0;
-  const bool noisy_pair_decodes_by_energy = aiot_samples_to_chips(noisy_pair, sizeofArray(noisy_pair), noisy_pair_chips)
+  const bool noisy_pair_decodes_by_energy = aiot_samples_to_chips(noisy_pair, sizeofArray(noisy_pair), 1, noisy_pair_chips)
                                              && noisy_pair_chips[0] == 0 && noisy_pair_chips[1] == 1;
   size_t cbra_offset = 0;
   aiot_cbra_put_bits(cbra_pdu, &cbra_offset, 1, 3);
@@ -1172,6 +1242,7 @@ static int aiot_tag_self_test(void)
                                        && cbra_reject_schedule == AIOT_CBRA_FROZEN_D2R_SCHEDULING_INFO
                                        && memcmp(cbra_decoded, cbra_pdu, sizeof(cbra_pdu)) == 0;
   bool cbra_all_m_decode = true;
+  bool cbra_cap_infers_m = true;
   const uint32_t cbra_m_values[] = {2, 6, 12, 24};
   for (size_t index = 0; index < sizeofArray(cbra_m_values); ++index) {
     c16_t frame_samples[AIOT_T2_MAX_RF_SAMPLES] = {0};
@@ -1207,7 +1278,13 @@ static int aiot_tag_self_test(void)
                                && serial == 100
                                && schedule == AIOT_CBRA_FROZEN_D2R_SCHEDULING_INFO
                                && memcmp(decoded, cbra_pdu, sizeof(cbra_pdu)) == 0;
+    uint32_t inferred_m = 0;
+    const bool cap_infers_m = aiot_cbra_infer_m_from_cap(frame_waveform_count,
+                                                         AIOT_CBRA_PHY_BYTES * 8U,
+                                                         &inferred_m)
+                              && inferred_m == cbra_m_values[index];
     cbra_all_m_decode = cbra_all_m_decode && frame_decodes;
+    cbra_cap_infers_m = cbra_cap_infers_m && cap_infers_m;
     free(frame_waveform);
   }
   const bool cbra_crc_rejected = aiot_decode_cbra_r2d_frame(
@@ -1308,6 +1385,7 @@ static int aiot_tag_self_test(void)
                                                                NULL)
                                     == AIOT_RESULT_CRC_FAILURE;
   const bool all_checks_pass = passed && noisy_pair_decodes_by_energy && cbra_accepts_valid_frame && cbra_all_m_decode
+                               && cbra_cap_infers_m
                                && cbra_crc_rejected && cbra_bad_field_rejected && cbra_short_frame_rejected
                                && trigger_decodes && trigger_crc_rejected;
   free(cbra_waveform);
@@ -1474,30 +1552,40 @@ static bool aiot_parse_u32(const char *text, uint32_t minimum, uint32_t maximum,
   return true;
 }
 
-static bool aiot_samples_to_chips(const c16_t *samples, size_t sample_count, uint8_t *chips)
+static bool aiot_samples_to_chips(const c16_t *samples, size_t sample_count, uint32_t tbit, uint8_t *chips)
 {
-  if (samples == NULL || chips == NULL || sample_count == 0 || sample_count > AIOT_T2_MAX_RF_SAMPLES || sample_count % 2 != 0)
+  const size_t samples_per_bit = aiot_t2_d2r_samples_per_bit(tbit);
+  const size_t samples_per_chip = samples_per_bit / 2U;
+  if (samples == NULL || chips == NULL || sample_count == 0 || sample_count > AIOT_T2_MAX_RF_SAMPLES
+      || sample_count % samples_per_bit != 0)
     return false;
-  for (size_t i = 0; i < sample_count; i += 2) {
-    const int64_t first_real = samples[i].r;
-    const int64_t first_imag = samples[i].i;
-    const int64_t second_real = samples[i + 1].r;
-    const int64_t second_imag = samples[i + 1].i;
-    const uint64_t first_energy = (uint64_t)(first_real * first_real + first_imag * first_imag);
-    const uint64_t second_energy = (uint64_t)(second_real * second_real + second_imag * second_imag);
+  size_t chip_index = 0;
+  for (size_t i = 0; i < sample_count; i += samples_per_bit) {
+    uint64_t first_energy = 0;
+    uint64_t second_energy = 0;
+    for (size_t repeat = 0; repeat < samples_per_chip; ++repeat) {
+      const int64_t first_real = samples[i + repeat].r;
+      const int64_t first_imag = samples[i + repeat].i;
+      const int64_t second_real = samples[i + samples_per_chip + repeat].r;
+      const int64_t second_imag = samples[i + samples_per_chip + repeat].i;
+      first_energy += (uint64_t)(first_real * first_real + first_imag * first_imag);
+      second_energy += (uint64_t)(second_real * second_real + second_imag * second_imag);
+    }
     if (first_energy == second_energy)
       return false;
     const uint8_t bit = second_energy > first_energy;
-    aiot_encode_pair(bit, &chips[i]);
+    aiot_encode_pair(bit, &chips[chip_index]);
+    chip_index += 2U;
   }
   return true;
 }
 
-static bool aiot_d2r_payload_length(size_t chips_len, size_t *payload_len)
+static bool aiot_d2r_payload_length(size_t sample_count, uint32_t tbit, size_t *payload_len)
 {
-  if (chips_len == 0 || chips_len % AIOT_D2R_CHIPS_PER_FRAME_BIT != 0)
+  const size_t samples_per_bit = aiot_t2_d2r_samples_per_bit(tbit);
+  if (sample_count == 0 || sample_count % samples_per_bit != 0)
     return false;
-  const size_t frame_bits = chips_len / AIOT_D2R_CHIPS_PER_FRAME_BIT;
+  const size_t frame_bits = sample_count / samples_per_bit;
   const size_t crc_bits = frame_bits <= 30 ? 6 : 16;
   if (frame_bits <= crc_bits || (frame_bits - crc_bits) % 8 != 0)
     return false;
@@ -1655,6 +1743,8 @@ static int aiot_tag_rfsim_cli(int argc, char **argv)
                                     pending_observation.random_id,
                                     pending_observation.access_occasion,
                                     pending_observation.msg2_status,
+                                    pending_observation.config_version,
+                                    pending_observation.config_round,
                                     pending_observation.decoded_pdu);
       pending_observation.valid = false;
       r2d_received = false;
@@ -1676,18 +1766,22 @@ static int aiot_tag_rfsim_cli(int argc, char **argv)
       const bool cbra = (header.option_flag & OPTION_AIOT_T2_R2D_CBRA) != 0;
       if (cbra) {
         const uint32_t message_kind = AIOT_T2_UNPACK_CBRA_KIND(header.option_value);
-        const uint32_t m = AIOT_T2_UNPACK_CBRA_M(header.option_value);
+        uint32_t m = AIOT_T2_UNPACK_CBRA_M(header.option_value);
         const uint32_t reader_handle = AIOT_T2_UNPACK_R2D_READER(header.option_value);
         const uint8_t setup = AIOT_T2_UNPACK_CBRA_SETUP(header.option_value);
+        const uint32_t config_version = AIOT_T2_UNPACK_CBRA_CONFIG_VERSION(header.option_value);
+        const uint32_t config_round = AIOT_T2_UNPACK_CBRA_CONFIG_ROUND(header.option_value);
         uint8_t cbra_pdu[AIOT_CBRA_PDU_BYTES] = {0};
         uint32_t serial = 0;
         uint32_t d2r_scheduling_info = 0;
         double signal_power = 0.0;
         double noise_power = 0.0;
-        const aiot_result_t result = header.nbAnt == 1
+        const uint32_t phy_bits = message_kind == AIOT_T2_CBRA_KIND_PAGING ? 240U : 9U;
+        const bool cap_valid = header.nbAnt == 1 && aiot_cbra_infer_m_from_cap(header.size, phy_bits, &m);
+        const aiot_result_t result = cap_valid
                                          ? aiot_decode_cbra_r2d_frame(samples,
-                                                                     header.size,
-                                                                     message_kind,
+                                                                       header.size,
+                                                                       message_kind,
                                                                      m,
                                                                      &cbra_receiver,
                                                                      cbra_pdu,
@@ -1738,6 +1832,8 @@ static int aiot_tag_rfsim_cli(int argc, char **argv)
                                         0,
                                         0,
                                         0,
+                                        config_version,
+                                        config_round,
                                         result == AIOT_RESULT_CRC_FAILURE || result == AIOT_RESULT_OK ? cbra_pdu : NULL);
           fprintf(stderr,
                   "AIOT_T2_CBRA_GATE_REFUSED reason=%s tag_id=%u crc_ok=%u d2r_attempted=0\n",
@@ -1768,6 +1864,8 @@ static int aiot_tag_rfsim_cli(int argc, char **argv)
           pending_observation.random_id = cbra_access.random_id;
           pending_observation.access_occasion = (uint8_t)cbra_access.selected_access_occasion;
           pending_observation.msg2_status = msg2_status;
+          pending_observation.config_version = config_version;
+          pending_observation.config_round = config_round;
           memcpy(pending_observation.decoded_pdu, cbra_pdu, sizeof(pending_observation.decoded_pdu));
           cbra_received = true;
           fprintf(stderr,
@@ -1778,6 +1876,9 @@ static int aiot_tag_rfsim_cli(int argc, char **argv)
                   cbra_access.n,
                   cbra_access.m,
                   cbra_access.k);
+          r2d_received = true;
+          r2d_timestamp = header.timestamp;
+          r2d_tbit = AIOT_T2_UNPACK_R2D_TBIT(header.option_value);
         }
         aiot_tag_send_cbra_observation(socket,
                                        tag_id,
@@ -1800,6 +1901,8 @@ static int aiot_tag_rfsim_cli(int argc, char **argv)
                                        selected_msg1 ? cbra_access.random_id : 0,
                                        selected_msg1 ? (uint8_t)cbra_access.selected_access_occasion : 0,
                                        msg2_status,
+                                       config_version,
+                                       config_round,
                                        cbra_pdu);
         fprintf(stderr,
                 "AIOT_T2_CBRA_GATE_ELIGIBLE tag_id=%u kind=%u serial=%u crc_ok=1 payload_match=unknown d2r_attempted=0\n",
@@ -1807,9 +1910,16 @@ static int aiot_tag_rfsim_cli(int argc, char **argv)
                 message_kind,
                 serial);
         printf("AIOT_T2_R2D_CBRA_ACCEPT tag_id=%u kind=%u serial=%u m=%u\n", tag_id, message_kind, serial, m);
-        continue;
+        if (!selected_msg1)
+          continue;
       } else {
-        if (header.nbAnt != 1 || !aiot_samples_to_chips(samples, header.size, r2d_chips)) {
+        if (header.nbAnt != 1
+            || !aiot_samples_to_chips(samples,
+                                      header.size,
+                                      (header.option_flag & OPTION_AIOT_T2_R2D_CBRA)
+                                          ? AIOT_T2_UNPACK_R2D_TBIT(header.option_value)
+                                          : 1,
+                                      r2d_chips)) {
           fprintf(stderr, "AIOT_T2_R2D_REJECT reason=decode tag_id=%u\n", tag_id);
           continue;
         }
@@ -1829,17 +1939,21 @@ static int aiot_tag_rfsim_cli(int argc, char **argv)
     if (cw_samples == 0 || !r2d_received)
       continue;
 
-    c16_t *reflected = calloc(chips_len, sizeof(*reflected));
+    const size_t d2r_repeat = aiot_t2_d2r_sample_repeat(r2d_tbit);
+    const size_t d2r_samples = chips_len * d2r_repeat;
+    c16_t *reflected = calloc(d2r_samples, sizeof(*reflected));
     if (reflected == NULL) {
       free(samples);
       return 1;
     }
     for (size_t i = 0; i < chips_len; ++i) {
-      reflected[i].r = cw[i].r * chips[i];
-      reflected[i].i = cw[i].i * chips[i];
+      for (size_t repeat = 0; repeat < d2r_repeat; ++repeat) {
+        reflected[i * d2r_repeat + repeat].r = cw[i].r * chips[i];
+        reflected[i * d2r_repeat + repeat].i = cw[i].i * chips[i];
+      }
     }
     const samplesBlockHeader_t d2r = {
-        .size = chips_len,
+        .size = d2r_samples,
         .nbAnt = 1,
         .timestamp = cw_timestamp > r2d_timestamp ? cw_timestamp : r2d_timestamp,
         .option_value = tag_id,
@@ -1868,6 +1982,8 @@ static int aiot_tag_rfsim_cli(int argc, char **argv)
                                     pending_observation.random_id,
                                     pending_observation.access_occasion,
                                     pending_observation.msg2_status,
+                                    pending_observation.config_version,
+                                    pending_observation.config_round,
                                     pending_observation.decoded_pdu);
       pending_observation.valid = false;
     } else {
@@ -1887,10 +2003,11 @@ static int aiot_tag_rfsim_cli(int argc, char **argv)
     }
     aiot_write_rfsim_packet(socket, &d2r, reflected);
     ++completed_cycles;
-    printf("AIOT_T2_BACKSCATTER tag_id=%u cw_samples=%zu d2r_samples=%zu cycle=%u/%u\n",
+    printf("AIOT_T2_BACKSCATTER tag_id=%u tbit=%u cw_samples=%zu d2r_samples=%zu cycle=%u/%u\n",
            tag_id,
+           r2d_tbit,
            cw_samples,
-           chips_len,
+           d2r_samples,
            completed_cycles,
            cycles);
     free(reflected);
@@ -1928,6 +2045,8 @@ static int aiot_tag_rfsim_cli(int argc, char **argv)
                                   pending_observation.random_id,
                                   pending_observation.access_occasion,
                                   pending_observation.msg2_status,
+                                  pending_observation.config_version,
+                                  pending_observation.config_round,
                                   pending_observation.decoded_pdu);
   }
   free(samples);
@@ -1994,12 +2113,15 @@ static int aiot_reader_rfsim_cli(int argc, char **argv)
   while (aiot_read_rfsim_packet(socket, &header, &samples, &capacity)) {
     if ((header.option_flag & OPTION_AIOT_T2_D2R) == 0 || header.option_value != tag_id)
       continue;
+    const uint32_t tbit = AIOT_T2_UNPACK_D2R_TBIT(header.option_flag);
     uint8_t chips[AIOT_T2_MAX_RF_SAMPLES];
     size_t inventory_len = 0;
     uint8_t inventory[AIOT_MAX_PAYLOAD_BYTES];
-    if (header.nbAnt != 1 || !aiot_samples_to_chips(samples, header.size, chips)
-        || !aiot_d2r_payload_length(header.size, &inventory_len)
-        || aiot_decode_frame(chips, header.size, inventory_len, true, true, true, inventory) != AIOT_RESULT_OK) {
+    const size_t samples_per_bit = aiot_t2_d2r_samples_per_bit(tbit);
+    const size_t logical_chips = header.size / samples_per_bit * AIOT_D2R_CHIPS_PER_FRAME_BIT;
+    if (header.nbAnt != 1 || !aiot_samples_to_chips(samples, header.size, tbit, chips)
+        || !aiot_d2r_payload_length(header.size, tbit, &inventory_len)
+        || aiot_decode_frame(chips, logical_chips, inventory_len, true, true, true, inventory) != AIOT_RESULT_OK) {
       fprintf(stderr, "AIOT_T2_D2R_REJECT reason=decode tag_id=%u\n", tag_id);
       free(samples);
       close(socket);

@@ -38,7 +38,7 @@ CBRA_LONG_CP_SAMPLES = 80
 CBRA_SHORT_CP_SAMPLES = 72
 CBRA_OBS_FLAG_SETUP = 0x0004
 OBSERVATION_STRUCT = struct.Struct("!IBBHIIQQB3sHH16s16sQ")
-CBRA_OBSERVATION_STRUCT = struct.Struct("!IBBHIIIQBBBBBBHHhHQQQQQQBBBBB1sHHIQ30s30sQQ12s")
+CBRA_OBSERVATION_STRUCT = struct.Struct("!IBBHIIIQBBBBBBHHhHQQQQQQBBBBB1sHHIQ30s30sQQHBBII")
 OBSERVATION_STATUS = {
     1: "complete",
     2: "crc_failure",
@@ -147,7 +147,11 @@ def decode_cbra_observation_datagram(data: bytes) -> dict:
         decoded_pdu,
         signal_power_q16,
         noise_power_q16,
-        _reserved,
+        random_id,
+        access_occasion,
+        msg2_status,
+        config_version,
+        config_round,
     ) = CBRA_OBSERVATION_STRUCT.unpack(data)
     if magic != AIOT_T2_OBSERVATION_MAGIC or version != 4:
         raise ValueError("unsupported CBRA observation report")
@@ -211,6 +215,11 @@ def decode_cbra_observation_datagram(data: bytes) -> dict:
         "signal_power": signal_power,
         "noise_power": noise_power,
         "calibrated_snr_db_x10": calibrated_snr_db_x10,
+        "random_id": random_id,
+        "access_occasion": access_occasion,
+        "msg2_status": msg2_status,
+        "config_version": config_version,
+        "config_round": config_round,
         "tx_pdu": bytes(tx_pdu[:pdu_bytes]),
         "decoded_pdu": bytes(decoded_pdu[:pdu_bytes]),
     }

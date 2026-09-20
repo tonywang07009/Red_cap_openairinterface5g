@@ -641,7 +641,11 @@ class CbraCampaignTests(unittest.TestCase):
             bytes(reversed(range(30))),
             65_536,
             6_554,
-            bytes(12),
+            17,
+            2,
+            1,
+            3,
+            4,
         )
         report = decode_cbra_observation_datagram(datagram)
         self.assertEqual(report["version"], 4)
@@ -653,6 +657,9 @@ class CbraCampaignTests(unittest.TestCase):
         self.assertEqual(report["m"], 6)
         self.assertEqual(report["gate_status"], 2)
         self.assertTrue(report["setup"])
+        self.assertEqual(report["random_id"], 17)
+        self.assertEqual(report["config_version"], 3)
+        self.assertEqual(report["config_round"], 4)
         self.assertEqual(report["calibrated_snr_db_x10"], 100)
         self.assertEqual(report["tx_pdu"], bytes(range(28)))
 
@@ -699,7 +706,11 @@ class CbraCampaignTests(unittest.TestCase):
             bytes([0x40, 0]) + bytes(28),
             65_536,
             6_554,
-            bytes(12),
+            0,
+            0,
+            0,
+            0,
+            0,
         )
         report = decode_cbra_observation_datagram(datagram)
         self.assertEqual(report["message_kind"], 1)

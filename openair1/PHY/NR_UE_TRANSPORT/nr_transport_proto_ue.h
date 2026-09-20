@@ -369,11 +369,16 @@ bool nr_ue_aiot_cbra_build_paging_pdu(const nr_ue_aiot_cbra_paging_fields_t *fie
 bool nr_ue_aiot_cbra_parse_paging_pdu(const uint8_t pdu[NR_UE_AIOT_CBRA_PAGING_PDU_BYTES],
                                       nr_ue_aiot_cbra_paging_fields_t *fields,
                                       const char **reason);
+bool nr_ue_aiot_cbra_parse_paging_pdu_length(const uint8_t *pdu,
+                                             size_t length,
+                                             nr_ue_aiot_cbra_paging_fields_t *fields,
+                                             const char **reason);
 bool nr_ue_aiot_cbra_append_paging_crc(const uint8_t pdu[NR_UE_AIOT_CBRA_PAGING_PDU_BYTES],
                                        uint8_t phy_payload[NR_UE_AIOT_CBRA_PAGING_PHY_BYTES]);
 bool nr_ue_aiot_cbra_verify_paging_crc(const uint8_t phy_payload[NR_UE_AIOT_CBRA_PAGING_PHY_BYTES]);
 bool nr_ue_aiot_cbra_build_access_trigger(uint8_t trigger[NR_UE_AIOT_CBRA_TRIGGER_BYTES]);
 bool nr_ue_aiot_cbra_parse_access_trigger(const uint8_t trigger[NR_UE_AIOT_CBRA_TRIGGER_BYTES]);
+bool nr_ue_aiot_cbra_parse_access_trigger_length(const uint8_t *trigger, size_t length);
 bool nr_ue_aiot_cbra_append_access_trigger_crc(const uint8_t trigger[NR_UE_AIOT_CBRA_TRIGGER_BYTES],
                                                uint8_t phy_payload[NR_UE_AIOT_CBRA_TRIGGER_PHY_BYTES]);
 bool nr_ue_aiot_cbra_verify_access_trigger_crc(const uint8_t phy_payload[NR_UE_AIOT_CBRA_TRIGGER_PHY_BYTES]);

@@ -314,15 +314,16 @@ bool nr_ue_aiot_cbra_build_paging_pdu(const nr_ue_aiot_cbra_paging_fields_t *fie
   return offset == NR_UE_AIOT_CBRA_PAGING_PDU_BITS;
 }
 
-bool nr_ue_aiot_cbra_parse_paging_pdu(const uint8_t pdu[NR_UE_AIOT_CBRA_PAGING_PDU_BYTES],
-                                      nr_ue_aiot_cbra_paging_fields_t *fields,
-                                      const char **reason)
+bool nr_ue_aiot_cbra_parse_paging_pdu_length(const uint8_t *pdu,
+                                             size_t length,
+                                             nr_ue_aiot_cbra_paging_fields_t *fields,
+                                             const char **reason)
 {
   if (reason != NULL)
     *reason = NULL;
-  if (pdu == NULL || fields == NULL) {
+  if (pdu == NULL || fields == NULL || length != NR_UE_AIOT_CBRA_PAGING_PDU_BYTES) {
     if (reason != NULL)
-      *reason = "invalid_pdu_argument";
+      *reason = pdu == NULL || fields == NULL ? "invalid_pdu_argument" : "invalid_pdu_length";
     return false;
   }
 
@@ -390,6 +391,13 @@ bool nr_ue_aiot_cbra_parse_paging_pdu(const uint8_t pdu[NR_UE_AIOT_CBRA_PAGING_P
   return true;
 }
 
+bool nr_ue_aiot_cbra_parse_paging_pdu(const uint8_t pdu[NR_UE_AIOT_CBRA_PAGING_PDU_BYTES],
+                                      nr_ue_aiot_cbra_paging_fields_t *fields,
+                                      const char **reason)
+{
+  return nr_ue_aiot_cbra_parse_paging_pdu_length(pdu, NR_UE_AIOT_CBRA_PAGING_PDU_BYTES, fields, reason);
+}
+
 bool nr_ue_aiot_cbra_append_paging_crc(const uint8_t pdu[NR_UE_AIOT_CBRA_PAGING_PDU_BYTES],
                                        uint8_t phy_payload[NR_UE_AIOT_CBRA_PAGING_PHY_BYTES])
 {
@@ -423,12 +431,17 @@ bool nr_ue_aiot_cbra_build_access_trigger(uint8_t trigger[NR_UE_AIOT_CBRA_TRIGGE
   return true;
 }
 
-bool nr_ue_aiot_cbra_parse_access_trigger(const uint8_t trigger[NR_UE_AIOT_CBRA_TRIGGER_BYTES])
+bool nr_ue_aiot_cbra_parse_access_trigger_length(const uint8_t *trigger, size_t length)
 {
-  if (trigger == NULL)
+  if (trigger == NULL || length != NR_UE_AIOT_CBRA_TRIGGER_BYTES)
     return false;
   size_t offset = 0;
   return nr_ue_aiot_cbra_get_bits(trigger, &offset, NR_UE_AIOT_CBRA_TRIGGER_BITS) == 2;
+}
+
+bool nr_ue_aiot_cbra_parse_access_trigger(const uint8_t trigger[NR_UE_AIOT_CBRA_TRIGGER_BYTES])
+{
+  return nr_ue_aiot_cbra_parse_access_trigger_length(trigger, NR_UE_AIOT_CBRA_TRIGGER_BYTES);
 }
 
 bool nr_ue_aiot_cbra_append_access_trigger_crc(const uint8_t trigger[NR_UE_AIOT_CBRA_TRIGGER_BYTES],
@@ -899,10 +912,18 @@ static uint64_t aiot_t2_sample_energy(const c16_t *sample)
   return (uint64_t)(real * real + imag * imag);
 }
 
-static bool aiot_t2_decode_pair(const c16_t *pair, uint8_t *bit)
+static uint64_t aiot_t2_chip_energy(const c16_t *samples, size_t sample_count)
 {
-  const uint64_t first_energy = aiot_t2_sample_energy(&pair[0]);
-  const uint64_t second_energy = aiot_t2_sample_energy(&pair[1]);
+  uint64_t energy = 0;
+  for (size_t index = 0; index < sample_count; ++index)
+    energy += aiot_t2_sample_energy(&samples[index]);
+  return energy;
+}
+
+static bool aiot_t2_decode_pair(const c16_t *pair, size_t samples_per_chip, uint8_t *bit)
+{
+  const uint64_t first_energy = aiot_t2_chip_energy(pair, samples_per_chip);
+  const uint64_t second_energy = aiot_t2_chip_energy(pair + samples_per_chip, samples_per_chip);
   if (first_energy == second_energy)
     return false;
   *bit = second_energy > first_energy;
@@ -915,13 +936,15 @@ nr_ue_aiot_t2_decode_result_t nr_ue_aiot_t2_decode_d2r(const aiot_t2_rf_packet_t
                                                        size_t *payload_len)
 {
   const uint32_t tag_id = packet == NULL ? 0 : AIOT_T2_UNPACK_TAG(packet->header.option_value);
+  const size_t samples_per_bit = packet == NULL ? 0 : aiot_t2_d2r_samples_per_bit(AIOT_T2_UNPACK_D2R_TBIT(packet->header.option_flag));
+  const size_t samples_per_chip = samples_per_bit / 2U;
   if (packet == NULL || payload == NULL || payload_len == NULL || packet->header.nbAnt != 1
       || (packet->header.option_flag & OPTION_AIOT_T2_D2R) == 0 || tag_id == 0
       || tag_id > AIOT_T2_MAX_TAG_ID || packet->header.size == 0 || packet->header.size > AIOT_T2_MAX_RF_SAMPLES
-      || packet->header.size % AIOT_T2_D2R_CHIPS_PER_BIT != 0)
+      || packet->header.size % samples_per_bit != 0)
     return NR_UE_AIOT_T2_INVALID_LENGTH;
 
-  const size_t frame_bits = packet->header.size / AIOT_T2_D2R_CHIPS_PER_BIT;
+  const size_t frame_bits = packet->header.size / samples_per_bit;
   const size_t crc_bits = frame_bits <= 30 ? 6 : 16;
   if (frame_bits <= crc_bits || (frame_bits - crc_bits) % 8 != 0)
     return NR_UE_AIOT_T2_INVALID_LENGTH;
@@ -931,8 +954,8 @@ nr_ue_aiot_t2_decode_result_t nr_ue_aiot_t2_decode_d2r(const aiot_t2_rf_packet_t
 
   uint8_t frame_bits_decoded[AIOT_T2_MAX_RF_SAMPLES / AIOT_T2_D2R_CHIPS_PER_BIT];
   for (size_t i = 0; i < frame_bits; ++i) {
-    const c16_t *encoded = &packet->samples[i * AIOT_T2_D2R_CHIPS_PER_BIT];
-    if (!aiot_t2_decode_pair(encoded, &frame_bits_decoded[i]))
+    const c16_t *encoded = &packet->samples[i * samples_per_bit];
+    if (!aiot_t2_decode_pair(encoded, samples_per_chip, &frame_bits_decoded[i]))
       return NR_UE_AIOT_T2_INVALID_LINE_CODE;
   }
 

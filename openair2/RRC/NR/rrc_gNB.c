@@ -910,6 +910,8 @@ static void rrc_gNB_send_aiot_cbra_config(gNB_RRC_INST *rrc, gNB_RRC_UE_t *ue, u
   config.status = NR_AIOT_CBRA_CONFIG_STATUS_NONE;
   config.version = round;
   config.round = round;
+  if (ue->aiot_cbra_last_version != 0 && rrc->configuration.aiot_cbra_update_tbit >= 0)
+    config.tbit = (uint8_t)rrc->configuration.aiot_cbra_update_tbit;
   /* The generic RRC path has no shared A-IoT slot clock.  Use the
    * experimental immediate-valid window until the Uu boundary clock is
    * defined; the pure lifecycle seam still exercises exact boundaries. */
@@ -935,7 +937,11 @@ static void rrc_gNB_send_aiot_cbra_config(gNB_RRC_INST *rrc, gNB_RRC_UE_t *ue, u
   ue->aiot_cbra_waiting_ack = true;
   ue->aiot_cbra_last_version = config.version;
   ue->aiot_cbra_last_ack_status = NR_AIOT_CBRA_CONFIG_STATUS_NONE;
-  LOG_UE_DL_EVENT(ue, "[AIOT CBRA] send Paging/Access Trigger config version %u\n", config.version);
+  LOG_UE_DL_EVENT(ue,
+                  "[AIOT CBRA] send Paging/Access Trigger config version %u round %u tbit %u\n",
+                  config.version,
+                  config.round,
+                  config.tbit);
   nr_rrc_transfer_protected_rrc_message(rrc,
                                         ue,
                                         DL_SCH_LCID_DCCH,

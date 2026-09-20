@@ -325,6 +325,26 @@ int main(void)
     return 1;
   }
 
+  if (aiot_t2_d2r_samples_per_bit(0) != 4 || aiot_t2_d2r_samples_per_bit(1) != 2
+      || aiot_t2_d2r_samples_per_bit(2) != 2) {
+    fprintf(stderr, "FAIL UsesExpectedD2rSampleQuantization\n");
+    return 1;
+  }
+  aiot_t2_rf_packet_t slow_d2r = {0};
+  slow_d2r.header = d2r_packet.header;
+  slow_d2r.header.option_flag = OPTION_AIOT_T2_D2R | AIOT_T2_PACK_D2R_TBIT(0);
+  slow_d2r.header.size = d2r_packet.header.size * 2;
+  for (size_t sample = 0; sample < d2r_packet.header.size; ++sample) {
+    slow_d2r.samples[sample * 2] = d2r_packet.samples[sample];
+    slow_d2r.samples[sample * 2 + 1] = d2r_packet.samples[sample];
+  }
+  if (nr_ue_aiot_t2_decode_d2r(&slow_d2r, decoded_payload, sizeof(decoded_payload), &decoded_payload_len)
+          != NR_UE_AIOT_T2_DECODE_OK
+      || decoded_payload_len != 1 || decoded_payload[0] != 0x01) {
+    fprintf(stderr, "FAIL DecodesTwoTauD2rFrame\n");
+    return 1;
+  }
+
   d2r_packet.samples[7 * 2].r = 1;
   d2r_packet.samples[7 * 2 + 1].r = 3;
   if (nr_ue_aiot_t2_decode_d2r(&d2r_packet, decoded_payload, sizeof(decoded_payload), &decoded_payload_len)
@@ -364,6 +384,14 @@ int main(void)
   reason = NULL;
   if (!nr_ue_aiot_cbra_build_paging_pdu(&paging_fields, paging_pdu, &reason) || reason != NULL) {
     fprintf(stderr, "FAIL Builds224BitCbraPagingPdu\n");
+    return 1;
+  }
+  nr_ue_aiot_cbra_d2r_scheduling_t decoded_schedule = {0};
+  reason = NULL;
+  if (!nr_ue_aiot_cbra_unpack_d2r_scheduling(paging_fields.d2r_scheduling_info, &decoded_schedule, &reason)
+      || decoded_schedule.x != 1 || decoded_schedule.bit_duration != NR_UE_AIOT_D2R_TBIT_TAU
+      || decoded_schedule.frequency_resource_broadcast != 0x80 || reason != NULL) {
+    fprintf(stderr, "FAIL UnpacksCbraSchedulingFields\n");
     return 1;
   }
   nr_ue_aiot_cbra_paging_fields_t parsed_fields = {0};
@@ -425,6 +453,14 @@ int main(void)
     fprintf(stderr, "FAIL RejectsMalformedCbraPagingPdu\n");
     return 1;
   }
+  if (nr_ue_aiot_cbra_parse_paging_pdu_length(tag_101_pdu,
+                                              NR_UE_AIOT_CBRA_PAGING_PDU_BYTES - 1U,
+                                              &parsed_fields,
+                                              &reason)
+      || reason == NULL || strcmp(reason, "invalid_pdu_length") != 0) {
+    fprintf(stderr, "FAIL RejectsTruncatedCbraPagingPdu\n");
+    return 1;
+  }
 
   uint8_t invalid_paging_pdu[NR_UE_AIOT_CBRA_PAGING_PDU_BYTES];
   const uint8_t invalid_paging_before = 0xA5;
@@ -456,6 +492,46 @@ int main(void)
       || reason != NULL || packed_schedule != NR_UE_AIOT_CBRA_FROZEN_D2R_SCHEDULING_INFO) {
     fprintf(stderr, "FAIL PacksFrozenCbraD2rScheduling expected=0x%06x actual=0x%06x\n",
             NR_UE_AIOT_CBRA_FROZEN_D2R_SCHEDULING_INFO, packed_schedule);
+    return 1;
+  }
+  const nr_ue_aiot_cbra_d2r_scheduling_t dynamic_schedule = {
+      .x = 2,
+      .bit_duration = NR_UE_AIOT_D2R_TBIT_TAU_OVER_2,
+      .frequency_resource_broadcast = 0xc0,
+      .block_repetition = 1,
+      .channel_coding = 1,
+      .interval_bits = 3,
+      .sequence_length = 1,
+      .additional_midamble = 1,
+  };
+  reason = NULL;
+  if (!nr_ue_aiot_cbra_pack_d2r_scheduling(&dynamic_schedule, &packed_schedule, &reason)
+      || reason != NULL) {
+    fprintf(stderr, "FAIL PacksDynamicCbraD2rScheduling\n");
+    return 1;
+  }
+  nr_ue_aiot_cbra_d2r_scheduling_t unpacked_dynamic_schedule = {0};
+  reason = NULL;
+  if (!nr_ue_aiot_cbra_unpack_d2r_scheduling(packed_schedule, &unpacked_dynamic_schedule, &reason)
+      || memcmp(&dynamic_schedule, &unpacked_dynamic_schedule, sizeof(dynamic_schedule)) != 0
+      || reason != NULL) {
+    fprintf(stderr, "FAIL RoundTripsDynamicCbraD2rScheduling\n");
+    return 1;
+  }
+  nr_ue_aiot_cbra_paging_fields_t dynamic_fields = paging_fields;
+  dynamic_fields.number_of_access_occasions = 5;
+  dynamic_fields.k = 1;
+  dynamic_fields.d2r_scheduling_info = packed_schedule;
+  uint8_t dynamic_pdu[NR_UE_AIOT_CBRA_PAGING_PDU_BYTES] = {0};
+  if (!nr_ue_aiot_cbra_build_paging_pdu(&dynamic_fields, dynamic_pdu, &reason)) {
+    fprintf(stderr, "FAIL BuildsDynamicCbraPagingPdu\n");
+    return 1;
+  }
+  nr_ue_aiot_cbra_paging_fields_t dynamic_parsed = {0};
+  if (!nr_ue_aiot_cbra_parse_paging_pdu(dynamic_pdu, &dynamic_parsed, &reason)
+      || dynamic_parsed.number_of_access_occasions != 5 || dynamic_parsed.k != 1
+      || dynamic_parsed.d2r_scheduling_info != packed_schedule) {
+    fprintf(stderr, "FAIL RoundTripsDynamicCbraPagingFields\n");
     return 1;
   }
   const int32_t snr_grid[] = {-10, 0, 10};
@@ -602,6 +678,10 @@ int main(void)
   access_trigger_phy[1] ^= 0x80U;
   if (nr_ue_aiot_cbra_verify_access_trigger_crc(access_trigger_phy)) {
     fprintf(stderr, "FAIL RejectsCorruptedCbraAccessTriggerCrc\n");
+    return 1;
+  }
+  if (nr_ue_aiot_cbra_parse_access_trigger_length(access_trigger, NR_UE_AIOT_CBRA_TRIGGER_BYTES - 1U)) {
+    fprintf(stderr, "FAIL RejectsTruncatedCbraAccessTrigger\n");
     return 1;
   }
   access_trigger[1] = 0xFF;

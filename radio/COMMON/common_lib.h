@@ -736,18 +736,34 @@ typedef int(*oai_transport_initfunc_t)(openair0_device *device, openair0_config_
 #define AIOT_T2_CBRA_KIND_SHIFT 18U
 #define AIOT_T2_CBRA_KIND_BITS 2U
 #define AIOT_T2_CBRA_KIND_MASK ((1U << AIOT_T2_CBRA_KIND_BITS) - 1U)
-/* Experimental CBRA setup metadata occupies one unused option-value bit. */
+/* Experimental CBRA metadata uses the otherwise unused option-value bits.
+ * The RFsim option has six bits each for version and round; full values stay
+ * in the RRC wire and observation report. */
 #define AIOT_T2_CBRA_SETUP_SHIFT 10U
 #define AIOT_T2_CBRA_SETUP_MASK (1U << AIOT_T2_CBRA_SETUP_SHIFT)
-#define AIOT_T2_PACK_CBRA_R2D_TARGET(tag_id, reader_handle, m, kind) \
+#define AIOT_T2_CBRA_CONFIG_VERSION_SHIFT 20U
+#define AIOT_T2_CBRA_CONFIG_VERSION_BITS 6U
+#define AIOT_T2_CBRA_CONFIG_VERSION_MASK ((1U << AIOT_T2_CBRA_CONFIG_VERSION_BITS) - 1U)
+#define AIOT_T2_CBRA_CONFIG_ROUND_SHIFT 26U
+#define AIOT_T2_CBRA_CONFIG_ROUND_BITS 6U
+#define AIOT_T2_CBRA_CONFIG_ROUND_MASK ((1U << AIOT_T2_CBRA_CONFIG_ROUND_BITS) - 1U)
+#define AIOT_T2_PACK_CBRA_R2D_TARGET_WITH_CONFIG(tag_id, reader_handle, m, kind, config_version, config_round) \
   ((((uint32_t)(reader_handle) & AIOT_T2_READER_OPTION_MASK) << AIOT_T2_READER_OPTION_SHIFT) \
    | (((uint32_t)(m) & AIOT_T2_CBRA_M_MASK) << AIOT_T2_CBRA_M_SHIFT) \
    | (((uint32_t)(kind) & AIOT_T2_CBRA_KIND_MASK) << AIOT_T2_CBRA_KIND_SHIFT) \
+   | (((uint32_t)(config_version) & AIOT_T2_CBRA_CONFIG_VERSION_MASK) << AIOT_T2_CBRA_CONFIG_VERSION_SHIFT) \
+   | (((uint32_t)(config_round) & AIOT_T2_CBRA_CONFIG_ROUND_MASK) << AIOT_T2_CBRA_CONFIG_ROUND_SHIFT) \
    | ((uint32_t)(tag_id) & AIOT_T2_TAG_OPTION_MASK))
+#define AIOT_T2_PACK_CBRA_R2D_TARGET(tag_id, reader_handle, m, kind) \
+  AIOT_T2_PACK_CBRA_R2D_TARGET_WITH_CONFIG(tag_id, reader_handle, m, kind, 0, 0)
 #define AIOT_T2_UNPACK_CBRA_M(option_value) \
   (((uint32_t)(option_value) >> AIOT_T2_CBRA_M_SHIFT) & AIOT_T2_CBRA_M_MASK)
 #define AIOT_T2_UNPACK_CBRA_KIND(option_value) \
   (((uint32_t)(option_value) >> AIOT_T2_CBRA_KIND_SHIFT) & AIOT_T2_CBRA_KIND_MASK)
+#define AIOT_T2_UNPACK_CBRA_CONFIG_VERSION(option_value) \
+  (((uint32_t)(option_value) >> AIOT_T2_CBRA_CONFIG_VERSION_SHIFT) & AIOT_T2_CBRA_CONFIG_VERSION_MASK)
+#define AIOT_T2_UNPACK_CBRA_CONFIG_ROUND(option_value) \
+  (((uint32_t)(option_value) >> AIOT_T2_CBRA_CONFIG_ROUND_SHIFT) & AIOT_T2_CBRA_CONFIG_ROUND_MASK)
 #define AIOT_T2_UNPACK_CBRA_SETUP(option_value) \
   (((uint32_t)(option_value) & AIOT_T2_CBRA_SETUP_MASK) != 0U)
 /* Experimental metadata bits in option_flag; the low flag bits retain packet type. */
@@ -756,6 +772,19 @@ typedef int(*oai_transport_initfunc_t)(openair0_device *device, openair0_config_
 #define AIOT_T2_PACK_D2R_TBIT(tbit) (((uint32_t)(tbit) & AIOT_T2_R2D_TBIT_MASK) << AIOT_T2_D2R_TBIT_SHIFT)
 #define AIOT_T2_UNPACK_D2R_TBIT(option_flag) \
   (((uint32_t)(option_flag) >> AIOT_T2_D2R_TBIT_SHIFT) & AIOT_T2_R2D_TBIT_MASK)
+/* RFsim keeps one sample per Manchester chip for the tau row. The 2*tau
+ * row repeats each chip once; sub-tau rows are quantized to that minimum
+ * sample period. This is a simulator timing model, not a calibrated
+ * physical-airtime claim. */
+static inline size_t aiot_t2_d2r_sample_repeat(uint32_t tbit)
+{
+  return tbit == 0U ? 2U : 1U;
+}
+
+static inline size_t aiot_t2_d2r_samples_per_bit(uint32_t tbit)
+{
+  return 2U * aiot_t2_d2r_sample_repeat(tbit);
+}
 #define AIOT_T2_PROVENANCE_MASK 0x00ffffffU
 #define AIOT_T2_PACK_TAG_PROVENANCE(tag_id, provenance) \
   ((((uint32_t)(provenance) & AIOT_T2_PROVENANCE_MASK) << AIOT_T2_TAG_OPTION_BITS) \
@@ -948,7 +977,8 @@ typedef struct __attribute__((packed)) {
   uint16_t random_id;
   uint8_t access_occasion;
   uint8_t msg2_status;
-  uint8_t reserved[8];
+  uint32_t config_version;
+  uint32_t config_round;
 } aiot_t2_cbra_observation_report_t;
 
 #ifdef __cplusplus

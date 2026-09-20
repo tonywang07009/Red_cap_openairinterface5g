@@ -994,6 +994,8 @@ typedef struct {
   bool valid;
   uint8_t message_kind;
   bool setup;
+  uint32_t config_version;
+  uint32_t config_round;
   uint32_t m;
   uint16_t mac_bits;
   uint16_t phy_bits;
@@ -1009,12 +1011,18 @@ typedef struct {
 static aiot_t2_cbra_attempt_t *aiot_t2_find_cbra_attempt(aiot_t2_cbra_attempt_t *attempts,
                                                          size_t attempt_count,
                                                          uint8_t message_kind,
-                                                         uint8_t m)
+                                                         uint8_t m,
+                                                         uint32_t config_version,
+                                                         uint32_t config_round)
 {
   /* RFsim relays may advance the packet timestamp; correlate in wire order. */
+  const bool has_config_metadata = config_version != 0 || config_round != 0;
   aiot_t2_cbra_attempt_t *match = NULL;
   for (size_t index = 0; index < attempt_count; ++index) {
     if (!attempts[index].valid || attempts[index].message_kind != message_kind || attempts[index].m != m)
+      continue;
+    if (has_config_metadata
+        && (attempts[index].config_version != config_version || attempts[index].config_round != config_round))
       continue;
     if (match == NULL || attempts[index].sequence < match->sequence)
       match = &attempts[index];
@@ -1049,6 +1057,8 @@ static bool aiot_t2_send_cbra_observation(PHY_VARS_NR_UE *UE,
     report.tx_timestamp = aiot_t2_htonll(attempt->tx_timestamp);
     report.full_airtime_samples = htonl(attempt->full_airtime_samples);
     report.full_airtime_ns = aiot_t2_htonll(attempt->full_airtime_ns);
+    report.config_version = htonl(attempt->config_version);
+    report.config_round = htonl(attempt->config_round);
   }
   if (report.completion_timestamp == 0)
     report.completion_timestamp = aiot_t2_htonll(completion_timestamp);
@@ -1083,11 +1093,13 @@ static bool aiot_t2_send_cbra_observation(PHY_VARS_NR_UE *UE,
   const ssize_t sent = send(*report_socket, &report, sizeof(report), MSG_DONTWAIT);
   if (sent == (ssize_t)sizeof(report)) {
     LOG_I(PHY,
-          "AIOT_T2_CBRA_OBSERVATION_SENT tag_id=%u kind=%u m=%u attempt=%u epoch=%lu crc_ok=%u payload_match=%u d2r_attempted=%u\n",
+          "AIOT_T2_CBRA_OBSERVATION_SENT tag_id=%u kind=%u m=%u attempt=%u version=%u round=%u epoch=%lu crc_ok=%u payload_match=%u d2r_attempted=%u\n",
           ntohl(report.tag_id),
           report.message_kind,
           report.m,
           ntohl(report.attempt_index),
+          ntohl(report.config_version),
+          ntohl(report.config_round),
           aiot_t2_htonll(report.channel_epoch),
           report.crc_ok,
           report.payload_match,
@@ -1167,6 +1179,7 @@ static void aiot_t2_role_process_slot(PHY_VARS_NR_UE *UE,
   static aiot_t2_cbra_attempt_t cbra_attempt_queue[AIOT_T2_CBRA_ATTEMPT_QUEUE_SIZE] = {0};
   static uint64_t cbra_attempt_sequence = 0;
   static bool cbra_setup_complete = false;
+  static uint32_t cbra_active_version = 0;
   if (!params->aiot_t2_reader && !params->aiot_t2_observer)
     return;
 
@@ -1179,22 +1192,23 @@ static void aiot_t2_role_process_slot(PHY_VARS_NR_UE *UE,
   const uint32_t period_slot = absolute_slot % params->aiot_t2_window_period;
   NR_UE_MAC_INST_t *mac = get_mac_inst(UE->Mod_id);
   nr_aiot_cbra_state_t *cbra_state = mac != NULL ? mac->aiot_cbra_state : NULL;
-  if (params->aiot_t2_cbra && cbra_state != NULL && !cbra_state->active_valid && !cbra_state->pending_valid) {
-    nr_aiot_cbra_config_t fallback = {0};
-    nr_aiot_cbra_config_defaults(&fallback);
-    fallback.enabled = true;
-    fallback.activation_slot = 0;
-    fallback.expiry_slot = UINT64_MAX;
-    fallback.r2d_m = (uint8_t)params->aiot_t2_cbra_m;
-    fallback.x = (uint8_t)params->aiot_t2_d2r_x;
-    fallback.tbit = (uint8_t)params->aiot_t2_d2r_tbit;
-    fallback.sfs_bitmap = (uint8_t)params->aiot_t2_d2r_sfs_bitmap;
-    fallback.n_code = 1;
-    fallback.k = 0;
-    (void)nr_aiot_cbra_state_stage(cbra_state, &fallback, NULL);
-  }
   if (cbra_state != NULL)
     nr_aiot_cbra_state_activate(cbra_state, absolute_slot);
+  if (params->aiot_t2_cbra && cbra_state != NULL) {
+    if (!cbra_state->active_valid) {
+      cbra_active_version = 0;
+      cbra_setup_complete = false;
+    } else if (cbra_state->active.version != cbra_active_version) {
+      cbra_active_version = cbra_state->active.version;
+      cbra_setup_complete = false;
+      LOG_I(PHY,
+            "AIOT_T2_CBRA_CONFIG_ACTIVE version=%u round=%u activation_slot=%lu expiry_slot=%lu\n",
+            cbra_state->active.version,
+            cbra_state->active.round,
+            cbra_state->active.activation_slot,
+            cbra_state->active.expiry_slot);
+    }
+  }
   if (truth.valid && timestamp > truth.timestamp
       && timestamp - truth.timestamp > AIOT_T2_OBSERVATION_TIMEOUT_SAMPLES) {
     aiot_t2_rf_packet_t timeout_packet = {0};
@@ -1218,7 +1232,12 @@ static void aiot_t2_role_process_slot(PHY_VARS_NR_UE *UE,
     truth.valid = false;
   }
   if (params->aiot_t2_reader && period_slot == params->aiot_t2_window_offset) {
-    if (!role_awake) {
+    if (params->aiot_t2_cbra && (cbra_state == NULL || !cbra_state->active_valid)) {
+      LOG_I(PHY,
+            "AIOT_T2_R2D_REJECT reason=no_active_cbra_config tag_id=%u absolute_slot=%lu\n",
+            params->aiot_t2_tag_id,
+            absolute_slot);
+    } else if (!role_awake) {
       LOG_I(PHY,
             "AIOT_T2_R2D_REJECT reason=%s tag_id=%u absolute_slot=%lu\n",
             phy_data->ue_connected ? "reader_asleep" : "ue_not_connected",
@@ -1228,32 +1247,36 @@ static void aiot_t2_role_process_slot(PHY_VARS_NR_UE *UE,
       LOG_E(PHY, "AIOT_T2_R2D_REJECT reason=rf_control_unavailable tag_id=%u\n", params->aiot_t2_tag_id);
     } else {
       aiot_t2_rf_packet_t r2d;
+      const nr_aiot_cbra_config_t *cbra_config = params->aiot_t2_cbra && cbra_state != NULL && cbra_state->active_valid
+                                                   ? &cbra_state->active
+                                                   : NULL;
+      const uint32_t r2d_prb_count = cbra_config != NULL ? cbra_config->prb_count : params->aiot_t2_r2d_prb_count;
+      const uint32_t r2d_chips_per_symbol = cbra_config != NULL ? cbra_config->r2d_m
+                                                                  : params->aiot_t2_r2d_chips_per_symbol;
+      const uint32_t reader_handle = cbra_config != NULL ? cbra_config->reader_handle : params->aiot_t2_reader_handle;
       const nr_ue_aiot_d2r_scheduling_t d2r_scheduling = {
-          .x = params->aiot_t2_d2r_x,
-          .tbit = (nr_ue_aiot_d2r_tbit_t)params->aiot_t2_d2r_tbit,
-          .sfs_bitmap = (uint8_t)params->aiot_t2_d2r_sfs_bitmap,
+          .x = cbra_config != NULL ? cbra_config->x : params->aiot_t2_d2r_x,
+          .tbit = (nr_ue_aiot_d2r_tbit_t)(cbra_config != NULL ? cbra_config->tbit : params->aiot_t2_d2r_tbit),
+          .sfs_bitmap = cbra_config != NULL ? cbra_config->sfs_bitmap : (uint8_t)params->aiot_t2_d2r_sfs_bitmap,
       };
       const nr_ue_aiot_r2d_request_t request = {
           .tag_id = params->aiot_t2_tag_id,
           .timestamp = timestamp,
-          .prb_count = params->aiot_t2_r2d_prb_count,
-          .chips_per_symbol = params->aiot_t2_r2d_chips_per_symbol,
+          .prb_count = r2d_prb_count,
+          .chips_per_symbol = r2d_chips_per_symbol,
           .d2r_scheduling = &d2r_scheduling,
       };
       const char *reason = NULL;
       bool prepared = false;
       cbra_attempt.valid = false;
       if (params->aiot_t2_cbra) {
-        const nr_aiot_cbra_config_t *config = cbra_state != NULL && cbra_state->active_valid
-                                                  ? &cbra_state->active
-                                                  : NULL;
-        const uint8_t cbra_m = config != NULL ? config->r2d_m : (uint8_t)params->aiot_t2_cbra_m;
-        const uint8_t cbra_n_code = config != NULL ? config->n_code : 1;
-        const uint8_t cbra_k = config != NULL ? config->k : 0;
+        const uint8_t cbra_m = cbra_config != NULL ? cbra_config->r2d_m : (uint8_t)params->aiot_t2_cbra_m;
+        const uint8_t cbra_n_code = cbra_config != NULL ? cbra_config->n_code : 1;
+        const uint8_t cbra_k = cbra_config != NULL ? cbra_config->k : 0;
         const nr_ue_aiot_cbra_d2r_scheduling_t cbra_schedule = {
-            .x = config != NULL ? config->x : (uint8_t)params->aiot_t2_d2r_x,
-            .bit_duration = config != NULL ? config->tbit : (uint8_t)params->aiot_t2_d2r_tbit,
-            .frequency_resource_broadcast = config != NULL ? config->sfs_bitmap : (uint8_t)params->aiot_t2_d2r_sfs_bitmap,
+            .x = cbra_config != NULL ? cbra_config->x : (uint8_t)params->aiot_t2_d2r_x,
+            .bit_duration = cbra_config != NULL ? cbra_config->tbit : (uint8_t)params->aiot_t2_d2r_tbit,
+            .frequency_resource_broadcast = cbra_config != NULL ? cbra_config->sfs_bitmap : (uint8_t)params->aiot_t2_d2r_sfs_bitmap,
             .block_repetition = 0,
             .channel_coding = 0,
             .interval_bits = 0,
@@ -1278,20 +1301,20 @@ static void aiot_t2_role_process_slot(PHY_VARS_NR_UE *UE,
         uint8_t trigger[NR_UE_AIOT_CBRA_TRIGGER_BYTES] = {0};
         if (message_kind == NR_UE_AIOT_CBRA_PAGING) {
           prepared = prepared && nr_ue_aiot_cbra_prepare_paging_r2d(&fields,
-                                                        params->aiot_t2_tag_id,
-                                                        params->aiot_t2_reader_handle,
+                                                                params->aiot_t2_tag_id,
+                                                        reader_handle,
                                                         timestamp,
                                                         cbra_m,
-                                                        (uint8_t)params->aiot_t2_r2d_prb_count,
+                                                        (uint8_t)r2d_prb_count,
                                                         &r2d,
                                                         &reason)
                      && nr_ue_aiot_cbra_build_paging_pdu(&fields, cbra_attempt.tx_pdu, &reason);
         } else {
           prepared = prepared && nr_ue_aiot_cbra_prepare_access_trigger_r2d(params->aiot_t2_tag_id,
-                                                                params->aiot_t2_reader_handle,
+                                                                reader_handle,
                                                                 timestamp,
                                                                 cbra_m,
-                                                                (uint8_t)params->aiot_t2_r2d_prb_count,
+                                                                (uint8_t)r2d_prb_count,
                                                                 &r2d,
                                                                 &reason)
                      && nr_ue_aiot_cbra_build_access_trigger(trigger);
@@ -1301,13 +1324,15 @@ static void aiot_t2_role_process_slot(PHY_VARS_NR_UE *UE,
         prepared = prepared
                    && nr_ue_aiot_cbra_derive_frame(message_kind,
                                                    cbra_m,
-                                                   (uint8_t)params->aiot_t2_r2d_prb_count,
+                                                   (uint8_t)r2d_prb_count,
                                                    &frame,
                                                    &reason);
         if (prepared) {
           cbra_attempt.valid = true;
           cbra_attempt.message_kind = (uint8_t)message_kind;
           cbra_attempt.setup = setup;
+          cbra_attempt.config_version = cbra_config->version;
+          cbra_attempt.config_round = cbra_config->round;
           cbra_attempt.m = cbra_m;
           cbra_attempt.mac_bits = frame.mac_bits;
           cbra_attempt.phy_bits = frame.phy_bits;
@@ -1323,14 +1348,23 @@ static void aiot_t2_role_process_slot(PHY_VARS_NR_UE *UE,
               "AIOT_T2_R2D_REJECT reason=%s tag_id=%u prbs=%u chips_per_symbol=%u d2r_x=%u d2r_tbit=%u d2r_sfs=0x%02x absolute_slot=%lu\n",
               reason != NULL ? reason : "preparation_failed",
               params->aiot_t2_tag_id,
-              params->aiot_t2_r2d_prb_count,
-              params->aiot_t2_r2d_chips_per_symbol,
+              r2d_prb_count,
+              r2d_chips_per_symbol,
               d2r_scheduling.x,
               d2r_scheduling.tbit,
               d2r_scheduling.sfs_bitmap,
               absolute_slot);
       }
-      if (prepared && !params->aiot_t2_cbra) {
+      if (prepared && params->aiot_t2_cbra) {
+        r2d.header.option_value = AIOT_T2_PACK_CBRA_R2D_TARGET_WITH_CONFIG(params->aiot_t2_tag_id,
+                                                                            reader_handle,
+                                                                            cbra_config->r2d_m,
+                                                                            cbra_attempt.message_kind,
+                                                                            cbra_attempt.config_version,
+                                                                            cbra_attempt.config_round);
+        r2d.header.option_value |= ((uint32_t)cbra_config->tbit & AIOT_T2_R2D_TBIT_MASK)
+                                   << AIOT_T2_R2D_TBIT_SHIFT;
+      } else if (prepared) {
         r2d.header.option_value = AIOT_T2_PACK_R2D_TARGET(params->aiot_t2_tag_id,
                                                           params->aiot_t2_reader_handle,
                                                           (uint32_t)params->aiot_t2_d2r_tbit);
@@ -1437,7 +1471,9 @@ static void aiot_t2_role_process_slot(PHY_VARS_NR_UE *UE,
       aiot_t2_cbra_attempt_t *attempt = aiot_t2_find_cbra_attempt(cbra_attempt_queue,
                                                                    AIOT_T2_CBRA_ATTEMPT_QUEUE_SIZE,
                                                                    observation.message_kind,
-                                                                   observation.m);
+                                                                   observation.m,
+                                                                   ntohl(observation.config_version),
+                                                                   ntohl(observation.config_round));
       (void)aiot_t2_send_cbra_observation(UE, report_socket, &d2r, attempt, timestamp);
       if (attempt != NULL && observation.d2r_attempted != 0)
         attempt->valid = false;

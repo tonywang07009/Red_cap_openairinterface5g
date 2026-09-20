@@ -140,6 +140,7 @@ typedef enum {
 #define GNB_CONFIG_STRING_1ST_ACTIVE_BWP                "first_active_bwp"
 #define GNB_CONFIG_STRING_LIMIT_RSRP_REPORT             "max_num_RSRP_reported"
 #define GNB_CONFIG_STRING_AIOT_CBRA_ENABLE              "aiot_cbra_enable"
+#define GNB_CONFIG_STRING_AIOT_CBRA_UPDATE_TBIT         "aiot_cbra_update_tbit"
 
 #define GNB_CONFIG_HLP_STRING_ENABLE_SDAP               "enable the SDAP layer\n"
 #define GNB_CONFIG_HLP_FORCE256QAMOFF                   "suppress activation of 256 QAM despite UE support"
@@ -155,6 +156,7 @@ typedef enum {
 #define GNB_CONFIG_HLP_DU_SIBS                          "List of DU generated SIBs to be transmitted"
 #define GNB_CONFIG_HLP_CONFIG_REP                       "Define quantity for CSI report (options: ssb_rsrp, ssb_sinr and cri_rsrp)"
 #define GNB_CONFIG_HLP_AIOT_CBRA_ENABLE                 "Enable experimental A-IoT CBRA Paging/Access Trigger delivery"
+#define GNB_CONFIG_HLP_AIOT_CBRA_UPDATE_TBIT            "Set the D2R Tbit row for CBRA updates after the first round (-1 keeps the initial profile)"
 
 
 /*-----------------------------------------------------------------------------------------------------------------------------------------*/
@@ -205,6 +207,7 @@ typedef enum {
 {GNB_CONFIG_STRING_1ST_ACTIVE_BWP,               NULL,   0,            .iptr=NULL,  .defintval=0,                 TYPE_INT,       0},  \
 {GNB_CONFIG_STRING_LIMIT_RSRP_REPORT,            NULL,   0,            .iptr=NULL,  .defintval=0,                 TYPE_INT,       0},  \
 {GNB_CONFIG_STRING_AIOT_CBRA_ENABLE, GNB_CONFIG_HLP_AIOT_CBRA_ENABLE, PARAMFLAG_BOOL, .iptr=NULL, .defintval=0, TYPE_INT, 0},  \
+{GNB_CONFIG_STRING_AIOT_CBRA_UPDATE_TBIT, GNB_CONFIG_HLP_AIOT_CBRA_UPDATE_TBIT, 0, .iptr=NULL, .defintval=-1, TYPE_INT, 0},  \
 }
 // clang-format on
 
@@ -250,6 +253,7 @@ typedef enum {
 #define GNB_1ST_ACTIVE_BWP_IDX          38
 #define GNB_LIMIT_RSRP_REPORT_IDX       39
 #define GNB_AIOT_CBRA_ENABLE_IDX        40
+#define GNB_AIOT_CBRA_UPDATE_TBIT_IDX   41
 
 #define TRACKING_AREA_CODE_OKRANGE {0x0001,0xFFFD}
 #define NUM_DL_HARQ_OKVALUES {2,4,6,8,10,12,16,32}
@@ -297,6 +301,7 @@ typedef enum {
              {"ssb_rsrp", "ssb_sinr", "cri_rsrp"}, \
              {SSB_RSRP, SSB_SINR, CRI_RSRP}, \
              3 } }, \
+  { .s5 = { NULL } },                                             \
   { .s5 = { NULL } },                                             \
   { .s5 = { NULL } },                                             \
   { .s5 = { NULL } },                                             \

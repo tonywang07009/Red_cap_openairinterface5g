@@ -99,6 +99,8 @@ typedef struct nr_aiot_cbra_state_s {
   nr_aiot_cbra_config_t pending;
   uint16_t access_counter;
   uint16_t selected_access_occasion;
+  uint8_t selected_frequency_factor;
+  uint8_t selected_time_resource;
   uint16_t access_m;
   uint16_t random_id;
   uint32_t random_state;
@@ -169,7 +171,7 @@ static inline void nr_aiot_cbra_config_defaults(nr_aiot_cbra_config_t *config)
   config->n_code = 1; /* 2^1 access occasions. */
   config->r2d_m = 2;
   config->x = 2;
-  config->tbit = 2; /* tau/2; permits factors 1,2,4,8 for the n=20,m=8 case. */
+  config->tbit = 2; /* tau/2; permits factors 1,2,4,8 for the n=2^5,m=8 case. */
   config->sfs_bitmap = 0xf0;
   config->on_duration_slots = 20;
   config->msg2_window_slots = 4;
@@ -311,6 +313,8 @@ static inline void nr_aiot_cbra_state_clear_exchange(nr_aiot_cbra_state_t *state
 {
   state->access_counter = 0;
   state->selected_access_occasion = 0;
+  state->selected_frequency_factor = 0;
+  state->selected_time_resource = 0;
   state->access_m = 0;
   state->random_id = 0;
   state->msg2_remaining = 0;
@@ -328,6 +332,12 @@ static inline bool nr_aiot_cbra_state_stage(nr_aiot_cbra_state_t *state,
   if (state == NULL || !nr_aiot_cbra_config_validate(config, reason) || config->status != NR_AIOT_CBRA_CONFIG_STATUS_NONE) {
     if (reason != NULL && *reason == NULL) *reason = "invalid_stage_config";
     return false;
+  }
+  if (!config->enabled) {
+    state->pending_valid = false;
+    state->active_valid = false;
+    nr_aiot_cbra_state_clear_exchange(state);
+    return true;
   }
   if ((state->active_valid && config->version < state->active.version)
       || (state->pending_valid && config->version < state->pending.version)) {
@@ -377,6 +387,27 @@ static inline bool nr_aiot_cbra_state_start_msg1(nr_aiot_cbra_state_t *state)
   return true;
 }
 
+static inline bool nr_aiot_cbra_state_select_access_occasion(nr_aiot_cbra_state_t *state, uint16_t ordinal)
+{
+  if (state == NULL || !state->active_valid || ordinal == 0 || ordinal > state->access_m)
+    return false;
+  const unsigned int frequency_ordinal = (ordinal - 1U) / state->active.x;
+  const unsigned int time_ordinal = (ordinal - 1U) % state->active.x;
+  unsigned int enabled_frequency = 0;
+  for (unsigned int bit = 0; bit < 8; ++bit) {
+    if ((state->active.sfs_bitmap & (uint8_t)(0x80U >> bit)) == 0)
+      continue;
+    if (enabled_frequency == frequency_ordinal) {
+      state->selected_access_occasion = ordinal;
+      state->selected_frequency_factor = (uint8_t)(1U << bit);
+      state->selected_time_resource = (uint8_t)(time_ordinal + 1U);
+      return true;
+    }
+    ++enabled_frequency;
+  }
+  return false;
+}
+
 static inline bool nr_aiot_cbra_state_on_paging(nr_aiot_cbra_state_t *state, uint16_t random_i)
 {
   if (state == NULL || !state->active_valid)
@@ -389,8 +420,8 @@ static inline bool nr_aiot_cbra_state_on_paging(nr_aiot_cbra_state_t *state, uin
   state->access_m = access_m;
   state->access_counter = random_i;
   if (state->access_counter < state->access_m) {
-    state->selected_access_occasion = (uint16_t)(state->access_counter + 1U);
-    return nr_aiot_cbra_state_start_msg1(state);
+    return nr_aiot_cbra_state_select_access_occasion(state, (uint16_t)(state->access_counter + 1U))
+           && nr_aiot_cbra_state_start_msg1(state);
   }
   return true;
 }
@@ -412,8 +443,8 @@ static inline bool nr_aiot_cbra_state_on_access_trigger(nr_aiot_cbra_state_t *st
     return false;
   state->access_counter = (uint16_t)(state->access_counter - state->access_m);
   if (state->access_counter < state->access_m) {
-    state->selected_access_occasion = (uint16_t)(state->access_counter + 1U);
-    return nr_aiot_cbra_state_start_msg1(state);
+    return nr_aiot_cbra_state_select_access_occasion(state, (uint16_t)(state->access_counter + 1U))
+           && nr_aiot_cbra_state_start_msg1(state);
   }
   return true;
 }
@@ -446,6 +477,16 @@ static inline bool nr_aiot_cbra_state_on_msg1(nr_aiot_cbra_state_t *state,
 static inline bool nr_aiot_cbra_exchange_fits(const nr_aiot_cbra_config_t *config, uint32_t required_slots)
 {
   return config != NULL && required_slots <= config->on_duration_slots;
+}
+
+/* Experimental model-tick bound used until the PHY-to-MAC absolute timing
+ * owner is selected: trigger slot + response offset + Msg2 window + close. */
+static inline uint32_t nr_aiot_cbra_complete_exchange_slots(const nr_aiot_cbra_config_t *config,
+                                                             uint32_t response_offset_slots)
+{
+  if (config == NULL || response_offset_slots > UINT32_MAX - (uint32_t)config->msg2_window_slots - 2U)
+    return UINT32_MAX;
+  return response_offset_slots + (uint32_t)config->msg2_window_slots + 2U;
 }
 
 //-------------------------------------------------------------------------------------------//
@@ -821,6 +862,7 @@ typedef struct NRRrcConfigurationReq_s {
   bool                    enable_sdap;
   int                     drbs;
   nr_aiot_cbra_config_t   aiot_cbra_config;
+  int                     aiot_cbra_update_tbit;
 } gNB_RrcConfigurationReq;
 
 typedef struct NRDuDlReq_s {
