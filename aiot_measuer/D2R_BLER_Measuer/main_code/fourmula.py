@@ -4,6 +4,7 @@ The module name follows the user-requested project layout.  It is a simulator
 measurement interface and does not claim a real Reader BER estimator.
 """
 
+from collections import Counter
 from dataclasses import asdict, dataclass, field
 from fractions import Fraction
 import hashlib
@@ -46,6 +47,16 @@ OBSERVATION_STATUS = {
     4: "unaligned",
     5: "invalid",
 }
+CBRA_REPORT_STATUS_NAMES = {
+    0: "not_selected",
+    1: "msg2_waiting",
+    2: "msg2_timeout",
+    3: "msg2_accepted",
+    4: "msg3_ack",
+    5: "msg3_nack",
+    6: "msg3_missing",
+}
+CBRA_MSG3_STATUS_NAMES = ("msg3_ack", "msg3_nack", "msg3_missing")
 
 
 def sample_ticks_to_ns(ticks: int, sample_rate_hz: float) -> int:
@@ -159,6 +170,8 @@ def decode_cbra_observation_datagram(data: bytes) -> dict:
         raise ValueError("unknown CBRA observation status")
     if message_kind not in {CBRA_PAGING_KIND, CBRA_ACCESS_TRIGGER_KIND}:
         raise ValueError("unsupported CBRA message kind")
+    if isinstance(msg2_status, bool) or msg2_status not in CBRA_REPORT_STATUS_NAMES:
+        raise ValueError("unsupported CBRA report status")
     expected_mac_bits = CBRA_PAGING_PDU_BITS if message_kind == CBRA_PAGING_KIND else CBRA_TRIGGER_PDU_BITS
     expected_phy_bits = CBRA_PAGING_PHY_BITS if message_kind == CBRA_PAGING_KIND else CBRA_TRIGGER_PHY_BITS
     if (m not in CBRA_SUPPORTED_M or prb_count != CBRA_PRB_COUNT or pdu_profile_version != 2
@@ -218,8 +231,10 @@ def decode_cbra_observation_datagram(data: bytes) -> dict:
         "random_id": random_id,
         "access_occasion": access_occasion,
         "msg2_status": msg2_status,
+        "msg2_status_name": CBRA_REPORT_STATUS_NAMES[msg2_status],
         "config_version": config_version,
         "config_round": config_round,
+        "reader_data_received": bool(d2r_attempted and crc_ok and payload_match),
         "tx_pdu": bytes(tx_pdu[:pdu_bytes]),
         "decoded_pdu": bytes(decoded_pdu[:pdu_bytes]),
     }
@@ -803,6 +818,12 @@ def cbra_observation_to_campaign_row(report: dict, *, snr_db_x10: int | None = N
         "d2r_attempted",
         "context_eligible",
         "setup",
+        "reader_id",
+        "tag_id",
+        "access_occasion",
+        "msg2_status",
+        "config_version",
+        "config_round",
     )
     if any(name not in report for name in required):
         raise ValueError("v4 observation report is missing formal campaign fields")
@@ -814,7 +835,26 @@ def cbra_observation_to_campaign_row(report: dict, *, snr_db_x10: int | None = N
     point_snr_db_x10 = calibrated_snr_db_x10 if snr_db_x10 is None else snr_db_x10
     if isinstance(point_snr_db_x10, bool) or not isinstance(point_snr_db_x10, int):
         raise ValueError("CBRA SNR point must be an integer")
+    msg2_status = report["msg2_status"]
+    if isinstance(msg2_status, bool) or msg2_status not in CBRA_REPORT_STATUS_NAMES:
+        raise ValueError("unsupported CBRA report status")
+    collision_key = {
+        "reader_id": report["reader_id"],
+        "config_version": report["config_version"],
+        "config_round": report["config_round"],
+        "access_occasion": report["access_occasion"],
+    }
+    reader_data_received = bool(report["d2r_attempted"] and report["crc_ok"] and report["payload_match"])
     return {
+        "reader_id": report["reader_id"],
+        "tag_id": report["tag_id"],
+        "collision_key": collision_key,
+        "config_version": report["config_version"],
+        "config_round": report["config_round"],
+        "access_occasion": report["access_occasion"],
+        "msg2_status": msg2_status,
+        "msg2_status_name": CBRA_REPORT_STATUS_NAMES[msg2_status],
+        "reader_data_received": reader_data_received,
         "message_kind": report["message_kind"],
         "m": report["m"],
         "snr_db_x10": point_snr_db_x10,
@@ -836,6 +876,73 @@ def cbra_observation_to_campaign_row(report: dict, *, snr_db_x10: int | None = N
         "signal_power_q16": report.get("signal_power_q16", 0),
         "noise_power_q16": report.get("noise_power_q16", 0),
         "calibrated_snr_db_x10": calibrated_snr_db_x10,
+    }
+
+
+def summarize_cbra_observation_outcomes(rows: list[dict]) -> dict:
+    """Summarize observed CBRA outcomes without inferring a final Msg3 result."""
+    if not isinstance(rows, list):
+        raise ValueError("CBRA outcome rows must be a list")
+
+    status_counts = Counter()
+    collision_key_counts: Counter[tuple[int, int, int, int]] = Counter()
+    collision_key_tags: dict[tuple[int, int, int, int], set[int]] = {}
+    d2r_attempted_rows = 0
+    reader_data_received_rows = 0
+    for row in rows:
+        if not isinstance(row, dict):
+            raise ValueError("CBRA outcome rows must be JSON objects")
+        status_name = None
+        if isinstance(row.get("msg2_status"), int) and not isinstance(row["msg2_status"], bool):
+            status_name = CBRA_REPORT_STATUS_NAMES.get(row["msg2_status"])
+        if status_name is None:
+            status_name = row.get("msg2_status_name")
+        if status_name in CBRA_REPORT_STATUS_NAMES.values():
+            status_counts[status_name] += 1
+
+        if row.get("d2r_attempted"):
+            d2r_attempted_rows += 1
+            if row.get("crc_ok") is True and row.get("payload_match") is True:
+                reader_data_received_rows += 1
+
+        key_fields = ("reader_id", "config_version", "config_round", "access_occasion")
+        key_values = tuple(row.get(field) for field in key_fields)
+        if (
+            all(isinstance(value, int) and not isinstance(value, bool) for value in key_values)
+            and key_values[3] > 0
+        ):
+            collision_key_counts[key_values] += 1
+            tag_id = row.get("tag_id")
+            if isinstance(tag_id, int) and not isinstance(tag_id, bool):
+                collision_key_tags.setdefault(key_values, set()).add(tag_id)
+
+    duplicate_keys = []
+    for key, report_count in sorted(collision_key_counts.items()):
+        tag_ids = sorted(collision_key_tags.get(key, set()))
+        if report_count > 1 and len(tag_ids) > 1:
+            duplicate_keys.append(
+                {
+                    "reader_id": key[0],
+                    "config_version": key[1],
+                    "config_round": key[2],
+                    "access_occasion": key[3],
+                    "report_count": report_count,
+                    "tag_ids": tag_ids,
+                }
+            )
+
+    return {
+        "observed_rows": len(rows),
+        "d2r_attempted_rows": d2r_attempted_rows,
+        "reader_data_received_rows": reader_data_received_rows,
+        "reader_data_not_received_rows": d2r_attempted_rows - reader_data_received_rows,
+        "msg2_status_counts": {name: status_counts.get(name, 0) for name in CBRA_REPORT_STATUS_NAMES.values()},
+        "observed_msg3_status_counts": {
+            name: status_counts.get(name, 0) for name in CBRA_MSG3_STATUS_NAMES
+        },
+        "collision_key_duplicate_count": len(duplicate_keys),
+        "collision_key_duplicates": duplicate_keys,
+        "msg3_inference": "not_performed",
     }
 
 

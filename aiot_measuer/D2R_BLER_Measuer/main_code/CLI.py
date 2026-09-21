@@ -18,6 +18,7 @@ from fourmula import (
     reader_visible_tags,
     decode_observation_datagram,
     sample_ticks_to_ns,
+    summarize_cbra_observation_outcomes,
 )
 from storage import JsonExperimentStorage
 
@@ -135,6 +136,7 @@ def _ingest_cbra_udp(args: argparse.Namespace) -> dict:
             measured += not report["setup"]
     aggregate = aggregate_cbra_campaign_rows(rows)
     aggregate["raw_attempts"] = rows
+    aggregate["outcome_summary"] = summarize_cbra_observation_outcomes(rows)
     JsonExperimentStorage(args.output).save(aggregate)
     return aggregate
 

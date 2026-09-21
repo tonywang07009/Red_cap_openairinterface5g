@@ -1,5 +1,6 @@
 """Public behavior tests for the D2R BER measurement service."""
 
+import json
 from pathlib import Path
 import sys
 import tempfile
@@ -34,6 +35,7 @@ from fourmula import (
     cbra_prdch_physical_indices,
     cbra_snr_calibration,
     cbra_observation_to_campaign_row,
+    summarize_cbra_observation_outcomes,
 )
 from storage import JsonExperimentStorage
 from cbra_epoch import CbraAttemptEpochBinder, TalanetEpochController, deterministic_channel_provenance
@@ -658,10 +660,16 @@ class CbraCampaignTests(unittest.TestCase):
         self.assertEqual(report["gate_status"], 2)
         self.assertTrue(report["setup"])
         self.assertEqual(report["random_id"], 17)
+        self.assertEqual(report["msg2_status_name"], "msg2_waiting")
         self.assertEqual(report["config_version"], 3)
         self.assertEqual(report["config_round"], 4)
         self.assertEqual(report["calibrated_snr_db_x10"], 100)
         self.assertEqual(report["tx_pdu"], bytes(range(28)))
+
+        invalid_fields = list(CBRA_OBSERVATION_STRUCT.unpack(datagram))
+        invalid_fields[-3] = 99
+        with self.assertRaisesRegex(ValueError, "unsupported CBRA report status"):
+            decode_cbra_observation_datagram(CBRA_OBSERVATION_STRUCT.pack(*invalid_fields))
 
         with self.assertRaises(ValueError):
             decode_cbra_observation_datagram(datagram[:-1])
@@ -721,9 +729,91 @@ class CbraCampaignTests(unittest.TestCase):
         self.assertEqual(row["message_kind"], 1)
         self.assertEqual(row["mac_bits"], 3)
         self.assertEqual(row["r2d_on_air_duration_ns"], 285_938)
+        self.assertEqual(row["msg2_status_name"], "not_selected")
+        self.assertEqual(row["collision_key"], {
+            "reader_id": 1,
+            "config_version": 0,
+            "config_round": 0,
+            "access_occasion": 0,
+        })
+        self.assertFalse(row["reader_data_received"])
+
+        invalid_report = dict(report)
+        invalid_report["msg2_status"] = True
+        with self.assertRaisesRegex(ValueError, "unsupported CBRA report status"):
+            cbra_observation_to_campaign_row(invalid_report, snr_db_x10=50)
 
         with self.assertRaises(ValueError):
             cbra_observation_to_campaign_row({"version": 3}, snr_db_x10=50)
+
+    def test_cbra_outcome_summary_reports_key_duplicates_without_msg3_inference(self):
+        rows = [
+            {
+                "reader_id": 2,
+                "tag_id": 100,
+                "config_version": 7,
+                "config_round": 9,
+                "access_occasion": 3,
+                "msg2_status": 3,
+                "msg2_status_name": "msg2_accepted",
+                "d2r_attempted": True,
+                "crc_ok": True,
+                "payload_match": True,
+                "reader_data_received": False,
+            },
+            {
+                "reader_id": 2,
+                "tag_id": 101,
+                "config_version": 7,
+                "config_round": 9,
+                "access_occasion": 3,
+                "msg2_status": 5,
+                "msg2_status_name": "msg3_nack",
+                "d2r_attempted": True,
+                "crc_ok": False,
+                "payload_match": False,
+                "reader_data_received": False,
+            },
+        ]
+
+        summary = summarize_cbra_observation_outcomes(rows)
+
+        self.assertEqual(summary["d2r_attempted_rows"], 2)
+        self.assertEqual(summary["reader_data_received_rows"], 1)
+        self.assertEqual(summary["observed_msg3_status_counts"]["msg3_nack"], 1)
+        self.assertEqual(summary["collision_key_duplicate_count"], 1)
+        self.assertEqual(summary["collision_key_duplicates"][0]["tag_ids"], [100, 101])
+        self.assertEqual(summary["msg3_inference"], "not_performed")
+
+    def test_cbra_enriched_output_is_json_ready_for_cli_persistence(self):
+        row = {
+            "reader_id": 1,
+            "tag_id": 100,
+            "config_version": 2,
+            "config_round": 3,
+            "access_occasion": 4,
+            "msg2_status": 4,
+            "msg2_status_name": "msg3_ack",
+            "d2r_attempted": True,
+            "crc_ok": True,
+            "payload_match": True,
+            "reader_data_received": True,
+            "collision_key": {
+                "reader_id": 1,
+                "config_version": 2,
+                "config_round": 3,
+                "access_occasion": 4,
+            },
+        }
+
+        record = {
+            "raw_attempts": [row],
+            "outcome_summary": summarize_cbra_observation_outcomes([row]),
+        }
+        restored = json.loads(json.dumps(record))
+
+        self.assertEqual(restored["raw_attempts"][0]["collision_key"]["access_occasion"], 4)
+        self.assertEqual(restored["outcome_summary"]["reader_data_received_rows"], 1)
 
 
 if __name__ == "__main__":
