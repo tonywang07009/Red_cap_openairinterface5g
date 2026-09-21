@@ -2,8 +2,12 @@
 
 import json
 from pathlib import Path
+import socket
 import sys
 import tempfile
+import threading
+import time
+from types import SimpleNamespace
 import unittest
 
 
@@ -38,7 +42,59 @@ from fourmula import (
     summarize_cbra_observation_outcomes,
 )
 from storage import JsonExperimentStorage
+from CLI import _ingest_cbra_udp
 from cbra_epoch import CbraAttemptEpochBinder, TalanetEpochController, deterministic_channel_provenance
+
+
+def _cbra_udp_datagram(
+    *, attempt_index: int, reader_id: int, tag_id: int, access_occasion: int,
+    config_round: int, crc_ok: bool, payload_match: bool, msg2_status: int,
+) -> bytes:
+    return CBRA_OBSERVATION_STRUCT.pack(
+        AIOT_T2_OBSERVATION_MAGIC,
+        4,
+        1,
+        0,
+        reader_id,
+        tag_id,
+        attempt_index,
+        0xABC000 + attempt_index,
+        0,
+        6,
+        3,
+        2,
+        2,
+        1,
+        224,
+        240,
+        50,
+        0,
+        10,
+        20,
+        4,
+        0x1234,
+        9,
+        11,
+        1,
+        1,
+        int(crc_ok),
+        int(payload_match),
+        1,
+        b"\0",
+        224,
+        0 if payload_match else 4,
+        269_904,
+        17_571_875,
+        bytes(range(30)),
+        bytes(reversed(range(30))),
+        65_536,
+        20_724,
+        17,
+        access_occasion,
+        msg2_status,
+        7,
+        config_round,
+    )
 
 
 class CompletedPacketObservationTests(unittest.TestCase):
@@ -814,6 +870,103 @@ class CbraCampaignTests(unittest.TestCase):
 
         self.assertEqual(restored["raw_attempts"][0]["collision_key"]["access_occasion"], 4)
         self.assertEqual(restored["outcome_summary"]["reader_data_received_rows"], 1)
+
+
+class CbraUdpIngestIntegrationTests(unittest.TestCase):
+    def test_cli_udp_ingest_persists_budget_and_reader_outcomes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "cbra.json"
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+                probe.bind(("127.0.0.1", 0))
+                port = probe.getsockname()[1]
+
+            arguments = SimpleNamespace(
+                bind="127.0.0.1",
+                port=port,
+                packets=10_000,
+                timeout=3.0,
+                output=output,
+            )
+            result = []
+            failure = []
+
+            def ingest() -> None:
+                try:
+                    result.append(_ingest_cbra_udp(arguments))
+                except Exception as error:  # pragma: no cover - assertion reports the failure
+                    failure.append(error)
+
+            listener = threading.Thread(target=ingest, daemon=True)
+            listener.start()
+            time.sleep(0.1)
+
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sender:
+                for attempt_index in range(arguments.packets):
+                    if attempt_index == 0:
+                        datagram = _cbra_udp_datagram(
+                            attempt_index=attempt_index,
+                            reader_id=1,
+                            tag_id=100,
+                            access_occasion=3,
+                            config_round=9,
+                            crc_ok=True,
+                            payload_match=True,
+                            msg2_status=4,
+                        )
+                    elif attempt_index == 1:
+                        datagram = _cbra_udp_datagram(
+                            attempt_index=attempt_index,
+                            reader_id=1,
+                            tag_id=101,
+                            access_occasion=3,
+                            config_round=9,
+                            crc_ok=False,
+                            payload_match=False,
+                            msg2_status=5,
+                        )
+                    elif attempt_index == 2:
+                        datagram = _cbra_udp_datagram(
+                            attempt_index=attempt_index,
+                            reader_id=2,
+                            tag_id=102,
+                            access_occasion=3,
+                            config_round=9,
+                            crc_ok=True,
+                            payload_match=True,
+                            msg2_status=4,
+                        )
+                    else:
+                        datagram = _cbra_udp_datagram(
+                            attempt_index=attempt_index,
+                            reader_id=2,
+                            tag_id=1_000 + attempt_index,
+                            access_occasion=3,
+                            config_round=100 + attempt_index,
+                            crc_ok=True,
+                            payload_match=True,
+                            msg2_status=4,
+                        )
+                    sender.sendto(datagram, (arguments.bind, arguments.port))
+                    if attempt_index % 100 == 0:
+                        time.sleep(0.0001)
+
+            listener.join(timeout=10.0)
+
+            self.assertFalse(listener.is_alive(), "UDP ingest did not reach the fixed packet budget")
+            self.assertEqual(failure, [])
+            self.assertTrue(output.exists())
+            self.assertEqual(len(result), 1)
+
+            record = json.loads(output.read_text(encoding="utf-8"))
+            summary = record["outcome_summary"]
+            self.assertEqual(len(record["raw_attempts"]), 10_000)
+            self.assertEqual(summary["observed_rows"], 10_000)
+            self.assertEqual(summary["reader_data_received_rows"], 9_999)
+            self.assertEqual(summary["reader_data_not_received_rows"], 1)
+            self.assertEqual(summary["collision_key_duplicate_count"], 1)
+            self.assertEqual(summary["collision_key_duplicates"][0]["tag_ids"], [100, 101])
+            self.assertEqual(summary["observed_msg3_status_counts"]["msg3_ack"], 9_999)
+            self.assertEqual(summary["observed_msg3_status_counts"]["msg3_nack"], 1)
 
 
 if __name__ == "__main__":
