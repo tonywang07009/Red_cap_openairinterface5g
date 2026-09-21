@@ -6,13 +6,14 @@ measurement interface and does not claim a real Reader BER estimator.
 
 from collections import Counter
 from dataclasses import asdict, dataclass, field
-from fractions import Fraction
+from fractions import Fraction # return the " 2 -> fraction -> (2,1) 分數"
 import hashlib
 import math
 from random import Random
 import struct
 
 
+# The tag basic setting
 AIOT_T2_OBSERVATION_MAGIC = 0x41494F42
 AIOT_T2_OBSERVATION_VERSION = 1
 AIOT_T2_MAX_PAYLOAD_BYTES = 16
@@ -38,7 +39,7 @@ CBRA_USEFUL_SAMPLES_PER_SYMBOL = 1_024
 CBRA_LONG_CP_SAMPLES = 80
 CBRA_SHORT_CP_SAMPLES = 72
 CBRA_OBS_FLAG_SETUP = 0x0004
-OBSERVATION_STRUCT = struct.Struct("!IBBHIIQQB3sHH16s16sQ")
+OBSERVATION_STRUCT = struct.Struct("!IBBHIIQQB3sHH16s16sQ") # pack 8byte -> 64bit
 CBRA_OBSERVATION_STRUCT = struct.Struct("!IBBHIIIQBBBBBBHHhHQQQQQQBBBBB1sHHIQ30s30sQQHBBII")
 OBSERVATION_STATUS = {
     1: "complete",
@@ -63,19 +64,21 @@ def sample_ticks_to_ns(ticks: int, sample_rate_hz: float) -> int:
     """Convert RFsim ticks with exact decimal-rate arithmetic and half-up rounding."""
     if ticks < 0 or sample_rate_hz <= 0:
         raise ValueError("ticks must be non-negative and sample_rate_hz must be positive")
+    
     rate = Fraction(str(sample_rate_hz))
-    numerator = ticks * 1_000_000_000 * rate.denominator
+    numerator = ticks * 1_000_000_000 * rate.denominator  # numeraton : 分子  denominator ： 分母
     return (numerator + rate.numerator // 2) // rate.numerator
 
 
 def payload_bits(payload: bytes) -> tuple[int, ...]:
     return tuple((byte >> bit) & 1 for byte in payload for bit in range(7, -1, -1))
 
-
+# The head and payload decode
+# This code is recover the udp binary report to python
 def decode_observation_datagram(data: bytes) -> dict:
     """Decode the fixed 80-byte RFsim observation report without guessing fields."""
     if len(data) != OBSERVATION_STRUCT.size:
-        raise ValueError(f"observation datagram must be {OBSERVATION_STRUCT.size} bytes")
+        raise ValueError(f"observation datagram must be {OBSERVATION_STRUCT.size} bytes") # The data type correct, but out of range.
     (
         magic,
         version,
@@ -93,12 +96,16 @@ def decode_observation_datagram(data: bytes) -> dict:
         decoded_payload,
         channel_provenance,
     ) = OBSERVATION_STRUCT.unpack(data)
+
     if magic != AIOT_T2_OBSERVATION_MAGIC or version != AIOT_T2_OBSERVATION_VERSION:
         raise ValueError("unsupported observation report")
+    
     if status not in OBSERVATION_STATUS:
         raise ValueError("unknown observation status")
+    
     if payload_len > AIOT_T2_MAX_PAYLOAD_BYTES:
-        raise ValueError("observation payload length exceeds 16 bytes")
+        raise ValueError("observation payload length exceeds 16 bytes") #128bit is maxmium
+    
     return {
         "status": OBSERVATION_STATUS[status],
         "status_code": status,
@@ -164,27 +171,40 @@ def decode_cbra_observation_datagram(data: bytes) -> dict:
         config_version,
         config_round,
     ) = CBRA_OBSERVATION_STRUCT.unpack(data)
+
     if magic != AIOT_T2_OBSERVATION_MAGIC or version != 4:
         raise ValueError("unsupported CBRA observation report")
+    
     if status not in OBSERVATION_STATUS:
         raise ValueError("unknown CBRA observation status")
+    
     if message_kind not in {CBRA_PAGING_KIND, CBRA_ACCESS_TRIGGER_KIND}:
         raise ValueError("unsupported CBRA message kind")
-    if isinstance(msg2_status, bool) or msg2_status not in CBRA_REPORT_STATUS_NAMES:
+    
+    if isinstance(msg2_status, bool) or msg2_status not in CBRA_REPORT_STATUS_NAMES: # isinstance(msg2_status,bool) -> chenk data type is bool?
         raise ValueError("unsupported CBRA report status")
+    
     expected_mac_bits = CBRA_PAGING_PDU_BITS if message_kind == CBRA_PAGING_KIND else CBRA_TRIGGER_PDU_BITS
     expected_phy_bits = CBRA_PAGING_PHY_BITS if message_kind == CBRA_PAGING_KIND else CBRA_TRIGGER_PHY_BITS
+
     if (m not in CBRA_SUPPORTED_M or prb_count != CBRA_PRB_COUNT or pdu_profile_version != 2
             or mac_bits != expected_mac_bits or phy_bits != expected_phy_bits):
         raise ValueError("unsupported CBRA profile fields")
+    
     gate_values = (context_eligible, epoch_readback, d2r_attempted, crc_ok, payload_match)
+
     if gate_status not in {0, 1, 2} or any(value not in {0, 1} for value in gate_values):
         raise ValueError("invalid CBRA gate fields")
+    
     if compared_bits > mac_bits or erroneous_bits > compared_bits:
         raise ValueError("invalid CBRA bit counters")
+
+    # pdu_bytes -> 8 bit
     pdu_bytes = CBRA_PAGING_PDU_BITS // 8 if message_kind == CBRA_PAGING_KIND else 2
+
     signal_power = signal_power_q16 / (1 << 16)
     noise_power = noise_power_q16 / (1 << 16)
+
     calibrated_snr_db_x10 = cbra_snr_calibration(
         signal_power=signal_power,
         noise_power=noise_power,
@@ -275,6 +295,7 @@ class D2RReservation:
     reason: str | None
 
 
+# The obs finshed , loss, unalignment, undictaion package
 class D2RMeasurementService:
     """Accumulate completed-packet BER by Reader and completion window."""
 
@@ -298,12 +319,16 @@ class D2RMeasurementService:
     ) -> None:
         if reader_id <= 0:
             raise ValueError("reader_id must be positive")
+        
         if completion_ns < 0:
             raise ValueError("completion_ns must be non-negative")
+        
         if len(transmitted_bits) != len(decoded_bits):
             raise ValueError("transmitted_bits and decoded_bits must have equal length")
+        
         if not transmitted_bits:
             raise ValueError("bit sequences must not be empty")
+        
         if any(bit not in (0, 1) for bit in transmitted_bits + decoded_bits):
             raise ValueError("bit sequences must contain only 0 or 1")
 
@@ -349,21 +374,22 @@ class D2RMeasurementService:
             raise ValueError("reason must not be empty")
 
         window_index = tx_ns // self._window_ns
-        counts = self._counts.setdefault((reader_id, window_index), [0, 0, 0, 0, 0, 0])
-        counts[3] += 1
+        counts = self._counts.setdefault((reader_id, window_index), [0, 0, 0, 0, 0, 0]) # setdefault -> find the key , if appear , just return
+        counts[3] += 1                                                                  # else return
         self._invalid_evidence.setdefault((reader_id, window_index), []).append(reason)
         self._remember_provenance(reader_id, window_index, channel_provenance)
 
     def _remember_provenance(self, reader_id: int, window_index: int, provenance: int | None) -> None:
         if provenance is not None:
             self._provenance.setdefault((reader_id, window_index), set()).add(int(provenance))
-
+    # The union time display && bit display
     def record_wire_observation(self, report: dict, *, sample_rate_hz: float) -> None:
         """Apply one decoded RFsim report; truth and decoder payloads stay explicit."""
         completion_ns = sample_ticks_to_ns(report["completion_timestamp"], sample_rate_hz)
         tx_ns = sample_ticks_to_ns(report["tx_timestamp"], sample_rate_hz)
         provenance = report.get("channel_provenance")
         status = report["status"]
+
         if status in {"complete", "crc_failure"}:
             tx = payload_bits(report["tx_payload"])
             decoded = payload_bits(report["decoded_payload"])
@@ -412,10 +438,13 @@ class D2RMeasurementService:
             undetected_packets,
             unaligned_packets,
         ) = self._counts.get((reader_id, window_index), [0, 0, 0, 0, 0, 0])
+
         invalid_reasons = tuple(self._invalid_evidence.get((reader_id, window_index), []))
         provenances = tuple(sorted(self._provenance.get((reader_id, window_index), set())))
+
         window_start_ns = window_index * self._window_ns
         window_end_ns = window_start_ns + self._window_ns
+
         return ReaderBerObservation(
             reader_id=reader_id,
             window_index=window_index,
@@ -447,7 +476,7 @@ def _nonnegative_int(row: dict, name: str) -> int:
         raise ValueError(f"{name} must be a non-negative integer")
     return value
 
-
+# The staticses the BER loss package record
 def aggregate_campaign_rows(
     rows: list[dict],
     *,
@@ -473,39 +502,56 @@ def aggregate_campaign_rows(
     for row in rows:
         if not isinstance(row, dict):
             raise ValueError("campaign rows must be JSON objects")
+
+        # now setting is used the time index , the package need allignment time index
         duration_index = row.get("duration_index")
         repeat = row.get("repeat")
         cycle = row.get("cycle")
         key = (duration_index, repeat, cycle)
+
         if any(isinstance(value, bool) or not isinstance(value, int) for value in key):
             raise ValueError("duration_index, repeat, and cycle must be integers")
+        
         if key not in expected:
             raise ValueError(f"campaign variant is outside the fixed budget: {key}")
+        
         if key in seen:
             raise ValueError(f"duplicate campaign variant: {key}")
+        
         seen.add(key)
         multiplier = row.get("duration_multiplier")
+
         if multiplier != duration_multipliers[duration_index]:
             raise ValueError(f"duration multiplier does not match duration_index {duration_index}")
+        
         row_source = row.get("source")
+
         if row_source not in {"rfsim", "numerical_model"}:
             raise ValueError("source must be rfsim or numerical_model")
+        
         if source is None:
             source = row_source
+
         elif source != row_source:
             raise ValueError("campaign cannot mix evidence sources")
+        
         total = totals[duration_index]
         for name in total:
-            total[name] += _nonnegative_int(row, name)
+            total[name] += _nonnegative_int(row, name)#u_int
+
         invalid = row.get("invalid", False)
+
         if not isinstance(invalid, bool):
             raise ValueError("invalid must be boolean")
+        
         total["invalid_runs"] += int(invalid)
     missing = sorted(expected - seen)
+
     if missing:
         raise ValueError(f"campaign manifest is missing {len(missing)} fixed-budget variants")
 
     duration_results = []
+
     for duration_index, multiplier in enumerate(duration_multipliers):
         total = totals[duration_index]
         invalid = total["invalid_runs"] > 0
@@ -538,12 +584,14 @@ def aggregate_campaign_rows(
         "duration_results": duration_results,
     }
 
-
+# wilson_interval check -> statistics formula 
 def _wilson_interval(failures: int, trials: int) -> dict[str, float] | None:
     if trials < 0 or failures < 0 or failures > trials:
         raise ValueError("Wilson interval counts are invalid")
-    if trials == 0:
+    
+    if trials == 0: 
         return None
+    
     z = 1.96
     proportion = failures / trials
     denominator = 1.0 + z * z / trials
@@ -559,7 +607,7 @@ class _IirSection:
     b2: float
     a1: float
     a2: float
-    x1: complex | float = 0.0
+    x1: complex | float = 0.0 # complex 實數加虛數
     x2: complex | float = 0.0
     y1: complex | float = 0.0
     y2: complex | float = 0.0
@@ -571,10 +619,12 @@ class _IirSection:
         return output
 
 
+# need research
 def _butterworth_sections(cutoff_hz: float, sample_rate_hz: int) -> tuple[_IirSection, _IirSection]:
     """Build the bilinear-transform 3rd-order Butterworth sections."""
     if not 0 < cutoff_hz < sample_rate_hz / 2:
         raise ValueError("Butterworth cutoff must be below Nyquist")
+    
     k = math.tan(math.pi * cutoff_hz / sample_rate_hz)
     first_denominator = 1.0 + k
     first = _IirSection(
@@ -594,7 +644,7 @@ def _butterworth_sections(cutoff_hz: float, sample_rate_hz: int) -> tuple[_IirSe
     )
     return first, second
 
-
+# the filter simluation
 def _filter_value(sections: tuple[_IirSection, _IirSection], value: complex | float) -> complex | float:
     for section in sections:
         value = section.process(value)
@@ -619,31 +669,39 @@ def _cbra_symbol_start_samples(symbol: int) -> int:
     short_cp_count = symbol - long_cp_count
     return symbol * CBRA_USEFUL_SAMPLES_PER_SYMBOL + long_cp_count * CBRA_LONG_CP_SAMPLES + short_cp_count * CBRA_SHORT_CP_SAMPLES
 
-
+# for simluation CBRA waveform -> like filter square-law chip energy
 @dataclass
 class CbraSquareLawReceiver:
     """Stateful ideal-acquisition receiver for the compact CBRA waveform model."""
 
     sample_rate_hz: int = CBRA_SAMPLE_RATE_HZ
-    decimation: int = 4
+    decimation: int = 4 # need follow the prb can assignt m
+
     preselection_cutoff_hz: float = 270_000.0
     smoothing_cutoff_hz: float = 540_000.0
+
     calibrated_delay_samples: Fraction = Fraction(0)
     _preselection: tuple[_IirSection, _IirSection] = field(init=False)
     _smoothing: tuple[_IirSection, _IirSection] = field(init=False)
     _input_samples: int = field(init=False, default=0)
 
     def __post_init__(self) -> None:
+
         if self.sample_rate_hz <= 0 or self.decimation <= 0:
             raise ValueError("receiver sample rate and decimation must be positive")
+        
         if self.sample_rate_hz % self.decimation:
             raise ValueError("receiver sample rate must divide evenly by decimation")
+        
         self.calibrated_delay_samples = Fraction(self.calibrated_delay_samples)
+
         if self.calibrated_delay_samples < 0:
             raise ValueError("receiver calibrated delay must be non-negative")
+        
         self._preselection = _butterworth_sections(self.preselection_cutoff_hz, self.sample_rate_hz)
         self._smoothing = _butterworth_sections(self.smoothing_cutoff_hz, self.sample_rate_hz)
 
+    # like attribute used -> example , atrribute.output sample_rate_hz
     @property
     def output_sample_rate_hz(self) -> int:
         return self.sample_rate_hz // self.decimation

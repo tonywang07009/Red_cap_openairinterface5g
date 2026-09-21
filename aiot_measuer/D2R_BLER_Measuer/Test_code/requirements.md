@@ -11,6 +11,12 @@
 - Control-bit BER compares only the message's MAC bits. BLER counts blocks that are not both CRC-valid and payload-matching; its 95% interval is Wilson.
 - Goodput is `message_mac_bits * correctly_delivered_blocks / full_R2D_airtime_seconds`; failed R2D attempts remain in the denominator and cannot trigger early stopping.
 - Run it with `bash run_ui.sh campaign --profile cbra --input campaign.jsonl --output campaign.json`.
+- `plot --profile cbra` renders a 2x3 summary: Paging and Access Trigger rows by
+  MAC/control-bit BER, payload BLER, and full-airtime goodput. The x-axis is
+  `M` with each bar labelled by its calibrated SNR; it does not create an
+  SNR curve from a single point per `(kind, M)`.
+- CBRA plotting rejects invalid points or null BER/BLER/goodput values instead
+  of presenting incomplete evidence as a measurement result.
 
 - A Tag payload bit uses one Manchester/OOK pair at `SFS = 1`: `0 -> 10` and `1 -> 01`.
 - The ideal-isolation received baseband model is `y_k = rho_k h_GT h_TR s_k + n_k`.
@@ -61,11 +67,13 @@ bash run_ui.sh show --input result.json
 bash run_ui.sh ingest-udp --input result.json --output measured.json --port <udp-port> --packets <n>
 bash run_ui.sh reference --output reference.json --bits 20000
 bash run_ui.sh plot --input measured.json --output ber-by-duration.png
+bash run_ui.sh plot --profile cbra --input campaign.json --output cbra-summary.png
 bash run_ui.sh campaign --input campaign.jsonl --output campaign.json
 ```
 
 - JSON preserves `null` BER and invalid-evidence reasons.
-- The plot uses D2R bit duration on x-axis and BER on y-axis.
+- The legacy plot uses D2R bit duration on x-axis and BER on y-axis.
+- The CBRA plot uses M on the x-axis and separates BER, BLER, and goodput by message kind.
 - The tool does not generate synthetic BER values or a DRL reward/model.
 - `reference` writes a numerical ON/OFF energy-detector baseline and labels it separately from measured observations; `plot` accepts only measured non-null BER points.
 - `campaign` aggregates only complete fixed-budget manifests. It preserves packet, bit, loss, deferral, and invalid-run counters per duration; it never fills missing RFsim variants.

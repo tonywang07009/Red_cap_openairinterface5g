@@ -1,0 +1,5 @@
+rfsimu aiot_epoch show
+rfsimu aiot_epoch show
+rfsimu aiot_epoch set 0.0 20.0 101 202
+rfsimu aiot_epoch show
+rfsimu aiot_epoch set 0.0 100.0 101 201

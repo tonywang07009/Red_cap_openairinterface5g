@@ -193,3 +193,13 @@ All entries are append-only and use `## [YYYY-MM-DD] operation | subject`.
 - claim_boundary: the minimal reconciliation rule requires validator and hash checks before promotion/archive; it does not promote the AIoT page to `confirmed`, establish real-Reader equivalence, or add DRL/reward behavior.
 - unresolved_items: historical v2 paths remain retained as superseded evidence; no new runtime or real-Reader claim is opened.
 - next_action: retain the archived trace and require a new OpenSpec change for any future extension.
+
+## [2026-09-21] capture | CBRA R2D SNR and Talanet interference method rule
+
+- status: `NEEDS_REVIEW`
+- capture result: `case-draft`
+- changed_or_proposed_paths: `redcap_research_wiki/cases/CASE-2026-002-aiot-cbra-r2d-snr-telnetsrv-interference.md` and `redcap_research_wiki/index.md`.
+- evidence_paths: `radio/rfsimulator/simulator.cpp`, `aiot_measuer/D2R_BLER_Measuer/main_code/cbra_epoch.py`, `aiot_measuer/D2R_BLER_Measuer/main_code/fourmula.py`, the retained 2026-09-20 CBRA formal/no-noise captures, the 2026-09-21 logical CBRA runtime logs, and the Telnet-enabled runtime build, failed smoke, one-point pilot, and bounded low-SNR calibration logs.
+- claim_boundary: the case defines the required persistent `telnetsrv`/Talanet readback and `AIOT_T2_CHANNEL_APPLIED` gate; it does not claim that the requested 40-point fresh campaign is complete.
+- unresolved_items: complete and review the five-level Paging/Access Trigger campaign, including calibrated SNR, independent attempts, per-point channel evidence, and bounded low-SNR timeout/CRC-loss handling.
+- next_action: run the registered wiki validator, then keep the case `review-required` until the fresh Talanet-controlled campaign is reviewed.

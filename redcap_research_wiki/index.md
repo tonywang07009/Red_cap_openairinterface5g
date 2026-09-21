@@ -61,3 +61,4 @@
 
 - [Reusable Case Template](cases/case-template.md) — create one reusable case after capture triage selects `case-draft`.
 - [CASE-2026-001: O-RAN G4 Report-Index Drift](cases/CASE-2026-001-oran-g4-report-index-drift.md) — project-local report index lagged the canonical G4 status and Gate report.
+- [CASE-2026-002: CBRA R2D SNR Requires Talanet/telnetsrv Interference](cases/CASE-2026-002-aiot-cbra-r2d-snr-telnetsrv-interference.md) — future CBRA R2D SNR method tests must apply and verify RFsim interference through persistent `telnetsrv`/Talanet control.

@@ -9,6 +9,7 @@ import threading
 import time
 from types import SimpleNamespace
 import unittest
+from unittest.mock import Mock, patch
 
 
 MAIN_CODE = Path(__file__).resolve().parents[1] / "main_code"
@@ -42,7 +43,7 @@ from fourmula import (
     summarize_cbra_observation_outcomes,
 )
 from storage import JsonExperimentStorage
-from CLI import _ingest_cbra_udp
+from CLI import _ingest_cbra_udp, _plot
 from cbra_epoch import CbraAttemptEpochBinder, TalanetEpochController, deterministic_channel_provenance
 
 
@@ -870,6 +871,76 @@ class CbraCampaignTests(unittest.TestCase):
 
         self.assertEqual(restored["raw_attempts"][0]["collision_key"]["access_occasion"], 4)
         self.assertEqual(restored["outcome_summary"]["reader_data_received_rows"], 1)
+
+
+class CbraPlotTests(unittest.TestCase):
+    def test_cbra_plot_summarizes_ber_bler_and_goodput_by_m_and_kind(self):
+        points = []
+        expected_points = (
+            (0, ((2, 55, 0.002, 0.02, 200.0), (6, 57, 0.006, 0.06, 600.0))),
+            (1, ((2, 75, 0.012, 0.12, 200.0), (6, 77, 0.016, 0.16, 600.0))),
+        )
+        for message_kind, kind_points in expected_points:
+            snr_db_x10 = kind_points[0][1]
+            for m, calibrated_snr_db_x10, payload_ber, payload_bler, goodput_bps in kind_points:
+                points.append(
+                    {
+                        "message_kind": message_kind,
+                        "m": m,
+                        "snr_db_x10": snr_db_x10,
+                        "calibrated_snr_db_x10_mean": calibrated_snr_db_x10,
+                        "payload_ber": payload_ber,
+                        "payload_bler": payload_bler,
+                        "goodput_bps": goodput_bps,
+                        "valid": True,
+                    }
+                )
+
+        figure = SimpleNamespace(tight_layout=lambda: None, savefig=lambda _output: None, suptitle=Mock())
+        axes = [[SimpleNamespace() for _ in range(3)] for _ in range(2)]
+        for row in axes:
+            for axis in row:
+                axis.bar = Mock()
+                axis.set_title = Mock()
+                axis.set_xlabel = Mock()
+                axis.set_ylabel = Mock()
+                axis.set_xticks = Mock()
+                axis.set_xticklabels = Mock()
+                axis.set_ylim = Mock()
+                axis.grid = Mock()
+
+        with patch("matplotlib.pyplot.subplots", return_value=(figure, axes)):
+            _plot({"points": points}, Path("summary.png"), "cbra")
+
+        self.assertEqual(axes[0][0].bar.call_args.args, ([2, 6], [0.002, 0.006]))
+        self.assertEqual(axes[0][1].bar.call_args.args, ([2, 6], [0.02, 0.06]))
+        self.assertEqual(axes[0][2].bar.call_args.args, ([2, 6], [200.0, 600.0]))
+        self.assertEqual(axes[1][0].bar.call_args.args, ([2, 6], [0.012, 0.016]))
+        self.assertEqual(axes[1][1].bar.call_args.args, ([2, 6], [0.12, 0.16]))
+        self.assertEqual(axes[1][2].bar.call_args.args, ([2, 6], [200.0, 600.0]))
+        self.assertIn("Paging", axes[0][0].set_title.call_args.args[0])
+        self.assertIn("Access Trigger", axes[1][0].set_title.call_args.args[0])
+        self.assertEqual(axes[0][0].set_xticklabels.call_args.args[0], ["M=2\n5.5 dB", "M=6\n5.7 dB"])
+        self.assertEqual(axes[1][0].set_ylim.call_args.kwargs, {"bottom": 0})
+
+    def test_cbra_plot_rejects_invalid_or_null_metric_points(self):
+        base_point = {
+            "message_kind": 0,
+            "m": 2,
+            "calibrated_snr_db_x10_mean": 55,
+            "payload_ber": 0.0,
+            "payload_bler": 0.0,
+            "goodput_bps": 200.0,
+        }
+        invalid_points = (
+            {**base_point, "valid": False},
+            {**base_point, "payload_bler": None, "valid": True},
+        )
+        for point in invalid_points:
+            with self.subTest(point=point):
+                with patch("matplotlib.pyplot.subplots", return_value=(Mock(), [[Mock() for _ in range(3)] for _ in range(2)])):
+                    with self.assertRaisesRegex(ValueError, "valid and non-null"):
+                        _plot({"points": [point]}, Path("summary.png"), "cbra")
 
 
 class CbraUdpIngestIntegrationTests(unittest.TestCase):

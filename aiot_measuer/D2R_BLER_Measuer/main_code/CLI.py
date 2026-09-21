@@ -176,35 +176,56 @@ def _plot(record: dict, output: Path, profile: str = "legacy") -> None:
     except ImportError as error:
         raise RuntimeError("matplotlib is required for plot") from error
 
-    figure, axis = plt.subplots()
     if profile == "cbra":
         points = record.get("points", [])
-        if not points or any(point.get("payload_ber") is None for point in points):
-            raise ValueError("CBRA points must contain non-null control-bit BER values")
-        for message_kind, m in sorted({(point["message_kind"], point["m"]) for point in points}):
+        if not points:
+            raise ValueError("CBRA points must not be empty")
+        metric_specs = (
+            ("payload_ber", "MAC/control-bit BER"),
+            ("payload_bler", "Payload BLER"),
+            ("goodput_bps", "Full-airtime goodput (bit/s)"),
+        )
+        kind_names = {0: "Paging", 1: "Access Trigger"}
+        figure, axes = plt.subplots(2, 3, figsize=(13, 7), squeeze=False)
+        for row_index, message_kind in enumerate((0, 1)):
             selected = sorted(
-                (point for point in points if point["message_kind"] == message_kind and point["m"] == m),
-                key=lambda point: point["snr_db_x10"],
+                (point for point in points if point.get("message_kind") == message_kind),
+                key=lambda point: point["m"],
             )
-            axis.plot(
-                [point["snr_db_x10"] / 10 for point in selected],
-                [point["payload_ber"] for point in selected],
-                marker="o",
-                label=f"kind={message_kind}, M={m}",
-            )
-        axis.set_xlabel("SNR (dB), Tag ideal-acquisition reference plane")
-        axis.set_ylabel("CBRA MAC/control-bit BER")
-        axis.set_title("CBRA R2D; PRDCH-only power normalization; full-airtime goodput separate")
-        axis.legend()
-    else:
-        points = record.get("duration_results", [])
-        if not points or any(point.get("ber") is None for point in points):
-            raise ValueError("duration_results must contain non-null duration_ns and ber values")
-        durations = [point["duration_ns"] for point in points]
-        bers = [point["ber"] for point in points]
-        axis.plot(durations, bers, marker="o")
-        axis.set_xlabel("D2R bit duration (ns)")
-        axis.set_ylabel("BER")
+            if not selected:
+                raise ValueError(f"CBRA points are missing {kind_names[message_kind]}")
+            for metric_name, metric_label in metric_specs:
+                if any(point.get("valid") is not True or point.get(metric_name) is None for point in selected):
+                    raise ValueError(f"CBRA {metric_name} points must be valid and non-null")
+            m_values = [point["m"] for point in selected]
+            snr_labels = [
+                f"M={point['m']}\n{point['calibrated_snr_db_x10_mean'] / 10:.1f} dB"
+                for point in selected
+            ]
+            for column_index, (metric_name, metric_label) in enumerate(metric_specs):
+                axis = axes[row_index][column_index]
+                axis.bar(m_values, [point[metric_name] for point in selected])
+                axis.set_title(f"{kind_names[message_kind]}: {metric_label}")
+                axis.set_xlabel("Chip density and calibrated SNR")
+                axis.set_ylabel(metric_label)
+                axis.set_xticks(m_values)
+                axis.set_xticklabels(snr_labels)
+                axis.set_ylim(bottom=0)
+                axis.grid(True, axis="y", alpha=0.3)
+        figure.suptitle("CBRA R2D formal campaign summary")
+        figure.tight_layout()
+        figure.savefig(output)
+        return
+
+    figure, axis = plt.subplots()
+    points = record.get("duration_results", [])
+    if not points or any(point.get("ber") is None for point in points):
+        raise ValueError("duration_results must contain non-null duration_ns and ber values")
+    durations = [point["duration_ns"] for point in points]
+    bers = [point["ber"] for point in points]
+    axis.plot(durations, bers, marker="o")
+    axis.set_xlabel("D2R bit duration (ns)")
+    axis.set_ylabel("BER")
     axis.grid(True)
     figure.tight_layout()
     figure.savefig(output)
